@@ -206,6 +206,8 @@ static int __init omap4_pm_init(void)
 	suspend_set_ops(&omap_pm_ops);
 #endif /* CONFIG_SUSPEND */
 
+	omap4_idle_init();
+
 err2:
 	return ret;
 }
