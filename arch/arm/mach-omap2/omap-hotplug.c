@@ -19,6 +19,8 @@
 #include <linux/smp.h>
 
 #include <asm/cacheflush.h>
+#include <asm/hardware/gic.h>
+
 #include <mach/omap4-common.h>
 #include <mach/omap-wakeupgen.h>
 
@@ -57,6 +59,7 @@ void platform_cpu_die(unsigned int cpu)
 		 * clear all interrupt wakeup sources
 		 */
 		omap_wakeupgen_irqmask_all(cpu, 1);
+		gic_cpu_disable();
 		omap4_enter_lowpower(cpu, PWRDM_POWER_OFF);
 		this_cpu = hard_smp_processor_id();
 		if (omap_read_auxcoreboot0() == this_cpu) {
@@ -64,6 +67,7 @@ void platform_cpu_die(unsigned int cpu)
 			 * OK, proper wakeup, we're done
 			 */
 			omap_wakeupgen_irqmask_all(this_cpu, 0);
+			gic_cpu_enable();
 
 			/* Restore clockdomain to hardware supervised */
 			clkdm_allow_idle(cpu1_clkdm);
