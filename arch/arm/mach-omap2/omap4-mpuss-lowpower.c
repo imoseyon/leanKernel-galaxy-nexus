@@ -25,7 +25,7 @@
  *	ON(Inactive)	OFF		ON(Inactive)
  *	OFF		OFF		CSWR
  *	OFF		OFF		OSWR (*TBD)
- *	OFF		OFF		OFF* (*TBD)
+ *	OFF		OFF		OFF
  *	----------------------------------------------
  *
  * Note: CPU0 is the master core and it is the last CPU to go down
@@ -293,6 +293,7 @@ int omap4_enter_lowpower(unsigned int cpu, unsigned int power_state)
 	 * Check MPUSS next state and save GIC if needed
 	 * GIC lost during MPU OFF and OSWR
 	 */
+	pwrdm_clear_all_prev_pwrst(mpuss_pd);
 	if (pwrdm_read_next_pwrst(mpuss_pd) == PWRDM_POWER_OFF) {
 		omap_wakeupgen_save();
 		gic_save_context();
@@ -413,6 +414,9 @@ int __init omap4_mpuss_init(void)
 		pr_err("Failed to get lookup for MPUSS pwrdm\n");
 		return -ENODEV;
 	}
+
+	/* Clear CPU previous power domain state */
+	pwrdm_clear_all_prev_pwrst(mpuss_pd);
 
 	/*
 	 * Find out how many interrupts are supported.
