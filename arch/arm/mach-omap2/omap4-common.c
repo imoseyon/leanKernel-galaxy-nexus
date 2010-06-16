@@ -21,6 +21,7 @@
 
 #include <mach/hardware.h>
 #include <mach/omap4-common.h>
+#include <mach/omap-wakeupgen.h>
 
 #ifdef CONFIG_CACHE_L2X0
 void __iomem *l2cache_base;
@@ -40,6 +41,8 @@ void __init gic_init_irq(void)
 	/* Static mapping, never released */
 	gic_cpu_base = ioremap(OMAP44XX_GIC_CPU_BASE, SZ_512);
 	BUG_ON(!gic_cpu_base);
+
+	omap_wakeupgen_init();
 
 	gic_init(0, 29, gic_dist_base_addr, gic_cpu_base);
 }
