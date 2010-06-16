@@ -52,6 +52,7 @@
 
 #include <plat/omap44xx.h>
 #include <mach/omap4-common.h>
+#include <mach/omap-wakeupgen.h>
 
 #include "omap4-sar-layout.h"
 #include "pm.h"
@@ -292,6 +293,7 @@ int omap4_enter_lowpower(unsigned int cpu, unsigned int power_state)
 	 * GIC lost during MPU OFF and OSWR
 	 */
 	if (pwrdm_read_next_pwrst(mpuss_pd) == PWRDM_POWER_OFF) {
+		omap_wakeupgen_save();
 		gic_save_context();
 		save_state = 3;
 	}
