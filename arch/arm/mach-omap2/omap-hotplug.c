@@ -23,6 +23,7 @@
 #include <mach/omap-wakeupgen.h>
 
 #include "powerdomain.h"
+#include "clockdomain.h"
 
 int platform_cpu_kill(unsigned int cpu)
 {
@@ -36,6 +37,10 @@ int platform_cpu_kill(unsigned int cpu)
 void platform_cpu_die(unsigned int cpu)
 {
 	unsigned int this_cpu;
+	static struct clockdomain *cpu1_clkdm;
+
+	if (!cpu1_clkdm)
+		cpu1_clkdm = clkdm_lookup("mpu1_clkdm");
 
 	flush_cache_all();
 	dsb();
@@ -59,6 +64,9 @@ void platform_cpu_die(unsigned int cpu)
 			 * OK, proper wakeup, we're done
 			 */
 			omap_wakeupgen_irqmask_all(this_cpu, 0);
+
+			/* Restore clockdomain to hardware supervised */
+			clkdm_allow_idle(cpu1_clkdm);
 			break;
 		}
 		pr_debug("CPU%u: spurious wakeup call\n", cpu);
