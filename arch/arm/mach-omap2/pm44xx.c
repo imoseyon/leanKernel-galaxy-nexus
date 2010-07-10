@@ -16,6 +16,7 @@
 #include <linux/list.h>
 #include <linux/err.h>
 #include <linux/slab.h>
+#include <linux/gpio.h>
 
 #include <mach/omap4-common.h>
 
@@ -35,11 +36,34 @@ struct power_state {
 static LIST_HEAD(pwrst_list);
 
 #ifdef CONFIG_SUSPEND
+/* This is a common low power function called from suspend and
+ * cpuidle
+ */
+void omap4_enter_sleep(void)
+{
+	u32 cpu_id = smp_processor_id();
+
+	omap_uart_prepare_idle(0);
+	omap_uart_prepare_idle(1);
+	omap_uart_prepare_idle(2);
+	omap_uart_prepare_idle(3);
+	omap2_gpio_prepare_for_idle(0);
+
+	omap4_enter_lowpower(cpu_id, PWRDM_POWER_OFF);
+
+	omap2_gpio_resume_after_idle();
+	omap_uart_resume_idle(0);
+	omap_uart_resume_idle(1);
+	omap_uart_resume_idle(2);
+	omap_uart_resume_idle(3);
+
+	return;
+}
+
 static int omap4_pm_suspend(void)
 {
 	struct power_state *pwrst;
 	int state, ret = 0;
-	u32 cpu_id = smp_processor_id();
 
 	/* Wakeup timer from suspend */
 	if (wakeup_timer_seconds || wakeup_timer_milliseconds)
@@ -66,7 +90,8 @@ static int omap4_pm_suspend(void)
 	 * domain CSWR is not supported by hardware.
 	 * More details can be found in OMAP4430 TRM section 4.3.4.2.
 	 */
-	omap4_enter_lowpower(cpu_id, PWRDM_POWER_OFF);
+	omap_uart_prepare_suspend();
+	omap4_enter_sleep();
 
 	/* Restore next powerdomain state */
 	list_for_each_entry(pwrst, &pwrst_list, node) {
