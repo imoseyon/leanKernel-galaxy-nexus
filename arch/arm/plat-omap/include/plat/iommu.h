@@ -28,7 +28,6 @@ struct iotlb_entry {
 struct iommu {
 	const char	*name;
 	struct module	*owner;
-	struct clk	*clk;
 	void __iomem	*regbase;
 	struct device	*dev;
 	void		*isr_priv;
@@ -53,6 +52,7 @@ struct iommu {
 	void *ctx; /* iommu context: registres saved area */
 	u32 da_start;
 	u32 da_end;
+	struct platform_device *pdev;
 };
 
 struct cr_regs {
@@ -104,10 +104,12 @@ struct iommu_functions {
 
 struct iommu_platform_data {
 	const char *name;
-	const char *clk_name;
+	const char *oh_name;
 	const int nr_tlb_entries;
 	u32 da_start;
 	u32 da_end;
+	int irq;
+	void __iomem *io_base;
 };
 
 /* IOMMU errors */
