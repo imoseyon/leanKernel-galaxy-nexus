@@ -30,6 +30,9 @@
 #include <linux/hardirq.h>
 #include <linux/mutex.h>
 
+#include <plat/gpu.h>
+#include <plat/omap-pm.h>
+#include <linux/pm_runtime.h>
 #include "sgxdefs.h"
 #include "services_headers.h"
 #include "sysinfo.h"
@@ -44,6 +47,11 @@
 
 #define	ONE_MHZ	1000000
 #define	HZ_TO_MHZ(m) ((m) / ONE_MHZ)
+
+#define LDM_DEV struct platform_device
+extern LDM_DEV  *gpsPVRLDMDev;
+extern struct gpu_platform_data *gpsSgxPlatformData;
+
 
 #if defined(SUPPORT_OMAP3430_SGXFCLK_96M)
 #define SGX_PARENT_CLOCK "cm_96m_fck"
@@ -124,6 +132,7 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 
 	PVR_DPF((PVR_DBG_MESSAGE, "EnableSGXClocks: Enabling SGX Clocks"));
 
+	pm_runtime_get_sync(&gpsPVRLDMDev->dev);
 
 	atomic_set(&psSysSpecData->sSGXClocksEnabled, 1);
 
@@ -146,6 +155,8 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 	}
 
 	PVR_DPF((PVR_DBG_MESSAGE, "DisableSGXClocks: Disabling SGX Clocks"));
+
+	pm_runtime_put_sync(&gpsPVRLDMDev->dev);
 
 	atomic_set(&psSysSpecData->sSGXClocksEnabled, 0);
 

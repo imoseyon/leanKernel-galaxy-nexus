@@ -47,6 +47,8 @@
 #include <linux/version.h>
 #include <linux/fs.h>
 #include <linux/proc_fs.h>
+#include <linux/pm_runtime.h>
+#include <plat/gpu.h>
 
 #if defined(SUPPORT_DRI_DRM)
 #include <drm/drmP.h>
@@ -197,24 +199,9 @@ static LDM_DRV powervr_driver = {
 	.shutdown	= PVRSRVDriverShutdown,
 };
 
+struct gpu_platform_data *gpsSgxPlatformData;
 LDM_DEV *gpsPVRLDMDev;
 
-#if defined(MODULE) && defined(PVR_LDM_PLATFORM_MODULE)
-
-static IMG_VOID PVRSRVDeviceRelease(struct device *pDevice)
-{
-	PVR_UNREFERENCED_PARAMETER(pDevice);
-}
-
-static struct platform_device powervr_device = {
-	.name			= DEVNAME,
-	.id				= -1,
-	.dev 			= {
-		.release	= PVRSRVDeviceRelease
-	}
-};
-
-#endif 
 
 #if defined(PVR_LDM_PLATFORM_MODULE)
 static IMG_INT PVRSRVDriverProbe(LDM_DEV *pDevice)
@@ -234,7 +221,15 @@ static IMG_INT __devinit PVRSRVDriverProbe(LDM_DEV *pDevice, const struct pci_de
 		return -EINVAL;
 	}
 #endif	
+
+	gpsSgxPlatformData = pDevice->dev.platform_data;
+	if(!gpsSgxPlatformData)
+	{
+		PVR_TRACE(("No SGX platform device data."));
+	}
 	
+	pm_runtime_enable(&pDevice->dev);
+
 	psSysData = SysAcquireDataNoCheck();
 	if ( psSysData == IMG_NULL)
 	{
@@ -273,6 +268,8 @@ static IMG_VOID __devexit PVRSRVDriverRemove(LDM_DEV *pDevice)
 	}
 #endif
 	(IMG_VOID)SysDeinitialise(psSysData);
+	
+	pm_runtime_disable(&pDevice->dev);
 
 	gpsPVRLDMDev = IMG_NULL;
 
@@ -544,16 +541,6 @@ static IMG_INT __init PVRCore_Init(IMG_VOID)
 		goto init_failed;
 	}
 
-#if defined(MODULE)
-	if ((error = platform_device_register(&powervr_device)) != 0)
-	{
-		platform_driver_unregister(&powervr_driver);
-
-		PVR_DPF((PVR_DBG_ERROR, "PVRCore_Init: unable to register platform device (%d)", error));
-
-		goto init_failed;
-	}
-#endif
 #endif 
 
 #if defined(PVR_LDM_PCI_MODULE)
@@ -636,9 +623,6 @@ sys_deinit:
 #endif
 
 #if defined (PVR_LDM_PLATFORM_MODULE)
-#if defined (MODULE)
-	platform_device_unregister(&powervr_device);
-#endif
 	platform_driver_unregister(&powervr_driver);
 #endif
 
@@ -705,9 +689,6 @@ static IMG_VOID __exit PVRCore_Cleanup(IMG_VOID)
 #endif
 
 #if defined (PVR_LDM_PLATFORM_MODULE)
-#if defined (MODULE)
-	platform_device_unregister(&powervr_device);
-#endif
 	platform_driver_unregister(&powervr_driver);
 #endif
 
