@@ -57,11 +57,6 @@
 
 
 
-#define SYS_OMAP4430_SGX_REGS_SYS_PHYS_BASE  0x56000000
-#define SYS_OMAP4430_SGX_REGS_SIZE           0xFFFF
-
-#define SYS_OMAP4430_SGX_IRQ				 53 /* OMAP 4 IRQs are offset by 32 */
-
 
 
 #endif

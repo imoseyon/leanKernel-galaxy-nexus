@@ -23,7 +23,7 @@
  * Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK 
  *
  ******************************************************************************/
-
+#include <linux/platform_device.h>
 #include "services_headers.h"
 #include "kerneldisplay.h"
 #include "oemfuncs.h"
@@ -51,6 +51,9 @@ static SGX_DEVICE_MAP	gsSGXDeviceMap;
 static PVRSRV_DEVICE_NODE *gpsSGXDevNode;
 
 #define DEVICE_SGX_INTERRUPT (1 << 0)
+
+#define	LDM_DEV	struct platform_device
+extern LDM_DEV *gpsPVRLDMDev;
 
 #if defined(NO_HARDWARE)
 static IMG_CPU_VIRTADDR gsSGXRegsCPUVAddr;
@@ -156,7 +159,6 @@ static INLINE void dump_omap34xx_clocks(void) {}
 
 #if defined(SGX_OCP_REGS_ENABLED)
 
-#define SYS_OMAP4430_OCP_REGS_SYS_PHYS_BASE		(SYS_OMAP4430_SGX_REGS_SYS_PHYS_BASE + EUR_CR_OCP_REVISION)
 #define SYS_OMAP4430_OCP_REGS_SIZE				0x110
 
 static IMG_CPU_VIRTADDR gpvOCPRegsLinAddr;
@@ -206,6 +208,9 @@ static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
 	IMG_CPU_PHYADDR sCpuPAddr;
 #endif
 
+	struct resource *res;
+	int irq;
+
 	PVR_UNREFERENCED_PARAMETER(psSysData);
 
 
@@ -241,11 +246,14 @@ static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
 
 #else
 
-	gsSGXDeviceMap.sRegsSysPBase.uiAddr = SYS_OMAP4430_SGX_REGS_SYS_PHYS_BASE;
-	gsSGXDeviceMap.sRegsCpuPBase = SysSysPAddrToCpuPAddr(gsSGXDeviceMap.sRegsSysPBase);
-	gsSGXDeviceMap.ui32RegsSize = SYS_OMAP4430_SGX_REGS_SIZE;
+	res = platform_get_resource(gpsPVRLDMDev, IORESOURCE_MEM,0);
+	irq = platform_get_irq(gpsPVRLDMDev,0);
 
-	gsSGXDeviceMap.ui32IRQ = SYS_OMAP4430_SGX_IRQ;
+	gsSGXDeviceMap.sRegsSysPBase.uiAddr = res->start;
+	gsSGXDeviceMap.sRegsCpuPBase = SysSysPAddrToCpuPAddr(gsSGXDeviceMap.sRegsSysPBase);
+	gsSGXDeviceMap.ui32RegsSize = (unsigned int)(res->end - res->start);
+
+	gsSGXDeviceMap.ui32IRQ = irq;
 
 #endif 
 
@@ -275,7 +283,7 @@ IMG_CHAR *SysCreateVersionString(IMG_CPU_PHYADDR sRegRegion)
 	IMG_VOID	*pvRegsLinAddr;
 
 	pvRegsLinAddr = OSMapPhysToLin(sRegRegion,
-								   SYS_OMAP4430_SGX_REGS_SIZE,
+								   gsSGXDeviceMap.ui32RegsSize,
 								   PVRSRV_HAP_UNCACHED|PVRSRV_HAP_KERNEL_ONLY,
 								   IMG_NULL);
 	if(!pvRegsLinAddr)
@@ -303,7 +311,7 @@ IMG_CHAR *SysCreateVersionString(IMG_CPU_PHYADDR sRegRegion)
 
 #if !defined(NO_HARDWARE)
 	OSUnMapPhysToLin(pvRegsLinAddr,
-					 SYS_OMAP4430_SGX_REGS_SIZE,
+					 gsSGXDeviceMap.ui32RegsSize,
 					 PVRSRV_HAP_UNCACHED|PVRSRV_HAP_KERNEL_ONLY,
 					 IMG_NULL);
 #endif
@@ -415,7 +423,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 		IMG_SYS_PHYADDR sOCPRegsSysPBase;
 		IMG_CPU_PHYADDR sOCPRegsCpuPBase;
 
-		sOCPRegsSysPBase.uiAddr	= SYS_OMAP4430_OCP_REGS_SYS_PHYS_BASE;
+		sOCPRegsSysPBase.uiAddr	= gsSGXDeviceMap.sRegsSysPBase.uiAddr + EUR_CR_OCP_REVISION;
 		sOCPRegsCpuPBase		= SysSysPAddrToCpuPAddr(sOCPRegsSysPBase);
 
 		gpvOCPRegsLinAddr		= OSMapPhysToLin(sOCPRegsCpuPBase,
