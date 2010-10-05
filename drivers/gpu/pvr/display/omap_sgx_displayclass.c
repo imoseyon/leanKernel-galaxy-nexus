@@ -24,6 +24,7 @@
  *
  *************************************************************************/
 
+#include <linux/slab.h>
 #include <linux/version.h>
 #include <linux/kernel.h>
 #include <linux/console.h>
@@ -1307,8 +1308,10 @@ static enum OMAP_ERROR create_display_devices(void)
 
 	DEBUG_PRINTK("Initializing 3rd party display driver");
 
+	/* Init display abstraction layer */
+	omap_display_initialize();
+
 	/* Ask for the number of displays available */
-	omap_display_init();
 	/* TODO: allow more displays */
 	display_devices_count = 1; // omap_display_count();
 
