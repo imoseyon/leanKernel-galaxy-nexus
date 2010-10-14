@@ -57,9 +57,6 @@ PVRSRV_ERROR PVRSRVProcessQueues (IMG_UINT32	ui32CallerID,
 #if defined(__linux__) && defined(__KERNEL__) 
 #include <linux/types.h>
 #include <linux/seq_file.h>
-off_t
-QueuePrintQueues (IMG_CHAR * buffer, size_t size, off_t off);
-
 void* ProcSeqOff2ElementQueue(struct seq_file * sfile, loff_t off);
 void ProcSeqShowQueue(struct seq_file *sfile,void* el);
 #endif

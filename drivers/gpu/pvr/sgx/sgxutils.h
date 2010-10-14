@@ -27,6 +27,7 @@
 #include "perproc.h"
 #include "sgxinfokm.h"
 
+
 #define CCB_OFFSET_IS_VALID(type, psCCBMemInfo, psCCBKick, offset) \
 	((sizeof(type) <= (psCCBMemInfo)->ui32AllocSize) && \
 	((psCCBKick)->offset <= (psCCBMemInfo)->ui32AllocSize - sizeof(type)))
@@ -95,5 +96,5 @@ IMG_UINT32 SGXConvertTimeStamp(PVRSRV_SGXDEV_INFO	*psDevInfo,
 IMG_VOID SGXCleanupRequest(PVRSRV_DEVICE_NODE	*psDeviceNode,
 							IMG_DEV_VIRTADDR	*psHWDataDevVAddr,
 							IMG_UINT32			ui32CleanupType);
-							   
+
 

@@ -76,6 +76,20 @@ IMG_BOOL _PDumpIsPersistent(IMG_VOID)
 	return psPerProc->bPDumpPersistent;
 }
 
+#if defined(SUPPORT_PDUMP_MULTI_PROCESS)
+static INLINE
+IMG_BOOL _PDumpIsProcessActive(IMG_VOID)
+{
+	PVRSRV_PER_PROCESS_DATA* psPerProc = PVRSRVFindPerProcessData();
+	if(psPerProc == IMG_NULL)
+	{
+
+		return IMG_TRUE;
+	}
+	return psPerProc->bPDumpActive;
+}
+#endif
+
 #if defined(PDUMP_DEBUG_OUTFILES)
 static INLINE
 IMG_UINT32 _PDumpGetPID(IMG_VOID)
@@ -152,6 +166,31 @@ IMG_BOOL PDumpIsSuspended(IMG_VOID)
 	return PDumpOSIsSuspended();
 }
 
+IMG_BOOL PDumpIsCaptureFrameKM(IMG_VOID)
+{
+#if defined(SUPPORT_PDUMP_MULTI_PROCESS)
+	if( _PDumpIsProcessActive() )
+	{
+		return PDumpOSIsCaptureFrameKM();
+	}
+	return IMG_FALSE;
+#else
+	return PDumpOSIsCaptureFrameKM();
+#endif
+}
+
+PVRSRV_ERROR PDumpSetFrameKM(IMG_UINT32 ui32Frame)
+{
+#if defined(SUPPORT_PDUMP_MULTI_PROCESS)
+	if( _PDumpIsProcessActive() )
+	{
+		return PDumpOSSetFrameKM(ui32Frame);
+	}
+	return PVRSRV_OK;
+#else
+	return PDumpOSSetFrameKM(ui32Frame);
+#endif
+}
 
 
 PVRSRV_ERROR PDumpRegWithFlagsKM(IMG_CHAR *pszPDumpRegName,
@@ -243,6 +282,7 @@ PVRSRV_ERROR PDumpMallocPages (PVRSRV_DEVICE_IDENTIFIER	*psDevID,
                            IMG_HANDLE         hOSMemHandle,
                            IMG_UINT32         ui32NumBytes,
                            IMG_UINT32         ui32PageSize,
+                           IMG_BOOL			  bShared,
                            IMG_HANDLE         hUniqueTag)
 {
 	PVRSRV_ERROR eErr;
@@ -254,7 +294,13 @@ PVRSRV_ERROR PDumpMallocPages (PVRSRV_DEVICE_IDENTIFIER	*psDevID,
 	IMG_UINT32		ui32Flags = PDUMP_FLAGS_CONTINUOUS;
 
 	PDUMP_GET_SCRIPT_STRING();
+#if defined(SUPPORT_PDUMP_MULTI_PROCESS)
+
+	ui32Flags |= ( _PDumpIsPersistent() || bShared ) ? PDUMP_FLAGS_PERSISTENT : 0;
+#else
+	PVR_UNREFERENCED_PARAMETER(bShared);
 	ui32Flags |= ( _PDumpIsPersistent() ) ? PDUMP_FLAGS_PERSISTENT : 0;
+#endif
 
 	
 #if !defined(LINUX)
@@ -323,17 +369,18 @@ PVRSRV_ERROR PDumpMallocPages (PVRSRV_DEVICE_IDENTIFIER	*psDevID,
 PVRSRV_ERROR PDumpMallocPageTable (PVRSRV_DEVICE_IDENTIFIER	*psDevId,
 								   IMG_HANDLE hOSMemHandle,
 								   IMG_UINT32 ui32Offset,
-                               IMG_CPU_VIRTADDR   pvLinAddr,
-								IMG_UINT32        ui32PTSize,
-                               IMG_HANDLE         hUniqueTag)
+                          		   IMG_CPU_VIRTADDR pvLinAddr,
+								   IMG_UINT32 ui32PTSize,
+								   IMG_UINT32 ui32Flags,
+                                   IMG_HANDLE hUniqueTag)
 {
 	PVRSRV_ERROR eErr;
 	IMG_DEV_PHYADDR	sDevPAddr;
-	IMG_UINT32 ui32Flags = PDUMP_FLAGS_CONTINUOUS;
 
 	PDUMP_GET_SCRIPT_STRING();
 
 	PVR_ASSERT(((IMG_UINTPTR_T)pvLinAddr & (ui32PTSize - 1)) == 0);
+	ui32Flags |= PDUMP_FLAGS_CONTINUOUS;
 	ui32Flags |= ( _PDumpIsPersistent() ) ? PDUMP_FLAGS_PERSISTENT : 0;
 
 	
@@ -409,6 +456,18 @@ PVRSRV_ERROR PDumpFreePages	(BM_HEAP 			*psBMHeap,
 	{
 		return eErr;
 	}
+
+#if defined(SUPPORT_PDUMP_MULTI_PROCESS)
+
+	{
+		PVRSRV_DEVICE_NODE *psDeviceNode = psBMHeap->pBMContext->psDeviceNode;
+
+		if( psDeviceNode->pfnMMUIsHeapShared(psBMHeap->pMMUHeap) )
+		{
+			ui32Flags |= PDUMP_FLAGS_PERSISTENT;
+		}
+	}
+#endif
 	PDumpOSWriteString2(hScript, ui32Flags);
 
 	
@@ -443,15 +502,16 @@ PVRSRV_ERROR PDumpFreePageTable	(PVRSRV_DEVICE_IDENTIFIER *psDevID,
 								 IMG_HANDLE hOSMemHandle,
 								 IMG_CPU_VIRTADDR   pvLinAddr,
 								 IMG_UINT32         ui32PTSize,
+								 IMG_UINT32			ui32Flags,
 								 IMG_HANDLE         hUniqueTag)
 {
 	PVRSRV_ERROR eErr;
 	IMG_DEV_PHYADDR	sDevPAddr;
-	IMG_UINT32 ui32Flags = PDUMP_FLAGS_CONTINUOUS;
 
 	PDUMP_GET_SCRIPT_STRING();
 
 	PVR_UNREFERENCED_PARAMETER(ui32PTSize);
+	ui32Flags |= PDUMP_FLAGS_CONTINUOUS;
 	ui32Flags |= ( _PDumpIsPersistent() ) ? PDUMP_FLAGS_PERSISTENT : 0;
 
 	
@@ -706,6 +766,19 @@ PVRSRV_ERROR PDumpMemKM(IMG_PVOID pvAltLinAddr,
 	{
 		return PVRSRV_OK;
 	}
+
+#if defined(SUPPORT_PDUMP_MULTI_PROCESS)
+
+	{
+		BM_HEAP *pHeap = ((BM_BUF*)psMemInfo->sMemBlk.hBuffer)->pMapping->pBMHeap;
+		PVRSRV_DEVICE_NODE *psDeviceNode = pHeap->pBMContext->psDeviceNode;
+
+		if( psDeviceNode->pfnMMUIsHeapShared(pHeap->pMMUHeap) )
+		{
+			ui32Flags |= PDUMP_FLAGS_PERSISTENT;
+		}
+	}
+#endif
 
 	
 	if(pvAltLinAddr)
@@ -2155,6 +2228,7 @@ IMG_UINT32 DbgWrite(PDBG_STREAM psStream, IMG_UINT8 *pui8Data, IMG_UINT32 ui32BC
 {
 	IMG_UINT32	ui32BytesWritten = 0;
 	IMG_UINT32	ui32Off = 0;
+	PDBG_STREAM_CONTROL psCtrl = psStream->psCtrl;
 
 	
 	if ((ui32Flags & PDUMP_FLAGS_NEVER) != 0)
@@ -2162,30 +2236,63 @@ IMG_UINT32 DbgWrite(PDBG_STREAM psStream, IMG_UINT8 *pui8Data, IMG_UINT32 ui32BC
 		return ui32BCount;
 	}
 
-	while (((IMG_UINT32) ui32BCount > 0) && (ui32BytesWritten != 0xFFFFFFFFU))
+#if defined(SUPPORT_PDUMP_MULTI_PROCESS)
+
+	if ( (_PDumpIsProcessActive() == IMG_FALSE ) &&
+		 ((ui32Flags & PDUMP_FLAGS_PERSISTENT) == 0) )
 	{
-		if ((ui32Flags & PDUMP_FLAGS_PERSISTENT) != 0)
+		return ui32BCount;
+	}
+#endif
+
+
+	if ( ((ui32Flags & PDUMP_FLAGS_PERSISTENT) != 0) && (psCtrl->bInitPhaseComplete) )
+	{
+		while (((IMG_UINT32) ui32BCount > 0) && (ui32BytesWritten != 0xFFFFFFFFU))
 		{
 			
 
 
-			if (psStream->bInitPhaseComplete)
+			ui32BytesWritten = PDumpOSDebugDriverWrite(	psStream,
+														PDUMP_WRITE_MODE_PERSISTENT,
+														&pui8Data[ui32Off], ui32BCount, 1, 0);
+
+			if (ui32BytesWritten == 0)
 			{
-				
-				ui32BytesWritten = PDumpOSDebugDriverWrite(	psStream,
-															PDUMP_WRITE_MODE_PERSISTENT,
-															&pui8Data[ui32Off], ui32BCount, 1, 0);
+				PDumpOSReleaseExecution();
+			}
+
+			if (ui32BytesWritten != 0xFFFFFFFFU)
+			{
+				ui32Off += ui32BytesWritten;
+				ui32BCount -= ui32BytesWritten;
+			}
+			else
+			{
+				PVR_DPF((PVR_DBG_ERROR, "DbgWrite: Failed to send persistent data"));
+				if( (psCtrl->ui32Flags & DEBUG_FLAGS_READONLY) != 0)
+				{
+
+					PDumpSuspendKM();
+				}
+				return 0xFFFFFFFFU;
 			}
 		}
 
+
+		ui32BCount = ui32Off; ui32Off = 0; ui32BytesWritten = 0;
+	}
+
+	while (((IMG_UINT32) ui32BCount > 0) && (ui32BytesWritten != 0xFFFFFFFFU))
+	{
 		if ((ui32Flags & PDUMP_FLAGS_CONTINUOUS) != 0)
 		{
 			
 
-			if (((psStream->ui32CapMode & DEBUG_CAPMODE_FRAMED) != 0) &&
-				(psStream->ui32Start == 0xFFFFFFFFU) &&
-				(psStream->ui32End == 0xFFFFFFFFU) &&
-				psStream->bInitPhaseComplete)
+			if (((psCtrl->ui32CapMode & DEBUG_CAPMODE_FRAMED) != 0) &&
+				 (psCtrl->ui32Start == 0xFFFFFFFFU) &&
+				 (psCtrl->ui32End == 0xFFFFFFFFU) &&
+				  psCtrl->bInitPhaseComplete)
 			{
 				ui32BytesWritten = ui32BCount;
 			}
@@ -2228,7 +2335,7 @@ IMG_UINT32 DbgWrite(PDBG_STREAM psStream, IMG_UINT8 *pui8Data, IMG_UINT32 ui32BC
 			PDumpOSReleaseExecution();
 		}
 
-		if (ui32BytesWritten != 0xFFFFFFFF)
+		if (ui32BytesWritten != 0xFFFFFFFFU)
 		{
 			ui32Off += ui32BytesWritten;
 			ui32BCount -= ui32BytesWritten;

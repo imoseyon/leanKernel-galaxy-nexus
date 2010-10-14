@@ -1701,6 +1701,11 @@ PVRSRVConnectBW(IMG_UINT32 ui32BridgeID,
 #if defined(PDUMP)
 	
 	psPerProc->bPDumpPersistent |= ( (psConnectServicesIN->ui32Flags & SRV_FLAGS_PERSIST) != 0) ? IMG_TRUE : IMG_FALSE;
+
+#if defined(SUPPORT_PDUMP_MULTI_PROCESS)
+
+	psPerProc->bPDumpActive |= ( (psConnectServicesIN->ui32Flags & SRV_FLAGS_PDUMP_ACTIVE) != 0) ? IMG_TRUE : IMG_FALSE;
+#endif
 #else
 	PVR_UNREFERENCED_PARAMETER(psConnectServicesIN);
 #endif
@@ -3003,6 +3008,8 @@ static PVRSRV_ERROR DoQuerySyncOpsSatisfied(MODIFY_SYNC_OP_INFO *psModSyncOpInfo
 	{
 #if defined(PDUMP)
 		
+
+
 		PDumpComment("Poll for read ops complete to reach value (%u)", psModSyncOpInfo->ui32ReadOpsPendingSnapShot);
 		PDumpMemPolKM(psKernelSyncInfo->psSyncDataMemInfoKM,
 						  offsetof(PVRSRV_SYNC_DATA, ui32ReadOpsComplete),
@@ -3408,20 +3415,28 @@ PVRSRVSyncOpsFlushToDeltaBW(IMG_UINT32                                         u
 		}
 
 		
-		PDumpComment("Poll for read ops complete to delta (%u)", psSyncOpsFlushToDeltaIN->ui32Delta);
+		PDumpComment("Poll for read ops complete to delta (%u)",
+					 psSyncOpsFlushToDeltaIN->ui32Delta);
 		psSyncOpsFlushToDeltaOUT->eError =
 			PDumpMemPolKM(psSyncInfo->psSyncDataMemInfoKM,
 						  offsetof(PVRSRV_SYNC_DATA, ui32ReadOpsComplete),
-						  ui32MinimumReadOpsComplete,
+						  psSyncInfo->psSyncData->ui32LastReadOpDumpVal,
 						  0xFFFFFFFF,
 						  PDUMP_POLL_OPERATOR_GREATEREQUAL,
 						  0,
 						  MAKEUNIQUETAG(psSyncInfo->psSyncDataMemInfoKM));
 
 		
-
-
-
+		PDumpComment("Poll for write ops complete to delta (%u)",
+					 psSyncOpsFlushToDeltaIN->ui32Delta);
+		psSyncOpsFlushToDeltaOUT->eError =
+			PDumpMemPolKM(psSyncInfo->psSyncDataMemInfoKM,
+						  offsetof(PVRSRV_SYNC_DATA, ui32WriteOpsComplete),
+						  psSyncInfo->psSyncData->ui32LastOpDumpVal,
+						  0xFFFFFFFF,
+						  PDUMP_POLL_OPERATOR_GREATEREQUAL,
+						  0,
+						  MAKEUNIQUETAG(psSyncInfo->psSyncDataMemInfoKM));
 #endif
 
 		psSyncOpsFlushToDeltaOUT->eError = PVRSRV_OK;

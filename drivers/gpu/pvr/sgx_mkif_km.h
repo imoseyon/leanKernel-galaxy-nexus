@@ -81,6 +81,9 @@ typedef struct _SGXMKIF_HOST_CTL_
 	volatile IMG_UINT32		ui32InitStatus;				
 	volatile IMG_UINT32		ui32PowerStatus;			
 	volatile IMG_UINT32		ui32CleanupStatus;			
+#if defined(FIX_HW_BRN_28889)
+	volatile IMG_UINT32		ui32InvalStatus;
+#endif
 #if defined(SUPPORT_HW_RECOVERY)
 	IMG_UINT32				ui32uKernelDetectedLockups;	
 	IMG_UINT32				ui32HostDetectedLockups;	
@@ -162,14 +165,13 @@ typedef struct _SGXMKIF_CMDTA_SHARED_
 typedef struct _SGXMKIF_TRANSFERCMD_SHARED_
 {
 	
-	
-	IMG_UINT32		ui32SrcReadOpPendingVal;
-	IMG_DEV_VIRTADDR	sSrcReadOpsCompleteDevAddr;
-	
-	IMG_UINT32		ui32SrcWriteOpPendingVal;
-	IMG_DEV_VIRTADDR	sSrcWriteOpsCompleteDevAddr;
 
+ 	IMG_UINT32			ui32NumSrcSyncs;
+ 	PVRSRV_DEVICE_SYNC_OBJECT	asSrcSyncs[SGX_MAX_SRC_SYNCS];
 	
+
+ 	IMG_UINT32			ui32NumDstSyncs;
+ 	PVRSRV_DEVICE_SYNC_OBJECT	asDstSyncs[SGX_MAX_DST_SYNCS];
 	
 	IMG_UINT32		ui32DstReadOpPendingVal;
 	IMG_DEV_VIRTADDR	sDstReadOpsCompleteDevAddr;
@@ -232,6 +234,10 @@ typedef struct _SGXMKIF_HWDEVICE_SYNC_LIST_
 #define PVRSRV_USSE_EDM_INTERRUPT_ACTIVE_POWER	(1UL << 1)	
 
 #define PVRSRV_USSE_EDM_CLEANUPCMD_COMPLETE 	(1UL << 0)	
+
+#if defined(FIX_HW_BRN_28889)
+#define PVRSRV_USSE_EDM_BIF_INVAL_COMPLETE 		(1UL << 0)
+#endif
 
 #define PVRSRV_USSE_MISCINFO_READY		0x1UL
 #define PVRSRV_USSE_MISCINFO_GET_STRUCT_SIZES	0x2UL	

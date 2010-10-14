@@ -54,6 +54,10 @@ typedef struct _PVRSRV_PER_PROCESS_DATA_
 #if defined(PDUMP)
 	
 	IMG_BOOL		bPDumpPersistent;
+#if defined(SUPPORT_PDUMP_MULTI_PROCESS)
+
+	IMG_BOOL		bPDumpActive;
+#endif
 #endif
 	
 	IMG_HANDLE		hOsPrivateData;
@@ -61,7 +65,7 @@ typedef struct _PVRSRV_PER_PROCESS_DATA_
 
 PVRSRV_PER_PROCESS_DATA *PVRSRVPerProcessData(IMG_UINT32 ui32PID);
 
-PVRSRV_ERROR PVRSRVPerProcessDataConnect(IMG_UINT32	ui32PID);
+PVRSRV_ERROR PVRSRVPerProcessDataConnect(IMG_UINT32	ui32PID, IMG_UINT32 ui32Flags);
 IMG_VOID PVRSRVPerProcessDataDisconnect(IMG_UINT32	ui32PID);
 
 PVRSRV_ERROR PVRSRVPerProcessDataInit(IMG_VOID);

@@ -28,7 +28,7 @@
 #define __LINKAGE_H__
 
 #if !defined(SUPPORT_DRI_DRM)
-IMG_INT32 PVRSRV_BridgeDispatchKM(struct file *file, IMG_UINT cmd, IMG_UINT32 arg);
+long PVRSRV_BridgeDispatchKM(struct file *file, unsigned int cmd, unsigned long arg);
 #endif
 
 IMG_VOID PVRDPFInit(IMG_VOID);

@@ -54,27 +54,17 @@
 #endif
 
 extern struct platform_device *gpsPVRLDMDev;
-
-static PVRSRV_ERROR ForceMaxSGXClocks(SYS_SPECIFIC_DATA *psSysSpecData)
-{
-	PVR_UNREFERENCED_PARAMETER(psSysSpecData);
-
-	/* Pin the memory bus bw to the highest value according to CORE_REV */
 #if defined(SGX530) && (SGX_CORE_REV == 125)
-	omap_pm_set_min_bus_tput(&gpsPVRLDMDev->dev, OCP_INITIATOR_AGENT, 800000);
+#define OMAP_MEMORY_BUS_CLOCK_MAX 800000
 #else
-	omap_pm_set_min_bus_tput(&gpsPVRLDMDev->dev, OCP_INITIATOR_AGENT, 664000);
+#define OMAP_MEMORY_BUS_CLOCK_MAX 664000
 #endif
-	return PVRSRV_OK;
-}
-
 static IMG_VOID PowerLockWrap(SYS_SPECIFIC_DATA *psSysSpecData)
 {
 	if (!in_interrupt())
 	{
 		BUG_ON(in_atomic());
 		mutex_lock(&psSysSpecData->sPowerLock);
-
 	}
 }
 
@@ -217,7 +207,10 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 	}
 #endif
 
-	ForceMaxSGXClocks(psSysSpecData);
+#if defined(SYS_OMAP3430_PIN_MEMORY_BUS_CLOCK)
+	omap_pm_set_min_bus_tput(&gpsPVRLDMDev->dev, OCP_INITIATOR_AGENT, OMAP_MEMORY_BUS_CLOCK_MAX);
+#endif
+
 
 	atomic_set(&psSysSpecData->sSGXClocksEnabled, 1);
 
@@ -250,7 +243,9 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 		clk_disable(psSysSpecData->psSGX_FCK);
 	}
 
+#if defined(SYS_OMAP3430_PIN_MEMORY_BUS_CLOCK)
 	omap_pm_set_min_bus_tput(&gpsPVRLDMDev->dev, OCP_INITIATOR_AGENT, 0);
+#endif
 
 	atomic_set(&psSysSpecData->sSGXClocksEnabled, 0);
 

@@ -23,7 +23,7 @@
  * Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK 
  *
  ******************************************************************************/
-#include <linux/platform_device.h>
+
 #include "services_headers.h"
 #include "kerneldisplay.h"
 #include "oemfuncs.h"
@@ -51,9 +51,6 @@ static SGX_DEVICE_MAP	gsSGXDeviceMap;
 static PVRSRV_DEVICE_NODE *gpsSGXDevNode;
 
 #define DEVICE_SGX_INTERRUPT (1 << 0)
-
-#define	LDM_DEV	struct platform_device
-extern LDM_DEV *gpsPVRLDMDev;
 
 #if defined(NO_HARDWARE)
 static IMG_CPU_VIRTADDR gsSGXRegsCPUVAddr;
@@ -159,6 +156,7 @@ static INLINE void dump_omap34xx_clocks(void) {}
 
 #if defined(SGX_OCP_REGS_ENABLED)
 
+#define SYS_OMAP4430_OCP_REGS_SYS_PHYS_BASE		(SYS_OMAP4430_SGX_REGS_SYS_PHYS_BASE + EUR_CR_OCP_REVISION)
 #define SYS_OMAP4430_OCP_REGS_SIZE				0x110
 
 static IMG_CPU_VIRTADDR gpvOCPRegsLinAddr;
@@ -208,9 +206,6 @@ static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
 	IMG_CPU_PHYADDR sCpuPAddr;
 #endif
 
-	struct resource *res;
-	int irq;
-
 	PVR_UNREFERENCED_PARAMETER(psSysData);
 
 
@@ -246,27 +241,20 @@ static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
 
 #else
 
-	res = platform_get_resource(gpsPVRLDMDev, IORESOURCE_MEM,0);
-	irq = platform_get_irq(gpsPVRLDMDev,0);
-
-	gsSGXDeviceMap.sRegsSysPBase.uiAddr = res->start;
+	gsSGXDeviceMap.sRegsSysPBase.uiAddr = SYS_OMAP4430_SGX_REGS_SYS_PHYS_BASE;
 	gsSGXDeviceMap.sRegsCpuPBase = SysSysPAddrToCpuPAddr(gsSGXDeviceMap.sRegsSysPBase);
-	gsSGXDeviceMap.ui32RegsSize = (unsigned int)(res->end - res->start);
+	gsSGXDeviceMap.ui32RegsSize = SYS_OMAP4430_SGX_REGS_SIZE;
 
-	gsSGXDeviceMap.ui32IRQ = irq;
+	gsSGXDeviceMap.ui32IRQ = SYS_OMAP4430_SGX_IRQ;
 
 #endif 
 
 #if defined(PDUMP)
 	{
-		
 		static IMG_CHAR pszPDumpDevName[] = "SGXMEM";
 		gsSGXDeviceMap.pszPDumpDevName = pszPDumpDevName;
 	}
 #endif
-
-
-
 
 
 	return PVRSRV_OK;
@@ -283,7 +271,7 @@ IMG_CHAR *SysCreateVersionString(IMG_CPU_PHYADDR sRegRegion)
 	IMG_VOID	*pvRegsLinAddr;
 
 	pvRegsLinAddr = OSMapPhysToLin(sRegRegion,
-								   gsSGXDeviceMap.ui32RegsSize,
+								   SYS_OMAP4430_SGX_REGS_SIZE,
 								   PVRSRV_HAP_UNCACHED|PVRSRV_HAP_KERNEL_ONLY,
 								   IMG_NULL);
 	if(!pvRegsLinAddr)
@@ -311,7 +299,7 @@ IMG_CHAR *SysCreateVersionString(IMG_CPU_PHYADDR sRegRegion)
 
 #if !defined(NO_HARDWARE)
 	OSUnMapPhysToLin(pvRegsLinAddr,
-					 gsSGXDeviceMap.ui32RegsSize,
+					 SYS_OMAP4430_SGX_REGS_SIZE,
 					 PVRSRV_HAP_UNCACHED|PVRSRV_HAP_KERNEL_ONLY,
 					 IMG_NULL);
 #endif
@@ -423,7 +411,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 		IMG_SYS_PHYADDR sOCPRegsSysPBase;
 		IMG_CPU_PHYADDR sOCPRegsCpuPBase;
 
-		sOCPRegsSysPBase.uiAddr	= gsSGXDeviceMap.sRegsSysPBase.uiAddr + EUR_CR_OCP_REVISION;
+		sOCPRegsSysPBase.uiAddr	= SYS_OMAP4430_OCP_REGS_SYS_PHYS_BASE;
 		sOCPRegsCpuPBase		= SysSysPAddrToCpuPAddr(sOCPRegsSysPBase);
 
 		gpvOCPRegsLinAddr		= OSMapPhysToLin(sOCPRegsCpuPBase,
@@ -436,10 +424,9 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 			PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to map OCP registers"));
 			return PVRSRV_ERROR_BAD_MAPPING;
 		}
+		SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_OCPREGS);
 	}
 #endif
-
-
 
 
 	eError = PVRSRVRegisterDevice(gpsSysData, SGXRegisterDevice,
@@ -546,31 +533,24 @@ PVRSRV_ERROR SysFinalise(IMG_VOID)
 	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to Enable SGX clocks (%d)", eError));
-		(IMG_VOID)SysDeinitialise(gpsSysData);
-		gpsSysData = IMG_NULL;
 		return eError;
 	}
 #endif
-
-#if defined(SYS_USING_INTERRUPTS)
 
 	eError = OSInstallMISR(gpsSysData);
 	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"SysFinalise: Failed to install MISR"));
-		(IMG_VOID)SysDeinitialise(gpsSysData);
-		gpsSysData = IMG_NULL;
 		return eError;
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_MISR);
 
+#if defined(SYS_USING_INTERRUPTS)
 
 	eError = OSInstallDeviceLISR(gpsSysData, gsSGXDeviceMap.ui32IRQ, "SGX ISR", gpsSGXDevNode);
 	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"SysFinalise: Failed to install ISR"));
-		(IMG_VOID)SysDeinitialise(gpsSysData);
-		gpsSysData = IMG_NULL;
 		return eError;
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_LISR);
@@ -612,6 +592,7 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 			return eError;
 		}
 	}
+#endif 
 
 	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_MISR))
 	{
@@ -622,9 +603,6 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 			return eError;
 		}
 	}
-#else
-	PVR_UNREFERENCED_PARAMETER(psSysData);
-#endif
 
 	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_INITDEV))
 	{
@@ -649,10 +627,13 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 	}
 	
 #if defined(SGX_OCP_REGS_ENABLED)
+	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_OCPREGS))
+	{
 	OSUnMapPhysToLin(gpvOCPRegsLinAddr,
 					 SYS_OMAP4430_OCP_REGS_SIZE,
 					 PVRSRV_HAP_UNCACHED|PVRSRV_HAP_KERNEL_ONLY,
 					 IMG_NULL);
+	}
 #endif
 
 	

@@ -240,12 +240,14 @@ extern IMG_UINT32 g_ui32EveryLineCounter;
 								  IMG_HANDLE				hOSMemHandle,
 								  IMG_UINT32				ui32NumBytes,
 								  IMG_UINT32				ui32PageSize,
+		                          IMG_BOOL			  		bShared,
 								  IMG_HANDLE				hUniqueTag);
 	PVRSRV_ERROR PDumpMallocPageTable(PVRSRV_DEVICE_IDENTIFIER	*psDevId,
 									  IMG_HANDLE            hOSMemHandle,
 									  IMG_UINT32            ui32Offset,
 									  IMG_CPU_VIRTADDR		pvLinAddr,
 									  IMG_UINT32			ui32NumBytes,
+									  IMG_UINT32			ui32Flags,
 									  IMG_HANDLE			hUniqueTag);
 	PVRSRV_ERROR PDumpFreePages(struct _BM_HEAP_	*psBMHeap,
 							IMG_DEV_VIRTADDR	sDevVAddr,
@@ -257,6 +259,7 @@ extern IMG_UINT32 g_ui32EveryLineCounter;
 									IMG_HANDLE          hOSMemHandle,
 									IMG_CPU_VIRTADDR	pvLinAddr,
 									IMG_UINT32			ui32NumBytes,
+									IMG_UINT32			ui32Flags,
 									IMG_HANDLE			hUniqueTag);
 
 	IMG_IMPORT PVRSRV_ERROR PDumpHWPerfCBKM(PVRSRV_DEVICE_IDENTIFIER *psDevId,

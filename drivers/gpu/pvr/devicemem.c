@@ -488,6 +488,7 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVAllocSyncInfoKM(IMG_HANDLE					hDevCookie,
 	psSyncData->ui32LastReadOpDumpVal = 0;
 
 #if defined(PDUMP)
+	PDUMPCOMMENT("Allocating kernel sync object");
 	PDUMPMEM(psKernelSyncInfo->psSyncDataMemInfoKM->pvLinAddrKM,
 			psKernelSyncInfo->psSyncDataMemInfoKM,
 			0,
@@ -1066,14 +1067,17 @@ static PVRSRV_ERROR UnmapDeviceMemoryCallBack(IMG_PVOID pvParam,
 		psMapData->psMemInfo->sMemBlk.psIntSysPAddr = IMG_NULL;
 	}
 
-	psMapData->psMemInfo->psKernelSyncInfo->ui32RefCount--;
-	if (psMapData->psMemInfo->psKernelSyncInfo->ui32RefCount == 0)
+	if( psMapData->psMemInfo->psKernelSyncInfo )
 	{
-		eError = PVRSRVFreeSyncInfoKM(psMapData->psMemInfo->psKernelSyncInfo);
-		if(eError != PVRSRV_OK)
+		psMapData->psMemInfo->psKernelSyncInfo->ui32RefCount--;
+		if (psMapData->psMemInfo->psKernelSyncInfo->ui32RefCount == 0)
 		{
-			PVR_DPF((PVR_DBG_ERROR,"UnmapDeviceMemoryCallBack: Failed to free sync info"));
-			return eError;
+			eError = PVRSRVFreeSyncInfoKM(psMapData->psMemInfo->psKernelSyncInfo);
+			if(eError != PVRSRV_OK)
+			{
+				PVR_DPF((PVR_DBG_ERROR,"UnmapDeviceMemoryCallBack: Failed to free sync info"));
+				return eError;
+			}
 		}
 	}
 	
@@ -1223,7 +1227,8 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVMapDeviceMemoryKM(PVRSRV_PER_PROCESS_DATA	*psPer
 	psMemInfo->psKernelSyncInfo = psSrcMemInfo->psKernelSyncInfo;
 
 	
-	psMemInfo->psKernelSyncInfo->ui32RefCount++;
+	if( psMemInfo->psKernelSyncInfo )
+		psMemInfo->psKernelSyncInfo->ui32RefCount++;
 
 	
 
@@ -1523,6 +1528,11 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVMapDeviceClassMemoryKM(PVRSRV_PER_PROCESS_DATA	*
 	
 	*ppsMemInfo = psMemInfo;
 
+#if defined(SUPPORT_PDUMP_MULTI_PROCESS)
+
+	PDUMPCOMMENT("Dump display surface");
+	PDUMPMEM(IMG_NULL, psMemInfo, ui32Offset, psMemInfo->ui32AllocSize, PDUMP_FLAGS_CONTINUOUS, ((BM_BUF*)psMemInfo->sMemBlk.hBuffer)->pMapping);
+#endif
 	return PVRSRV_OK;
 
 #if defined(SUPPORT_MEMORY_TILING)

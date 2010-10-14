@@ -537,7 +537,7 @@ IMG_BOOL PDumpIsLastCaptureFrameKM(IMG_VOID)
 }
 
 
-IMG_BOOL PDumpIsCaptureFrameKM(IMG_VOID)
+IMG_BOOL PDumpOSIsCaptureFrameKM(IMG_VOID)
 {
 	if (PDumpSuspended())
 	{
@@ -546,7 +546,7 @@ IMG_BOOL PDumpIsCaptureFrameKM(IMG_VOID)
 	return gpfnDbgDrv->pfnIsCaptureFrame(gsDBGPdumpState.psStream[PDUMP_STREAM_SCRIPT2], IMG_FALSE);
 }
 
-PVRSRV_ERROR PDumpSetFrameKM(IMG_UINT32 ui32Frame)
+PVRSRV_ERROR PDumpOSSetFrameKM(IMG_UINT32 ui32Frame)
 {
 	IMG_UINT32	ui32Stream;
 
@@ -573,6 +573,7 @@ static IMG_BOOL PDumpWriteILock(PDBG_STREAM psStream, IMG_UINT8 *pui8Data, IMG_U
 	IMG_UINT32 ui32Written = 0;
 	if ((psStream == IMG_NULL) || PDumpSuspended() || ((ui32Flags & PDUMP_FLAGS_NEVER) != 0))
 	{
+		PVR_DPF((PVR_DBG_MESSAGE, "PDumpWriteILock: Failed to write 0x%x bytes to stream 0x%x", ui32Count, (IMG_UINT32)psStream));
 		return IMG_TRUE;
 	}
 

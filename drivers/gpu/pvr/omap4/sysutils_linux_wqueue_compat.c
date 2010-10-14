@@ -52,13 +52,6 @@
 extern LDM_DEV  *gpsPVRLDMDev;
 extern struct gpu_platform_data *gpsSgxPlatformData;
 
-
-#if defined(SUPPORT_OMAP3430_SGXFCLK_96M)
-#define SGX_PARENT_CLOCK "cm_96m_fck"
-#else
-#define SGX_PARENT_CLOCK "core_ck"
-#endif
-
 PVRSRV_ERROR SysPowerLockWrap(SYS_DATA unref__ *psSysData)
 {
 	return PVRSRV_OK;
@@ -168,18 +161,7 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 PVRSRV_ERROR EnableSystemClocks(SYS_DATA *psSysData)
 {
 	SYS_SPECIFIC_DATA *psSysSpecData = (SYS_SPECIFIC_DATA *) psSysData->pvSysSpecificData;
-	struct clk *psCLK;
-	IMG_INT res;
 	PVRSRV_ERROR eError;
-
-#if defined(DEBUG) || defined(TIMING)
-	IMG_INT rate;
-	struct clk *sys_ck;
-	IMG_CPU_PHYADDR     TimerRegPhysBase;
-	IMG_HANDLE hTimerEnable;
-	IMG_UINT32 *pui32TimerEnable;
-
-#endif
 
 	PVR_TRACE(("EnableSystemClocks: Enabling System Clocks"));
 
@@ -192,58 +174,15 @@ PVRSRV_ERROR EnableSystemClocks(SYS_DATA *psSysData)
 	}
 
 	eError = PVRSRV_OK;
-	goto Exit;
 
-#if !defined(NO_OMAP_TIMER)
-#if defined(DEBUG) || defined(TIMING)
-ExitDisableGPT11ICK:
-ExitDisableGPT11FCK:
-ExitUnRegisterConstraintNotifications:
-#endif
-#endif
-Exit:
 	return eError;
 }
 
 IMG_VOID DisableSystemClocks(SYS_DATA *psSysData)
 {
-#if !defined(NO_OMAP_TIMER)
-#if defined(DEBUG) || defined(TIMING)
-	SYS_SPECIFIC_DATA *psSysSpecData = (SYS_SPECIFIC_DATA *) psSysData->pvSysSpecificData;
-	IMG_CPU_PHYADDR TimerRegPhysBase;
-	IMG_HANDLE hTimerDisable;
-	IMG_UINT32 *pui32TimerDisable;
-#endif
-#endif
 
 	PVR_TRACE(("DisableSystemClocks: Disabling System Clocks"));
 
 	DisableSGXClocks(psSysData);
 
-#if !defined(NO_OMAP_TIMER)
-#if defined(DEBUG) || defined(TIMING)
-
-	TimerRegPhysBase.uiAddr = SYS_OMAP3430_GP11TIMER_ENABLE_SYS_PHYS_BASE;
-	pui32TimerDisable = OSMapPhysToLin(TimerRegPhysBase,
-				4,
-				PVRSRV_HAP_KERNEL_ONLY|PVRSRV_HAP_UNCACHED,
-				&hTimerDisable);
-
-	if (pui32TimerDisable == IMG_NULL)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "DisableSystemClocks: OSMapPhysToLin failed"));
-	}
-	else
-	{
-		*pui32TimerDisable = 0;
-
-		OSUnMapPhysToLin(pui32TimerDisable,
-				4,
-				PVRSRV_HAP_KERNEL_ONLY|PVRSRV_HAP_UNCACHED,
-				hTimerDisable);
-	}
-
-
-#endif
-#endif
 }

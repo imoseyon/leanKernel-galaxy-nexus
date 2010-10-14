@@ -34,6 +34,7 @@ extern "C" {
 #define MAX_PDUMP_STRING_LENGTH (256)
 
 
+
 #define PDUMP_GET_SCRIPT_STRING()				\
 	IMG_HANDLE hScript;							\
 	IMG_UINT32	ui32MaxLen;						\
@@ -129,6 +130,10 @@ IMG_VOID PDumpOSCPUVAddrToPhysPages(IMG_HANDLE hOSMemHandle,
 		IMG_UINT32 *pui32PageOffset);
 
 IMG_VOID PDumpOSReleaseExecution(IMG_VOID);
+
+IMG_BOOL PDumpOSIsCaptureFrameKM(IMG_VOID);
+
+PVRSRV_ERROR PDumpOSSetFrameKM(IMG_UINT32 ui32Frame);
 
 #if defined (__cplusplus)
 }

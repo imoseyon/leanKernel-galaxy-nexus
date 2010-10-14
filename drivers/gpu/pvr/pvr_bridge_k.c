@@ -187,11 +187,11 @@ static void ProcSeqShowBridgeStats(struct seq_file *sfile,void* el)
 
 
 #if defined(SUPPORT_DRI_DRM)
-IMG_INT
-PVRSRV_BridgeDispatchKM(struct drm_device *dev, IMG_VOID *arg, struct drm_file *pFile)
+int
+PVRSRV_BridgeDispatchKM(struct drm_device unref__ *dev, void *arg, struct drm_file *pFile)
 #else
-IMG_INT32
-PVRSRV_BridgeDispatchKM(struct file *pFile, IMG_UINT unref__ ioctlCmd, IMG_UINT32 arg)
+long
+PVRSRV_BridgeDispatchKM(struct file *pFile, unsigned int unref__ ioctlCmd, unsigned long arg)
 #endif
 {
 	IMG_UINT32 cmd;
@@ -207,13 +207,9 @@ PVRSRV_BridgeDispatchKM(struct file *pFile, IMG_UINT unref__ ioctlCmd, IMG_UINT3
 	LinuxLockMutex(&gPVRSRVLock);
 
 #if defined(SUPPORT_DRI_DRM)
-	PVR_UNREFERENCED_PARAMETER(dev);
-
 	psBridgePackageKM = (PVRSRV_BRIDGE_PACKAGE *)arg;
 	PVR_ASSERT(psBridgePackageKM != IMG_NULL);
 #else
-	PVR_UNREFERENCED_PARAMETER(ioctlCmd);
-
 	psBridgePackageKM = &sBridgePackageKM;
 
 	if(!OSAccessOK(PVR_VERIFY_WRITE,

@@ -77,11 +77,8 @@ typedef struct _SYS_DATA_TAG_
 	IMG_UINT32					*pvSOCTimerRegisterKM;		
 	IMG_VOID					*pvSOCClockGateRegsBase;	
 	IMG_UINT32					ui32SOCClockGateRegsSize;
-	PFN_CMD_PROC				*ppfnCmdProcList[SYS_DEVICE_COUNT];
 															
-
-
-	PCOMMAND_COMPLETE_DATA		*ppsCmdCompleteData[SYS_DEVICE_COUNT];
+	struct _DEVICE_COMMAND_DATA_ *apsDeviceCommandData[SYS_DEVICE_COUNT];
 															
 
 	IMG_BOOL                    bReProcessQueues;    		

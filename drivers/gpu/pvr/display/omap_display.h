@@ -101,8 +101,8 @@ struct omap_display_device {
 	int (*present_buffer_sync) (struct omap_display_buffer *buffer);
 };
 
-int omap_display_initialize(void);
-int omap_display_deinitialize(void);
+int omap_display_init(void);
+int omap_display_deinit(void);
 int omap_display_count(void);
 struct omap_display_device *omap_display_get(enum omap_display_id id);
 

@@ -393,7 +393,9 @@ PVRSRV_ERROR SGXInitialise(PVRSRV_SGXDEV_INFO	*psDevInfo,
 					   WAIT_TRY_COUNT) != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "SGXInitialise: Wait for uKernel initialisation failed"));
+		#if !defined(FIX_HW_BRN_23281)
 		PVR_DBG_BREAK;
+		#endif
 		return PVRSRV_ERROR_RETRY;
 	}
 #endif 
@@ -842,7 +844,7 @@ static PVRSRV_ERROR DevDeInitSGX (IMG_VOID *pvDeviceNode)
 	if (psDeviceMemoryHeap != IMG_NULL)
 	{
 	
-		OSFreeMem(PVRSRV_OS_NON_PAGEABLE_HEAP,
+		OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP,
 				sizeof(DEVICE_MEMORY_HEAP_INFO) * SGX_MAX_HEAP_ID,
 				psDeviceMemoryHeap,
 				0);
@@ -1029,7 +1031,14 @@ IMG_VOID HWRecoveryResetSGX (PVRSRV_DEVICE_NODE *psDeviceNode,
 	PDUMPSUSPEND();
 
 	
+#if defined(FIX_HW_BRN_23281)
+
+	for (eError = PVRSRV_ERROR_RETRY; eError == PVRSRV_ERROR_RETRY;)
+#endif
+	{
 	eError = SGXInitialise(psDevInfo, IMG_TRUE);
+	}
+
 	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"HWRecoveryResetSGX: SGXInitialise failed (%d)", eError));
@@ -1058,6 +1067,9 @@ IMG_VOID SGXOSTimer(IMG_VOID *pvData)
 	static IMG_UINT32	ui32EDMTasks = 0;
 	static IMG_UINT32	ui32LockupCounter = 0; 
 	static IMG_UINT32	ui32NumResets = 0;
+#if defined(FIX_HW_BRN_31093)
+	static IMG_BOOL		bBRN31093Inval = IMG_FALSE;
+#endif
 	IMG_UINT32		ui32CurrentEDMTasks;
 	IMG_BOOL		bLockup = IMG_FALSE;
 	IMG_BOOL		bPoweredDown;
@@ -1076,6 +1088,9 @@ IMG_VOID SGXOSTimer(IMG_VOID *pvData)
 	if (bPoweredDown)
 	{
 		ui32LockupCounter = 0;
+	#if defined(FIX_HW_BRN_31093)
+		bBRN31093Inval = IMG_FALSE;
+	#endif
 	}
 	else
 	{
@@ -1092,13 +1107,45 @@ IMG_VOID SGXOSTimer(IMG_VOID *pvData)
 			if (ui32LockupCounter == 3)
 			{
 				ui32LockupCounter = 0;
-				PVR_DPF((PVR_DBG_ERROR, "SGXOSTimer() detected SGX lockup (0x%x tasks)", ui32EDMTasks));
 
-				bLockup = IMG_TRUE;
+	#if defined(FIX_HW_BRN_31093)
+				if (bBRN31093Inval == IMG_FALSE)
+				{
+
+		#if defined(FIX_HW_BRN_29997)
+					IMG_UINT32	ui32BIFCtrl;
+
+					ui32BIFCtrl = OSReadHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_BIF_CTRL);
+					OSWriteHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_BIF_CTRL, ui32BIFCtrl | EUR_CR_BIF_CTRL_PAUSE_MASK);
+
+					OSWaitus(200 * 1000000 / psDevInfo->ui32CoreClockSpeed);
+		#endif
+
+					bBRN31093Inval = IMG_TRUE;
+
+					OSWriteHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_BIF_CTRL_INVAL, EUR_CR_BIF_CTRL_INVAL_PTE_MASK);
+
+					OSWaitus(200 * 1000000 / psDevInfo->ui32CoreClockSpeed);
+
+		#if defined(FIX_HW_BRN_29997)
+
+					OSWriteHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_BIF_CTRL, ui32BIFCtrl);
+		#endif
+				}
+				else
+	#endif
+				{
+					PVR_DPF((PVR_DBG_ERROR, "SGXOSTimer() detected SGX lockup (0x%x tasks)", ui32EDMTasks));
+
+					bLockup = IMG_TRUE;
+				}
 			}
 		}
 		else
 		{
+	#if defined(FIX_HW_BRN_31093)
+			bBRN31093Inval = IMG_FALSE;
+	#endif
 			ui32LockupCounter = 0;
 			ui32EDMTasks = ui32CurrentEDMTasks;
 			ui32NumResets = psDevInfo->ui32NumResets;
@@ -1370,6 +1417,9 @@ PVRSRV_ERROR SGXRegisterDevice (PVRSRV_DEVICE_NODE *psDeviceNode)
 	psDeviceNode->pfnMMUMapScatter = &MMU_MapScatter;
 	psDeviceNode->pfnMMUGetPhysPageAddr = &MMU_GetPhysPageAddr;
 	psDeviceNode->pfnMMUGetPDDevPAddr = &MMU_GetPDDevPAddr;
+#if defined(SUPPORT_PDUMP_MULTI_PROCESS)
+	psDeviceNode->pfnMMUIsHeapShared = &MMU_IsHeapShared;
+#endif
 
 #if defined (SYS_USING_INTERRUPTS)
 	

@@ -46,10 +46,10 @@ MMU_Create (MMU_CONTEXT *psMMUContext,
 			PDUMP_MMU_ATTRIB **ppsMMUAttrib);
 
 IMG_VOID
-MMU_Delete (MMU_HEAP *pMMU);
+MMU_Delete (MMU_HEAP *pMMUHeap);
 
 IMG_BOOL
-MMU_Alloc (MMU_HEAP *pMMU,
+MMU_Alloc (MMU_HEAP *pMMUHeap,
            IMG_SIZE_T uSize,
            IMG_SIZE_T *pActualSize,
            IMG_UINT32 uFlags,
@@ -57,28 +57,28 @@ MMU_Alloc (MMU_HEAP *pMMU,
            IMG_DEV_VIRTADDR *pDevVAddr);
 
 IMG_VOID
-MMU_Free (MMU_HEAP *pMMU,
+MMU_Free (MMU_HEAP *pMMUHeap,
           IMG_DEV_VIRTADDR DevVAddr,
 		  IMG_UINT32 ui32Size);
 
 IMG_VOID 
-MMU_Enable (MMU_HEAP *pMMU);
+MMU_Enable (MMU_HEAP *pMMUHeap);
 
 IMG_VOID 
-MMU_Disable (MMU_HEAP *pMMU);
+MMU_Disable (MMU_HEAP *pMMUHeap);
 
 IMG_VOID
-MMU_MapPages (MMU_HEAP *pMMU,
-			  IMG_DEV_VIRTADDR devVAddr,
+MMU_MapPages (MMU_HEAP *pMMUHeap,
+			  IMG_DEV_VIRTADDR DevVAddr,
 			  IMG_SYS_PHYADDR SysPAddr,
 			  IMG_SIZE_T uSize,
 			  IMG_UINT32 ui32MemFlags,
 			  IMG_HANDLE hUniqueTag);
 
 IMG_VOID
-MMU_MapShadow (MMU_HEAP          * pMMU,
+MMU_MapShadow (MMU_HEAP          * pMMUHeap,
                IMG_DEV_VIRTADDR    MapBaseDevVAddr,
-               IMG_SIZE_T          uSize, 
+               IMG_SIZE_T          uByteSize,
                IMG_CPU_VIRTADDR    CpuVAddr,
                IMG_HANDLE          hOSMemHandle,
                IMG_DEV_VIRTADDR  * pDevVAddr,
@@ -86,13 +86,13 @@ MMU_MapShadow (MMU_HEAP          * pMMU,
                IMG_HANDLE          hUniqueTag);
 
 IMG_VOID
-MMU_UnmapPages (MMU_HEAP *pMMU,
-             IMG_DEV_VIRTADDR dev_vaddr,
+MMU_UnmapPages (MMU_HEAP *psMMUHeap,
+             IMG_DEV_VIRTADDR sDevVAddr,
              IMG_UINT32 ui32PageCount,
              IMG_HANDLE hUniqueTag);
 
 IMG_VOID
-MMU_MapScatter (MMU_HEAP *pMMU,
+MMU_MapScatter (MMU_HEAP *pMMUHeap,
 				IMG_DEV_VIRTADDR DevVAddr,
 				IMG_SYS_PHYADDR *psSysAddr,
 				IMG_SIZE_T uSize,
@@ -136,6 +136,8 @@ PVRSRV_ERROR MMU_MapExtSystemCacheRegs(PVRSRV_DEVICE_NODE *psDeviceNode);
 
 PVRSRV_ERROR MMU_UnmapExtSystemCacheRegs(PVRSRV_DEVICE_NODE *psDeviceNode);
 #endif 
+
+IMG_BOOL MMU_IsHeapShared(MMU_HEAP* pMMU_Heap);
 
 #if defined(PDUMP)
 IMG_UINT32 MMU_GetPDumpContextID(IMG_HANDLE hDevMemContext);

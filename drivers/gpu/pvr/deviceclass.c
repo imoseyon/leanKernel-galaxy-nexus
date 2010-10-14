@@ -1765,7 +1765,7 @@ static PVRSRV_ERROR CloseBCDeviceCallBack(IMG_PVOID		pvParam,
 		
 		if(psBCInfo->psBuffer)
 		{
-			OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof(PVRSRV_BC_BUFFER), psBCInfo->psBuffer, IMG_NULL);
+			OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof(PVRSRV_BC_BUFFER) * psBCInfo->ui32BufferCount, psBCInfo->psBuffer, IMG_NULL);
 			psBCInfo->psBuffer = IMG_NULL;
 		}
 	}

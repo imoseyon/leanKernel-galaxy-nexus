@@ -1602,9 +1602,21 @@ DevMemoryAlloc (BM_CONTEXT *pBMContext,
 	EnableHostAccess(pBMContext->psMMUContext);
 #endif
 
+#if defined(PDUMP)
 	
-	
-	PDUMPMALLOCPAGES(&psDeviceNode->sDevId, pMapping->DevVAddr.uiAddr, pMapping->CpuVAddr, pMapping->hOSMemHandle, ui32PDumpSize, pMapping->pBMHeap->sDevArena.ui32DataPageSize, (IMG_HANDLE)pMapping);
+	PDUMPMALLOCPAGES(&psDeviceNode->sDevId,
+					 pMapping->DevVAddr.uiAddr,
+					 pMapping->CpuVAddr,
+					 pMapping->hOSMemHandle,
+					 ui32PDumpSize,
+					 pMapping->pBMHeap->sDevArena.ui32DataPageSize,
+#if defined(SUPPORT_PDUMP_MULTI_PROCESS)
+					 psDeviceNode->pfnMMUIsHeapShared(pMapping->pBMHeap->pMMUHeap),
+#else
+					 IMG_FALSE,
+#endif
+					 (IMG_HANDLE)pMapping);
+#endif
 
 	switch (pMapping->eCpuMemoryOrigin)
 	{

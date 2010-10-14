@@ -686,8 +686,8 @@ IMG_VOID RemoveProcEntries(IMG_VOID)
 #endif 
 #endif
 
-    RemoveProcEntrySeq(g_pProcQueue);
-    RemoveProcEntrySeq(g_pProcVersion);
+	RemoveProcEntrySeq(g_pProcQueue);
+	RemoveProcEntrySeq(g_pProcVersion);
 	RemoveProcEntrySeq(g_pProcSysNodes);
 
 	while (dir->subdir)
@@ -702,24 +702,23 @@ IMG_VOID RemoveProcEntries(IMG_VOID)
 
 static void ProcSeqShowVersion(struct seq_file *sfile,void* el)
 {
-	SYS_DATA * psSysData;
+	SYS_DATA *psSysData;
 	IMG_CHAR *pszSystemVersionString = "None";
 
 	if(el == PVR_PROC_SEQ_START_TOKEN)
 	{
-		seq_printf( sfile,
-						"Version %s (%s) %s\n",
-						PVRVERSION_STRING,
-						PVR_BUILD_TYPE, PVR_BUILD_DIR);
+		seq_printf(sfile,
+				"Version %s (%s) %s\n",
+				PVRVERSION_STRING,
+				PVR_BUILD_TYPE, PVR_BUILD_DIR);
 		return;
 	}
 
-    SysAcquireData(&psSysData);
-
-    if(psSysData->pszVersionString)
+	psSysData = SysAcquireDataNoCheck();
+	if(psSysData != IMG_NULL && psSysData->pszVersionString != IMG_NULL)
 	{
-    	pszSystemVersionString = psSysData->pszVersionString;
-    }
+		pszSystemVersionString = psSysData->pszVersionString;
+	}
 
 	seq_printf( sfile, "System Version String: %s\n", pszSystemVersionString);
 }
@@ -781,8 +780,7 @@ static IMG_VOID* DecOffPsDev_AnyVaCb(PVRSRV_DEVICE_NODE *psNode, va_list va)
 
 static void ProcSeqShowSysNodes(struct seq_file *sfile,void* el)
 {
-	SYS_DATA * psSysData;
-    PVRSRV_DEVICE_NODE	*psDevNode = (PVRSRV_DEVICE_NODE*)el;
+	PVRSRV_DEVICE_NODE *psDevNode;
 
 	if(el == PVR_PROC_SEQ_START_TOKEN)
 	{
@@ -792,42 +790,43 @@ static void ProcSeqShowSysNodes(struct seq_file *sfile,void* el)
 		return;
 	}
 
-    SysAcquireData(&psSysData);
+	psDevNode = (PVRSRV_DEVICE_NODE*)el;
 
 	seq_printf( sfile,
-				  "%p %-8s %-8s %4d  %2u  %p  %3u  %p\n",
-				  psDevNode,
-				  deviceTypeToString(psDevNode->sDevId.eDeviceType),
-				  deviceClassToString(psDevNode->sDevId.eDeviceClass),
-				  psDevNode->sDevId.eDeviceClass,
-				  psDevNode->ui32RefCount,
-				  psDevNode->pvDevice,
-				  psDevNode->ui32pvDeviceSize,
-				  psDevNode->hResManContext);
-
+			  "%p %-8s %-8s %4d  %2u  %p  %3u  %p\n",
+			  psDevNode,
+			  deviceTypeToString(psDevNode->sDevId.eDeviceType),
+			  deviceClassToString(psDevNode->sDevId.eDeviceClass),
+			  psDevNode->sDevId.eDeviceClass,
+			  psDevNode->ui32RefCount,
+			  psDevNode->pvDevice,
+			  psDevNode->ui32pvDeviceSize,
+			  psDevNode->hResManContext);
 }
 
 static void* ProcSeqOff2ElementSysNodes(struct seq_file * sfile, loff_t off)
 {
     SYS_DATA *psSysData;
-    PVRSRV_DEVICE_NODE	*psDevNode;
+    PVRSRV_DEVICE_NODE*psDevNode = IMG_NULL;
     
     PVR_UNREFERENCED_PARAMETER(sfile);
     
-	if(!off)
-	{
-		return PVR_PROC_SEQ_START_TOKEN;
-	}
+    if(!off)
+    {
+	return PVR_PROC_SEQ_START_TOKEN;
+    }
 
-    SysAcquireData(&psSysData);
+    psSysData = SysAcquireDataNoCheck();
+    if (psSysData != IMG_NULL)
+    {
 
-    
 	psDevNode = (PVRSRV_DEVICE_NODE*)
-				List_PVRSRV_DEVICE_NODE_Any_va(psSysData->psDeviceNodeList,
+			List_PVRSRV_DEVICE_NODE_Any_va(psSysData->psDeviceNodeList,
 													DecOffPsDev_AnyVaCb,
 													&off);
+    }
 
-	
-	return (void*)psDevNode;
+
+    return (void*)psDevNode;
 }
 

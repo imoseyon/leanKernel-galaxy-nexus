@@ -120,19 +120,18 @@ static struct class *psPvrClass;
 #endif
 
 #if !defined(SUPPORT_DRI_DRM)
-static IMG_INT AssignedMajorNumber;
+static int AssignedMajorNumber;
 
-static IMG_INT PVRSRVOpen(struct inode* pInode, struct file* pFile);
-static IMG_INT PVRSRVRelease(struct inode* pInode, struct file* pFile);
+static int PVRSRVOpen(struct inode* pInode, struct file* pFile);
+static int PVRSRVRelease(struct inode* pInode, struct file* pFile);
 
 static struct file_operations pvrsrv_fops =
 {
-	.owner=THIS_MODULE,
-	 
-	.unlocked_ioctl=(IMG_VOID*)PVRSRV_BridgeDispatchKM,
-	.open=PVRSRVOpen,
-	.release=PVRSRVRelease,
-	.mmap=PVRMMap,
+	.owner = THIS_MODULE,
+	.unlocked_ioctl = PVRSRV_BridgeDispatchKM,
+	.open = PVRSRVOpen,
+	.release = PVRSRVRelease,
+	.mmap = PVRMMap,
 };
 #endif
 
@@ -157,20 +156,23 @@ static IMG_UINT32 gPVRPowerLevel;
 #endif 
 
 #if defined(PVR_LDM_PLATFORM_MODULE)
-static IMG_INT PVRSRVDriverRemove(LDM_DEV *device);
-static IMG_INT PVRSRVDriverProbe(LDM_DEV *device);
+static int PVRSRVDriverRemove(LDM_DEV *device);
+static int PVRSRVDriverProbe(LDM_DEV *device);
 #endif
 #if defined(PVR_LDM_PCI_MODULE)
-static IMG_VOID PVRSRVDriverRemove(LDM_DEV *device);
-static IMG_INT PVRSRVDriverProbe(LDM_DEV *device, const struct pci_device_id *id);
+static void PVRSRVDriverRemove(LDM_DEV *device);
+static int PVRSRVDriverProbe(LDM_DEV *device, const struct pci_device_id *id);
 #endif
-static IMG_INT PVRSRVDriverSuspend(LDM_DEV *device, pm_message_t state);
-static IMG_VOID PVRSRVDriverShutdown(LDM_DEV *device);
-static IMG_INT PVRSRVDriverResume(LDM_DEV *device);
+static int PVRSRVDriverSuspend(LDM_DEV *device, pm_message_t state);
+static void PVRSRVDriverShutdown(LDM_DEV *device);
+static int PVRSRVDriverResume(LDM_DEV *device);
 
 #if defined(PVR_LDM_PCI_MODULE)
 struct pci_device_id powervr_id_table[] __devinitdata = {
 	{ PCI_DEVICE(SYS_SGX_DEV_VENDOR_ID, SYS_SGX_DEV_DEVICE_ID) },
+#if defined (SYS_SGX_DEV1_DEVICE_ID)
+	{ PCI_DEVICE(SYS_SGX_DEV_VENDOR_ID, SYS_SGX_DEV1_DEVICE_ID) },
+#endif
 	{ 0 }
 };
 
@@ -202,12 +204,11 @@ static LDM_DRV powervr_driver = {
 struct gpu_platform_data *gpsSgxPlatformData;
 LDM_DEV *gpsPVRLDMDev;
 
-
 #if defined(PVR_LDM_PLATFORM_MODULE)
-static IMG_INT PVRSRVDriverProbe(LDM_DEV *pDevice)
+static int PVRSRVDriverProbe(LDM_DEV *pDevice)
 #endif
 #if defined(PVR_LDM_PCI_MODULE)
-static IMG_INT __devinit PVRSRVDriverProbe(LDM_DEV *pDevice, const struct pci_device_id *id)
+static int __devinit PVRSRVDriverProbe(LDM_DEV *pDevice, const struct pci_device_id *id)
 #endif
 {
 	SYS_DATA *psSysData;
@@ -246,10 +247,10 @@ static IMG_INT __devinit PVRSRVDriverProbe(LDM_DEV *pDevice, const struct pci_de
 
 
 #if defined (PVR_LDM_PLATFORM_MODULE)
-static IMG_INT PVRSRVDriverRemove(LDM_DEV *pDevice)
+static int PVRSRVDriverRemove(LDM_DEV *pDevice)
 #endif
 #if defined(PVR_LDM_PCI_MODULE)
-static IMG_VOID __devexit PVRSRVDriverRemove(LDM_DEV *pDevice)
+static void __devexit PVRSRVDriverRemove(LDM_DEV *pDevice)
 #endif
 {
 	SYS_DATA *psSysData;
@@ -301,9 +302,9 @@ static IMG_VOID PVRSRVDriverShutdown(LDM_DEV *pDevice)
 
 #if defined(PVR_LDM_MODULE) || defined(SUPPORT_DRI_DRM)
 #if defined(SUPPORT_DRI_DRM)
-IMG_INT PVRSRVDriverSuspend(struct drm_device *pDevice, pm_message_t state)
+int PVRSRVDriverSuspend(struct drm_device *pDevice, pm_message_t state)
 #else
-static IMG_INT PVRSRVDriverSuspend(LDM_DEV *pDevice, pm_message_t state)
+static int PVRSRVDriverSuspend(LDM_DEV *pDevice, pm_message_t state)
 #endif
 {
 #if !(defined(DEBUG) && defined(PVR_MANUAL_POWER_CONTROL) && !defined(SUPPORT_DRI_DRM))
@@ -319,9 +320,9 @@ static IMG_INT PVRSRVDriverSuspend(LDM_DEV *pDevice, pm_message_t state)
 
 
 #if defined(SUPPORT_DRI_DRM)
-IMG_INT PVRSRVDriverResume(struct drm_device *pDevice)
+int PVRSRVDriverResume(struct drm_device *pDevice)
 #else
-static IMG_INT PVRSRVDriverResume(LDM_DEV *pDevice)
+static int PVRSRVDriverResume(LDM_DEV *pDevice)
 #endif
 {
 #if !(defined(DEBUG) && defined(PVR_MANUAL_POWER_CONTROL) && !defined(SUPPORT_DRI_DRM))
@@ -385,31 +386,25 @@ void ProcSeqShowPowerLevel(struct seq_file *sfile,void* el)
 #endif
 
 #if defined(SUPPORT_DRI_DRM)
-IMG_INT PVRSRVOpen(struct drm_device unref__ *dev, struct drm_file *pFile)
+int PVRSRVOpen(struct drm_device unref__ *dev, struct drm_file *pFile)
 #else
-static IMG_INT PVRSRVOpen(struct inode unref__ * pInode, struct file *pFile)
+static int PVRSRVOpen(struct inode unref__ * pInode, struct file *pFile)
 #endif
 {
 	PVRSRV_FILE_PRIVATE_DATA *psPrivateData;
 	IMG_HANDLE hBlockAlloc;
-	IMG_INT iRet = -ENOMEM;
+	int iRet = -ENOMEM;
 	PVRSRV_ERROR eError;
 	IMG_UINT32 ui32PID;
 #if defined(SUPPORT_DRI_DRM) && defined(PVR_SECURE_DRM_AUTH_EXPORT)
 	PVRSRV_ENV_PER_PROCESS_DATA *psEnvPerProc;
 #endif
 
-#if defined(SUPPORT_DRI_DRM)
-	PVR_UNREFERENCED_PARAMETER(dev);
-#else
-	PVR_UNREFERENCED_PARAMETER(pInode);
-#endif
-
 	LinuxLockMutex(&gPVRSRVLock);
 
 	ui32PID = OSGetCurrentProcessIDKM();
 
-	if (PVRSRVProcessConnect(ui32PID) != PVRSRV_OK)
+	if (PVRSRVProcessConnect(ui32PID, 0) != PVRSRV_OK)
 		goto err_unlock;
 
 #if defined(SUPPORT_DRI_DRM) && defined(PVR_SECURE_DRM_AUTH_EXPORT)
@@ -449,50 +444,55 @@ err_unlock:
 
 
 #if defined(SUPPORT_DRI_DRM)
-IMG_INT PVRSRVRelease(struct drm_device unref__ *dev, struct drm_file *pFile)
+void PVRSRVRelease(void *pvPrivData)
 #else
-static IMG_INT PVRSRVRelease(struct inode unref__ * pInode, struct file *pFile)
+static int PVRSRVRelease(struct inode unref__ * pInode, struct file *pFile)
 #endif
 {
 	PVRSRV_FILE_PRIVATE_DATA *psPrivateData;
 
-#if defined(SUPPORT_DRI_DRM)
-	PVR_UNREFERENCED_PARAMETER(dev);
-#else
-	PVR_UNREFERENCED_PARAMETER(pInode);
-#endif
-
 	LinuxLockMutex(&gPVRSRVLock);
 
+#if defined(SUPPORT_DRI_DRM)
+	psPrivateData = (PVRSRV_FILE_PRIVATE_DATA *)pvPrivData;
+#else
 	psPrivateData = PRIVATE_DATA(pFile);
-
+#endif
+	if (psPrivateData != IMG_NULL)
+	{
 #if defined(SUPPORT_DRI_DRM) && defined(PVR_SECURE_DRM_AUTH_EXPORT)
-	list_del(&psPrivateData->sDRMAuthListItem);
+		list_del(&psPrivateData->sDRMAuthListItem);
 #endif
 
-	
-	gui32ReleasePID = psPrivateData->ui32OpenPID;
-	PVRSRVProcessDisconnect(psPrivateData->ui32OpenPID);
-	gui32ReleasePID = 0;
 
-	OSFreeMem(PVRSRV_OS_NON_PAGEABLE_HEAP,
-			  sizeof(PVRSRV_FILE_PRIVATE_DATA),
-			  psPrivateData, psPrivateData->hBlockAlloc);
+		gui32ReleasePID = psPrivateData->ui32OpenPID;
+		PVRSRVProcessDisconnect(psPrivateData->ui32OpenPID);
+		gui32ReleasePID = 0;
 
-	PRIVATE_DATA(pFile) = NULL; 
+		OSFreeMem(PVRSRV_OS_NON_PAGEABLE_HEAP,
+				  sizeof(PVRSRV_FILE_PRIVATE_DATA),
+				  psPrivateData, psPrivateData->hBlockAlloc);
+
+#if !defined(SUPPORT_DRI_DRM)
+		PRIVATE_DATA(pFile) = IMG_NULL;
+#endif
+	}
 
 	LinuxUnLockMutex(&gPVRSRVLock);
+
+#if !defined(SUPPORT_DRI_DRM)
 	return 0;
+#endif
 }
 
 
 #if defined(SUPPORT_DRI_DRM)
-IMG_INT PVRCore_Init(IMG_VOID)
+int PVRCore_Init(IMG_VOID)
 #else
-static IMG_INT __init PVRCore_Init(IMG_VOID)
+static int __init PVRCore_Init(IMG_VOID)
 #endif
 {
-	IMG_INT error;
+	int error;
 #if !defined(PVR_LDM_MODULE)
 	PVRSRV_ERROR eError;
 #else
@@ -651,9 +651,9 @@ init_failed:
 
 
 #if defined(SUPPORT_DRI_DRM)
-IMG_VOID PVRCore_Cleanup(IMG_VOID)
+void PVRCore_Cleanup(void)
 #else
-static IMG_VOID __exit PVRCore_Cleanup(IMG_VOID)
+static void __exit PVRCore_Cleanup(void)
 #endif
 {
 	SYS_DATA *psSysData;
@@ -703,7 +703,7 @@ static IMG_VOID __exit PVRCore_Cleanup(IMG_VOID)
 	}
 #endif
 	
-	(IMG_VOID)SysDeinitialise(psSysData);
+	(void) SysDeinitialise(psSysData);
 #endif 
 
 	PVRMMapCleanup();

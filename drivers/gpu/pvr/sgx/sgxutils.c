@@ -168,6 +168,61 @@ PVRSRV_ERROR SGXScheduleCCBCommand(PVRSRV_SGXDEV_INFO 	*psDevInfo,
 	PVR_UNREFERENCED_PARAMETER(ui32PDumpFlags);
 #endif
 
+#if defined(FIX_HW_BRN_28889)
+
+
+
+
+	if ( (eCmdType != SGXMKIF_CMD_PROCESS_QUEUES) &&
+		 ((psDevInfo->ui32CacheControl & SGXMKIF_CC_INVAL_DATA) != 0) &&
+		 ((psDevInfo->ui32CacheControl & (SGXMKIF_CC_INVAL_BIF_PT | SGXMKIF_CC_INVAL_BIF_PD)) != 0))
+	{
+	#if defined(PDUMP)
+		PVRSRV_KERNEL_MEM_INFO	*psSGXHostCtlMemInfo = psDevInfo->psKernelSGXHostCtlMemInfo;
+	#endif
+		SGXMKIF_HOST_CTL	*psSGXHostCtl = psDevInfo->psSGXHostCtl;
+		SGXMKIF_COMMAND		sCacheCommand = {0};
+
+		eError = SGXScheduleCCBCommand(psDevInfo,
+									   SGXMKIF_CMD_PROCESS_QUEUES,
+									   &sCacheCommand,
+									   ui32CallerID,
+									   ui32PDumpFlags);
+		if (eError != PVRSRV_OK)
+		{
+			goto Exit;
+		}
+
+
+		#if !defined(NO_HARDWARE)
+		if(PollForValueKM(&psSGXHostCtl->ui32InvalStatus,
+						  PVRSRV_USSE_EDM_BIF_INVAL_COMPLETE,
+						  PVRSRV_USSE_EDM_BIF_INVAL_COMPLETE,
+						  2 * MAX_HW_TIME_US/WAIT_TRY_COUNT,
+						  WAIT_TRY_COUNT) != PVRSRV_OK)
+		{
+			PVR_DPF((PVR_DBG_ERROR,"SGXScheduleCCBCommand: Wait for uKernel to Invalidate BIF cache failed"));
+			PVR_DBG_BREAK;
+		}
+		#endif
+
+		#if defined(PDUMP)
+
+		PDUMPCOMMENTWITHFLAGS(0, "Host Control - Poll for BIF cache invalidate request to complete");
+		PDUMPMEMPOL(psSGXHostCtlMemInfo,
+					offsetof(SGXMKIF_HOST_CTL, ui32InvalStatus),
+					PVRSRV_USSE_EDM_BIF_INVAL_COMPLETE,
+					PVRSRV_USSE_EDM_BIF_INVAL_COMPLETE,
+					PDUMP_POLL_OPERATOR_EQUAL,
+					0,
+					MAKEUNIQUETAG(psSGXHostCtlMemInfo));
+		#endif
+
+		psSGXHostCtl->ui32InvalStatus &= ~(PVRSRV_USSE_EDM_BIF_INVAL_COMPLETE);
+		PDUMPMEM(IMG_NULL, psSGXHostCtlMemInfo, offsetof(SGXMKIF_HOST_CTL, ui32CleanupStatus), sizeof(IMG_UINT32), 0, MAKEUNIQUETAG(psSGXHostCtlMemInfo));
+	}
+#endif
+
 #if defined(PDUMP)
 	
 	{

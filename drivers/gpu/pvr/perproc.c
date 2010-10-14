@@ -118,7 +118,7 @@ PVRSRV_PER_PROCESS_DATA *PVRSRVPerProcessData(IMG_UINT32 ui32PID)
 }
 
 
-PVRSRV_ERROR PVRSRVPerProcessDataConnect(IMG_UINT32	ui32PID)
+PVRSRV_ERROR PVRSRVPerProcessDataConnect(IMG_UINT32	ui32PID, IMG_UINT32 ui32Flags)
 {
 	PVRSRV_PER_PROCESS_DATA *psPerProc;
 	IMG_HANDLE hBlockAlloc;
@@ -154,6 +154,15 @@ PVRSRV_ERROR PVRSRVPerProcessDataConnect(IMG_UINT32	ui32PID)
 
 		psPerProc->ui32PID = ui32PID;
 		psPerProc->ui32RefCount = 0;
+
+#if defined(SUPPORT_PDUMP_MULTI_PROCESS)
+		if (ui32Flags == SRV_FLAGS_PDUMP_ACTIVE)
+		{
+			psPerProc->bPDumpActive = IMG_TRUE;
+		}
+#else
+		PVR_UNREFERENCED_PARAMETER(ui32Flags);
+#endif
 
 		
 		eError = OSPerProcessPrivateDataInit(&psPerProc->hOsPrivateData);

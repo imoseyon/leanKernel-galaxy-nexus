@@ -420,10 +420,9 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 			PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to map OCP registers"));
 			return PVRSRV_ERROR_BAD_MAPPING;
 		}
+		SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_OCPREGS);
 	}
 #endif
-
-
 
 
 	eError = PVRSRVRegisterDevice(gpsSysData, SGXRegisterDevice,
@@ -531,31 +530,24 @@ PVRSRV_ERROR SysFinalise(IMG_VOID)
 	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to Enable SGX clocks (%d)", eError));
-		(IMG_VOID)SysDeinitialise(gpsSysData);
-		gpsSysData = IMG_NULL;
 		return eError;
 	}
 #endif
-
-#if defined(SYS_USING_INTERRUPTS)
 
 	eError = OSInstallMISR(gpsSysData);
 	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"SysFinalise: Failed to install MISR"));
-		(IMG_VOID)SysDeinitialise(gpsSysData);
-		gpsSysData = IMG_NULL;
 		return eError;
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_MISR);
 
+#if defined(SYS_USING_INTERRUPTS)
 
 	eError = OSInstallDeviceLISR(gpsSysData, gsSGXDeviceMap.ui32IRQ, "SGX ISR", gpsSGXDevNode);
 	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"SysFinalise: Failed to install ISR"));
-		(IMG_VOID)SysDeinitialise(gpsSysData);
-		gpsSysData = IMG_NULL;
 		return eError;
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_LISR);
@@ -597,6 +589,7 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 			return eError;
 		}
 	}
+#endif 
 
 	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_MISR))
 	{
@@ -607,9 +600,6 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 			return eError;
 		}
 	}
-#else
-	PVR_UNREFERENCED_PARAMETER(psSysData);
-#endif
 
 	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_INITDEV))
 	{
@@ -634,10 +624,13 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 	}
 
 #if defined(SGX_OCP_REGS_ENABLED)
-	OSUnMapPhysToLin(gpvOCPRegsLinAddr,
-					 SYS_OMAP3430_OCP_REGS_SIZE,
-					 PVRSRV_HAP_UNCACHED|PVRSRV_HAP_KERNEL_ONLY,
-					 IMG_NULL);
+	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_OCPREGS))
+	{
+		OSUnMapPhysToLin(gpvOCPRegsLinAddr,
+						 SYS_OMAP3430_OCP_REGS_SIZE,
+						 PVRSRV_HAP_UNCACHED|PVRSRV_HAP_KERNEL_ONLY,
+						 IMG_NULL);
+	}
 #endif
 
 

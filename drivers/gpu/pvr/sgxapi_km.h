@@ -80,8 +80,10 @@ extern "C" {
 #else
 #if defined(ANDROID)
 #define SGX_MAX_SRC_SYNCS				8
+#define SGX_MAX_DST_SYNCS				1
 #else
 #define SGX_MAX_SRC_SYNCS				4
+#define SGX_MAX_DST_SYNCS				1
 #endif
 #endif
 
