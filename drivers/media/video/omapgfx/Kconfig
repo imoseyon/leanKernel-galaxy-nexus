@@ -1,0 +1,8 @@
+config VIDEO_OMAP_GFX
+	tristate "OMAP V4L2-GFX driver"
+	select VIDEOBUF_GEN
+	select OMAP2_DSS
+	depends on VIDEO_DEV && (ARCH_OMAP34XX || ARCH_OMAP4)
+	default m
+	---help---
+        V4L2 GFX support for OMAP based boards.

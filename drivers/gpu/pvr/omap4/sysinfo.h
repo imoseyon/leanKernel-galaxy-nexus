@@ -35,6 +35,6 @@
 
 #define WAIT_TRY_COUNT				(10000)
 
-#define SYS_DEVICE_COUNT 3
+#define SYS_DEVICE_COUNT 4
 
 #endif
