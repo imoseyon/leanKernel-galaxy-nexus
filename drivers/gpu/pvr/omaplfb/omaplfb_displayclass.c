@@ -1443,6 +1443,16 @@ static OMAP_ERROR InitDev(OMAPLFB_DEVINFO *psDevInfo, int fb_idx)
 	psPVRFBInfo->ulFBSize = FBSize;
 	psPVRFBInfo->ulBufferSize =
 		psPVRFBInfo->ulHeight * psPVRFBInfo->ulByteStride;
+	/* Get physical display size for DPI calculation */
+	if (psLINFBInfo->var.width < 0 || psLINFBInfo->var.height < 0) {
+		psDevInfo->sDisplayInfo.ui32PhysicalWidthmm = 0;
+		psDevInfo->sDisplayInfo.ui32PhysicalHeightmm = 0;
+	} else {
+		psDevInfo->sDisplayInfo.ui32PhysicalWidthmm =
+			psLINFBInfo->var.width;
+		psDevInfo->sDisplayInfo.ui32PhysicalHeightmm =
+			psLINFBInfo->var.height;
+	}
 
 	/* XXX: Page aligning with 16bpp causes the
 	 * position of framebuffer address to look in the wrong place.
