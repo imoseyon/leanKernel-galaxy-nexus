@@ -16,6 +16,7 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <linux/slab.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/fb.h>
@@ -424,6 +425,7 @@ static int present_buffer(struct omap_display_buffer *buffer)
 		struct omapfb2_device *fbdev = ofbi->fbdev;
 		struct omap_overlay *overlay;
 		struct omap_overlay_info overlay_info;
+		struct omap_dss_device *dss_device;
 		int i;
 
 		omapfb_lock(fbdev);
@@ -443,14 +445,21 @@ static int present_buffer(struct omap_display_buffer *buffer)
 
 			if (overlay->manager) {
 				overlay->manager->apply(overlay->manager);
-				if (overlay->manager->device &&
-					overlay->manager->device->update) {
-					overlay->manager->device->update(
-						overlay->manager->device,
+				dss_device = overlay->manager->device;
+				/*
+				 * FIXME: Is the update really needed?
+				 * On 2.6.35 calling this code triggers a bug
+				 */
+#if 0
+				if (dss_device &&
+					dss_device->driver->update) {
+					dss_device->driver->update(
+						dss_device,
 						0, 0,
 						overlay_info.width,
 						overlay_info.height);
 				}
+#endif
 			}
 		}
 
@@ -613,13 +622,13 @@ static int present_buffer_sync_virtual(struct omap_display_buffer *buffer)
 static int display_sync(struct omap_display_device *display)
 {
 	/* TODO: Synchronize properly with multiple managers */
-	struct omap_dss_device *dss_device =
-		display->overlay_managers[0]->device;
-	if (!dss_device || !dss_device->wait_vsync) {
+	struct omap_overlay_manager *manager =
+		display->overlay_managers[0];
+	if (!manager) {
 		ERR_PRINT("Unable to synchronize with '%s'", display->name);
 		return 1;
 	}
-	dss_device->wait_vsync(dss_device);
+	manager->wait_for_vsync(manager);
 	return 0;
 }
 
@@ -758,7 +767,7 @@ static int populate_display_info(struct omap_display_device *display,
 	if (!strcmp(dss_device->name, "lcd")) {
 		display->id = OMAP_DISPID_PRIMARY;
 		display->name = "primary";
-	} else if (!strcmp(dss_device->name, "2lcd")) {
+	} else if (!strcmp(dss_device->name, "lcd2")) {
 		display->id = OMAP_DISPID_SECONDARY;
 		display->name = "secondary";
 	} else if (!strcmp(dss_device->name, "hdmi")) {
@@ -769,7 +778,7 @@ static int populate_display_info(struct omap_display_device *display,
 		return 1;
 	}
 
-	dss_device->get_resolution(dss_device, &xres, &yres);
+	dss_device->driver->get_resolution(dss_device, &xres, &yres);
 	if (xres == 0 || yres == 0) {
 		ERR_PRINT("Unable to handle display '%s' with width %i "
 		"and height %i", dss_device->name, xres, yres);
@@ -779,7 +788,8 @@ static int populate_display_info(struct omap_display_device *display,
 	display->width = xres;
 	display->height = yres;
 
-	display->bits_per_pixel = dss_device->get_recommended_bpp(dss_device);
+	display->bits_per_pixel =
+		dss_device->driver->get_recommended_bpp(dss_device);
 	switch (display->bits_per_pixel) {
 	case 16:
 		/*
@@ -951,7 +961,6 @@ static int populate_virtual_display_info(struct omap_display_device *display)
 static int create_display_list(void)
 {
 	int i;
-	unsigned int bytes_to_alloc;
 	struct omap_display_device *display;
 
 	/* Query number of possible displays available first */
@@ -1026,7 +1035,7 @@ int omap_display_count(void)
 }
 EXPORT_SYMBOL(omap_display_count);
 
-int omap_display_init(void)
+int omap_display_initialize(void)
 {
 	/*
 	 * TODO: Is there a better way to check if list is already created?
@@ -1040,9 +1049,9 @@ int omap_display_init(void)
 	}
 	return 0;
 }
-EXPORT_SYMBOL(omap_display_init);
+EXPORT_SYMBOL(omap_display_initialize);
 
-int omap_display_deinit(void)
+int omap_display_deinitialize(void)
 {
 	int i;
 	int err = 0;
@@ -1074,5 +1083,5 @@ int omap_display_deinit(void)
 
 	return err;
 }
-EXPORT_SYMBOL(omap_display_deinit);
+EXPORT_SYMBOL(omap_display_deinitialize);
 
