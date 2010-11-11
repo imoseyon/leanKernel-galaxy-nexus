@@ -88,3 +88,11 @@ config SGX_540_BUILD_DEBUG
        bool "SGX540 DEBUG"
 
 endchoice
+
+config SGX_PDUMP
+	depends on SGX530 || SGX540
+	bool "PowerVR SGX Parameter Dump"
+	---help---
+	  This option enables the PDump (Parameter Dump) build to debug
+	  the SGX driver. The user side of the driver must be built with
+	  this option enabled as well

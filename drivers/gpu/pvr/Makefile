@@ -80,6 +80,9 @@ ccflags-$(CONFIG_SGX_540_BUILD_DEBUG) += \
 	-DPVR_NO_FULL_CACHE_OPS \
 	-DDEBUG_LOG_PATH_TRUNCATE="\"eurasia_km\""
 
+ccflags-$(CONFIG_SGX_PDUMP) += -Idrivers/gpu/pvr/pdump \
+	-DPDUMP
+
 pvr_common-y := \
 	osfunc.o \
 	mutils.o \
@@ -140,8 +143,16 @@ omaplfb-y := \
 	omaplfb/omaplfb_displayclass.o \
 	omaplfb/omaplfb_linux.o
 
+dbgdrv-$(CONFIG_SGX_PDUMP) := \
+	pdump/main.o \
+	pdump/dbgdriv.o \
+	pdump/ioctl.o \
+	pdump/handle.o \
+	pdump/hostfunc.o \
+	pdump/hotkey.o
+
 obj-$(CONFIG_SGX540) := pvr_common.o sgx.o omaplfb.o pvr540.o
 obj-$(CONFIG_SGX530) := pvr_common.o sgx.o omaplfb.o pvr530.o
 obj-$(CONFIG_VIRTUAL_DISPLAY_SUPPORT) := pvr_common.o sgx.o \
 	sgx_displayclass.o pvr540.o
-
+obj-$(CONFIG_SGX_PDUMP) += dbgdrv.o

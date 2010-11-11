@@ -720,6 +720,6 @@ static void __exit PVRCore_Cleanup(void)
 }
 
 #if !defined(SUPPORT_DRI_DRM)
-module_init(PVRCore_Init);
+late_initcall(PVRCore_Init);
 module_exit(PVRCore_Cleanup);
 #endif
