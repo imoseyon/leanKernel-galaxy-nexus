@@ -33,6 +33,7 @@
 #include <plat/gpu.h>
 #include <plat/omap-pm.h>
 #include <linux/pm_runtime.h>
+#include  <plat/omap_device.h>
 #include "sgxdefs.h"
 #include "services_headers.h"
 #include "sysinfo.h"
@@ -51,6 +52,13 @@
 #define LDM_DEV struct platform_device
 extern LDM_DEV  *gpsPVRLDMDev;
 extern struct gpu_platform_data *gpsSgxPlatformData;
+
+
+#if !defined(NO_HARDWARE)
+
+static struct pm_qos_request_list *qos_request;
+
+#endif
 
 PVRSRV_ERROR SysPowerLockWrap(SYS_DATA unref__ *psSysData)
 {
@@ -122,11 +130,12 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 	{
 		return PVRSRV_OK;
 	}
-
 	PVR_DPF((PVR_DBG_MESSAGE, "EnableSGXClocks: Enabling SGX Clocks"));
 
 	pm_runtime_get_sync(&gpsPVRLDMDev->dev);
-
+	gpsSgxPlatformData->set_max_mpu_wakeup_lat(&qos_request, 0);
+	omap_device_set_rate(&gpsPVRLDMDev->dev,
+			&gpsPVRLDMDev->dev, SYS_SGX_CLOCK_SPEED);
 	atomic_set(&psSysSpecData->sSGXClocksEnabled, 1);
 
 #else	
@@ -150,7 +159,8 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 	PVR_DPF((PVR_DBG_MESSAGE, "DisableSGXClocks: Disabling SGX Clocks"));
 
 	pm_runtime_put_sync(&gpsPVRLDMDev->dev);
-
+	gpsSgxPlatformData->set_max_mpu_wakeup_lat(&qos_request, -1);
+	omap_device_set_rate(&gpsPVRLDMDev->dev, &gpsPVRLDMDev->dev, 0);
 	atomic_set(&psSysSpecData->sSGXClocksEnabled, 0);
 
 #else
