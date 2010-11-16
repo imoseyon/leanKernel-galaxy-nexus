@@ -287,7 +287,7 @@ static struct platform_device omaplfb_device = {
 };
 #endif
 
-#if defined(SGX_EARLYSUSPEND)
+#if defined(SGX_EARLYSUSPEND) && defined(CONFIG_HAS_EARLYSUSPEND)
 
 static struct early_suspend omaplfb_early_suspend;
 
@@ -318,7 +318,7 @@ static struct platform_driver omaplfb_driver = {
 	}
 };
 
-#else /* defined(SGX_EARLYSUSPEND) */
+#else /* defined(SGX_EARLYSUSPEND) && defined(CONFIG_HAS_EARLYSUSPEND) */
 
 /*
  * Function called when the driver is requested to be suspended
@@ -364,7 +364,7 @@ static struct platform_driver omaplfb_driver = {
 	.shutdown = OMAPLFBDriverShutdown_Entry,
 };
 
-#endif /* defined(SGX_EARLYSUSPEND) */
+#endif /* defined(SGX_EARLYSUSPEND) && defined(CONFIG_HAS_EARLYSUSPEND) */
 
 #endif /* defined(LDM_PLATFORM) */
 
@@ -400,7 +400,7 @@ static int __init OMAPLFB_Init(void)
 	}
 #endif
 
-#if defined(SGX_EARLYSUSPEND)
+#if defined(SGX_EARLYSUSPEND) && defined(CONFIG_HAS_EARLYSUSPEND)
 	omaplfb_early_suspend.suspend = OMAPLFBDriverSuspend_Entry;
         omaplfb_early_suspend.resume = OMAPLFBDriverResume_Entry;
         omaplfb_early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
@@ -424,7 +424,7 @@ static IMG_VOID __exit OMAPLFB_Cleanup(IMG_VOID)
 #endif
 	DEBUG_PRINTK("Removing platform driver");
 	platform_driver_unregister(&omaplfb_driver);
-#if defined(SGX_EARLYSUSPEND)
+#if defined(SGX_EARLYSUSPEND) && defined(CONFIG_HAS_EARLYSUSPEND)
         unregister_early_suspend(&omaplfb_early_suspend);
 #endif
 #endif
