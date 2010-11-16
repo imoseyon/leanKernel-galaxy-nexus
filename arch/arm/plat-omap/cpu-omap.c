@@ -25,6 +25,7 @@
 #include <linux/err.h>
 #include <linux/clk.h>
 #include <linux/io.h>
+#include <linux/opp.h>
 
 #include <mach/hardware.h>
 #include <plat/clock.h>
@@ -32,7 +33,7 @@
 
 #if defined(CONFIG_ARCH_OMAP3) && !defined(CONFIG_OMAP_PM_NONE)
 #include <plat/omap-pm.h>
-#include <plat/opp.h>
+#include <plat/common.h>
 #endif
 
 #define VERY_HI_RATE	900000000
