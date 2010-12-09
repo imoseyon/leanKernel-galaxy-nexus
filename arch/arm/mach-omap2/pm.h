@@ -26,6 +26,25 @@ extern void omap4_enter_sleep(unsigned int cpu, unsigned int power_state,
 				bool suspend);
 extern void omap4_trigger_ioctrl(void);
 
+#ifdef CONFIG_PM
+extern void omap4_device_set_state_off(u8 enable);
+extern bool omap4_device_prev_state_off(void);
+extern bool omap4_device_next_state_off(void);
+extern void omap4_device_clear_prev_off_state(void);
+#else
+static inline void omap4_device_set_state_off(u8 enable)
+{
+}
+static inline bool omap4_device_prev_state_off(void)
+{
+	return false;
+}
+static inline bool omap4_device_next_state_off(void)
+{
+	return false;
+}
+#endif
+
 #if defined(CONFIG_PM_OPP)
 extern int omap3_opp_init(void);
 extern int omap4_opp_init(void);

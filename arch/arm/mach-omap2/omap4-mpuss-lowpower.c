@@ -267,6 +267,20 @@ static void save_gic_wakeupgen_secure(void)
 
 
 /*
+ * API to save Secure RAM, GIC, WakeupGen Registers using secure API
+ * for HS/EMU device
+ */
+static void save_secure_all(void)
+{
+	u32 ret;
+	ret = omap4_secure_dispatcher(HAL_SAVEALL_INDEX,
+					FLAG_START_CRITICAL,
+					1, omap4_secure_ram_phys, 0, 0, 0);
+	if (ret)
+		pr_debug("Secure all context save failed\n");
+}
+
+/*
  * API to save Secure RAM using secure API
  * for HS/EMU device
  */
@@ -384,6 +398,17 @@ int omap4_enter_lowpower(unsigned int cpu, unsigned int power_state)
 	 */
 	pwrdm_clear_all_prev_pwrst(mpuss_pd);
 	mpuss_clear_prev_logic_pwrst();
+	if (omap4_device_next_state_off()) {
+		if (omap_type() == OMAP2_DEVICE_TYPE_GP) {
+			omap_wakeupgen_save();
+			gic_save_context();
+		} else {
+			save_secure_all();
+		}
+		save_state = 3;
+		goto cpu_prepare;
+	}
+
 	switch (pwrdm_read_next_pwrst(mpuss_pd)) {
 	case PWRDM_POWER_RET:
 		/*
