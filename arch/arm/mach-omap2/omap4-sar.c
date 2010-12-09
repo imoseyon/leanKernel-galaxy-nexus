@@ -16,12 +16,20 @@
 #include <linux/clk.h>
 
 #include <mach/omap4-common.h>
-#include "clockdomain.h"
+#include <mach/ctrl_module_wkup_44xx.h>
 
+#include "clockdomain.h"
 #include "omap4-sar-layout.h"
 #include "cm-regbits-44xx.h"
 #include "prcm44xx.h"
 #include "cminst44xx.h"
+
+/*
+ * These SECURE control registers are used to work-around
+ * DDR corruption on the second chip select on OMAP443x.
+ */
+#define OMAP4_CTRL_SECURE_EMIF1_SDRAM_CONFIG2_REG	0x0114
+#define OMAP4_CTRL_SECURE_EMIF2_SDRAM_CONFIG2_REG	0x011c
 
 static void __iomem *sar_ram_base;
 static void __iomem *omap4_sar_modules[MAX_SAR_MODULES];
@@ -1001,6 +1009,26 @@ static int __init omap4_sar_ram_init(void)
 	 */
 	if (omap_type() == OMAP2_DEVICE_TYPE_GP)
 		save_sar_bank3();
+	/*
+	 * Work around for OMAP443x Errata i632: "LPDDR2 Corruption After OFF
+	 * Mode Transition When CS1 Is Used On EMIF":
+	 * Overwrite EMIF1/EMIF2
+	 * SECURE_EMIF1_SDRAM_CONFIG2_REG
+	 * SECURE_EMIF2_SDRAM_CONFIG2_REG
+	 */
+	if (cpu_is_omap443x()) {
+		void __iomem *secure_ctrl_mod;
+
+		secure_ctrl_mod = ioremap(OMAP4_CTRL_MODULE_WKUP, SZ_4K);
+		BUG_ON(!secure_ctrl_mod);
+
+		__raw_writel(0x10, secure_ctrl_mod +
+				OMAP4_CTRL_SECURE_EMIF1_SDRAM_CONFIG2_REG);
+		__raw_writel(0x10, secure_ctrl_mod +
+				OMAP4_CTRL_SECURE_EMIF2_SDRAM_CONFIG2_REG);
+		wmb();
+		iounmap(secure_ctrl_mod);
+	}
 
 	/*
 	 * L3INIT PD and clocks are needed for SAR save phase
