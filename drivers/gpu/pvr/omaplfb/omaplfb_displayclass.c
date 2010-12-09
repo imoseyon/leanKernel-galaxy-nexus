@@ -1038,62 +1038,47 @@ static void OMAPLFBSyncIHandler(struct work_struct *work)
 	psFlipItem = &psSwapChain->psFlipItems[psSwapChain->ulRemoveIndex];
 	ulMaxIndex = psSwapChain->ulBufferCount - 1;
 
-	/* Synchronize with the display */
-	OMAPLFBWaitForSync(psDevInfo);
-
 	/* Iterate through the flip items and flip them if necessary */
 	while(psFlipItem->bValid)
 	{	
-		if(psFlipItem->bFlipped)
-		{
-			if(!psFlipItem->bCmdCompleted)
-			{
-				psSwapChain->psPVRJTable->pfnPVRSRVCmdComplete(
-					(IMG_HANDLE)psFlipItem->hCmdComplete,
-					IMG_TRUE);
-				psFlipItem->bCmdCompleted = OMAP_TRUE;
-			}
-			psFlipItem->ulSwapInterval--;
-			
-			if(psFlipItem->ulSwapInterval == 0)
-			{
-				psSwapChain->ulRemoveIndex++;
-				if(psSwapChain->ulRemoveIndex > ulMaxIndex)
-					psSwapChain->ulRemoveIndex = 0;
-				psFlipItem->bCmdCompleted = OMAP_FALSE;
-				psFlipItem->bFlipped = OMAP_FALSE;
-				psFlipItem->bValid = OMAP_FALSE;
-			}
-			else
-			{
-				/*
-			 	 * Here the swap interval is not zero yet
-			 	 * we need to schedule another work until
-				 * it reaches zero
-			 	 */
-				queue_work(psDevInfo->sync_display_wq,
-					&psDevInfo->sync_display_work);
-				goto ExitUnlock;
-			}
-		}
-		else
-		{
-			OMAPLFBFlip(psSwapChain,
-				(unsigned long)psFlipItem->sSysAddr);
-			psFlipItem->bFlipped = OMAP_TRUE;
+		/* Synchronize with the display */
+		OMAPLFBWaitForSync(psDevInfo);
+		/* Update display */
+		OMAPLFBFlip(psSwapChain,
+			(unsigned long)psFlipItem->sSysAddr->uiAddr);
+
+		psFlipItem->ulSwapInterval--;
+		psFlipItem->bFlipped = OMAP_TRUE;
+
+		if (psFlipItem->ulSwapInterval == 0) {
+
+			/* Mark the flip item as completed to reuse it */
+			psSwapChain->ulRemoveIndex++;
+			if (psSwapChain->ulRemoveIndex > ulMaxIndex)
+				psSwapChain->ulRemoveIndex = 0;
+			psFlipItem->bCmdCompleted = OMAP_FALSE;
+			psFlipItem->bFlipped = OMAP_FALSE;
+			psFlipItem->bValid = OMAP_FALSE;
+
+			psSwapChain->psPVRJTable->pfnPVRSRVCmdComplete(
+				(IMG_HANDLE)psFlipItem->hCmdComplete,
+				IMG_TRUE);
+			psFlipItem->bCmdCompleted = OMAP_TRUE;
+		} else {
 			/*
-			 * If the flip has been presented here then we need
-			 * in the next sync execute the command complete,
-			 * schedule another work
+			 * Here the swap interval is not zero yet
+			 * we need to schedule another work until
+			 * it reaches zero
 			 */
 			queue_work(psDevInfo->sync_display_wq,
 				&psDevInfo->sync_display_work);
-			goto ExitUnlock;
+			break;
 		}
+
 		psFlipItem =
 			&psSwapChain->psFlipItems[psSwapChain->ulRemoveIndex];
 	}
-		
+
 ExitUnlock:
 	mutex_unlock(&psDevInfo->sSwapChainLockMutex);
 }
@@ -1113,6 +1098,7 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
 	OMAPLFB_SWAPCHAIN *psSwapChain;
 #if defined(SYS_USING_INTERRUPTS)
 	OMAPLFB_FLIP_ITEM* psFlipItem;
+	unsigned long ulMaxIndex;
 #endif
 
 	if(!hCmdCookie || !pvData)
@@ -1163,20 +1149,9 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
 
 	if(psFlipItem->bValid == OMAP_FALSE)
 	{
-		unsigned long ulMaxIndex = psSwapChain->ulBufferCount - 1;
-
-		/*
-		 * If both indexes are equal the queue is empty,
-		 * present immediatly
-		 */
-		if(psSwapChain->ulInsertIndex == psSwapChain->ulRemoveIndex)
-		{
-			OMAPLFBFlip(psSwapChain,
-				(unsigned long)psBuffer->sSysAddr.uiAddr);
-			psFlipItem->bFlipped = OMAP_TRUE;
-		}
-		else
-			psFlipItem->bFlipped = OMAP_FALSE;
+		/* Mark the flip item as not flipped */
+		ulMaxIndex = psSwapChain->ulBufferCount - 1;
+		psFlipItem->bFlipped = OMAP_FALSE;
 
 		/*
 		 * The buffer is queued here, must be consumed by the workqueue
@@ -1195,7 +1170,9 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
 		queue_work(psDevInfo->sync_display_wq, &psDevInfo->sync_display_work);
 
 		goto ExitTrueUnlock;
-	}
+	} else
+		WARNING_PRINTK("Dropping frame! %p index %lu is the flip "
+			"queue full?", psFlipItem, psSwapChain->ulInsertIndex);
 
 	mutex_unlock(&psDevInfo->sSwapChainLockMutex);
 	return IMG_FALSE;

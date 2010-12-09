@@ -183,10 +183,7 @@ void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
 	struct fb_info * framebuffer = psDevInfo->psLINFBInfo;
 	struct omapfb_info *ofbi = FB2OFB(framebuffer);
 	struct omapfb2_device *fbdev = ofbi->fbdev;
-	unsigned long fb_offset =
-		aPhyAddr - psDevInfo->sSystemBuffer.sSysAddr.uiAddr;
-	struct omap_overlay* overlay;
-	struct omap_overlay_info overlay_info;
+	unsigned long fb_offset;
 	int i;
 
 	fb_offset = aPhyAddr - psDevInfo->sSystemBuffer.sSysAddr.uiAddr;
@@ -195,31 +192,31 @@ void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
 
 	for(i = 0; i < ofbi->num_overlays ; i++)
 	{
-		overlay = ofbi->overlays[i];
-		overlay->get_overlay_info( overlay, &overlay_info );
+		struct omap_dss_device *display = NULL;
+		struct omap_dss_driver *driver = NULL;
+		struct omap_overlay_manager *manager;
+		struct omap_overlay *overlay;
+		struct omap_overlay_info overlay_info;
 
-		/* If the overlay is not enabled don't update it */
-		if(!overlay_info.enabled)
-			continue;
+		overlay = ofbi->overlays[i];
+		manager = overlay->manager;
+		overlay->get_overlay_info( overlay, &overlay_info );
 
 		overlay_info.paddr = framebuffer->fix.smem_start + fb_offset;
 		overlay_info.vaddr = framebuffer->screen_base + fb_offset;
 		overlay->set_overlay_info(overlay, &overlay_info);
-		overlay->manager->apply(overlay->manager);
 
-#if 0
-		/* FIXME: Update call takes a long time in 2.6.35.
-		 *        Needs to be resolved in the display driver
-		 *        before we can enable this.
-		 */
-		if(overlay->manager->device->driver->update)
-		{
-			overlay->manager->device->driver->update(
-				overlay->manager->device, 0, 0,
-				overlay_info.width,
-				overlay_info.height);
+		if (manager) {
+			manager->apply(manager);
+			display = manager->device;
+			driver = display ? display->driver : NULL;
 		}
-#endif
+
+		if (driver && driver->update &&
+			driver->get_update_mode(display) ==
+			OMAP_DSS_UPDATE_MANUAL)
+			driver->update(display, 0, 0, overlay_info.width,
+				overlay_info.height);
 
 	}
 
@@ -241,10 +238,26 @@ void OMAPLFBWaitForSync(OMAPLFB_DEVINFO *psDevInfo)
 {
 	struct fb_info * framebuffer = psDevInfo->psLINFBInfo;
 	struct omap_dss_device *display = fb2display(framebuffer);
-	if (display)
-	{
-		display->manager->wait_for_vsync(display->manager);
-	}
+	struct omap_dss_driver *driver;
+	struct omap_overlay_manager *manager;
+	int err = 1;
+
+	if (!display)
+		WARNING_PRINTK("No DSS device to sync with display %u!",
+				psDevInfo->uDeviceID);
+
+	driver = display->driver;
+	manager = display->manager;
+
+	if (driver && driver->sync &&
+		driver->get_update_mode(display) == OMAP_DSS_UPDATE_MANUAL)
+		err = driver->sync(display);
+	else if (manager && manager->wait_for_vsync)
+		err = manager->wait_for_vsync(manager);
+
+	if (err)
+		WARNING_PRINTK("Unable to sync with display %u!",
+			psDevInfo->uDeviceID);
 }
 
 #if defined(LDM_PLATFORM)
