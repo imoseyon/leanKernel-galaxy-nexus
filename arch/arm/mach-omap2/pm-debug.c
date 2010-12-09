@@ -51,6 +51,7 @@ u32 enable_off_mode;
 u32 sleep_while_idle;
 u32 wakeup_timer_seconds;
 u32 wakeup_timer_milliseconds;
+u32 omap4_device_off_counter = 0;
 
 #ifdef CONFIG_PM_ADVANCED_DEBUG
 static u32 saved_reg_num;
@@ -465,6 +466,8 @@ static int pwrdm_dbg_show_timer(struct powerdomain *pwrdm, void *user)
 static int pm_dbg_show_counters(struct seq_file *s, void *unused)
 {
 	pwrdm_for_each(pwrdm_dbg_show_counter, s);
+	if (cpu_is_omap44xx())
+		seq_printf(s, "DEVICE-OFF:%d\n", omap4_device_off_counter);
 	clkdm_for_each(clkdm_dbg_show_counter, s);
 
 	return 0;
