@@ -374,7 +374,7 @@ static struct powerdomain l3init_44xx_pwrdm = {
 	.pwrsts_mem_on	= {
 		[0] = PWRSTS_ON,	/* l3init_bank1 */
 	},
-	.flags		= PWRDM_HAS_LOWPOWERSTATECHANGE,
+	.flags		= PWRDM_HAS_LOWPOWERSTATECHANGE | PWRDM_HAS_HDWR_SAR,
 	.wakeup_lat = {
 		[PWRDM_FUNC_PWRST_OFF] = 1000,
 		[PWRDM_FUNC_PWRST_OSWR] = 600,
