@@ -170,6 +170,12 @@ static struct reg_tuple ivahd_reg[] = {
 	{.addr = OMAP4430_PM_IVAHD_PWRSTCTRL}
 };
 
+static struct reg_tuple l3instr_reg[] = {
+	{.addr = OMAP4430_CM_L3INSTR_L3_3_CLKCTRL},
+	{.addr = OMAP4430_CM_L3INSTR_L3_INSTR_CLKCTRL},
+	{.addr = OMAP4430_CM_L3INSTR_OCP_WP1_CLKCTRL},
+};
+
 /*
  * Store the SCU power status value to scratchpad memory
  */
@@ -376,7 +382,21 @@ static inline void restore_ivahd_tesla_regs(void)
 		__raw_writel(ivahd_reg[i].val, ivahd_reg[i].addr);
 }
 
+static inline void save_l3instr_regs(void)
+{
+	int i;
 
+	for (i = 0; i < ARRAY_SIZE(l3instr_reg); i++)
+		l3instr_reg[i].val = __raw_readl(l3instr_reg[i].addr);
+}
+
+static inline void restore_l3instr_regs(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(l3instr_reg); i++)
+		__raw_writel(l3instr_reg[i].val, l3instr_reg[i].addr);
+}
 
 /*
  * OMAP4 MPUSS Low Power Entry Function
@@ -451,6 +471,7 @@ int omap4_enter_lowpower(unsigned int cpu, unsigned int power_state)
 		} else {
 			save_secure_all();
 			save_ivahd_tesla_regs();
+			save_l3instr_regs();
 		}
 		save_state = 3;
 		goto cpu_prepare;
@@ -469,6 +490,7 @@ int omap4_enter_lowpower(unsigned int cpu, unsigned int power_state)
 			} else {
 				save_gic_wakeupgen_secure();
 				save_ivahd_tesla_regs();
+				save_l3instr_regs();
 			}
 			save_state = 2;
 		}
@@ -481,6 +503,7 @@ int omap4_enter_lowpower(unsigned int cpu, unsigned int power_state)
 		} else {
 			save_gic_wakeupgen_secure();
 			save_ivahd_tesla_regs();
+			save_l3instr_regs();
 			save_secure_ram();
 		}
 		save_state = 3;
@@ -548,8 +571,10 @@ cpu_prepare:
 	}
 
 	if ((omap4_device_prev_state_off()) &&
-			(omap_type() != OMAP2_DEVICE_TYPE_GP))
+			(omap_type() != OMAP2_DEVICE_TYPE_GP)) {
 		restore_ivahd_tesla_regs();
+		restore_l3instr_regs();
+	}
 
 	pwrdm_post_transition();
 
