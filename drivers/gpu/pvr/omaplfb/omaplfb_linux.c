@@ -229,12 +229,13 @@ void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
 #endif
 
 /*
- * Synchronize with the display to prevent tearing
- * On DSI panels the display->sync function is used to handle FRAMEDONE IRQ
- * On DPI panels the display->wait_vsync is used to handle VSYNC IRQ
+ * Present frame and synchronize with the display to prevent tearing
+ * On DSI panels the sync function is used to handle FRAMEDONE IRQ
+ * On DPI panels the wait_for_vsync is used to handle VSYNC IRQ
  * in: psDevInfo
  */
-void OMAPLFBWaitForSync(OMAPLFB_DEVINFO *psDevInfo)
+void OMAPLFBPresentSync(OMAPLFB_DEVINFO *psDevInfo,
+	OMAPLFB_FLIP_ITEM *psFlipItem)
 {
 	struct fb_info * framebuffer = psDevInfo->psLINFBInfo;
 	struct omap_dss_device *display = fb2display(framebuffer);
@@ -250,10 +251,20 @@ void OMAPLFBWaitForSync(OMAPLFB_DEVINFO *psDevInfo)
 	manager = display->manager;
 
 	if (driver && driver->sync &&
-		driver->get_update_mode(display) == OMAP_DSS_UPDATE_MANUAL)
+		driver->get_update_mode(display) == OMAP_DSS_UPDATE_MANUAL) {
+		/* Wait first for the DSI bus to be released then update */
 		err = driver->sync(display);
-	else if (manager && manager->wait_for_vsync)
+		OMAPLFBFlip(psDevInfo->psSwapChain,
+			(unsigned long)psFlipItem->sSysAddr->uiAddr);
+	} else if (manager && manager->wait_for_vsync) {
+		/*
+		 * Update the video pipelines registers then wait until the
+		 * frame is shown with a VSYNC
+		 */
+		OMAPLFBFlip(psDevInfo->psSwapChain,
+			(unsigned long)psFlipItem->sSysAddr->uiAddr);
 		err = manager->wait_for_vsync(manager);
+	}
 
 	if (err)
 		WARNING_PRINTK("Unable to sync with display %u!",

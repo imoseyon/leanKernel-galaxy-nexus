@@ -153,7 +153,8 @@ OMAP_ERROR OMAPLFBInit(void);
 OMAP_ERROR OMAPLFBDeinit(void);
 void *OMAPLFBAllocKernelMem(unsigned long ulSize);
 void OMAPLFBFreeKernelMem(void *pvMem);
-void OMAPLFBWaitForSync(OMAPLFB_DEVINFO *psDevInfo);
+void OMAPLFBPresentSync(OMAPLFB_DEVINFO *psDevInfo,
+	OMAPLFB_FLIP_ITEM *psFlipItem);
 OMAP_ERROR OMAPLFBGetLibFuncAddr(char *szFunctionName,
 	PFN_DC_GET_PVRJTABLE *ppfnFuncTable);
 void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr);

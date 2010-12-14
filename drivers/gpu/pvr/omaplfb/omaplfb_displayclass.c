@@ -1039,13 +1039,9 @@ static void OMAPLFBSyncIHandler(struct work_struct *work)
 	ulMaxIndex = psSwapChain->ulBufferCount - 1;
 
 	/* Iterate through the flip items and flip them if necessary */
-	while(psFlipItem->bValid)
-	{	
-		/* Synchronize with the display */
-		OMAPLFBWaitForSync(psDevInfo);
+	while (psFlipItem->bValid) {
 		/* Update display */
-		OMAPLFBFlip(psSwapChain,
-			(unsigned long)psFlipItem->sSysAddr->uiAddr);
+		OMAPLFBPresentSync(psDevInfo, psFlipItem);
 
 		psFlipItem->ulSwapInterval--;
 		psFlipItem->bFlipped = OMAP_TRUE;
