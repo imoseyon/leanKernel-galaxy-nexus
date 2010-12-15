@@ -212,11 +212,18 @@ void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
 			driver = display ? display->driver : NULL;
 		}
 
-		if (driver && driver->update &&
-			driver->get_update_mode(display) ==
-			OMAP_DSS_UPDATE_MANUAL)
-			driver->update(display, 0, 0, overlay_info.width,
-				overlay_info.height);
+		if (driver && driver->get_update_mode(display) ==
+			OMAP_DSS_UPDATE_MANUAL) {
+			if (driver->sched_update)
+				driver->sched_update(display, 0, 0,
+							overlay_info.width,
+							overlay_info.height);
+			else if (driver->update)
+				driver->update(display, 0, 0,
+							overlay_info.width,
+							overlay_info.height);
+
+		}
 
 	}
 
