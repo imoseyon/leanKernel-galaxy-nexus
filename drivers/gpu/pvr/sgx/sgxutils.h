@@ -42,17 +42,19 @@ IMG_VOID SGXTestActivePowerEvent(PVRSRV_DEVICE_NODE	*psDeviceNode,
 								 IMG_UINT32			ui32CallerID);
 
 IMG_IMPORT
-PVRSRV_ERROR SGXScheduleCCBCommand(PVRSRV_SGXDEV_INFO 	*psDevInfo,
+PVRSRV_ERROR SGXScheduleCCBCommand(PVRSRV_SGXDEV_INFO	*psDevInfo,
 								   SGXMKIF_CMD_TYPE		eCommandType,
 								   SGXMKIF_COMMAND		*psCommandData,
 								   IMG_UINT32			ui32CallerID,
-								   IMG_UINT32			ui32PDumpFlags);
+								   IMG_UINT32			ui32PDumpFlags,
+								   IMG_BOOL			bLastInScene);
 IMG_IMPORT
 PVRSRV_ERROR SGXScheduleCCBCommandKM(PVRSRV_DEVICE_NODE		*psDeviceNode,
 									 SGXMKIF_CMD_TYPE		eCommandType,
 									 SGXMKIF_COMMAND		*psCommandData,
 									 IMG_UINT32				ui32CallerID,
-									 IMG_UINT32				ui32PDumpFlags);
+									 IMG_UINT32				ui32PDumpFlags,
+									 IMG_BOOL				bLastInScene);
 
 IMG_IMPORT
 PVRSRV_ERROR SGXScheduleProcessQueuesKM(PVRSRV_DEVICE_NODE *psDeviceNode);

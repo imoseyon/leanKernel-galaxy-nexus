@@ -613,31 +613,43 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVDeinitialiseDevice(IMG_UINT32 ui32DevIndex)
 
 
 IMG_EXPORT
-PVRSRV_ERROR IMG_CALLCONV PollForValueKM (volatile IMG_UINT32* pui32LinMemAddr,
-										  IMG_UINT32 ui32Value,
-										  IMG_UINT32 ui32Mask,
-										  IMG_UINT32 ui32Waitus,
-										  IMG_UINT32 ui32Tries)
+PVRSRV_ERROR IMG_CALLCONV PollForValueKM (volatile IMG_UINT32*	pui32LinMemAddr,
+										  IMG_UINT32			ui32Value,
+										  IMG_UINT32			ui32Mask,
+										  IMG_UINT32			ui32Timeoutus,
+										  IMG_UINT32			ui32PollPeriodus,
+										  IMG_BOOL				bAllowPreemption)
 {
 	{
-		IMG_UINT32	ui32ActualValue = 0xFFFFFFFFU; 
-		IMG_UINT32	uiMaxTime = ui32Tries * ui32Waitus;
+		IMG_UINT32	ui32ActualValue = 0xFFFFFFFFU;
 
-		 
-		LOOP_UNTIL_TIMEOUT(uiMaxTime)
+		if (bAllowPreemption)
+		{
+			PVR_ASSERT(ui32PollPeriodus >= 1000);
+		}
+
+
+		LOOP_UNTIL_TIMEOUT(ui32Timeoutus)
 		{
 			ui32ActualValue = (*pui32LinMemAddr & ui32Mask);
 			if(ui32ActualValue == ui32Value)
 			{
 				return PVRSRV_OK;
 			}
-			OSWaitus(ui32Waitus);
+
+			if (bAllowPreemption)
+			{
+				OSSleepms(ui32PollPeriodus / 1000);
+			}
+			else
+			{
+				OSWaitus(ui32PollPeriodus);
+			}
 		} END_LOOP_UNTIL_TIMEOUT();
-	
+
 		PVR_DPF((PVR_DBG_ERROR,"PollForValueKM: Timeout. Expected 0x%x but found 0x%x (mask 0x%x).",
 				ui32Value, ui32ActualValue, ui32Mask));
 	}
-
 
 	return PVRSRV_ERROR_TIMEOUT;
 }
@@ -654,7 +666,7 @@ static IMG_VOID PVRSRVGetMiscInfoKM_RA_GetStats_ForEachVaCb(BM_HEAP *psBMHeap, v
 	pui32StrLen = va_arg(va, IMG_UINT32*);
 	ui32Mode = va_arg(va, IMG_UINT32);
 
-	
+
 	switch(ui32Mode)
 	{
 		case PVRSRV_MISC_INFO_MEMSTATS_PRESENT:

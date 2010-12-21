@@ -342,7 +342,7 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVDestroyCommandQueueKM(PVRSRV_QUEUE_INFO *psQueue
 			bTimeout = IMG_FALSE;
 			break;
 		}
-		OSWaitus(MAX_HW_TIME_US/WAIT_TRY_COUNT);
+		OSSleepms(1);
 	} END_LOOP_UNTIL_TIMEOUT();
 
 	if (bTimeout)
@@ -460,7 +460,7 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVGetQueueSpaceKM(PVRSRV_QUEUE_INFO *psQueue,
 			bTimeout = IMG_FALSE;
 			break;
 		}
-		OSWaitus(MAX_HW_TIME_US/WAIT_TRY_COUNT);
+		OSSleepms(1);
 	} END_LOOP_UNTIL_TIMEOUT();
 
 	if (bTimeout == IMG_TRUE)
@@ -733,13 +733,10 @@ PVRSRV_ERROR PVRSRVProcessCommand(SYS_DATA			*psSysData,
 															   psCommand->ui32DataSize,
 															   psCommand->pvData) == IMG_FALSE)
 	{
-		
-
 
 		psCmdCompleteData->bInUse = IMG_FALSE;
 		eError = PVRSRV_ERROR_CMD_NOT_PROCESSED;
 	}
-
 
 	psDeviceCommandData[psCommand->CommandType].ui32CCBOffset = (ui32CCBOffset + 1) % DC_NUM_COMMANDS_PER_TYPE;
 
@@ -822,10 +819,7 @@ PVRSRV_ERROR PVRSRVProcessQueues(IMG_UINT32	ui32CallerID,
 				
 				UPDATE_QUEUE_ROFF(psQueue, psCommand->ui32CmdSize)
 
-				if (bFlush)
-				{
-					continue;
-				}
+				continue;
 			}
 
 			break;
@@ -972,7 +966,7 @@ PVRSRV_ERROR PVRSRVRegisterCmdProcListKM(IMG_UINT32		ui32DevIndex,
 	{
 		psDeviceCommandData[ui32CmdTypeCounter].pfnCmdProc = ppfnCmdProcList[ui32CmdTypeCounter];
 		psDeviceCommandData[ui32CmdTypeCounter].ui32CCBOffset = 0;
-		
+
 		for (ui32CmdCounter = 0; ui32CmdCounter < DC_NUM_COMMANDS_PER_TYPE; ui32CmdCounter++)
 		{
 
@@ -1014,14 +1008,14 @@ PVRSRV_ERROR PVRSRVRegisterCmdProcListKM(IMG_UINT32		ui32DevIndex,
 
 ErrorExit:
 
-	
 
- 	if (PVRSRVRemoveCmdProcListKM(ui32DevIndex, ui32CmdCount) != PVRSRV_OK)
-  	{
- 		PVR_DPF((PVR_DBG_ERROR,
- 				"PVRSRVRegisterCmdProcListKM: Failed to clean up after error, device 0x%x",
- 				ui32DevIndex));
-  	}
+
+	if (PVRSRVRemoveCmdProcListKM(ui32DevIndex, ui32CmdCount) != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+				"PVRSRVRegisterCmdProcListKM: Failed to clean up after error, device 0x%x",
+				ui32DevIndex));
+	}
 
 	return eError;
 }
@@ -1037,7 +1031,7 @@ PVRSRV_ERROR PVRSRVRemoveCmdProcListKM(IMG_UINT32 ui32DevIndex,
 	COMMAND_COMPLETE_DATA	*psCmdCompleteData;
 	IMG_SIZE_T				ui32AllocSize;
 
-	
+
 	if(ui32DevIndex >= SYS_DEVICE_COUNT)
 	{
 		PVR_DPF((PVR_DBG_ERROR,
@@ -1046,7 +1040,7 @@ PVRSRV_ERROR PVRSRVRemoveCmdProcListKM(IMG_UINT32 ui32DevIndex,
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
 
-	
+
 	SysAcquireData(&psSysData);
 
 	psDeviceCommandData = psSysData->apsDeviceCommandData[ui32DevIndex];
@@ -1068,7 +1062,7 @@ PVRSRV_ERROR PVRSRVRemoveCmdProcListKM(IMG_UINT32 ui32DevIndex,
 			}
 		}
 
-		
+
 		ui32AllocSize = ui32CmdCount * sizeof(*psDeviceCommandData);
 		OSFreeMem(PVRSRV_OS_NON_PAGEABLE_HEAP, ui32AllocSize, psDeviceCommandData, IMG_NULL);
 		psSysData->apsDeviceCommandData[ui32DevIndex] = IMG_NULL;
