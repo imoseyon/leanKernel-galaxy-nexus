@@ -39,6 +39,7 @@ static inline void __iomem *omap4_get_scu_base(void)
 
 extern void __iomem *omap4_get_gic_dist_base(void);
 extern void __iomem *omap4_get_gic_cpu_base(void);
+extern void __iomem *omap4_get_sar_ram_base(void);
 extern void __init gic_init_irq(void);
 extern void omap_smc1(u32 fn, u32 arg);
 

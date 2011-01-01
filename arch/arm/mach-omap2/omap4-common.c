@@ -23,13 +23,15 @@
 #include <mach/omap4-common.h>
 #include <mach/omap-wakeupgen.h>
 
+#include "omap4-sar-layout.h"
+
 #ifdef CONFIG_CACHE_L2X0
 static void __iomem *l2cache_base;
 #endif
 
 static void __iomem *gic_dist_base_addr;
 static void __iomem *gic_cpu_base;
-
+static void __iomem *sar_ram_base;
 
 void __iomem *omap4_get_gic_dist_base(void)
 {
@@ -132,3 +134,30 @@ static int __init omap_l2_cache_init(void)
 }
 early_initcall(omap_l2_cache_init);
 #endif
+
+void __iomem *omap4_get_sar_ram_base(void)
+{
+	return sar_ram_base;
+}
+
+/*
+ * SAR RAM used to save and restore the HW
+ * context in low power modes
+ */
+static int __init omap4_sar_ram_init(void)
+{
+	/*
+	 * To avoid code running on other OMAPs in
+	 * multi-omap builds
+	 */
+	if (!cpu_is_omap44xx())
+		return -ENODEV;
+
+	/* Static mapping, never released */
+	sar_ram_base = ioremap(OMAP44XX_SAR_RAM_BASE, SZ_8K);
+	if (WARN_ON(!sar_ram_base))
+		return -ENODEV;
+
+	return 0;
+}
+early_initcall(omap4_sar_ram_init);
