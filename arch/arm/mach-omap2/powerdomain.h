@@ -43,6 +43,18 @@
 #define PWRSTS_RET_ON		(PWRSTS_RET | PWRSTS_ON)
 #define PWRSTS_OFF_RET_ON	(PWRSTS_OFF_RET | PWRSTS_ON)
 
+#define PWRSTS_RET_INA_ON	((1 << PWRDM_POWER_RET) | \
+				 (1 << PWRDM_POWER_INACTIVE)  | \
+				 (1 << PWRDM_POWER_ON))
+
+#define PWRSTS_OFF_INA_ON	((1 << PWRDM_POWER_OFF) | \
+				 (1 << PWRDM_POWER_INACTIVE)  | \
+				 (1 << PWRDM_POWER_ON))
+
+#define PWRSTS_OFF_RET_INA_ON	((1 << PWRDM_POWER_OFF) | \
+				 (1 << PWRDM_POWER_RET) | \
+				 (1 << PWRDM_POWER_INACTIVE)  | \
+				 (1 << PWRDM_POWER_ON))
 
 /* Powerdomain flags */
 #define PWRDM_HAS_HDWR_SAR	(1 << 0) /* hardware save-and-restore support */
