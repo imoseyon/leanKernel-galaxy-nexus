@@ -44,7 +44,7 @@
 #define OMAP_DISP_IRQ_TIMEOUT 500
 
 #ifdef DEBUG
-#define DBG_PRINT(format, ...) printk(KERN_DEBUG OMAP_DISP_DRV_NAME \
+#define DBG_PRINT(format, ...) printk(KERN_INFO OMAP_DISP_DRV_NAME \
 	" (%s %i): " format "\n", __func__, __LINE__, ## __VA_ARGS__)
 #define WRN_PRINT(format, ...) printk(KERN_WARNING OMAP_DISP_DRV_NAME \
 	" (%s %i): " format "\n", __func__, __LINE__, ## __VA_ARGS__)
@@ -62,10 +62,17 @@
 static struct omap_display_device *omap_display_list;
 static unsigned int omap_display_number;
 
+/* Workqueues for virtual display (primary, seconday)*/
+static struct workqueue_struct *vdisp_wq_primary;
+static struct workqueue_struct *vdisp_wq_secondary;
+static struct omap_display_sync_item vdisp_sync_primary;
+static struct omap_display_sync_item vdisp_sync_secondary;
+
 /* Forward declarations */
 static struct omap_display_buffer *create_main_buffer(
 	struct omap_display_device *display);
 static int display_destroy_buffer(struct omap_display_buffer *buffer);
+static void vdisp_sync_handler(struct work_struct *work);
 
 static int open_display(struct omap_display_device *display,
 	enum omap_display_feature features)
@@ -400,6 +407,10 @@ static int present_buffer_virtual(struct omap_display_buffer *buffer)
 static int present_buffer(struct omap_display_buffer *buffer)
 {
 	struct omap_display_device *display = buffer->display;
+	struct fb_info *framebuffer;
+	struct omapfb_info *ofbi;
+	struct omapfb2_device *fbdev;
+	int i;
 	int fb_idx;
 
 	switch (display->id) {
@@ -419,124 +430,130 @@ static int present_buffer(struct omap_display_buffer *buffer)
 		BUG();
 	}
 
-	if (fb_idx >= 0 && fb_idx < num_registered_fb) {
-		struct fb_info *framebuffer = registered_fb[fb_idx];
-		struct omapfb_info *ofbi = FB2OFB(framebuffer);
-		struct omapfb2_device *fbdev = ofbi->fbdev;
-		struct omap_overlay *overlay;
-		struct omap_overlay_info overlay_info;
-		struct omap_dss_device *dss_device;
-		int i;
-
-		omapfb_lock(fbdev);
-
-		/* Get the overlays attached to the framebuffer */
-		for (i = 0; i < ofbi->num_overlays ; i++) {
-			overlay = ofbi->overlays[i];
-			overlay->get_overlay_info(overlay, &overlay_info);
-
-			/* If the overlay is not enabled don't update it */
-			if (!overlay_info.enabled)
-				continue;
-
-			overlay_info.paddr = buffer->physical_addr;
-			overlay_info.vaddr = (void *) buffer->virtual_addr;
-			overlay->set_overlay_info(overlay, &overlay_info);
-
-			if (overlay->manager) {
-				overlay->manager->apply(overlay->manager);
-				dss_device = overlay->manager->device;
-				/*
-				 * FIXME: Is the update really needed?
-				 * On 2.6.35 calling this code triggers a bug
-				 */
-#if 0
-				if (dss_device &&
-					dss_device->driver->update) {
-					dss_device->driver->update(
-						dss_device,
-						0, 0,
-						overlay_info.width,
-						overlay_info.height);
-				}
-#endif
-			}
-		}
-
-		omapfb_unlock(fbdev);
-	} else {
+	if (fb_idx < 0 || fb_idx >= num_registered_fb) {
 		ERR_PRINT("Framebuffer %i doesn't exist for display '%s'",
 			fb_idx, display->name);
 		return 1;
 	}
 
+	framebuffer = registered_fb[fb_idx];
+	ofbi = FB2OFB(framebuffer);
+	fbdev = ofbi->fbdev;
+
+	omapfb_lock(fbdev);
+
+	/* Get the overlays attached to the framebuffer */
+	for (i = 0; i < ofbi->num_overlays ; i++) {
+		struct omap_dss_device *display = NULL;
+		struct omap_dss_driver *driver = NULL;
+		struct omap_overlay_manager *manager;
+		struct omap_overlay *overlay;
+		struct omap_overlay_info overlay_info;
+
+		overlay = ofbi->overlays[i];
+		manager = overlay->manager;
+		overlay->get_overlay_info(overlay, &overlay_info);
+
+		overlay_info.paddr = buffer->physical_addr;
+		overlay_info.vaddr = (void *) buffer->virtual_addr;
+		overlay->set_overlay_info(overlay, &overlay_info);
+
+		if (manager) {
+			manager->apply(manager);
+			display = manager->device;
+			driver = display ? display->driver : NULL;
+		}
+
+		if (dss_ovl_manually_updated(overlay)) {
+			if (driver->sched_update)
+				driver->sched_update(display, 0, 0,
+							overlay_info.width,
+							overlay_info.height);
+			else if (driver->update)
+				driver->update(display, 0, 0,
+							overlay_info.width,
+							overlay_info.height);
+		}
+	}
+
+	omapfb_unlock(fbdev);
+
+
 	return 0;
-}
-
-static u32 get_dss_irq(struct omap_dss_device *dss_device)
-{
-	u32 irq;
-
-	if (dss_device->type == OMAP_DISPLAY_TYPE_VENC)
-		irq = DISPC_IRQ_EVSYNC_ODD;
-	else if (dss_device->type == OMAP_DISPLAY_TYPE_HDMI)
-		irq = DISPC_IRQ_EVSYNC_EVEN;
-	else if (dss_device->type == OMAP_DISPLAY_TYPE_DSI)
-		if (!strcmp(dss_device->name, "lcd"))
-			irq = DISPC_IRQ_FRAMEDONE;
-		else
-			irq = DISPC_IRQ_FRAMEDONE2;
-	else
-		if (!strcmp(dss_device->name, "lcd"))
-			irq = DISPC_IRQ_VSYNC;
-		else
-			irq = DISPC_IRQ_VSYNC2;
-
-	return irq;
 }
 
 static int present_buffer_sync(struct omap_display_buffer *buffer)
 {
 	/* TODO: Cloning may tear with this implementation */
-	int err = 0;
 	struct omap_display_device *display = buffer->display;
+	struct fb_info *framebuffer;
+	struct omap_dss_device *dss_device;
+	struct omap_dss_driver *driver;
+	struct omap_overlay_manager *manager;
+	int fb_idx;
+	int err = 1;
 
-	err = display->sync(display);
-	err |= display->present_buffer(buffer);
+	switch (display->id) {
+	case OMAP_DISPID_PRIMARY:
+		fb_idx = 0;
+		break;
+	case OMAP_DISPID_SECONDARY:
+		fb_idx = 1;
+		break;
+	case OMAP_DISPID_TERTIARY:
+		fb_idx = 2;
+		break;
+	case OMAP_DISPID_VIRTUAL:
+	case OMAP_DISPID_BADSTATE:
+	default:
+		ERR_PRINT("Unable to handle display %i", display->id);
+		BUG();
+	}
+
+	if (fb_idx < 0 || fb_idx >= num_registered_fb) {
+		ERR_PRINT("Framebuffer %i doesn't exist for display '%s'",
+			fb_idx, display->name);
+		return 1;
+	}
+
+	framebuffer = registered_fb[fb_idx];
+	dss_device = fb2display(framebuffer);
+
+	if (!dss_device) {
+		WRN_PRINT("No DSS device to sync with display '%s'!",
+				display->name);
+		return 1;
+	}
+
+	driver = dss_device->driver;
+	manager = dss_device->manager;
+
+	if (driver && driver->sync &&
+		driver->get_update_mode(dss_device) ==
+		OMAP_DSS_UPDATE_MANUAL) {
+		err = driver->sync(dss_device);
+		err |= display->present_buffer(buffer);
+	} else if (manager && manager->wait_for_vsync) {
+		err = manager->wait_for_vsync(manager);
+		err |= display->present_buffer(buffer);
+	}
+
+	if (err)
+		WRN_PRINT("Unable to sync with display '%s'!", display->name);
 
 	return err;
 }
 
+static void vdisp_sync_handler(struct work_struct *work)
+{
+	struct omap_display_sync_item *sync_item =
+		(struct omap_display_sync_item *) work;
+	struct omap_display_device *display = sync_item->buffer->display;
+	display->present_buffer_sync(sync_item->buffer);
+}
+
 static int present_buffer_sync_virtual(struct omap_display_buffer *buffer)
 {
-	void display_irq_wait_1(void *data, u32 mask)
-	{
-		struct omap_display_sync_item *sync_item =
-			(struct omap_display_sync_item *) data;
-
-		if (sync_item->invalidate)
-			return;
-
-		/* IRQ happened, present immediately */
-		sync_item->invalidate = 1;
-		sync_item->buffer->display->present_buffer(sync_item->buffer);
-		complete(sync_item->task);
-	}
-
-	void display_irq_wait_2(void *data, u32 mask)
-	{
-		struct omap_display_sync_item *sync_item =
-			(struct omap_display_sync_item *) data;
-
-		if (sync_item->invalidate)
-			return;
-
-		/* IRQ happened, present immediately */
-		sync_item->invalidate = 1;
-		sync_item->buffer->display->present_buffer(sync_item->buffer);
-		complete(sync_item->task);
-	}
-
 	/*
 	 * TODO: Support for ORIENTATION_VERTICAL is in place,
 	 * ORIENTATION_HORIZONTAL is missing. Some code can be reduced here,
@@ -547,10 +564,6 @@ static int present_buffer_sync_virtual(struct omap_display_buffer *buffer)
 	struct omap_display_device *display_secondary;
 	struct omap_display_buffer temp_buffer_top;
 	struct omap_display_buffer temp_buffer_bottom;
-	struct omap_display_sync_item sync_item_primary;
-	struct omap_display_sync_item sync_item_secondary;
-	DECLARE_COMPLETION_ONSTACK(completion_primary);
-	DECLARE_COMPLETION_ONSTACK(completion_secondary);
 	unsigned int buffer_offset;
 
 	if (display_virtual->id != OMAP_DISPID_VIRTUAL) {
@@ -580,41 +593,25 @@ static int present_buffer_sync_virtual(struct omap_display_buffer *buffer)
 		/* Secondary display has the base */
 		temp_buffer_top.display = display_secondary;
 		temp_buffer_bottom.display = display_primary;
-		sync_item_primary.buffer = &temp_buffer_bottom;
-		sync_item_secondary.buffer = &temp_buffer_top;
-
+		vdisp_sync_primary.buffer = &temp_buffer_bottom;
+		vdisp_sync_secondary.buffer = &temp_buffer_top;
 	} else {
 		/* Primary display has the base */
 		temp_buffer_top.display = display_primary;
 		temp_buffer_bottom.display = display_secondary;
-		sync_item_primary.buffer = &temp_buffer_top;
-		sync_item_secondary.buffer = &temp_buffer_bottom;
+		vdisp_sync_primary.buffer = &temp_buffer_top;
+		vdisp_sync_secondary.buffer = &temp_buffer_bottom;
 	}
 
-	sync_item_primary.task = &completion_primary;
-	sync_item_secondary.task = &completion_secondary;
-	sync_item_primary.invalidate = 0;
-	sync_item_secondary.invalidate = 0;
-
-	/* Register an ISR per display with its corresponding IRQ */
-	omap_dispc_register_isr(display_irq_wait_1, &sync_item_primary,
-		get_dss_irq(display_primary->overlay_managers[0]->device));
-
-	omap_dispc_register_isr(display_irq_wait_2, &sync_item_secondary,
-		get_dss_irq(display_secondary->overlay_managers[0]->device));
+	/* Launch the workqueues for each display to present independently */
+	queue_work(vdisp_wq_primary,
+		(struct work_struct *)&vdisp_sync_primary);
+	queue_work(vdisp_wq_secondary,
+		(struct work_struct *)&vdisp_sync_secondary);
 
 	/* Wait until each display sync and present */
-	wait_for_completion_interruptible_timeout(&completion_primary,
-			OMAP_DISP_IRQ_TIMEOUT);
-	wait_for_completion_interruptible_timeout(&completion_secondary,
-			OMAP_DISP_IRQ_TIMEOUT);
-
-	/* Unregister ISRs */
-	omap_dispc_unregister_isr(display_irq_wait_1, &sync_item_primary,
-		get_dss_irq(display_primary->overlay_managers[0]->device));
-
-	omap_dispc_unregister_isr(display_irq_wait_2, &sync_item_secondary,
-		get_dss_irq(display_secondary->overlay_managers[0]->device));
+	flush_workqueue(vdisp_wq_primary);
+	flush_workqueue(vdisp_wq_secondary);
 
 	return 0;
 }
@@ -622,32 +619,68 @@ static int present_buffer_sync_virtual(struct omap_display_buffer *buffer)
 static int display_sync(struct omap_display_device *display)
 {
 	/* TODO: Synchronize properly with multiple managers */
-	struct omap_overlay_manager *manager =
-		display->overlay_managers[0];
-	if (!manager) {
-		ERR_PRINT("Unable to synchronize with '%s'", display->name);
+	struct fb_info *framebuffer;
+	struct omap_dss_device *dss_device;
+	struct omap_dss_driver *driver;
+	struct omap_overlay_manager *manager;
+	int fb_idx;
+	int err = 1;
+
+	switch (display->id) {
+	case OMAP_DISPID_PRIMARY:
+		fb_idx = 0;
+		break;
+	case OMAP_DISPID_SECONDARY:
+		fb_idx = 1;
+		break;
+	case OMAP_DISPID_TERTIARY:
+		fb_idx = 2;
+		break;
+	case OMAP_DISPID_VIRTUAL:
+	case OMAP_DISPID_BADSTATE:
+	default:
+		ERR_PRINT("Unable to handle display %i", display->id);
+		BUG();
+	}
+
+	if (fb_idx < 0 || fb_idx >= num_registered_fb) {
+		ERR_PRINT("Framebuffer %i doesn't exist for display '%s'",
+			fb_idx, display->name);
 		return 1;
 	}
-	manager->wait_for_vsync(manager);
-	return 0;
+
+	framebuffer = registered_fb[fb_idx];
+	dss_device = fb2display(framebuffer);
+
+	if (!dss_device) {
+		WRN_PRINT("No DSS device to sync with display '%s'!",
+				display->name);
+		return 1;
+	}
+
+	driver = dss_device->driver;
+	manager = dss_device->manager;
+
+	if (driver && driver->sync &&
+		driver->get_update_mode(dss_device) == OMAP_DSS_UPDATE_MANUAL)
+		err = driver->sync(dss_device);
+	else if (manager && manager->wait_for_vsync)
+		err = manager->wait_for_vsync(manager);
+
+	if (err)
+		WRN_PRINT("Unable to sync with display '%s'!", display->name);
+
+	return err;
 }
 
 static int display_sync_virtual(struct omap_display_device *display_virtual)
 {
-	void display_irq_wait(void *data, u32 mask)
-	{
-		complete((struct completion *)data);
-	}
-
 	/*
-	 * Return as soon as one display generates an IRQ
+	 * XXX: This function only waits for the primary display it should
+	 * be adapted to the customer needs since waiting for the primary
+	 * AND the secondary display may take too long for a single sync.
 	 */
 	struct omap_display_device *display_primary;
-	struct omap_display_device *display_secondary;
-	u32 irq_primary;
-	u32 irq_secondary;
-	u32 irq_mask;
-	DECLARE_COMPLETION_ONSTACK(completion);
 
 	if (display_virtual->id != OMAP_DISPID_VIRTUAL) {
 		ERR_PRINT("Not a virtual display");
@@ -655,25 +688,7 @@ static int display_sync_virtual(struct omap_display_device *display_virtual)
 	}
 
 	display_primary = omap_display_get(OMAP_DISPID_PRIMARY);
-	display_secondary = omap_display_get(OMAP_DISPID_SECONDARY);
-
-	irq_primary = get_dss_irq(
-		display_primary->overlay_managers[0]->device);
-
-	irq_secondary = get_dss_irq(
-		display_secondary->overlay_managers[0]->device);
-
-	irq_mask = irq_primary | irq_secondary;
-
-	/* Register an ISR with both IRQs and wait, then unregister */
-	omap_dispc_register_isr(display_irq_wait, &completion, irq_mask);
-
-	wait_for_completion_interruptible_timeout(&completion,
-		OMAP_DISP_IRQ_TIMEOUT);
-
-	omap_dispc_unregister_isr(display_irq_wait, &completion, irq_mask);
-
-	return 0;
+	return display_primary->sync(display_primary);
 }
 
 static struct omap_display_buffer *create_main_buffer(
@@ -1047,6 +1062,14 @@ int omap_display_initialize(void)
 			return 1;
 		}
 	}
+
+	vdisp_wq_primary = __create_workqueue("vdisp_wq_primary", 1, 1, 1);
+	vdisp_wq_secondary = __create_workqueue("vdisp_wq_secondary", 1, 1, 1);
+	INIT_WORK((struct work_struct *)&vdisp_sync_primary,
+		vdisp_sync_handler);
+	INIT_WORK((struct work_struct *)&vdisp_sync_secondary,
+		vdisp_sync_handler);
+
 	return 0;
 }
 EXPORT_SYMBOL(omap_display_initialize);
@@ -1080,6 +1103,11 @@ int omap_display_deinitialize(void)
 
 	kfree(omap_display_list);
 	omap_display_list = 0;
+
+	destroy_workqueue(vdisp_wq_primary);
+	destroy_workqueue(vdisp_wq_secondary);
+	vdisp_wq_primary = NULL;
+	vdisp_wq_secondary = NULL;
 
 	return err;
 }

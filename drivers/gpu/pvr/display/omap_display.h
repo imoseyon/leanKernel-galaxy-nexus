@@ -66,9 +66,8 @@ struct omap_display_flip_chain {
 };
 
 struct omap_display_sync_item {
+	struct work_struct work;
 	struct omap_display_buffer *buffer;
-	struct completion *task;
-	int invalidate;
 };
 
 struct omap_display_device {
