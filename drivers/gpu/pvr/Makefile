@@ -27,6 +27,7 @@ ccflags-y = -DLINUX -D__linux__ -Idrivers/gpu/pvr \
 	-DSYS_CUSTOM_POWERLOCK_WRAP \
 	-DSUPPORT_SGX_NEW_STATUS_VALS \
         -DSYS_OMAP3430_PIN_MEMORY_BUS_CLOCK \
+	-DSGX_EARLYSUSPEND \
 	-DPVRSRV_MODNAME="\"pvrsrvkm"\"
 
 ccflags-$(CONFIG_SGX540) +=  -Idrivers/gpu/pvr/omap4  -Idrivers/gpu/pvr/sgx \
@@ -47,7 +48,6 @@ ccflags-$(CONFIG_SGX_530_BUILD_RELEASE) += \
 	-DPVR_BUILD_TYPE="\"release\"" \
 	-DRELEASE \
 	-DSUPPORT_ACTIVE_POWER_MANAGEMENT \
-	-DSGX_EARLYSUSPEND \
 	-DSUPPORT_HW_RECOVERY \
 	-DSUPPORT_SGX_LOW_LATENCY_SCHEDULING
 
