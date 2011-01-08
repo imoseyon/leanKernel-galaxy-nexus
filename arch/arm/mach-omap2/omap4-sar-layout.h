@@ -25,6 +25,8 @@
 #define MMU_OFFSET				0xd00
 #define SCU_OFFSET0				0xd20
 #define SCU_OFFSET1				0xd24
+#define L2X0_OFFSET				0xd28
+#define L2X0_AUXCTRL_OFFSET			0xd2c
 
 /* CPUx Wakeup Non-Secure Physical Address offsets in SAR_BANK3 */
 #define CPU0_WAKEUP_NS_PA_ADDR_OFFSET		0xa04

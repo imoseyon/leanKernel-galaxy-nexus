@@ -49,6 +49,7 @@
 #include <asm/system.h>
 #include <asm/irq.h>
 #include <asm/hardware/gic.h>
+#include <asm/hardware/cache-l2x0.h>
 
 #include <plat/omap44xx.h>
 #include <mach/omap4-common.h>
@@ -336,6 +337,21 @@ ret:
 	return 0;
 }
 
+static void save_l2x0_auxctrl(void)
+{
+#ifdef CONFIG_CACHE_L2X0
+	/*
+	 * Save the L2X0 AUXCTRL value to SAR memory. Its used to
+	 * in every restore patch MPUSS OFF path.
+	 */
+	void __iomem *l2x0_base = omap4_get_l2cache_base();
+	u32 val;
+
+	val = __raw_readl(l2x0_base + L2X0_AUX_CTRL);
+	__raw_writel(val, sar_base + L2X0_AUXCTRL_OFFSET);
+#endif
+}
+
 /*
  * Initialise OMAP4 MPUSS
  */
@@ -417,6 +433,8 @@ int __init omap4_mpuss_init(void)
 	sar_writel(GIC_ISR_NON_SECURE, ICDISR_CPU1_OFFSET, 0);
 	for (i = 0; i < max_spi_reg; i++)
 		sar_writel(GIC_ISR_NON_SECURE, ICDISR_SPI_OFFSET, i);
+
+	save_l2x0_auxctrl();
 
 	return 0;
 }
