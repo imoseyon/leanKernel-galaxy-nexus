@@ -21,6 +21,7 @@
 
 #include "powerdomain.h"
 #include "clockdomain.h"
+#include "pm.h"
 
 struct power_state {
 	struct powerdomain *pwrdm;
@@ -39,6 +40,11 @@ static int omap4_pm_suspend(void)
 	struct power_state *pwrst;
 	int state, ret = 0;
 	u32 cpu_id = smp_processor_id();
+
+	/* Wakeup timer from suspend */
+	if (wakeup_timer_seconds || wakeup_timer_milliseconds)
+		omap2_pm_wakeup_on_timer(wakeup_timer_seconds,
+					 wakeup_timer_milliseconds);
 
 	/* Save current powerdomain state */
 	list_for_each_entry(pwrst, &pwrst_list, node) {
