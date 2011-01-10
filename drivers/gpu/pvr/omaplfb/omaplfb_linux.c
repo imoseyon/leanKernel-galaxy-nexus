@@ -145,31 +145,26 @@ OMAP_ERROR OMAPLFBGetLibFuncAddr (char *szFunctionName,
 	return OMAP_OK;
 }
 
-
 #if defined(FLIP_TECHNIQUE_FRAMEBUFFER)
 /*
  * Presents the flip in the display with the framebuffer API
  * in: psSwapChain, aPhyAddr
  */
-void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
+static void OMAPLFBFlipNoLock(OMAPLFB_SWAPCHAIN *psSwapChain,
+	unsigned long aPhyAddr)
 {
-	OMAPLFB_DEVINFO	*psDevInfo = (OMAPLFB_DEVINFO *)psSwapChain->pvDevInfo;
-	struct fb_info * framebuffer = psDevInfo->psLINFBInfo;
-	struct omapfb_info *ofbi = FB2OFB(framebuffer);
-	struct omapfb2_device *fbdev = ofbi->fbdev;
+	OMAPLFB_DEVINFO *psDevInfo = (OMAPLFB_DEVINFO *)psSwapChain->pvDevInfo;
+	struct fb_info *framebuffer = psDevInfo->psLINFBInfo;
+
 	/* Get the framebuffer physical address base */
 	unsigned long fb_base_phyaddr =
 		psDevInfo->sSystemBuffer.sSysAddr.uiAddr;
-
-	omapfb_lock(fbdev);
 
 	/* Calculate the virtual Y to move in the framebuffer */
 	framebuffer->var.yoffset =
 		(aPhyAddr - fb_base_phyaddr) / framebuffer->fix.line_length;
 	framebuffer->var.activate = FB_ACTIVATE_FORCE;
 	fb_set_var(framebuffer, &framebuffer->var);
-
-	omapfb_unlock(fbdev);
 }
 
 #elif defined(FLIP_TECHNIQUE_OVERLAY)
@@ -177,18 +172,16 @@ void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
  * Presents the flip in the display with the DSS2 overlay API
  * in: psSwapChain, aPhyAddr
  */
-void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
+static void OMAPLFBFlipNoLock(OMAPLFB_SWAPCHAIN *psSwapChain,
+	unsigned long aPhyAddr)
 {
-	OMAPLFB_DEVINFO	*psDevInfo = (OMAPLFB_DEVINFO *)psSwapChain->pvDevInfo;
+	OMAPLFB_DEVINFO *psDevInfo = (OMAPLFB_DEVINFO *)psSwapChain->pvDevInfo;
 	struct fb_info * framebuffer = psDevInfo->psLINFBInfo;
 	struct omapfb_info *ofbi = FB2OFB(framebuffer);
-	struct omapfb2_device *fbdev = ofbi->fbdev;
 	unsigned long fb_offset;
 	int i;
 
 	fb_offset = aPhyAddr - psDevInfo->sSystemBuffer.sSysAddr.uiAddr;
-
-	omapfb_lock(fbdev);
 
 	for(i = 0; i < ofbi->num_overlays ; i++)
 	{
@@ -207,9 +200,12 @@ void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
 		overlay->set_overlay_info(overlay, &overlay_info);
 
 		if (manager) {
-			manager->apply(manager);
 			display = manager->device;
-			driver = display ? display->driver : NULL;
+			/* No display attached to this overlay, don't update */
+			if (!display)
+				continue;
+			driver = display->driver;
+			manager->apply(manager);
 		}
 
 		if (dss_ovl_manually_updated(overlay)) {
@@ -225,14 +221,24 @@ void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
 		}
 
 	}
-
-	omapfb_unlock(fbdev);
 }
 
 #else
 #error No flipping technique selected, please define \
 	FLIP_TECHNIQUE_FRAMEBUFFER or FLIP_TECHNIQUE_OVERLAY
 #endif
+
+void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
+{
+	OMAPLFB_DEVINFO *psDevInfo = (OMAPLFB_DEVINFO *)psSwapChain->pvDevInfo;
+	struct fb_info *framebuffer = psDevInfo->psLINFBInfo;
+	struct omapfb_info *ofbi = FB2OFB(framebuffer);
+	struct omapfb2_device *fbdev = ofbi->fbdev;
+
+	omapfb_lock(fbdev);
+	OMAPLFBFlipNoLock(psSwapChain, aPhyAddr);
+	omapfb_unlock(fbdev);
+}
 
 /*
  * Present frame and synchronize with the display to prevent tearing
@@ -243,15 +249,22 @@ void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
 void OMAPLFBPresentSync(OMAPLFB_DEVINFO *psDevInfo,
 	OMAPLFB_FLIP_ITEM *psFlipItem)
 {
-	struct fb_info * framebuffer = psDevInfo->psLINFBInfo;
-	struct omap_dss_device *display = fb2display(framebuffer);
+	struct fb_info *framebuffer = psDevInfo->psLINFBInfo;
+	struct omapfb_info *ofbi = FB2OFB(framebuffer);
+	struct omap_dss_device *display;
+	struct omapfb2_device *fbdev = ofbi->fbdev;
 	struct omap_dss_driver *driver;
 	struct omap_overlay_manager *manager;
 	int err = 1;
 
-	if (!display)
-		WARNING_PRINTK("No DSS device to sync with display %u!",
-				psDevInfo->uDeviceID);
+	omapfb_lock(fbdev);
+
+	display = fb2display(framebuffer);
+	/* The framebuffer doesn't have a display attached, just bail out */
+	if (!display) {
+		omapfb_unlock(fbdev);
+		return;
+	}
 
 	driver = display->driver;
 	manager = display->manager;
@@ -260,14 +273,14 @@ void OMAPLFBPresentSync(OMAPLFB_DEVINFO *psDevInfo,
 		driver->get_update_mode(display) == OMAP_DSS_UPDATE_MANUAL) {
 		/* Wait first for the DSI bus to be released then update */
 		err = driver->sync(display);
-		OMAPLFBFlip(psDevInfo->psSwapChain,
+		OMAPLFBFlipNoLock(psDevInfo->psSwapChain,
 			(unsigned long)psFlipItem->sSysAddr->uiAddr);
 	} else if (manager && manager->wait_for_vsync) {
 		/*
 		 * Update the video pipelines registers then wait until the
 		 * frame is shown with a VSYNC
 		 */
-		OMAPLFBFlip(psDevInfo->psSwapChain,
+		OMAPLFBFlipNoLock(psDevInfo->psSwapChain,
 			(unsigned long)psFlipItem->sSysAddr->uiAddr);
 		err = manager->wait_for_vsync(manager);
 	}
@@ -275,6 +288,8 @@ void OMAPLFBPresentSync(OMAPLFB_DEVINFO *psDevInfo,
 	if (err)
 		WARNING_PRINTK("Unable to sync with display %u!",
 			psDevInfo->uDeviceID);
+
+	omapfb_unlock(fbdev);
 }
 
 #if defined(LDM_PLATFORM)
