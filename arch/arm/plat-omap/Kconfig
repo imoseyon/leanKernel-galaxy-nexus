@@ -38,6 +38,19 @@ config OMAP_DEBUG_LEDS
 	depends on OMAP_DEBUG_DEVICES
 	default y if LEDS_CLASS
 
+config OMAP_RPMSG
+	tristate "OMAP Virtio-based remote processor messaging support"
+	depends on ARCH_OMAP4
+	select VIRTIO
+	select VIRTIO_RING
+	select CONFIG_OMAP_MBOX_FWK
+	help
+	  Say Y if you want to enable OMAP virtio-based remote-processor
+	  communication, currently only available with OMAP4. This is required
+	  for offloading tasks to the remote on-chip M3s or C64x+ dsp,
+	  usually used by multimedia frameworks to offload cpu-intensive and/or
+          latency-sensitive tasks.
+
 config OMAP_SMARTREFLEX
 	bool "SmartReflex support"
 	depends on (ARCH_OMAP3 || ARCH_OMAP4) && PM
