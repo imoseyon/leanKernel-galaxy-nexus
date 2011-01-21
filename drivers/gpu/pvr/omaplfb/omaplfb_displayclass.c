@@ -1135,6 +1135,7 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
 #if defined(SYS_USING_INTERRUPTS)
 
 	if( psFlipCmd->ui32SwapInterval == 0 ||
+		psDevInfo->ignore_sync ||
 		psSwapChain->bFlushCommands == OMAP_TRUE)
 	{
 #endif
@@ -1533,7 +1534,7 @@ static OMAP_ERROR InitDev(OMAPLFB_DEVINFO *psDevInfo, int fb_idx)
 /*
  *  Initialization routine for the 3rd party display driver
  */
-OMAP_ERROR OMAPLFBInit(void)
+OMAP_ERROR OMAPLFBInit(struct omaplfb_device *omaplfb_dev)
 {
 	OMAPLFB_DEVINFO *psDevInfo;
 	PFN_CMD_PROC pfnCmdProcList[OMAPLFB_COMMAND_COUNT];
@@ -1573,12 +1574,13 @@ OMAP_ERROR OMAPLFBInit(void)
 			sizeof(OMAPLFB_DEVINFO) * FRAMEBUFFER_COUNT);
 	if(!pDisplayDevices)
 	{
-		pDisplayDevices = NULL;
 		ERROR_PRINTK("Out of memory");
 		return OMAP_ERROR_OUT_OF_MEMORY;
 	}
 	memset(pDisplayDevices, 0, sizeof(OMAPLFB_DEVINFO) *
 		FRAMEBUFFER_COUNT);
+	omaplfb_dev->display_info_list = pDisplayDevices;
+	omaplfb_dev->display_count = FRAMEBUFFER_COUNT;
 
 	/*
 	 * Initialize each display device
@@ -1617,6 +1619,7 @@ OMAP_ERROR OMAPLFBInit(void)
 		psDevInfo->psSwapChain = 0;
 		psDevInfo->bFlushCommands = OMAP_FALSE;
 		psDevInfo->bDeviceSuspended = OMAP_FALSE;
+		psDevInfo->ignore_sync = OMAP_FALSE;
 
 		if(psDevInfo->sDisplayInfo.ui32MaxSwapChainBuffers > 1)
 		{

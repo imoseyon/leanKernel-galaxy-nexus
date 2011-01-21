@@ -296,6 +296,44 @@ void OMAPLFBPresentSync(OMAPLFB_DEVINFO *psDevInfo,
 
 static volatile OMAP_BOOL bDeviceSuspended;
 
+static int omaplfb_probe(struct platform_device *pdev)
+{
+	struct omaplfb_device *odev;
+
+	odev = kzalloc(sizeof(*odev), GFP_KERNEL);
+
+	if (!odev)
+		return -ENOMEM;
+
+	if (OMAPLFBInit(odev) != OMAP_OK) {
+		dev_err(&pdev->dev, "failed to setup omaplfb\n");
+		kfree(odev);
+		return -ENODEV;
+	}
+
+	odev->dev = &pdev->dev;
+	platform_set_drvdata(pdev, odev);
+	omaplfb_create_sysfs(odev);
+
+	return 0;
+}
+
+static int omaplfb_remove(struct platform_device *pdev)
+{
+	struct omaplfb_device *odev;
+
+	odev = platform_get_drvdata(pdev);
+
+	omaplfb_remove_sysfs(odev);
+
+	if (OMAPLFBDeinit() != OMAP_OK)
+		WARNING_PRINTK("Driver cleanup failed");
+
+	kfree(odev);
+
+	return 0;
+}
+
 /*
  * Common suspend driver function
  * in: psSwapChain, aPhyAddr
@@ -334,8 +372,6 @@ static struct platform_device omaplfb_device = {
 
 #if defined(SGX_EARLYSUSPEND) && defined(CONFIG_HAS_EARLYSUSPEND)
 
-static struct early_suspend omaplfb_early_suspend;
-
 /*
  * Android specific, driver is requested to be suspended
  * in: ea_event
@@ -360,7 +396,16 @@ static void OMAPLFBDriverResume_Entry(struct early_suspend *ea_event)
 static struct platform_driver omaplfb_driver = {
 	.driver = {
 		.name = DRVNAME,
-	}
+		.owner  = THIS_MODULE,
+	},
+	.probe = omaplfb_probe,
+	.remove = omaplfb_remove,
+};
+
+static struct early_suspend omaplfb_early_suspend = {
+	.suspend = OMAPLFBDriverSuspend_Entry,
+	.resume = OMAPLFBDriverResume_Entry,
+	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB,
 };
 
 #else /* defined(SGX_EARLYSUSPEND) && defined(CONFIG_HAS_EARLYSUSPEND) */
@@ -403,7 +448,10 @@ static IMG_VOID OMAPLFBDriverShutdown_Entry(
 static struct platform_driver omaplfb_driver = {
 	.driver = {
 		.name = DRVNAME,
+		.owner  = THIS_MODULE,
 	},
+	.probe = omaplfb_probe,
+	.remove = omaplfb_remove,
 	.suspend = OMAPLFBDriverSuspend_Entry,
 	.resume	= OMAPLFBDriverResume_Entry,
 	.shutdown = OMAPLFBDriverShutdown_Entry,
@@ -418,21 +466,10 @@ static struct platform_driver omaplfb_driver = {
  */
 static int __init OMAPLFB_Init(void)
 {
-	if(OMAPLFBInit() != OMAP_OK)
-	{
-		WARNING_PRINTK("Driver init failed");
-		return -ENODEV;
-	}
-
 #if defined(LDM_PLATFORM)
 	DEBUG_PRINTK("Registering platform driver");
 	if (platform_driver_register(&omaplfb_driver))
-	{
-		WARNING_PRINTK("Unable to register platform driver");
-		if(OMAPLFBDeinit() != OMAP_OK)
-			WARNING_PRINTK("Driver cleanup failed\n");
 		return -ENODEV;
-	}
 #if 0
 	DEBUG_PRINTK("Registering device driver");
 	if (platform_device_register(&omaplfb_device))
@@ -446,10 +483,7 @@ static int __init OMAPLFB_Init(void)
 #endif
 
 #if defined(SGX_EARLYSUSPEND) && defined(CONFIG_HAS_EARLYSUSPEND)
-	omaplfb_early_suspend.suspend = OMAPLFBDriverSuspend_Entry;
-        omaplfb_early_suspend.resume = OMAPLFBDriverResume_Entry;
-        omaplfb_early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
-        register_early_suspend(&omaplfb_early_suspend);
+	register_early_suspend(&omaplfb_early_suspend);
 	DEBUG_PRINTK("Registered early suspend support");
 #endif
 
@@ -470,11 +504,10 @@ static IMG_VOID __exit OMAPLFB_Cleanup(IMG_VOID)
 	DEBUG_PRINTK("Removing platform driver");
 	platform_driver_unregister(&omaplfb_driver);
 #if defined(SGX_EARLYSUSPEND) && defined(CONFIG_HAS_EARLYSUSPEND)
-        unregister_early_suspend(&omaplfb_early_suspend);
+	DEBUG_PRINTK("Removed early suspend support");
+	unregister_early_suspend(&omaplfb_early_suspend);
 #endif
 #endif
-	if(OMAPLFBDeinit() != OMAP_OK)
-		WARNING_PRINTK("Driver cleanup failed");
 }
 
 late_initcall(OMAPLFB_Init);

@@ -141,6 +141,7 @@ sgx_displayclass-y := \
 
 omaplfb-y := \
 	omaplfb/omaplfb_displayclass.o \
+	omaplfb/omaplfb-sysfs.o \
 	omaplfb/omaplfb_linux.o
 
 dbgdrv-$(CONFIG_SGX_PDUMP) := \
