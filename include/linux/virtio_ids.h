@@ -35,5 +35,6 @@
 #define VIRTIO_ID_RNG		4 /* virtio ring */
 #define VIRTIO_ID_BALLOON	5 /* virtio balloon */
 #define VIRTIO_ID_9P		9 /* 9p virtio console */
+#define VIRTIO_ID_RPMSG		10 /* virtio remote processor messaging */
 
 #endif /* _LINUX_VIRTIO_IDS_H */
