@@ -23,3 +23,17 @@ config RPMSG_OMX
 	  remote processors.
 
 	  If unsure, say N.
+
+config RPMSG_CLIENT_SAMPLE
+	tristate "An rpmsg client sample"
+	depends on RPMSG
+	---help---
+	  This is just a sample client driver for the rpmsg bus.
+	  Say either Y or M. You know you want to.
+
+config RPMSG_SERVER_SAMPLE
+	tristate "An rpmsg server sample"
+	depends on RPMSG
+	---help---
+	  This is just a sample server driver for the rpmsg bus.
+	  Say either Y or M. You know you want to.
