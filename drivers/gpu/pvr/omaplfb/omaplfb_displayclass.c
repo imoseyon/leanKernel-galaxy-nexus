@@ -49,6 +49,12 @@
 #include <linux/string.h>
 #include <linux/notifier.h>
 
+#ifdef CONFIG_TILER_OMAP
+#include <mach/tiler.h>
+#define TILER_MIN_PADDR		0x60000000
+#define TILER_MAX_PADDR		0x7fffffff
+#endif
+
 #include "img_defs.h"
 #include "servicesext.h"
 #include "kerneldisplay.h"
@@ -1441,6 +1447,23 @@ static OMAP_ERROR InitDev(OMAPLFB_DEVINFO *psDevInfo, int fb_idx)
 	psPVRFBInfo->ulHeight = psLINFBInfo->var.yres;
 	psPVRFBInfo->ulByteStride = psLINFBInfo->fix.line_length;
 	psPVRFBInfo->ulFBSize = FBSize;
+
+#ifdef CONFIG_TILER_OMAP
+	/* If TILER is being used, use correct physical stride and FB size */
+	if ((psPVRFBInfo->sSysAddr.uiAddr >= TILER_MIN_PADDR) &&
+		(psPVRFBInfo->sSysAddr.uiAddr <= TILER_MAX_PADDR)) {
+		unsigned long max_rows;
+		u32 tiler_naddr;
+		/* Get the number of maximum pixel rows */
+		max_rows = psPVRFBInfo->ulFBSize / psPVRFBInfo->ulByteStride;
+		/* Get the physical stride according to the TILER container */
+		tiler_naddr = tiler_get_natural_addr(
+			(void *)psPVRFBInfo->sSysAddr.uiAddr);
+		psPVRFBInfo->ulByteStride = tiler_stride(tiler_naddr);
+		/* Calculate the whole TILER region to map in bytes */
+		psPVRFBInfo->ulFBSize = max_rows * psPVRFBInfo->ulByteStride;
+	}
+#endif
 	psPVRFBInfo->ulBufferSize =
 		psPVRFBInfo->ulHeight * psPVRFBInfo->ulByteStride;
 	/* Get physical display size for DPI calculation */
