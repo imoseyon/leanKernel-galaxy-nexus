@@ -166,6 +166,7 @@ struct omap_hsmmc_host {
 	unsigned int		id;
 	unsigned int		dma_len;
 	unsigned int		dma_sg_idx;
+	unsigned int		master_clock;
 	unsigned char		bus_mode;
 	unsigned char		power_mode;
 	u32			*buffer;
@@ -674,11 +675,11 @@ static int omap_hsmmc_context_restore(struct omap_hsmmc_host *host)
 	}
 
 	if (ios->clock) {
-		dsor = OMAP_MMC_MASTER_CLOCK / ios->clock;
+		dsor = host->master_clock / ios->clock;
 		if (dsor < 1)
 			dsor = 1;
 
-		if (OMAP_MMC_MASTER_CLOCK / dsor > ios->clock)
+		if (host->master_clock / dsor > ios->clock)
 			dsor++;
 
 		if (dsor > 250)
@@ -1590,11 +1591,11 @@ static void omap_hsmmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	}
 
 	if (ios->clock) {
-		dsor = OMAP_MMC_MASTER_CLOCK / ios->clock;
+		dsor = host->master_clock / ios->clock;
 		if (dsor < 1)
 			dsor = 1;
 
-		if (OMAP_MMC_MASTER_CLOCK / dsor > ios->clock)
+		if (host->master_clock / dsor > ios->clock)
 			dsor++;
 
 		if (dsor > 250)
@@ -2074,6 +2075,10 @@ static int __init omap_hsmmc_probe(struct platform_device *pdev)
 	host->mapbase	= res->start;
 	host->base	= ioremap(host->mapbase, SZ_4K);
 	host->power_mode = MMC_POWER_OFF;
+
+	host->master_clock = OMAP_MMC_MASTER_CLOCK;
+	if (mmc_slot(host).features & HSMMC_HAS_48MHZ_MASTER_CLK)
+		host->master_clock = OMAP_MMC_MASTER_CLOCK / 2;
 
 	platform_set_drvdata(pdev, host);
 	INIT_WORK(&host->mmc_carddetect_work, omap_hsmmc_detect);
