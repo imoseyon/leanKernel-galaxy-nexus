@@ -193,6 +193,7 @@ static int __init clkdms_setup(struct clockdomain *clkdm, void *unused)
 static int __init pwrdms_setup(struct powerdomain *pwrdm, void *unused)
 {
 	struct power_state *pwrst;
+	int next_state;
 
 	if (!pwrdm->pwrsts)
 		return 0;
@@ -206,19 +207,17 @@ static int __init pwrdms_setup(struct powerdomain *pwrdm, void *unused)
 		(!strcmp(pwrdm->name, "cpu1_pwrdm")))
 		return 0;
 
-	/*
-	 * FIXME: Remove this check when core retention is supported
-	 * Only MPUSS power domain is added in the list.
-	 */
-	if (strcmp(pwrdm->name, "mpu_pwrdm"))
-		return 0;
+	if (!strcmp(pwrdm->name, "mpu_pwrdm"))
+		next_state = PWRDM_POWER_OFF;
+	else
+		next_state = PWRDM_POWER_RET;
 
 	pwrst = kmalloc(sizeof(struct power_state), GFP_ATOMIC);
 	if (!pwrst)
 		return -ENOMEM;
 
 	pwrst->pwrdm = pwrdm;
-	pwrst->next_state = PWRDM_POWER_OFF;
+	pwrst->next_state = next_state;
 	list_add(&pwrst->node, &pwrst_list);
 
 	return omap_set_pwrdm_state(pwrst->pwrdm, pwrst->next_state);
