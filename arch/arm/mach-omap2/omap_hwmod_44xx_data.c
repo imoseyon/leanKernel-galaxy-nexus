@@ -1098,6 +1098,7 @@ static struct omap_hwmod omap44xx_dsp_c0_hwmod = {
 static struct omap_hwmod omap44xx_dsp_hwmod = {
 	.name		= "dsp",
 	.class		= &omap44xx_dsp_hwmod_class,
+	.flags		= HWMOD_INIT_NO_RESET,
 	.mpu_irqs	= omap44xx_dsp_irqs,
 	.mpu_irqs_cnt	= ARRAY_SIZE(omap44xx_dsp_irqs),
 	.rst_lines	= omap44xx_dsp_resets,
