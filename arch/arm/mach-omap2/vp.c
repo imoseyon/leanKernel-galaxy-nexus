@@ -13,11 +13,17 @@
 static void vp_latch_vsel(struct voltagedomain *voltdm)
 {
 	struct omap_vp_instance *vp = voltdm->vp;
+	struct omap_volt_data *v = omap_voltage_get_curr_vdata(voltdm);
 	u32 vpconfig;
 	unsigned long uvdc;
 	char vsel;
 
-	uvdc = omap_voltage_get_nom_volt(voltdm);
+	if (IS_ERR_OR_NULL(v)) {
+		pr_warning("%s: unable to get voltage for vdd_%s\n",
+			__func__, voltdm->name);
+		return;
+	}
+	uvdc = omap_get_operation_voltage(v);
 	if (!uvdc) {
 		pr_warning("%s: unable to find current voltage for vdd_%s\n",
 			__func__, voltdm->name);
@@ -106,8 +112,11 @@ int omap_vp_update_errorgain(struct voltagedomain *voltdm,
 
 	/* Get volt_data corresponding to target_volt */
 	volt_data = omap_voltage_get_voltdata(voltdm, target_volt);
-	if (IS_ERR(volt_data))
+	if (IS_ERR(volt_data)) {
+		pr_err("%s: vdm %s no voltage data for %ld\n", __func__,
+			voltdm->name, target_volt);
 		return -EINVAL;
+	}
 
 	/* Setting vp errorgain based on the voltage */
 	voltdm->rmw(voltdm->vp->common->vpconfig_errorgain_mask,
@@ -143,12 +152,13 @@ static u8 __vp_recover_count = _MAX_RETRIES_BEFORE_RECOVER;
 
 /* VP force update method of voltage scaling */
 int omap_vp_forceupdate_scale(struct voltagedomain *voltdm,
-			      unsigned long target_volt)
+			      struct omap_volt_data *target_v)
 {
 	struct omap_vp_instance *vp = voltdm->vp;
 	u32 vpconfig;
 	u8 target_vsel, current_vsel;
 	int ret, timeout = 0;
+	unsigned long target_volt = omap_get_operation_voltage(target_v);
 
 	/*
 	 * Wait for VP idle Typical latency is <2us. Maximum latency is ~100us
@@ -220,7 +230,8 @@ int omap_vp_forceupdate_scale(struct voltagedomain *voltdm,
 			__func__, voltdm->name, target_volt,
 			target_vsel, current_vsel);
 
-	omap_vc_post_scale(voltdm, target_volt, target_vsel, current_vsel);
+	omap_vc_post_scale(voltdm, target_volt, target_v,
+			   target_vsel, current_vsel);
 
 	/*
 	 * Disable TransactionDone interrupt , clear all status, clear

@@ -17,6 +17,8 @@
 #include <linux/notifier.h>
 #include <linux/err.h>
 
+struct omap_volt_data;
+
 #include "vc.h"
 #include "vp.h"
 #include "ldo.h"
@@ -90,8 +92,8 @@ struct voltagedomain {
 	} sys_clk;
 
 	int (*scale) (struct voltagedomain *voltdm,
-		      unsigned long target_volt);
-	u32 curr_volt;
+		      struct omap_volt_data *target_volt);
+	struct omap_volt_data *curr_volt;
 
 	struct omap_vdd_info *vdd;
 	struct srcu_notifier_head change_notify_list;
@@ -266,7 +268,7 @@ void omap_voltage_get_volttable(struct voltagedomain *voltdm,
 		struct omap_volt_data **volt_data);
 struct omap_volt_data *omap_voltage_get_voltdata(struct voltagedomain *voltdm,
 		unsigned long volt);
-unsigned long omap_voltage_get_nom_volt(struct voltagedomain *voltdm);
+struct omap_volt_data *omap_voltage_get_curr_vdata(struct voltagedomain *voldm);
 #ifdef CONFIG_PM
 int omap_voltage_register_pmic(struct voltagedomain *voltdm,
 			       struct omap_voltdm_pmic *pmic);
@@ -299,7 +301,8 @@ int voltdm_for_each(int (*fn)(struct voltagedomain *voltdm, void *user),
 int voltdm_for_each_pwrdm(struct voltagedomain *voltdm,
 			  int (*fn)(struct voltagedomain *voltdm,
 				    struct powerdomain *pwrdm));
-int voltdm_scale(struct voltagedomain *voltdm, unsigned long target_volt);
+int voltdm_scale(struct voltagedomain *voltdm,
+		 struct omap_volt_data *target_volt);
 void voltdm_reset(struct voltagedomain *voltdm);
 
 static inline int voltdm_register_notifier(struct voltagedomain *voltdm,
@@ -312,6 +315,15 @@ static inline int voltdm_unregister_notifier(struct voltagedomain *voltdm,
 						struct notifier_block *nb)
 {
 	return srcu_notifier_chain_unregister(&voltdm->change_notify_list, nb);
+}
+
+/* convert volt data to the voltage for the voltage data */
+static inline unsigned long omap_get_operation_voltage(
+				struct omap_volt_data *vdata)
+{
+	if (!vdata)
+		return 0;
+	return vdata->volt_nominal;
 }
 
 #endif

@@ -114,7 +114,7 @@ void omap_vp_enable(struct voltagedomain *voltdm);
 void omap_vp_disable(struct voltagedomain *voltdm);
 unsigned long omap_vp_get_curr_volt(struct voltagedomain *voltdm);
 int omap_vp_forceupdate_scale(struct voltagedomain *voltdm,
-			      unsigned long target_volt);
+			      struct omap_volt_data *target_v);
 int omap_vp_update_errorgain(struct voltagedomain *voltdm,
 			     unsigned long target_volt);
 
