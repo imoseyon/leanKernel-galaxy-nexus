@@ -142,6 +142,12 @@
 #define OMAP3430_SR_ERRWEIGHT		0x04
 #define OMAP3430_SR_ERRMAXLIMIT		0x02
 
+/* Smart reflex notifiers for class drivers to use */
+#define SR_NOTIFY_MCUDISACK		BIT(3)
+#define SR_NOTIFY_MCUBOUND		BIT(2)
+#define SR_NOTIFY_MCUVALID		BIT(1)
+#define SR_NOTIFY_MCUACCUM		BIT(0)
+
 /**
  * struct omap_sr_pmic_data - Strucutre to be populated by pmic code to pass
  *				pmic specific info to smartreflex driver
