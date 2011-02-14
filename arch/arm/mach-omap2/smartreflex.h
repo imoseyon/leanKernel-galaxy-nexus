@@ -251,6 +251,7 @@ void omap_sr_register_pmic(struct omap_sr_pmic_data *pmic_data);
 /* Smartreflex driver hooks to be called from Smartreflex class driver */
 int sr_enable(struct voltagedomain *voltdm, unsigned long volt);
 void sr_disable(struct voltagedomain *voltdm);
+int sr_notifier_control(struct voltagedomain *voltdm, bool enable);
 int sr_configure_errgen(struct voltagedomain *voltdm);
 int sr_disable_errgen(struct voltagedomain *voltdm);
 int sr_configure_minmax(struct voltagedomain *voltdm);
@@ -260,6 +261,13 @@ int sr_register_class(struct omap_sr_class_data *class_data);
 #else
 static inline void omap_sr_enable(struct voltagedomain *voltdm) {}
 static inline void omap_sr_disable(struct voltagedomain *voltdm) {}
+
+static inline int sr_notifier_control(struct voltagedomain *voltdm,
+		bool enable)
+{
+	return -EINVAL;
+}
+
 static inline void omap_sr_disable_reset_volt(
 		struct voltagedomain *voltdm) {}
 static inline void omap_sr_register_pmic(
