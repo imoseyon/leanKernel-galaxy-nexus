@@ -216,8 +216,25 @@ static irqreturn_t sr_interrupt(int irq, void *data)
 		value = irqstat_to_notifier_v2(status);
 	}
 
-	if (sr_class->notify)
-		sr_class->notify(sr_info->voltdm, value);
+	/* Attempt some resemblance of recovery! */
+	if (!value) {
+		dev_err(&sr_info->pdev->dev, "%s: Spurious interrupt!"
+			"status = 0x%08x. Disabling to prevent spamming!!\n",
+			__func__, status);
+		disable_irq_nosync(sr_info->irq);
+		sr_info->irq_enabled = false;
+	} else {
+		/* If the caller reports inability to handle, disable as well */
+		if (sr_class->notify &&
+		    sr_class->notify(sr_info->voltdm, value)) {
+			dev_err(&sr_info->pdev->dev, "%s: Callback cant handle!"
+				"status=0x%08x. Disabling to prevent spam!!\n",
+				__func__, status);
+			disable_irq_nosync(sr_info->irq);
+			sr_info->irq_enabled = false;
+		}
+
+	}
 
 	return IRQ_HANDLED;
 }
