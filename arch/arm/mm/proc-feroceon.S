@@ -280,7 +280,7 @@ ENTRY(feroceon_range_flush_kern_dcache_area)
  * (same as v4wb)
  */
 	.align	5
-feroceon_dma_inv_range:
+ENTRY(feroceon_dma_inv_range)
 	tst	r0, #CACHE_DLINESIZE - 1
 	bic	r0, r0, #CACHE_DLINESIZE - 1
 	mcrne	p15, 0, r0, c7, c10, 1		@ clean D entry
@@ -294,7 +294,7 @@ feroceon_dma_inv_range:
 	mov	pc, lr
 
 	.align	5
-feroceon_range_dma_inv_range:
+ENTRY(feroceon_range_dma_inv_range)
 	mrs	r2, cpsr
 	tst	r0, #CACHE_DLINESIZE - 1
 	mcrne	p15, 0, r0, c7, c10, 1		@ clean D entry
@@ -320,7 +320,7 @@ feroceon_range_dma_inv_range:
  * (same as v4wb)
  */
 	.align	5
-feroceon_dma_clean_range:
+ENTRY(feroceon_dma_clean_range)
 	bic	r0, r0, #CACHE_DLINESIZE - 1
 1:	mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
 	add	r0, r0, #CACHE_DLINESIZE
@@ -330,7 +330,7 @@ feroceon_dma_clean_range:
 	mov	pc, lr
 
 	.align	5
-feroceon_range_dma_clean_range:
+ENTRY(feroceon_range_dma_clean_range)
 	mrs	r2, cpsr
 	cmp	r1, r0
 	subne	r1, r1, #1			@ top address is inclusive
@@ -421,6 +421,8 @@ ENTRY(feroceon_cache_fns)
 	.long	feroceon_flush_kern_dcache_area
 	.long	feroceon_dma_map_area
 	.long	feroceon_dma_unmap_area
+	.long	feroceon_dma_inv_range
+	.long	feroceon_dma_clean_range
 	.long	feroceon_dma_flush_range
 
 ENTRY(feroceon_range_cache_fns)
@@ -433,6 +435,8 @@ ENTRY(feroceon_range_cache_fns)
 	.long	feroceon_range_flush_kern_dcache_area
 	.long	feroceon_range_dma_map_area
 	.long	feroceon_dma_unmap_area
+	.long	feroceon_range_dma_inv_range
+	.long	feroceon_range_dma_clean_range
 	.long	feroceon_range_dma_flush_range
 
 	.align	5
