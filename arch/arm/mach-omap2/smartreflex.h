@@ -195,7 +195,8 @@ struct omap_smartreflex_dev_attr {
  * @class_priv_data:	Class specific private data (optional)
  */
 struct omap_sr_class_data {
-	int (*enable)(struct voltagedomain *voltdm);
+	int (*enable)(struct voltagedomain *voltdm,
+			struct omap_volt_data *volt_data);
 	int (*disable)(struct voltagedomain *voltdm, int is_volt_reset);
 	int (*init)(struct voltagedomain *voltdm, void *class_priv_data);
 	int (*deinit)(struct voltagedomain *voltdm, void *class_priv_data);
@@ -241,7 +242,8 @@ struct omap_sr_data {
 };
 
 /* Smartreflex module enable/disable interface */
-void omap_sr_enable(struct voltagedomain *voltdm);
+void omap_sr_enable(struct voltagedomain *voltdm,
+			struct omap_volt_data *volt_data);
 void omap_sr_disable(struct voltagedomain *voltdm);
 void omap_sr_disable_reset_volt(struct voltagedomain *voltdm);
 
@@ -249,7 +251,7 @@ void omap_sr_disable_reset_volt(struct voltagedomain *voltdm);
 void omap_sr_register_pmic(struct omap_sr_pmic_data *pmic_data);
 
 /* Smartreflex driver hooks to be called from Smartreflex class driver */
-int sr_enable(struct voltagedomain *voltdm, unsigned long volt);
+int sr_enable(struct voltagedomain *voltdm, struct omap_volt_data *volt_data);
 void sr_disable(struct voltagedomain *voltdm);
 int sr_notifier_control(struct voltagedomain *voltdm, bool enable);
 int sr_configure_errgen(struct voltagedomain *voltdm);

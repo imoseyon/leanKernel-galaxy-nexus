@@ -844,7 +844,7 @@ fail:
 			__func__, voltdm->name);
 out:
 	/* Re-enable Smartreflex module */
-	omap_sr_enable(voltdm);
+	omap_sr_enable(voltdm, new_vdata);
 
 	return ret;
 }

@@ -211,8 +211,10 @@ abort_device_off:
 		}
 
 		omap_temp_sensor_resume_idle();
-		omap_sr_enable(iva_voltdm);
-		omap_sr_enable(core_voltdm);
+		omap_sr_enable(iva_voltdm,
+				omap_voltage_get_curr_vdata(iva_voltdm));
+		omap_sr_enable(core_voltdm,
+				omap_voltage_get_curr_vdata(core_voltdm));
 	}
 
 	if (omap4_device_prev_state_off()) {
@@ -232,7 +234,8 @@ abort_device_off:
 	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
 		omap_vc_set_auto_trans(mpu_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE);
-		omap_sr_enable(mpu_voltdm);
+		omap_sr_enable(mpu_voltdm,
+				omap_voltage_get_curr_vdata(mpu_voltdm));
 	}
 
 
