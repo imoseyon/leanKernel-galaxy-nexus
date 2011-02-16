@@ -21,7 +21,7 @@
 #define __OMAP2_DSS_FEATURES_H
 
 #define MAX_DSS_MANAGERS	3
-#define MAX_DSS_OVERLAYS	3
+#define MAX_DSS_OVERLAYS	4
 #define MAX_DSS_LCD_MANAGERS	2
 #define MAX_NUM_DSI		2
 
@@ -56,6 +56,7 @@ enum dss_feat_id {
 	FEAT_PRELOAD			= 1 << 24,
 	FEAT_FIR_COEF_V			= 1 << 25,
 	FEAT_ALPHA_OMAP3_COMPAT		= 1 << 26,
+	FEAT_OVL_VID3			= 1 << 27,
 };
 
 /* DSS register field id */
