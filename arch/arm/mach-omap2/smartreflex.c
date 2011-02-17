@@ -345,7 +345,8 @@ static void sr_stop_vddautocomp(struct omap_sr *sr)
 	if (sr->autocomp_active) {
 		/* Pause dvfs from interfereing with our operations */
 		mutex_lock(&omap_dvfs_lock);
-		sr_class->disable(sr->voltdm, sr->voltdm_cdata, 1);
+		sr_class->disable(sr->voltdm, sr->voltdm_cdata,
+				  omap_voltage_get_curr_vdata(sr->voltdm), 1);
 		if (sr_class->deinit &&
 		    sr_class->deinit(sr->voltdm, &sr->voltdm_cdata,
 			    sr_class->class_priv_data)) {
@@ -509,6 +510,28 @@ static u32 sr_retrieve_nvalue(struct omap_sr *sr, u32 efuse_offs)
 }
 
 /* Public Functions */
+
+/**
+ * is_sr_enabled() - is Smart reflex enabled for this domain?
+ * @voltdm: voltage domain to check
+ *
+ * Returns 0 if SR is enabled for this domain, else returns err
+ */
+bool is_sr_enabled(struct voltagedomain *voltdm)
+{
+	struct omap_sr *sr;
+	if (IS_ERR_OR_NULL(voltdm)) {
+		pr_warning("%s: invalid param voltdm\n", __func__);
+		return false;
+	}
+	sr = _sr_lookup(voltdm);
+	if (IS_ERR(sr)) {
+		pr_warning("%s: omap_sr struct for sr_%s not found\n",
+			__func__, voltdm->name);
+		return false;
+	}
+	return sr->autocomp_active;
+}
 
 /**
  * sr_configure_errgen() - Configures the smrtreflex to perform AVS using the
@@ -957,7 +980,8 @@ void omap_sr_disable(struct voltagedomain *voltdm)
 		return;
 	}
 
-	sr_class->disable(voltdm, sr->voltdm_cdata, 0);
+	sr_class->disable(voltdm, sr->voltdm_cdata,
+			  omap_voltage_get_curr_vdata(voltdm), 0);
 }
 
 /**
@@ -990,7 +1014,8 @@ void omap_sr_disable_reset_volt(struct voltagedomain *voltdm)
 		return;
 	}
 
-	sr_class->disable(voltdm, sr->voltdm_cdata, 1);
+	sr_class->disable(voltdm, sr->voltdm_cdata,
+			  omap_voltage_get_curr_vdata(voltdm), 1);
 }
 
 /**

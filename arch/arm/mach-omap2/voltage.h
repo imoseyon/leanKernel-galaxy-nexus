@@ -58,6 +58,9 @@ struct omap_vfsm_instance {
 	u8 voltsetupoff_reg;
 };
 
+/* Dynamic nominal voltage margin common for OMAP3630 and OMAP4 */
+#define OMAP3PLUS_DYNAMIC_NOMINAL_MARGIN_UV	50000
+
 /**
  * struct voltagedomain - omap voltage domain global structure.
  * @name: Name of the voltage domain which can be used as a unique identifier.
@@ -127,6 +130,10 @@ struct omap_voltage_notifier {
 /**
  * struct omap_volt_data - Omap voltage specific data.
  * @voltage_nominal:	The possible voltage value in uV
+ * @voltage_calibrated:	The Calibrated voltage value in uV
+ * @voltage_dynamic_nominal:	The run time optimized nominal voltage for
+ *			the device. Dynamic nominal is the nominal voltage
+ *			specialized for that OPP on the device in uV.
  * @sr_efuse_offs:	The offset of the efuse register(from system
  *			control module base address) from where to read
  *			the n-target value for the smartreflex module.
@@ -142,6 +149,8 @@ struct omap_voltage_notifier {
  */
 struct omap_volt_data {
 	u32	volt_nominal;
+	u32	volt_calibrated;
+	u32	volt_dynamic_nominal;
 	u32	sr_efuse_offs;
 	u8	sr_errminlimit;
 	u8	vp_errgain;
@@ -324,7 +333,26 @@ static inline unsigned long omap_get_operation_voltage(
 {
 	if (!vdata)
 		return 0;
+	return (vdata->volt_calibrated) ? vdata->volt_calibrated :
+		(vdata->volt_dynamic_nominal) ? vdata->volt_dynamic_nominal :
+			vdata->volt_nominal;
+}
+
+/* what is my dynamic nominal? */
+static inline unsigned long omap_get_dyn_nominal(struct omap_volt_data *vdata)
+{
+	if (IS_ERR_OR_NULL(vdata))
+		return 0;
+	if (vdata->volt_calibrated) {
+		unsigned long v = vdata->volt_calibrated +
+			OMAP3PLUS_DYNAMIC_NOMINAL_MARGIN_UV;
+		if (v > vdata->volt_nominal)
+			return vdata->volt_nominal;
+		return v;
+	}
 	return vdata->volt_nominal;
 }
+
+int omap_voltage_calib_reset(struct voltagedomain *voltdm);
 
 #endif

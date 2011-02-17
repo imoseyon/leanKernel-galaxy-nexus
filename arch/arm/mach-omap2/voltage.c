@@ -177,6 +177,8 @@ int voltdm_scale(struct voltagedomain *voltdm,
  * This API finds out the correct voltage the voltage domain is supposed
  * to be at and resets the voltage to that level. Should be used especially
  * while disabling any voltage compensation modules.
+ *
+ * NOTE: appropriate locks should be held for mutual exclusivity.
  */
 void voltdm_reset(struct voltagedomain *voltdm)
 {
@@ -259,7 +261,8 @@ struct omap_volt_data *omap_voltage_get_voltdata(struct voltagedomain *voltdm,
 	}
 
 	for (i = 0; vdd->volt_data[i].volt_nominal != 0; i++) {
-		if (vdd->volt_data[i].volt_nominal == volt)
+		if (vdd->volt_data[i].volt_nominal == volt ||
+		   omap_get_operation_voltage(&vdd->volt_data[i]) == volt)
 			return &vdd->volt_data[i];
 	}
 
@@ -337,6 +340,52 @@ static int vp_volt_debug_get(void *data, u64 *val)
 }
 DEFINE_SIMPLE_ATTRIBUTE(vp_volt_debug_fops, vp_volt_debug_get, NULL, "%llu\n");
 
+static int dyn_volt_debug_get(void *data, u64 *val)
+{
+	struct voltagedomain *voltdm = (struct voltagedomain *)data;
+	struct omap_volt_data *volt_data;
+
+	if (!voltdm) {
+		pr_warning("%s: Wrong paramater passed\n", __func__);
+		return -EINVAL;
+	}
+
+	volt_data = omap_voltage_get_curr_vdata(voltdm);
+	if (IS_ERR_OR_NULL(volt_data)) {
+		pr_warning("%s: No voltage/domain?\n", __func__);
+		return -ENODEV;
+	}
+
+	*val = volt_data->volt_dynamic_nominal;
+
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(dyn_volt_debug_fops, dyn_volt_debug_get, NULL,
+								"%llu\n");
+
+static int calib_volt_debug_get(void *data, u64 *val)
+{
+	struct voltagedomain *voltdm = (struct voltagedomain *)data;
+	struct omap_volt_data *volt_data;
+
+	if (!voltdm) {
+		pr_warning("%s: Wrong paramater passed\n", __func__);
+		return -EINVAL;
+	}
+
+	volt_data = omap_voltage_get_curr_vdata(voltdm);
+	if (IS_ERR_OR_NULL(volt_data)) {
+		pr_warning("%s: No voltage/domain?\n", __func__);
+		return -ENODEV;
+	}
+
+	*val = volt_data->volt_calibrated;
+
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(calib_volt_debug_fops, calib_volt_debug_get, NULL,
+								"%llu\n");
+
 static int nom_volt_debug_get(void *data, u64 *val)
 {
 	struct voltagedomain *voltdm = (struct voltagedomain *) data;
@@ -386,6 +435,12 @@ static void __init voltdm_debugfs_init(struct dentry *voltage_dir,
 	(void) debugfs_create_file("curr_nominal_volt", S_IRUGO,
 				voltdm->debug_dir, (void *) voltdm,
 				&nom_volt_debug_fops);
+	(void) debugfs_create_file("curr_dyn_nominal_volt", S_IRUGO,
+				voltdm->debug_dir, (void *) voltdm,
+				&dyn_volt_debug_fops);
+	(void) debugfs_create_file("curr_calibrated_volt", S_IRUGO,
+				voltdm->debug_dir, (void *) voltdm,
+				&calib_volt_debug_fops);
 }
 
 /**
@@ -447,6 +502,35 @@ static struct voltagedomain *_voltdm_lookup(const char *name)
 	}
 
 	return voltdm;
+}
+
+/**
+ * omap_voltage_calib_reset() - reset the calibrated voltage entries
+ * @voltdm: voltage domain to reset the entries for
+ *
+ * when the calibrated entries are no longer valid, this api allows
+ * the calibrated voltages to be reset.
+ *
+ * NOTE: Appropriate locks must be held by calling path to ensure mutual
+ * exclusivity
+ */
+int omap_voltage_calib_reset(struct voltagedomain *voltdm)
+{
+	struct omap_volt_data *volt_data;
+
+	if (!voltdm) {
+		pr_warning("%s: voltdm NULL!\n", __func__);
+		return -EINVAL;
+	}
+
+	volt_data = voltdm->vdd->volt_data;
+
+	/* reset the calibrated voltages as 0 */
+	while (volt_data->volt_nominal) {
+		volt_data->volt_calibrated = 0;
+		volt_data++;
+	}
+	return 0;
 }
 
 /**
