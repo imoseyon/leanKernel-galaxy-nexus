@@ -117,5 +117,7 @@ int omap_vp_forceupdate_scale(struct voltagedomain *voltdm,
 			      struct omap_volt_data *target_v);
 int omap_vp_update_errorgain(struct voltagedomain *voltdm,
 			     unsigned long target_volt);
+bool omap_vp_is_transdone(struct voltagedomain *voltdm);
+void omap_vp_clear_transdone(struct voltagedomain *voltdm);
 
 #endif

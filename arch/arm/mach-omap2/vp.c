@@ -105,6 +105,36 @@ void __init omap_vp_init(struct voltagedomain *voltdm)
 	voltdm->write(val, vp->vlimitto);
 }
 
+/**
+ * omap_vp_is_transdone() - is voltage transfer done on vp?
+ * @voltdm:	pointer to the VDD which is to be scaled.
+ *
+ * VP's transdone bit is the only way to ensure that the transfer
+ * of the voltage value has actually been send over to the PMIC
+ * This is hence useful for all users of voltage domain to precisely
+ * identify once the PMIC voltage has been set by the voltage processor
+ */
+bool omap_vp_is_transdone(struct voltagedomain *voltdm)
+{
+
+	struct omap_vp_instance *vp = voltdm->vp;
+
+	return vp->common->ops->check_txdone(vp->id) ? true : false;
+}
+
+/**
+ * omap_vp_clear_transdone() - clear voltage transfer done status on vp
+ * @voltdm:	pointer to the VDD which is to be scaled.
+ */
+void omap_vp_clear_transdone(struct voltagedomain *voltdm)
+{
+	struct omap_vp_instance *vp = voltdm->vp;
+
+	vp->common->ops->clear_txdone(vp->id);
+
+	return;
+}
+
 int omap_vp_update_errorgain(struct voltagedomain *voltdm,
 			     unsigned long target_volt)
 {
