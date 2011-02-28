@@ -194,13 +194,28 @@ static void omap_serial_fill_default_pads(struct omap_board_data *bdata)
 	}
 }
 
+
+static void omap_uart_wakeup_enable(struct platform_device *pdev, bool enable)
+{
+	struct omap_device *od;
+
+	od = to_omap_device(pdev);
+	if (enable)
+		omap_hwmod_enable_wakeup(od->hwmods[0]);
+	else
+		omap_hwmod_disable_wakeup(od->hwmods[0]);
+}
+
 static void omap_uart_idle_init(struct omap_uart_port_info *uart,
 				unsigned short num)
 {
-	if (cpu_is_omap34xx()) {
+	if (cpu_is_omap44xx()) {
+		uart->wer |= OMAP4_UART_WER_MOD_WKUP;
+	} else if (cpu_is_omap34xx()) {
 		u32 mod = num > 1 ? OMAP3430_PER_MOD : CORE_MOD;
 		u32 wk_mask = 0;
 
+		uart->wer |= OMAP2_UART_WER_MOD_WKUP;
 		uart->wk_en = OMAP34XX_PRM_REGADDR(mod, PM_WKEN1);
 		uart->wk_st = OMAP34XX_PRM_REGADDR(mod, PM_WKST1);
 		switch (num) {
@@ -332,6 +347,7 @@ void __init omap_serial_init_port(struct omap_board_data *bdata)
 
 	pdata->uartclk = OMAP24XX_BASE_BAUD * 16;
 	pdata->flags = UPF_BOOT_AUTOCONF;
+	pdata->enable_wakeup = omap_uart_wakeup_enable;
 	if (bdata->id == omap_uart_con_id)
 		pdata->console_uart = true;
 

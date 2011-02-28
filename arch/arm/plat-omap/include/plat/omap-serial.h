@@ -36,7 +36,8 @@
 /* WER = 0x7F
  * Enable module level wakeup in WER reg
  */
-#define OMAP_UART_WER_MOD_WKUP	0X7F
+#define OMAP2_UART_WER_MOD_WKUP	0X7F
+#define OMAP4_UART_WER_MOD_WKUP	0XFF
 
 /* Enable XON/XOFF flow control on output */
 #define OMAP_UART_SW_TX		0x04
@@ -67,7 +68,9 @@ struct omap_uart_port_info {
 	upf_t			flags;		/* UPF_* flags */
 	unsigned int		errata;
 	unsigned int		console_uart;
+	u16			wer;		/* Module Wakeup register */
 
+	void (*enable_wakeup)(struct platform_device *, bool);
 	void __iomem *wk_st;
 	void __iomem *wk_en;
 	u32 wk_mask;
@@ -111,6 +114,7 @@ struct uart_omap_port {
 	unsigned char		dll;
 	unsigned char		dlh;
 	unsigned char		mdr1;
+	unsigned char		wer;
 
 	int			use_dma;
 	/*
@@ -121,7 +125,11 @@ struct uart_omap_port {
 	unsigned int		lsr_break_flag;
 	unsigned char		msr_saved_flags;
 	char			name[20];
+	unsigned int		console_lock;
 	unsigned long		port_activity;
+	u32			context_loss_cnt;
+
 	unsigned int		errata;
+	void (*enable_wakeup)(struct platform_device *, bool);
 };
 #endif /* __OMAP_SERIAL_H__ */
