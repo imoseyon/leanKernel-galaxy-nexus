@@ -61,6 +61,30 @@ void __init gic_init_irq(void)
 	gic_init(0, 29, gic_dist_base_addr, gic_cpu_base);
 }
 
+/*
+ * FIXME: Remove this GIC APIs once common GIG library starts
+ * supporting it.
+ */
+void gic_cpu_enable(void)
+{
+	__raw_writel(0xf0, gic_cpu_base + GIC_CPU_PRIMASK);
+	__raw_writel(1, gic_cpu_base + GIC_CPU_CTRL);
+}
+
+void gic_cpu_disable(void)
+{
+	__raw_writel(0, gic_cpu_base + GIC_CPU_CTRL);
+}
+
+void gic_dist_enable(void)
+{
+	__raw_writel(0x1, gic_dist_base_addr + GIC_DIST_CTRL);
+}
+void gic_dist_disable(void)
+{
+	__raw_writel(0, gic_dist_base_addr + GIC_CPU_CTRL);
+}
+
 #ifdef CONFIG_CACHE_L2X0
 
 void __iomem *omap4_get_l2cache_base(void)
