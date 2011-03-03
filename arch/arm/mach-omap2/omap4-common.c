@@ -36,11 +36,13 @@ void __init gic_init_irq(void)
 
 	/* Static mapping, never released */
 	gic_dist_base_addr = ioremap(OMAP44XX_GIC_DIST_BASE, SZ_4K);
-	BUG_ON(!gic_dist_base_addr);
+	if (WARN_ON(!gic_dist_base_addr))
+		return;
 
 	/* Static mapping, never released */
 	gic_cpu_base = ioremap(OMAP44XX_GIC_CPU_BASE, SZ_512);
-	BUG_ON(!gic_cpu_base);
+	if (WARN_ON(!gic_cpu_base))
+		return;
 
 	omap_wakeupgen_init();
 
@@ -74,7 +76,8 @@ static int __init omap_l2_cache_init(void)
 
 	/* Static mapping, never released */
 	l2cache_base = ioremap(OMAP44XX_L2CACHE_BASE, SZ_4K);
-	BUG_ON(!l2cache_base);
+	if (WARN_ON(!l2cache_base))
+		return -ENODEV;
 
 	/*
 	 * 16-way associativity, parity disabled
