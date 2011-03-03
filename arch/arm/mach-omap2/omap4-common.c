@@ -24,15 +24,25 @@
 #include <mach/omap-wakeupgen.h>
 
 #ifdef CONFIG_CACHE_L2X0
-void __iomem *l2cache_base;
+static void __iomem *l2cache_base;
 #endif
 
-void __iomem *gic_dist_base_addr;
+static void __iomem *gic_dist_base_addr;
+static void __iomem *gic_cpu_base;
 
+
+void __iomem *omap4_get_gic_dist_base(void)
+{
+	return gic_dist_base_addr;
+}
+
+void __iomem *omap4_get_gic_cpu_base(void)
+{
+	return gic_cpu_base;
+}
 
 void __init gic_init_irq(void)
 {
-	void __iomem *gic_cpu_base;
 
 	/* Static mapping, never released */
 	gic_dist_base_addr = ioremap(OMAP44XX_GIC_DIST_BASE, SZ_4K);
@@ -50,6 +60,11 @@ void __init gic_init_irq(void)
 }
 
 #ifdef CONFIG_CACHE_L2X0
+
+void __iomem *omap4_get_l2cache_base(void)
+{
+	return l2cache_base;
+}
 
 static void omap4_l2x0_disable(void)
 {

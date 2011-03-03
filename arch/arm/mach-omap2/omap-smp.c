@@ -31,6 +31,12 @@ static void __iomem *scu_base;
 
 static DEFINE_SPINLOCK(boot_lock);
 
+
+void __iomem *omap4_get_scu_base(void)
+{
+	return scu_base;
+}
+
 void __cpuinit platform_secondary_init(unsigned int cpu)
 {
 	/*
