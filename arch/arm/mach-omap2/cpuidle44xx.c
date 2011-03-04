@@ -13,6 +13,8 @@
 #include <linux/sched.h>
 #include <linux/cpuidle.h>
 #include <linux/clockchips.h>
+#include <linux/notifier.h>
+#include <linux/cpu.h>
 
 #include <asm/proc-fns.h>
 
@@ -51,6 +53,8 @@ struct omap4_processor_cx {
 
 struct omap4_processor_cx omap4_power_states[OMAP4_MAX_STATES];
 static struct powerdomain *mpu_pd, *cpu1_pd, *core_pd;
+static int needs_state_data_update;
+static unsigned int state_flags = CPUIDLE_FLAG_IGNORE;
 
 /*
  * FIXME: Full latency numbers needs to be updated as part of
@@ -70,6 +74,31 @@ static struct cpuidle_params cpuidle_params_table[] = {
 	/* C4 - CPU0 OFF + CPU1 OFF + MPU OFF + CORE ON */
 	{1,	1400,	600,	5000},
 };
+
+/**
+ * omap4_prepare_idle - Update C-state parameters dynamically
+ * @dev: cpuidle device
+ *
+ * Called from the CPUidle framework to prepare the device
+ * for idle before before calling the governor's select function.
+ */
+static int omap4_prepare_idle(struct cpuidle_device *dev)
+{
+	int i, ret = 0;
+
+	if (!needs_state_data_update)
+		return ret;
+
+	/*
+	 * Update the C-state flags based on CPU1 online
+	 * or offline state. On OMAP4, the low power C-states
+	 * are made available when only CPU1 is offline.
+	 */
+	for (i = OMAP4_STATE_C2; i < OMAP4_MAX_STATES; i++)
+		dev->states[i].flags = state_flags;
+
+	return ret;
+}
 
 /**
  * omap4_enter_idle - Programs OMAP4 to enter the specified state
@@ -227,6 +256,36 @@ struct cpuidle_driver omap4_idle_driver = {
 	.owner =	THIS_MODULE,
 };
 
+/*
+ * CPU hotplug notifier to update the C-states when
+ * CPU1 is offline or onine. While updating C-state flag,
+ * keep the cpuidle disabled.
+ */
+static int __cpuinit omap_cpu_hotplug_notify(struct notifier_block *self,
+					 unsigned long action, void *unused)
+{
+	switch (action) {
+	case CPU_ONLINE:
+		disable_hlt();
+		needs_state_data_update = 1;
+		state_flags = CPUIDLE_FLAG_IGNORE;
+		enable_hlt();
+		break;
+	case CPU_DEAD:
+		disable_hlt();
+		needs_state_data_update = 1;
+		state_flags = CPUIDLE_FLAG_TIME_VALID;
+		enable_hlt();
+		break;
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block __refdata omap_ilde_hotplug_notifier = {
+	.notifier_call = omap_cpu_hotplug_notify,
+};
+
 /**
  * omap4_idle_init - Init routine for OMAP4 idle
  *
@@ -272,11 +331,16 @@ int __init omap4_idle_init(void)
 	if (!count)
 		return -EINVAL;
 	dev->state_count = count;
+	dev->prepare = omap4_prepare_idle;
 
 	if (cpuidle_register_device(dev)) {
 		pr_err("%s: CPUidle register device failed\n", __func__);
 			return -EIO;
 		}
+
+	ret = register_hotcpu_notifier(&omap_ilde_hotplug_notifier);
+	if (ret)
+		return ret;
 
 	return 0;
 }
