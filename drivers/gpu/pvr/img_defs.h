@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -108,6 +108,9 @@ typedef char				TCHAR, *PTCHAR, *PTSTR;
 #else
 #define IMG_FORMAT_PRINTF(x,y)
 #endif
+
+#define  CLEANUP_WITH_POLL		IMG_FALSE
+#define  FORCE_CLEANUP			IMG_TRUE
 
 #if defined (_WIN64)
 #define IMG_UNDEF	(~0ULL)

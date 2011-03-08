@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -222,6 +222,8 @@ typedef struct _PVRSRV_DEVICE_NODE_
 #endif
 	IMG_DEV_PHYADDR			(*pfnMMUGetPhysPageAddr)(MMU_HEAP *pMMUHeap, IMG_DEV_VIRTADDR sDevVPageAddr);
 	IMG_DEV_PHYADDR			(*pfnMMUGetPDDevPAddr)(MMU_CONTEXT *pMMUContext);
+	IMG_VOID				(*pfnMMUGetCacheFlushRange)(MMU_CONTEXT *pMMUContext, IMG_UINT32 *pui32RangeMask);
+	IMG_VOID				(*pfnMMUGetPDPhysAddr)(MMU_CONTEXT *pMMUContext, IMG_DEV_PHYADDR *psDevPAddr);
 
 	
 	PVRSRV_ERROR			(*pfnAllocMemTilingRange)(struct _PVRSRV_DEVICE_NODE_ *psDeviceNode,

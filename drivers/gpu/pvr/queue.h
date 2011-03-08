@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -51,8 +51,7 @@ extern "C" {
 IMG_VOID QueueDumpDebugInfo(IMG_VOID);
 
 IMG_IMPORT
-PVRSRV_ERROR PVRSRVProcessQueues (IMG_UINT32	ui32CallerID,
-								  IMG_BOOL		bFlush);
+PVRSRV_ERROR PVRSRVProcessQueues (IMG_BOOL		bFlush);
 
 #if defined(__linux__) && defined(__KERNEL__) 
 #include <linux/types.h>

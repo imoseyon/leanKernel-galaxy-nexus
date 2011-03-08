@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -34,7 +34,7 @@ extern "C" {
 #define MAX_PDUMP_STRING_LENGTH (256)
 
 
-
+	
 #define PDUMP_GET_SCRIPT_STRING()				\
 	IMG_HANDLE hScript;							\
 	IMG_UINT32	ui32MaxLen;						\

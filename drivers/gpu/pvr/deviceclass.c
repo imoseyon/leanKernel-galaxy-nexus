@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -540,22 +540,35 @@ PVRSRV_ERROR PVRSRVCloseDCDeviceKM (IMG_HANDLE	hDeviceKM,
 	psDCPerContextInfo = (PVRSRV_DISPLAYCLASS_PERCONTEXT_INFO *)hDeviceKM;
 
 	
-	eError = ResManFreeResByPtr(psDCPerContextInfo->hResItem);
+	eError = ResManFreeResByPtr(psDCPerContextInfo->hResItem, CLEANUP_WITH_POLL);
 
 	return eError;
 }
 
 
-static PVRSRV_ERROR CloseDCDeviceCallBack(IMG_PVOID		pvParam,
-										  IMG_UINT32	ui32Param)
+static PVRSRV_ERROR CloseDCDeviceCallBack(IMG_PVOID  pvParam,
+										  IMG_UINT32 ui32Param,
+										  IMG_BOOL   bDummy)
 {
 	PVRSRV_DISPLAYCLASS_PERCONTEXT_INFO *psDCPerContextInfo;
 	PVRSRV_DISPLAYCLASS_INFO *psDCInfo;
 
 	PVR_UNREFERENCED_PARAMETER(ui32Param);
+	PVR_UNREFERENCED_PARAMETER(bDummy);
 
 	psDCPerContextInfo = (PVRSRV_DISPLAYCLASS_PERCONTEXT_INFO *)pvParam;
 	psDCInfo = psDCPerContextInfo->psDCInfo;
+
+	if(psDCInfo->sSystemBuffer.sDeviceClassBuffer.ui32MemMapRefCount != 0)
+	{
+		PVR_DPF((PVR_DBG_ERROR,"CloseDCDeviceCallBack: system buffer (0x%p) still mapped (refcount = %d)",
+				&psDCInfo->sSystemBuffer.sDeviceClassBuffer,
+				psDCInfo->sSystemBuffer.sDeviceClassBuffer.ui32MemMapRefCount));
+#if 0
+		
+		return PVRSRV_ERROR_STILL_MAPPED;
+#endif
+	}
 
 	psDCInfo->ui32RefCount--;
 	if(psDCInfo->ui32RefCount == 0)
@@ -658,6 +671,7 @@ PVRSRV_ERROR PVRSRVOpenDCDeviceKM (PVRSRV_PER_PROCESS_DATA	*psPerProc,
 		}
 
 		psDCInfo->sSystemBuffer.sDeviceClassBuffer.psKernelSyncInfo->ui32RefCount++;
+		psDCInfo->sSystemBuffer.sDeviceClassBuffer.ui32MemMapRefCount = 0;
 	}
 
 	psDCPerContextInfo->psDCInfo = psDCInfo;
@@ -800,7 +814,7 @@ PVRSRV_ERROR PVRSRVDestroyDCSwapChainKM(IMG_HANDLE hSwapChainRef)
 
 	psSwapChainRef = hSwapChainRef;
 
-	eError = ResManFreeResByPtr(psSwapChainRef->hResItem);
+	eError = ResManFreeResByPtr(psSwapChainRef->hResItem, CLEANUP_WITH_POLL);
 
 	return eError;
 }
@@ -811,7 +825,6 @@ static PVRSRV_ERROR DestroyDCSwapChain(PVRSRV_DC_SWAPCHAIN *psSwapChain)
 	PVRSRV_ERROR				eError;
 	PVRSRV_DISPLAYCLASS_INFO	*psDCInfo = psSwapChain->psDCInfo;
 	IMG_UINT32 i;
-
 
 	
 	if( psDCInfo->psDCSwapChainShared )
@@ -869,12 +882,30 @@ static PVRSRV_ERROR DestroyDCSwapChain(PVRSRV_DC_SWAPCHAIN *psSwapChain)
 }
 
 
-static PVRSRV_ERROR DestroyDCSwapChainRefCallBack(IMG_PVOID pvParam, IMG_UINT32 ui32Param)
+static PVRSRV_ERROR DestroyDCSwapChainRefCallBack(IMG_PVOID pvParam,
+												  IMG_UINT32 ui32Param,
+												  IMG_BOOL bDummy)
 {
 	PVRSRV_DC_SWAPCHAIN_REF *psSwapChainRef = (PVRSRV_DC_SWAPCHAIN_REF *) pvParam;
 	PVRSRV_ERROR eError = PVRSRV_OK;
+	IMG_UINT32 i;
 
 	PVR_UNREFERENCED_PARAMETER(ui32Param);
+	PVR_UNREFERENCED_PARAMETER(bDummy);
+
+	for (i = 0; i < psSwapChainRef->psSwapChain->ui32BufferCount; i++)
+	{
+		if (psSwapChainRef->psSwapChain->asBuffer[i].sDeviceClassBuffer.ui32MemMapRefCount != 0)
+		{
+			PVR_DPF((PVR_DBG_ERROR, "DestroyDCSwapChainRefCallBack: swapchain (0x%p) still mapped (ui32MemMapRefCount = %d)",
+					&psSwapChainRef->psSwapChain->asBuffer[i].sDeviceClassBuffer,
+					psSwapChainRef->psSwapChain->asBuffer[i].sDeviceClassBuffer.ui32MemMapRefCount));
+#if 0
+			
+			return PVRSRV_ERROR_STILL_MAPPED;
+#endif
+		}
+	}
 
 	if(--psSwapChainRef->psSwapChain->ui32RefCount == 0) 
 	{
@@ -1313,20 +1344,13 @@ PVRSRV_ERROR PVRSRVSwapToDCBufferKM(IMG_HANDLE	hDeviceKM,
 	IMG_UINT32 ui32NumSrcSyncs = 1;
 	PVRSRV_KERNEL_SYNC_INFO *apsSrcSync[2];
 	PVRSRV_COMMAND *psCommand;
+	SYS_DATA *psSysData;
 
 	if(!hDeviceKM || !hBuffer || !psClipRect)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBufferKM: Invalid parameters"));
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
-
-#if defined(SUPPORT_LMA)
-	eError = PVRSRVPowerLock(KERNEL_ID, IMG_FALSE);
-	if(eError != PVRSRV_OK)
-	{
-		return eError;
-	}
-#endif 
 
 	psBuffer = (PVRSRV_DC_BUFFER*)hBuffer;
 	psDCInfo = DCDeviceHandleToDCInfo(hDeviceKM);
@@ -1427,28 +1451,15 @@ PVRSRV_ERROR PVRSRVSwapToDCBufferKM(IMG_HANDLE	hDeviceKM,
 
 	
 
+	SysAcquireData(&psSysData);
+    eError = OSScheduleMISR(psSysData);
 
-
-
-
-
-
-	 
-	LOOP_UNTIL_TIMEOUT(MAX_HW_TIME_US)
+	if (eError != PVRSRV_OK)
 	{
-		if(PVRSRVProcessQueues(KERNEL_ID, IMG_FALSE) != PVRSRV_ERROR_PROCESSING_BLOCKED)
-		{
-			goto ProcessedQueues;
-		}
-		OSWaitus(MAX_HW_TIME_US/WAIT_TRY_COUNT);
-	} END_LOOP_UNTIL_TIMEOUT();
+		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBufferKM: Failed to schedule MISR"));
+		goto Exit;
+	}
 
-	PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBufferKM: Failed to process queues"));
-
-	eError = PVRSRV_ERROR_FAILED_TO_PROCESS_QUEUE;
-	goto Exit;
-
-ProcessedQueues:
 	
 	psBuffer->psSwapChain->psLastFlipBuffer = psBuffer;
 
@@ -1459,9 +1470,6 @@ Exit:
 		eError = PVRSRV_ERROR_RETRY;
 	}
 
-#if defined(SUPPORT_LMA)
-	PVRSRVPowerUnlock(KERNEL_ID);
-#endif
 	return eError;
 }
 
@@ -1481,20 +1489,13 @@ PVRSRV_ERROR PVRSRVSwapToDCSystemKM(IMG_HANDLE	hDeviceKM,
 	PVRSRV_COMMAND *psCommand;
 	IMG_BOOL bAddReferenceToLast = IMG_TRUE;
 	IMG_UINT16 ui16SwapCommandID = DC_FLIP_COMMAND;
+    SYS_DATA *psSysData;
 
 	if(!hDeviceKM || !hSwapChainRef)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCSystemKM: Invalid parameters"));
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
-
-#if defined(SUPPORT_LMA)
-	eError = PVRSRVPowerLock(KERNEL_ID, IMG_FALSE);
-	if(eError != PVRSRV_OK)
-	{
-		return eError;
-	}
-#endif 
 
 	psDCInfo = DCDeviceHandleToDCInfo(hDeviceKM);
 	psSwapChainRef = (PVRSRV_DC_SWAPCHAIN_REF*)hSwapChainRef;
@@ -1581,28 +1582,15 @@ PVRSRV_ERROR PVRSRVSwapToDCSystemKM(IMG_HANDLE	hDeviceKM,
 	}
 
 	
+	SysAcquireData(&psSysData);
+    eError = OSScheduleMISR(psSysData);
 
-
-
-
-
-
-	 
-	LOOP_UNTIL_TIMEOUT(MAX_HW_TIME_US)
+	if (eError != PVRSRV_OK)
 	{
-		if(PVRSRVProcessQueues(KERNEL_ID, IMG_FALSE) != PVRSRV_ERROR_PROCESSING_BLOCKED)
-		{
-			goto ProcessedQueues;
-		}
+		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCSystemKM: Failed to schedule MISR"));
+		goto Exit;
+	}
 
-		OSWaitus(MAX_HW_TIME_US/WAIT_TRY_COUNT);
-	} END_LOOP_UNTIL_TIMEOUT();
-
-	PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCSystemKM: Failed to process queues"));
-	eError = PVRSRV_ERROR_FAILED_TO_PROCESS_QUEUE;
-	goto Exit;
-
-ProcessedQueues:
 	
 	psSwapChain->psLastFlipBuffer = &psDCInfo->sSystemBuffer;
 
@@ -1615,9 +1603,6 @@ Exit:
 		eError = PVRSRV_ERROR_RETRY;
 	}
 
-#if defined(SUPPORT_LMA)
-	PVRSRVPowerUnlock(KERNEL_ID);
-#endif
 	return eError;
 }
 
@@ -1725,28 +1710,42 @@ PVRSRV_ERROR PVRSRVCloseBCDeviceKM (IMG_HANDLE	hDeviceKM,
 	psBCPerContextInfo = (PVRSRV_BUFFERCLASS_PERCONTEXT_INFO *)hDeviceKM;
 
 	
-	eError = ResManFreeResByPtr(psBCPerContextInfo->hResItem);
+	eError = ResManFreeResByPtr(psBCPerContextInfo->hResItem, CLEANUP_WITH_POLL);
 
 	return eError;
 }
 
 
-static PVRSRV_ERROR CloseBCDeviceCallBack(IMG_PVOID		pvParam,
-										  IMG_UINT32	ui32Param)
+static PVRSRV_ERROR CloseBCDeviceCallBack(IMG_PVOID  pvParam,
+										  IMG_UINT32 ui32Param,
+										  IMG_BOOL   bDummy)
 {
 	PVRSRV_BUFFERCLASS_PERCONTEXT_INFO *psBCPerContextInfo;
 	PVRSRV_BUFFERCLASS_INFO *psBCInfo;
+	IMG_UINT32 i;
 
 	PVR_UNREFERENCED_PARAMETER(ui32Param);
+	PVR_UNREFERENCED_PARAMETER(bDummy);
 
 	psBCPerContextInfo = (PVRSRV_BUFFERCLASS_PERCONTEXT_INFO *)pvParam;
+
 	psBCInfo = psBCPerContextInfo->psBCInfo;
+
+	for (i = 0; i < psBCInfo->ui32BufferCount; i++)
+	{
+		if (psBCInfo->psBuffer[i].sDeviceClassBuffer.ui32MemMapRefCount != 0)
+		{
+			PVR_DPF((PVR_DBG_ERROR, "CloseBCDeviceCallBack: buffer %d (0x%p) still mapped (ui32MemMapRefCount = %d)",
+					i,
+					&psBCInfo->psBuffer[i].sDeviceClassBuffer,
+					psBCInfo->psBuffer[i].sDeviceClassBuffer.ui32MemMapRefCount));
+			return PVRSRV_ERROR_STILL_MAPPED;
+		}
+	}
 
 	psBCInfo->ui32RefCount--;
 	if(psBCInfo->ui32RefCount == 0)
 	{
-		IMG_UINT32 i;
-
 		
 		psBCInfo->psFuncTable->pfnCloseBCDevice(psBCInfo->ui32DeviceID, psBCInfo->hExtDevice);
 
@@ -1900,6 +1899,7 @@ PVRSRV_ERROR PVRSRVOpenBCDeviceKM (PVRSRV_PER_PROCESS_DATA	*psPerProc,
 			psBCInfo->psBuffer[i].sDeviceClassBuffer.pfnGetBufferAddr = psBCInfo->psFuncTable->pfnGetBufferAddr;
 			psBCInfo->psBuffer[i].sDeviceClassBuffer.hDevMemContext = psBCInfo->hDevMemContext;
 			psBCInfo->psBuffer[i].sDeviceClassBuffer.hExtDevice = psBCInfo->hExtDevice;
+			psBCInfo->psBuffer[i].sDeviceClassBuffer.ui32MemMapRefCount = 0;
 		}
 	}
 

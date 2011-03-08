@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -819,14 +819,14 @@ static void* ProcSeqOff2ElementSysNodes(struct seq_file * sfile, loff_t off)
     psSysData = SysAcquireDataNoCheck();
     if (psSysData != IMG_NULL)
     {
-
+	
 	psDevNode = (PVRSRV_DEVICE_NODE*)
 			List_PVRSRV_DEVICE_NODE_Any_va(psSysData->psDeviceNodeList,
 													DecOffPsDev_AnyVaCb,
 													&off);
     }
 
-
+    
     return (void*)psDevNode;
 }
 

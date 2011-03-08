@@ -1,26 +1,26 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
- *
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
+ * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
  * version 2, as published by the Free Software Foundation.
- *
- * This program is distributed in the hope it will be useful but, except
- * as otherwise stated in writing, without any warranty; without even the
- * implied warranty of merchantability or fitness for a particular purpose.
+ * 
+ * This program is distributed in the hope it will be useful but, except 
+ * as otherwise stated in writing, without any warranty; without even the 
+ * implied warranty of merchantability or fitness for a particular purpose. 
  * See the GNU General Public License for more details.
- *
+ * 
  * You should have received a copy of the GNU General Public License along with
  * this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
- *
+ * 
  * The full GNU General Public License is included in this distribution in
  * the file called "COPYING".
  *
  * Contact Information:
  * Imagination Technologies Ltd. <gpl-support@imgtec.com>
- * Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK
+ * Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK 
  *
  ******************************************************************************/
 
@@ -28,7 +28,20 @@
 #define _DBGDRVIF_
 
 
+#if defined(__linux__)
+
+#define FILE_DEVICE_UNKNOWN             0
+#define METHOD_BUFFERED                 0
+#define FILE_ANY_ACCESS                 0
+
+#define CTL_CODE( DeviceType, Function, Method, Access ) (Function) 
+#define MAKEIOCTLINDEX(i)	((i) & 0xFFF)
+
+#else
+
 #include "ioctldef.h"
+
+#endif
 
 #define DEBUG_CAPMODE_FRAMED			0x00000001UL
 #define DEBUG_CAPMODE_CONTINUOUS		0x00000002UL
@@ -238,17 +251,17 @@ typedef struct _DBG_IN_WRITE_LF_
 
 typedef struct _DBG_STREAM_CONTROL_
 {
-	IMG_BOOL   bInitPhaseComplete;
-	IMG_UINT32 ui32Flags;
+	IMG_BOOL   bInitPhaseComplete;	
+	IMG_UINT32 ui32Flags;			
 
-	IMG_UINT32 ui32CapMode;
-	IMG_UINT32 ui32OutMode;
+	IMG_UINT32 ui32CapMode;			
+	IMG_UINT32 ui32OutMode;			
 	IMG_UINT32 ui32DebugLevel;
 	IMG_UINT32 ui32DefaultMode;
-	IMG_UINT32 ui32Start;
-	IMG_UINT32 ui32End;
-	IMG_UINT32 ui32Current;
-	IMG_UINT32 ui32SampleRate;
+	IMG_UINT32 ui32Start;			
+	IMG_UINT32 ui32End;				
+	IMG_UINT32 ui32Current;			
+	IMG_UINT32 ui32SampleRate;		
 	IMG_UINT32 ui32Reserved;
 } DBG_STREAM_CONTROL, *PDBG_STREAM_CONTROL;
 typedef struct _DBG_STREAM_
@@ -262,13 +275,13 @@ typedef struct _DBG_STREAM_
 	IMG_UINT32 ui32RPtr;
 	IMG_UINT32 ui32WPtr;
 	IMG_UINT32 ui32DataWritten;
-	IMG_UINT32 ui32Marker;
-	IMG_UINT32 ui32InitPhaseWOff;
-
-
-
-
-	IMG_CHAR szName[30];
+	IMG_UINT32 ui32Marker;			
+	IMG_UINT32 ui32InitPhaseWOff;	
+	
+	
+	
+	
+	IMG_CHAR szName[30];		
 } DBG_STREAM,*PDBG_STREAM;
 
 typedef struct _DBGKM_CONNECT_NOTIFIER_
@@ -279,36 +292,36 @@ typedef struct _DBGKM_CONNECT_NOTIFIER_
 typedef struct _DBGKM_SERVICE_TABLE_
 {
 	IMG_UINT32 ui32Size;
-	IMG_VOID *	(IMG_CALLCONV *pfnCreateStream)			(IMG_CHAR * pszName,IMG_UINT32 ui32CapMode,IMG_UINT32 ui32OutMode,IMG_UINT32 ui32Flags,IMG_UINT32 ui32Pages);
-	IMG_VOID	(IMG_CALLCONV *pfnDestroyStream)		(PDBG_STREAM psStream);
-	IMG_VOID *	(IMG_CALLCONV *pfnFindStream)			(IMG_CHAR * pszName, IMG_BOOL bResetInitBuffer);
-	IMG_UINT32	(IMG_CALLCONV *pfnWriteString)			(PDBG_STREAM psStream,IMG_CHAR * pszString,IMG_UINT32 ui32Level);
-	IMG_UINT32	(IMG_CALLCONV *pfnReadString)			(PDBG_STREAM psStream,IMG_CHAR * pszString,IMG_UINT32 ui32Limit);
-	IMG_UINT32	(IMG_CALLCONV *pfnWriteBIN)				(PDBG_STREAM psStream,IMG_UINT8 *pui8InBuf,IMG_UINT32 ui32InBuffSize,IMG_UINT32 ui32Level);
-	IMG_UINT32	(IMG_CALLCONV *pfnReadBIN)				(PDBG_STREAM psStream,IMG_BOOL bReadInitBuffer, IMG_UINT32 ui32OutBufferSize,IMG_UINT8 *pui8OutBuf);
-	IMG_VOID	(IMG_CALLCONV *pfnSetCaptureMode)		(PDBG_STREAM psStream,IMG_UINT32 ui32CapMode,IMG_UINT32 ui32Start,IMG_UINT32 ui32Stop,IMG_UINT32 ui32SampleRate);
-	IMG_VOID	(IMG_CALLCONV *pfnSetOutputMode)		(PDBG_STREAM psStream,IMG_UINT32 ui32OutMode);
-	IMG_VOID	(IMG_CALLCONV *pfnSetDebugLevel)		(PDBG_STREAM psStream,IMG_UINT32 ui32DebugLevel);
-	IMG_VOID	(IMG_CALLCONV *pfnSetFrame)				(PDBG_STREAM psStream,IMG_UINT32 ui32Frame);
-	IMG_UINT32	(IMG_CALLCONV *pfnGetFrame)				(PDBG_STREAM psStream);
-	IMG_VOID	(IMG_CALLCONV *pfnOverrideMode)			(PDBG_STREAM psStream,IMG_UINT32 ui32Mode);
-	IMG_VOID	(IMG_CALLCONV *pfnDefaultMode)			(PDBG_STREAM psStream);
+	IMG_VOID * 	(IMG_CALLCONV *pfnCreateStream)			(IMG_CHAR * pszName,IMG_UINT32 ui32CapMode,IMG_UINT32 ui32OutMode,IMG_UINT32 ui32Flags,IMG_UINT32 ui32Pages);
+	IMG_VOID 	(IMG_CALLCONV *pfnDestroyStream)		(PDBG_STREAM psStream);
+	IMG_VOID * 	(IMG_CALLCONV *pfnFindStream) 			(IMG_CHAR * pszName, IMG_BOOL bResetInitBuffer);
+	IMG_UINT32 	(IMG_CALLCONV *pfnWriteString) 			(PDBG_STREAM psStream,IMG_CHAR * pszString,IMG_UINT32 ui32Level);
+	IMG_UINT32 	(IMG_CALLCONV *pfnReadString)			(PDBG_STREAM psStream,IMG_CHAR * pszString,IMG_UINT32 ui32Limit);
+	IMG_UINT32 	(IMG_CALLCONV *pfnWriteBIN)				(PDBG_STREAM psStream,IMG_UINT8 *pui8InBuf,IMG_UINT32 ui32InBuffSize,IMG_UINT32 ui32Level);
+	IMG_UINT32 	(IMG_CALLCONV *pfnReadBIN)				(PDBG_STREAM psStream,IMG_BOOL bReadInitBuffer, IMG_UINT32 ui32OutBufferSize,IMG_UINT8 *pui8OutBuf);
+	IMG_VOID 	(IMG_CALLCONV *pfnSetCaptureMode)		(PDBG_STREAM psStream,IMG_UINT32 ui32CapMode,IMG_UINT32 ui32Start,IMG_UINT32 ui32Stop,IMG_UINT32 ui32SampleRate);
+	IMG_VOID 	(IMG_CALLCONV *pfnSetOutputMode)		(PDBG_STREAM psStream,IMG_UINT32 ui32OutMode);
+	IMG_VOID 	(IMG_CALLCONV *pfnSetDebugLevel)		(PDBG_STREAM psStream,IMG_UINT32 ui32DebugLevel);
+	IMG_VOID 	(IMG_CALLCONV *pfnSetFrame)				(PDBG_STREAM psStream,IMG_UINT32 ui32Frame);
+	IMG_UINT32 	(IMG_CALLCONV *pfnGetFrame)				(PDBG_STREAM psStream);
+	IMG_VOID 	(IMG_CALLCONV *pfnOverrideMode)			(PDBG_STREAM psStream,IMG_UINT32 ui32Mode);
+	IMG_VOID 	(IMG_CALLCONV *pfnDefaultMode)			(PDBG_STREAM psStream);
 	IMG_UINT32	(IMG_CALLCONV *pfnDBGDrivWrite2)		(PDBG_STREAM psStream,IMG_UINT8 *pui8InBuf,IMG_UINT32 ui32InBuffSize,IMG_UINT32 ui32Level);
-	IMG_UINT32	(IMG_CALLCONV *pfnWriteStringCM)		(PDBG_STREAM psStream,IMG_CHAR * pszString,IMG_UINT32 ui32Level);
+	IMG_UINT32 	(IMG_CALLCONV *pfnWriteStringCM)		(PDBG_STREAM psStream,IMG_CHAR * pszString,IMG_UINT32 ui32Level);
 	IMG_UINT32	(IMG_CALLCONV *pfnWriteBINCM)			(PDBG_STREAM psStream,IMG_UINT8 *pui8InBuf,IMG_UINT32 ui32InBuffSize,IMG_UINT32 ui32Level);
-	IMG_VOID	(IMG_CALLCONV *pfnSetMarker)			(PDBG_STREAM psStream,IMG_UINT32 ui32Marker);
-	IMG_UINT32	(IMG_CALLCONV *pfnGetMarker)			(PDBG_STREAM psStream);
-	IMG_VOID	(IMG_CALLCONV *pfnStartInitPhase)		(PDBG_STREAM psStream);
-	IMG_VOID	(IMG_CALLCONV *pfnStopInitPhase)		(PDBG_STREAM psStream);
-	IMG_BOOL	(IMG_CALLCONV *pfnIsCaptureFrame)		(PDBG_STREAM psStream, IMG_BOOL bCheckPreviousFrame);
-	IMG_UINT32	(IMG_CALLCONV *pfnWriteLF)				(PDBG_STREAM psStream, IMG_UINT8 *pui8InBuf, IMG_UINT32 ui32InBuffSize, IMG_UINT32 ui32Level, IMG_UINT32 ui32Flags);
-	IMG_UINT32	(IMG_CALLCONV *pfnReadLF)				(PDBG_STREAM psStream, IMG_UINT32 ui32OutBuffSize, IMG_UINT8 *pui8OutBuf);
-	IMG_UINT32	(IMG_CALLCONV *pfnGetStreamOffset)		(PDBG_STREAM psStream);
+	IMG_VOID 	(IMG_CALLCONV *pfnSetMarker)			(PDBG_STREAM psStream,IMG_UINT32 ui32Marker);
+	IMG_UINT32 	(IMG_CALLCONV *pfnGetMarker)			(PDBG_STREAM psStream);
+	IMG_VOID 	(IMG_CALLCONV *pfnStartInitPhase)		(PDBG_STREAM psStream);
+	IMG_VOID 	(IMG_CALLCONV *pfnStopInitPhase)		(PDBG_STREAM psStream);
+	IMG_BOOL 	(IMG_CALLCONV *pfnIsCaptureFrame)		(PDBG_STREAM psStream, IMG_BOOL bCheckPreviousFrame);
+	IMG_UINT32 	(IMG_CALLCONV *pfnWriteLF)				(PDBG_STREAM psStream, IMG_UINT8 *pui8InBuf, IMG_UINT32 ui32InBuffSize, IMG_UINT32 ui32Level, IMG_UINT32 ui32Flags);
+	IMG_UINT32 	(IMG_CALLCONV *pfnReadLF)				(PDBG_STREAM psStream, IMG_UINT32 ui32OutBuffSize, IMG_UINT8 *pui8OutBuf);
+	IMG_UINT32 	(IMG_CALLCONV *pfnGetStreamOffset)		(PDBG_STREAM psStream);
 	IMG_VOID	(IMG_CALLCONV *pfnSetStreamOffset)		(PDBG_STREAM psStream, IMG_UINT32 ui32StreamOffset);
-	IMG_BOOL	(IMG_CALLCONV *pfnIsLastCaptureFrame)	(PDBG_STREAM psStream);
-	IMG_VOID	(IMG_CALLCONV *pfnWaitForEvent)			(DBG_EVENT eEvent);
-	IMG_VOID	(IMG_CALLCONV *pfnSetConnectNotifier)	(DBGKM_CONNECT_NOTIFIER fn_notifier);
-	IMG_UINT32	(IMG_CALLCONV *pfnWritePersist)			(PDBG_STREAM psStream,IMG_UINT8 *pui8InBuf,IMG_UINT32 ui32InBuffSize,IMG_UINT32 ui32Level);
+	IMG_BOOL 	(IMG_CALLCONV *pfnIsLastCaptureFrame)	(PDBG_STREAM psStream);
+	IMG_VOID 	(IMG_CALLCONV *pfnWaitForEvent)			(DBG_EVENT eEvent);
+	IMG_VOID 	(IMG_CALLCONV *pfnSetConnectNotifier)	(DBGKM_CONNECT_NOTIFIER fn_notifier);
+	IMG_UINT32 	(IMG_CALLCONV *pfnWritePersist)			(PDBG_STREAM psStream,IMG_UINT8 *pui8InBuf,IMG_UINT32 ui32InBuffSize,IMG_UINT32 ui32Level);
 } DBGKM_SERVICE_TABLE, *PDBGKM_SERVICE_TABLE;
 
 

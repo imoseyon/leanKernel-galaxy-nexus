@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -78,7 +78,7 @@ typedef struct PVRSRV_LINUX_EVENT_OBJECT_TAG
 #endif
     wait_queue_head_t sWait;	
 	struct list_head        sList;
-	IMG_HANDLE		hResItem;
+	IMG_HANDLE		hResItem;				
 	PVRSRV_LINUX_EVENT_OBJECT_LIST *psLinuxEventObjectList;
 } PVRSRV_LINUX_EVENT_OBJECT;
 
@@ -108,7 +108,7 @@ PVRSRV_ERROR LinuxEventObjectListDestroy(IMG_HANDLE hEventObjectList)
 
 	PVRSRV_LINUX_EVENT_OBJECT_LIST *psEventObjectList = (PVRSRV_LINUX_EVENT_OBJECT_LIST *) hEventObjectList ;
 
-	if(psEventObjectList)
+	if(psEventObjectList)	
 	{
 		IMG_BOOL bListEmpty;
 
@@ -116,7 +116,7 @@ PVRSRV_ERROR LinuxEventObjectListDestroy(IMG_HANDLE hEventObjectList)
 		bListEmpty = list_empty(&psEventObjectList->sList);
 		read_unlock(&psEventObjectList->sLock);
 
-		if (!bListEmpty)
+		if (!bListEmpty) 
 		{
 			 PVR_DPF((PVR_DBG_ERROR, "LinuxEventObjectListDestroy: Event List is not empty"));
 			 return PVRSRV_ERROR_UNABLE_TO_DESTROY_EVENT;
@@ -140,7 +140,7 @@ PVRSRV_ERROR LinuxEventObjectDelete(IMG_HANDLE hOSEventObjectList, IMG_HANDLE hO
 #if defined(DEBUG)
 			PVR_DPF((PVR_DBG_MESSAGE, "LinuxEventObjectListDelete: Event object waits: %u", psLinuxEventObject->ui32Stats));
 #endif
-			if(ResManFreeResByPtr(psLinuxEventObject->hResItem) != PVRSRV_OK)
+			if(ResManFreeResByPtr(psLinuxEventObject->hResItem, CLEANUP_WITH_POLL) != PVRSRV_OK)
 			{
 				return PVRSRV_ERROR_UNABLE_TO_DESTROY_EVENT;
 			}
@@ -152,13 +152,14 @@ PVRSRV_ERROR LinuxEventObjectDelete(IMG_HANDLE hOSEventObjectList, IMG_HANDLE hO
 
 }
 
-static PVRSRV_ERROR LinuxEventObjectDeleteCallback(IMG_PVOID pvParam, IMG_UINT32 ui32Param)
+static PVRSRV_ERROR LinuxEventObjectDeleteCallback(IMG_PVOID pvParam, IMG_UINT32 ui32Param, IMG_BOOL bForceCleanup)
 {
 	PVRSRV_LINUX_EVENT_OBJECT *psLinuxEventObject = pvParam;
 	PVRSRV_LINUX_EVENT_OBJECT_LIST *psLinuxEventObjectList = psLinuxEventObject->psLinuxEventObjectList;
 	unsigned long ulLockFlags;
 
 	PVR_UNREFERENCED_PARAMETER(ui32Param);
+	PVR_UNREFERENCED_PARAMETER(bForceCleanup);
 
 	write_lock_irqsave(&psLinuxEventObjectList->sLock, ulLockFlags);
 	list_del(&psLinuxEventObject->sList);
@@ -232,9 +233,9 @@ PVRSRV_ERROR LinuxEventObjectSignal(IMG_HANDLE hOSEventObjectList)
 
 	psList = &psLinuxEventObjectList->sList;
 
-
+	
 	read_lock(&psLinuxEventObjectList->sLock);
-	list_for_each(psListEntry, psList)
+	list_for_each(psListEntry, psList) 
 	{       	
 
 		psLinuxEventObject = (PVRSRV_LINUX_EVENT_OBJECT *)list_entry(psListEntry, PVRSRV_LINUX_EVENT_OBJECT, sList);	

@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -142,7 +142,7 @@ struct _RA_ARENA_
 #endif
 
 #if defined(CONFIG_PROC_FS) && defined(DEBUG)
-#define PROC_NAME_SIZE		32
+#define PROC_NAME_SIZE		64
 
 	struct proc_dir_entry* pProcInfo;
 	struct proc_dir_entry* pProcSegs;

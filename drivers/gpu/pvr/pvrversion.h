@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -28,10 +28,10 @@
 #define _PVRVERSION_H_
 
 #define PVRVERSION_MAJ 1
-#define PVRVERSION_MIN 6
-#define PVRVERSION_BRANCH 16
-#define PVRVERSION_BUILD 4061
-#define PVRVERSION_STRING "1.6.16.4061"
+#define PVRVERSION_MIN 7
+#define PVRVERSION_BRANCH 17
+#define PVRVERSION_BUILD 4142
+#define PVRVERSION_STRING "1.7.17.4142"
 #define PVRVERSION_FILE "eurasiacon.pj"
 
 #endif 

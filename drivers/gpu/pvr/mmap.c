@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -67,7 +67,7 @@
 #include "pvr_drm.h"
 #endif
 
-#if !defined(PVR_SECURE_HANDLES)
+#if !defined(PVR_SECURE_HANDLES) && !defined (SUPPORT_SID_INTERFACE)
 #error "The mmap code requires PVR_SECURE_HANDLES"
 #endif
 
@@ -146,7 +146,11 @@ MMapOffsetToHandle(IMG_UINT32 pfn)
 #endif
 
 static inline IMG_UINT32
+#if defined (SUPPORT_SID_INTERFACE)
+HandleToMMapOffset(IMG_SID hHandle)
+#else
 HandleToMMapOffset(IMG_HANDLE hHandle)
+#endif
 {
 	IMG_UINT32 ulHandle = (IMG_UINT32)hHandle;
 
@@ -270,11 +274,15 @@ DetermineUsersSizeAndByteOffset(LinuxMemArea *psLinuxMemArea,
 
 PVRSRV_ERROR
 PVRMMapOSMemHandleToMMapData(PVRSRV_PER_PROCESS_DATA *psPerProc,
-				IMG_HANDLE hMHandle,
-                                IMG_UINT32 *pui32MMapOffset,
-                                IMG_UINT32 *pui32ByteOffset,
-                                IMG_UINT32 *pui32RealByteSize,
-				IMG_UINT32 *pui32UserVAddr)
+#if defined (SUPPORT_SID_INTERFACE)
+                             IMG_SID     hMHandle,
+#else
+                             IMG_HANDLE hMHandle,
+#endif
+                             IMG_UINT32 *pui32MMapOffset,
+                             IMG_UINT32 *pui32ByteOffset,
+                             IMG_UINT32 *pui32RealByteSize,
+                             IMG_UINT32 *pui32UserVAddr)
 {
     LinuxMemArea *psLinuxMemArea;
     PKV_OFFSET_STRUCT psOffsetStruct;
@@ -288,9 +296,13 @@ PVRMMapOSMemHandleToMMapData(PVRSRV_PER_PROCESS_DATA *psPerProc,
     eError = PVRSRVLookupOSMemHandle(psPerProc->psHandleBase, &hOSMemHandle, hMHandle);
     if (eError != PVRSRV_OK)
     {
-	PVR_DPF((PVR_DBG_ERROR, "%s: Lookup of handle %p failed", __FUNCTION__, hMHandle));
+#if defined (SUPPORT_SID_INTERFACE)
+        PVR_DPF((PVR_DBG_ERROR, "%s: Lookup of handle %x failed", __FUNCTION__, hMHandle));
+#else
+        PVR_DPF((PVR_DBG_ERROR, "%s: Lookup of handle %p failed", __FUNCTION__, hMHandle));
+#endif
 
-	goto exit_unlock;
+        goto exit_unlock;
     }
 
     psLinuxMemArea = (LinuxMemArea *)hOSMemHandle;
@@ -364,7 +376,11 @@ exit_unlock:
 
 PVRSRV_ERROR
 PVRMMapReleaseMMapData(PVRSRV_PER_PROCESS_DATA *psPerProc,
+#if defined (SUPPORT_SID_INTERFACE)
+				IMG_SID   hMHandle,
+#else
 				IMG_HANDLE hMHandle,
+#endif
 				IMG_BOOL *pbMUnmap,
 				IMG_UINT32 *pui32RealByteSize,
                                 IMG_UINT32 *pui32UserVAddr)
@@ -382,7 +398,11 @@ PVRMMapReleaseMMapData(PVRSRV_PER_PROCESS_DATA *psPerProc,
     eError = PVRSRVLookupOSMemHandle(psPerProc->psHandleBase, &hOSMemHandle, hMHandle);
     if (eError != PVRSRV_OK)
     {
+#if defined (SUPPORT_SID_INTERFACE)
+	PVR_DPF((PVR_DBG_ERROR, "%s: Lookup of handle %x failed", __FUNCTION__, hMHandle));
+#else
 	PVR_DPF((PVR_DBG_ERROR, "%s: Lookup of handle %p failed", __FUNCTION__, hMHandle));
+#endif
 
 	goto exit_unlock;
     }
@@ -414,7 +434,11 @@ PVRMMapReleaseMMapData(PVRSRV_PER_PROCESS_DATA *psPerProc,
     }
 
     
+#if defined (SUPPORT_SID_INTERFACE)
+    PVR_DPF((PVR_DBG_ERROR, "%s: Mapping data not found for handle %x (memory area %p)", __FUNCTION__, hMHandle, psLinuxMemArea));
+#else
     PVR_DPF((PVR_DBG_ERROR, "%s: Mapping data not found for handle %p (memory area %p)", __FUNCTION__, hMHandle, psLinuxMemArea));
+#endif
 
     eError =  PVRSRV_ERROR_MAPPING_NOT_FOUND;
 
@@ -590,10 +614,6 @@ MMapVOpenNoLock(struct vm_area_struct* ps_vma)
              psOffsetStruct->ui32MMapOffset,
              psOffsetStruct->ui32Mapped));
 #endif
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0))
-    MOD_INC_USE_COUNT;
-#endif
 }
 
 
@@ -637,10 +657,6 @@ MMapVCloseNoLock(struct vm_area_struct* ps_vma)
     }
 
     ps_vma->vm_private_data = NULL;
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0))
-    MOD_DEC_USE_COUNT;
-#endif
 }
 
 static void

@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -160,11 +160,11 @@ IMG_VOID LinuxMMCleanup(IMG_VOID);
 
 
 #if defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
-#define KMallocWrapper(ui32ByteSize) _KMallocWrapper(ui32ByteSize, __FILE__, __LINE__)
+#define KMallocWrapper(ui32ByteSize, uFlags) _KMallocWrapper(ui32ByteSize, uFlags, __FILE__, __LINE__)
 #else
-#define KMallocWrapper(ui32ByteSize) _KMallocWrapper(ui32ByteSize, NULL, 0)
+#define KMallocWrapper(ui32ByteSize, uFlags) _KMallocWrapper(ui32ByteSize, uFlags, NULL, 0)
 #endif
-IMG_VOID *_KMallocWrapper(IMG_UINT32 ui32ByteSize, IMG_CHAR *szFileName, IMG_UINT32 ui32Line);
+IMG_VOID *_KMallocWrapper(IMG_UINT32 ui32ByteSize, gfp_t uFlags, IMG_CHAR *szFileName, IMG_UINT32 ui32Line);
 
 
 #if defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)

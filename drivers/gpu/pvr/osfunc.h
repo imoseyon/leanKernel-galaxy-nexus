@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -406,15 +406,27 @@ IMG_CHAR* OSStringCopy(IMG_CHAR *pszDest, const IMG_CHAR *pszSrc);
 IMG_INT32 OSSNPrintf(IMG_CHAR *pStr, IMG_SIZE_T ui32Size, const IMG_CHAR *pszFormat, ...) IMG_FORMAT_PRINTF(3, 4);
 #define OSStringLength(pszString) strlen(pszString)
 
-PVRSRV_ERROR OSEventObjectCreate(const IMG_CHAR *pszName,
-								 PVRSRV_EVENTOBJECT *psEventObject);
-PVRSRV_ERROR OSEventObjectDestroy(PVRSRV_EVENTOBJECT *psEventObject);
-PVRSRV_ERROR OSEventObjectSignal(IMG_HANDLE hOSEventKM);
-PVRSRV_ERROR OSEventObjectWait(IMG_HANDLE hOSEventKM);
-PVRSRV_ERROR OSEventObjectOpen(PVRSRV_EVENTOBJECT *psEventObject,
+#if defined (SUPPORT_SID_INTERFACE)
+PVRSRV_ERROR OSEventObjectCreateKM(const IMG_CHAR *pszName,
+								 PVRSRV_EVENTOBJECT_KM *psEventObject);
+PVRSRV_ERROR OSEventObjectDestroyKM(PVRSRV_EVENTOBJECT_KM *psEventObject);
+PVRSRV_ERROR OSEventObjectSignalKM(IMG_HANDLE hOSEventKM);
+PVRSRV_ERROR OSEventObjectWaitKM(IMG_HANDLE hOSEventKM);
+PVRSRV_ERROR OSEventObjectOpenKM(PVRSRV_EVENTOBJECT_KM *psEventObject,
 											IMG_HANDLE *phOSEvent);
-PVRSRV_ERROR OSEventObjectClose(PVRSRV_EVENTOBJECT *psEventObject,
+PVRSRV_ERROR OSEventObjectCloseKM(PVRSRV_EVENTOBJECT_KM *psEventObject,
 											IMG_HANDLE hOSEventKM);
+#else
+PVRSRV_ERROR OSEventObjectCreateKM(const IMG_CHAR *pszName,
+								 PVRSRV_EVENTOBJECT *psEventObject);
+PVRSRV_ERROR OSEventObjectDestroyKM(PVRSRV_EVENTOBJECT *psEventObject);
+PVRSRV_ERROR OSEventObjectSignalKM(IMG_HANDLE hOSEventKM);
+PVRSRV_ERROR OSEventObjectWaitKM(IMG_HANDLE hOSEventKM);
+PVRSRV_ERROR OSEventObjectOpenKM(PVRSRV_EVENTOBJECT *psEventObject,
+											IMG_HANDLE *phOSEvent);
+PVRSRV_ERROR OSEventObjectCloseKM(PVRSRV_EVENTOBJECT *psEventObject,
+											IMG_HANDLE hOSEventKM);
+#endif 
 
 
 PVRSRV_ERROR OSBaseAllocContigMemory(IMG_SIZE_T ui32Size, IMG_CPU_VIRTADDR *pLinAddr, IMG_CPU_PHYADDR *pPhysAddr);
@@ -445,14 +457,24 @@ PVRSRV_ERROR OSCreateResource(PVRSRV_RESOURCE *psResource);
 PVRSRV_ERROR OSDestroyResource(PVRSRV_RESOURCE *psResource);
 IMG_VOID OSBreakResourceLock(PVRSRV_RESOURCE *psResource, IMG_UINT32 ui32ID);
 
+#if defined(SYS_CUSTOM_POWERLOCK_WRAP)
+#define OSPowerLockWrap SysPowerLockWrap
+#define OSPowerLockUnwrap SysPowerLockUnwrap
+#else
+PVRSRV_ERROR OSPowerLockWrap(IMG_VOID);
 
+IMG_VOID OSPowerLockUnwrap(IMG_VOID);
+#endif 
 
+ 
 IMG_VOID OSWaitus(IMG_UINT32 ui32Timeus);
 
-
+ 
 IMG_VOID OSSleepms(IMG_UINT32 ui32Timems);
 
-
+IMG_HANDLE OSFuncHighResTimerCreate(IMG_VOID);
+IMG_UINT32 OSFuncHighResTimerGetus(IMG_HANDLE hTimer);
+IMG_VOID OSFuncHighResTimerDestroy(IMG_HANDLE hTimer);
 IMG_VOID OSReleaseThreadQuanta(IMG_VOID);
 IMG_UINT32 OSPCIReadDword(IMG_UINT32 ui32Bus, IMG_UINT32 ui32Dev, IMG_UINT32 ui32Func, IMG_UINT32 ui32Reg);
 IMG_VOID OSPCIWriteDword(IMG_UINT32 ui32Bus, IMG_UINT32 ui32Dev, IMG_UINT32 ui32Func, IMG_UINT32 ui32Reg, IMG_UINT32 ui32Value);
@@ -476,7 +498,7 @@ typedef enum _HOST_PCI_INIT_FLAGS_
 {
 	HOST_PCI_INIT_FLAG_BUS_MASTER	= 0x00000001,
 	HOST_PCI_INIT_FLAG_MSI		= 0x00000002,
-	HOST_PCI_INIT_FLAG_FORCE_I32	= 0x7fffffff
+	HOST_PCI_INIT_FLAG_FORCE_I32 	= 0x7fffffff
 } HOST_PCI_INIT_FLAGS;
 
 struct _PVRSRV_PCI_DEV_OPAQUE_STRUCT_;

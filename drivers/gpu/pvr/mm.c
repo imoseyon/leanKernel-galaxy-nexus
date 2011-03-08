@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -335,10 +335,10 @@ LinuxMMCleanup(IMG_VOID)
 
 
 IMG_VOID *
-_KMallocWrapper(IMG_UINT32 ui32ByteSize, IMG_CHAR *pszFileName, IMG_UINT32 ui32Line)
+_KMallocWrapper(IMG_UINT32 ui32ByteSize, gfp_t uFlags, IMG_CHAR *pszFileName, IMG_UINT32 ui32Line)
 {
     IMG_VOID *pvRet;
-    pvRet = kmalloc(ui32ByteSize, GFP_KERNEL);
+    pvRet = kmalloc(ui32ByteSize, uFlags);
 #if defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
     if(pvRet)
     {
@@ -395,7 +395,7 @@ DebugMemAllocRecordAdd(DEBUG_MEM_ALLOC_TYPE eAllocType,
     psRecord->pvCpuVAddr = pvCpuVAddr;
     psRecord->ulCpuPAddr = ulCpuPAddr;
     psRecord->pvPrivateData = pvPrivateData;
-    psRecord->pid = current->pid;
+    psRecord->pid = OSGetCurrentProcessIDKM();
     psRecord->ui32Bytes = ui32Bytes;
     psRecord->pszFileName = pszFileName;
     psRecord->ui32Line = ui32Line;
@@ -1318,7 +1318,7 @@ DebugLinuxMemAreaRecordAdd(LinuxMemArea *psLinuxMemArea, IMG_UINT32 ui32Flags)
         
         psNewRecord->psLinuxMemArea = psLinuxMemArea;
         psNewRecord->ui32Flags = ui32Flags;
-        psNewRecord->pid = current->pid;
+        psNewRecord->pid = OSGetCurrentProcessIDKM();
 		
 		List_DEBUG_LINUX_MEM_AREA_REC_Insert(&g_LinuxMemAreaRecords, psNewRecord);
     }
