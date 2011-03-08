@@ -44,6 +44,7 @@
 #include <linux/platform_device.h>
 
 #include <plat/dmtimer.h>
+#include <plat/common.h>
 
 /* register offsets */
 #define _OMAP_TIMER_ID_OFFSET		0x00
@@ -161,6 +162,8 @@
 #define VERSION2_TIMER_WAKEUP_EN_REG_OFFSET     0x14
 #define VERSION2_TIMER_STAT_REG_OFFSET          0x10
 
+#define MAX_WRITE_PEND_WAIT		10000 /* 10ms timeout delay */
+
 static LIST_HEAD(omap_timer_list);
 static DEFINE_SPINLOCK(dm_timer_lock);
 
@@ -175,15 +178,23 @@ static DEFINE_SPINLOCK(dm_timer_lock);
  */
 static inline u32 omap_dm_timer_read_reg(struct omap_dm_timer *timer, u32 reg)
 {
+	int i = 0;
+
 	if (reg >= OMAP_TIMER_WAKEUP_EN_REG)
 		reg += timer->func_offset;
 	else if (reg >= OMAP_TIMER_STAT_REG)
 		reg += timer->intr_offset;
 
-	if (timer->posted)
-		while (readl(timer->io_base + (OMAP_TIMER_WRITE_PEND_REG & 0xff))
-				& (reg >> WPSHIFT))
-			cpu_relax();
+	if (timer->posted) {
+		omap_test_timeout(!(readl(timer->io_base +
+			((OMAP_TIMER_WRITE_PEND_REG +
+			timer->func_offset) & 0xff)) & (reg >> WPSHIFT)),
+			MAX_WRITE_PEND_WAIT, i);
+
+		if (WARN_ON_ONCE(i == MAX_WRITE_PEND_WAIT))
+			dev_err(&timer->pdev->dev, "read timeout.\n");
+	}
+
 	return readl(timer->io_base + (reg & 0xff));
 }
 
@@ -200,15 +211,23 @@ static inline u32 omap_dm_timer_read_reg(struct omap_dm_timer *timer, u32 reg)
 static void omap_dm_timer_write_reg(struct omap_dm_timer *timer, u32 reg,
 						u32 value)
 {
+	int i = 0;
+
 	if (reg >= OMAP_TIMER_WAKEUP_EN_REG)
 		reg += timer->func_offset;
 	else if (reg >= OMAP_TIMER_STAT_REG)
 		reg += timer->intr_offset;
 
-	if (timer->posted)
-		while (readl(timer->io_base + (OMAP_TIMER_WRITE_PEND_REG & 0xff))
-				& (reg >> WPSHIFT))
-			cpu_relax();
+	if (timer->posted) {
+		omap_test_timeout(!(readl(timer->io_base +
+			((OMAP_TIMER_WRITE_PEND_REG +
+			timer->func_offset) & 0xff)) & (reg >> WPSHIFT)),
+			MAX_WRITE_PEND_WAIT, i);
+
+		if (WARN_ON(i == MAX_WRITE_PEND_WAIT))
+			dev_err(&timer->pdev->dev, "write timeout.\n");
+	}
+
 	writel(value, timer->io_base + (reg & 0xff));
 }
 
