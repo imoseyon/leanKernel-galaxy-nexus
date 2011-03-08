@@ -63,13 +63,17 @@ struct omap_secure_timer_dev_attr {
 
 struct omap_dm_timer {
 	unsigned long phys_base;
+	int id;
 	int irq;
 	struct clk *iclk, *fclk;
 	void __iomem *io_base;
 	unsigned reserved:1;
 	unsigned enabled:1;
 	unsigned posted:1;
+	u8 func_offset;
+	u8 intr_offset;
 	struct platform_device *pdev;
+	struct list_head node;
 };
 
 extern struct omap_dm_timer *gptimer_wakeup;
