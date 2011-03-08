@@ -182,6 +182,7 @@ static int __init pwrdms_setup(struct powerdomain *pwrdm, void *unused)
 static int __init omap4_pm_init(void)
 {
 	int ret;
+	struct clockdomain *emif_clkdm, *mpuss_clkdm, *l3_1_clkdm;
 
 	if (!cpu_is_omap44xx())
 		return -ENODEV;
@@ -195,6 +196,35 @@ static int __init omap4_pm_init(void)
 	}
 
 	(void) clkdm_for_each(clkdms_setup, NULL);
+
+	/*
+	 * FIXME: Remove the MPUSS <-> EMIF static dependency once the
+	 * dynamic dependency issue is root-caused.
+	 * The dynamic dependency between MPUSS <-> MEMIF and MPUSS <-> L3_1
+	 * doesn't seems to work as expected and MPUSS does not wakeup
+	 * from off-mode if the static dependency is not set between them.
+	 * At times CPUs dead-locks with above static dependencies cleared.
+	 */
+	mpuss_clkdm = clkdm_lookup("mpuss_clkdm");
+	emif_clkdm = clkdm_lookup("l3_emif_clkdm");
+	l3_1_clkdm = clkdm_lookup("l3_1_clkdm");
+	if ((!mpuss_clkdm) || (!emif_clkdm) || (!l3_1_clkdm))
+		goto err2;
+
+	ret = clkdm_add_wkdep(mpuss_clkdm, emif_clkdm);
+	if (ret) {
+		pr_err("Failed to add MPUSS <-> EMIF wakeup dependency\n");
+		goto err2;
+	}
+
+	ret = clkdm_add_wkdep(mpuss_clkdm, l3_1_clkdm);
+	if (ret) {
+		pr_err("Failed to add MPUSS <-> L3_MAIN_1 wakeup dependency\n");
+		goto err2;
+	}
+
+	pr_info("OMAP4 PM: Temporary static dependency added between"
+		"MPUSS <-> EMIF and MPUSS <-> L3_MAIN_1.\n");
 
 	ret = omap4_mpuss_init();
 	if (ret) {
