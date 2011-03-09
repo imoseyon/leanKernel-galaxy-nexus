@@ -82,6 +82,30 @@ static struct panel_config generic_dpi_panels[] = {
 		.name			= "generic",
 	},
 
+	/* generic 720p */
+	{
+		{
+			.x_res		= 1280,
+			.y_res		= 720,
+
+			.pixel_clock	= 74250,
+
+			.hfp		= 110,
+			.hsw		= 40,
+			.hbp		= 20,
+
+			.vfp		= 5,
+			.vsw		= 5,
+			.vbp		= 20,
+		},
+		.acbi			= 0x0,
+		.acb			= 0x0,
+		.config			= OMAP_DSS_LCD_TFT,
+		.power_on_delay		= 0,
+		.power_off_delay	= 0,
+		.name			= "generic_720p",
+	},
+
 	/* Sharp LQ043T1DG01 */
 	{
 		{
