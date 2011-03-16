@@ -102,6 +102,8 @@ static int _pwrdm_register(struct powerdomain *pwrdm)
 		return -EINVAL;
 	}
 	pwrdm->voltdm.ptr = voltdm;
+	INIT_LIST_HEAD(&pwrdm->voltdm_node);
+	voltdm_add_pwrdm(voltdm, pwrdm);
 
 	list_add(&pwrdm->node, &pwrdm_list);
 
