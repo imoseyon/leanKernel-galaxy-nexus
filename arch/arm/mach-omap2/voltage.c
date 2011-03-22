@@ -805,10 +805,12 @@ int __init omap_voltage_late_init(void)
 		if (voltdm->vdd) {
 			if (omap_vdd_data_configure(voltdm))
 				continue;
-			omap_vc_init_channel(voltdm);
 			vp_init(voltdm);
 			vdd_debugfs_init(voltdm);
 		}
+
+		if (voltdm->vc)
+			omap_vc_init_channel(voltdm);
 	}
 
 	return 0;

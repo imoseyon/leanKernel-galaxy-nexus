@@ -66,6 +66,8 @@ struct voltagedomain {
 	bool scalable;
 	struct list_head node;
 	struct list_head pwrdm_list;
+	struct omap_vc_channel *vc;
+
 	struct omap_vdd_info *vdd;
 };
 
@@ -125,8 +127,6 @@ struct omap_volt_pmic_info {
  * @vp_data		: the register values, shifts, masks for various
  *			  vp registers
  * @vp_rt_data          : VP data derived at runtime, not predefined
- * @vc_data		: structure containing various various vc registers,
- *			  shifts, masks etc.
  * @vfsm                : voltage manager FSM data
  * @debug_dir		: debug directory for this voltage domain.
  * @curr_volt		: current voltage for this vdd.
@@ -139,7 +139,6 @@ struct omap_vdd_info {
 	struct omap_volt_pmic_info *pmic_info;
 	struct omap_vp_instance_data *vp_data;
 	struct omap_vp_runtime_data vp_rt_data;
-	struct omap_vc_instance_data *vc_data;
 	const struct omap_vfsm_instance_data *vfsm;
 	struct dentry *debug_dir;
 	u32 curr_volt;
