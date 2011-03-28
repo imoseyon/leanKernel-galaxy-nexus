@@ -68,6 +68,11 @@ struct voltagedomain {
 	struct list_head pwrdm_list;
 	struct omap_vc_channel *vc;
 
+	/* VC/VP register access functions: SoC specific */
+	u32 (*read) (u8 offset);
+	void (*write) (u32 val, u8 offset);
+	u32 (*rmw)(u32 mask, u32 bits, u8 offset);
+
 	struct omap_vdd_info *vdd;
 };
 
@@ -144,8 +149,6 @@ struct omap_vdd_info {
 	u32 curr_volt;
 	bool vp_enabled;
 
-	u32 (*read_reg) (u16 mod, u8 offset);
-	void (*write_reg) (u32 val, u16 mod, u8 offset);
 	int (*volt_scale) (struct voltagedomain *voltdm,
 		unsigned long target_volt);
 };
