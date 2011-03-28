@@ -773,6 +773,10 @@ extern int omap4_prm_deassert_hardreset(void __iomem *rstctrl_reg, u8 shift);
 
 extern void omap4_prm_global_warm_sw_reset(void);
 
+/* OMAP4-specific VP functions */
+u32 omap4_prm_vp_check_txdone(u8 vp_id);
+void omap4_prm_vp_clear_txdone(u8 vp_id);
+
 # endif
 
 #endif
