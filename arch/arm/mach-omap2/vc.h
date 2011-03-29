@@ -53,19 +53,27 @@ struct omap_vc_common {
 	u8 cmd_onlp_shift;
 	u8 cmd_ret_shift;
 	u8 cmd_off_shift;
+	u8 cfg_channel_reg;
 };
+
+/* omap_vc_channel.flags values */
+#define OMAP_VC_CHANNEL_DEFAULT BIT(0)
 
 /**
  * struct omap_vc_channel - VC per-instance data
+ * @flags: VC channel-specific flags (optional)
  * @common: pointer to VC common data for this platform
  * @smps_sa_mask: i2c slave address bitmask in the PRM_VC_SMPS_SA register
  * @smps_volra_mask: VOLRA* bitmask in the PRM_VC_VOL_RA register
  */
 struct omap_vc_channel {
+	u8 flags;
+
 	/* channel state */
 	u8 i2c_slave_addr;
 	u8 volt_reg_addr;
 	u8 cmd_reg_addr;
+	u8 cfg_channel;
 	u16 setup_time;
 
 	/* register access data */
@@ -74,6 +82,7 @@ struct omap_vc_channel {
 	u32 smps_volra_mask;
 	u32 smps_cmdra_mask;
 	u8 cmdval_reg;
+	u8 cfg_channel_sa_shift;
 };
 
 extern struct omap_vc_channel omap3_vc_mpu;
