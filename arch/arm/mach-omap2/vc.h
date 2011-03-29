@@ -66,6 +66,7 @@ struct omap_vc_channel {
 	u8 i2c_slave_addr;
 	u8 volt_reg_addr;
 	u8 cmd_reg_addr;
+	u16 setup_time;
 
 	/* register access data */
 	const struct omap_vc_common *common;
