@@ -1223,6 +1223,7 @@ static int _reset(struct omap_hwmod *oh)
 static int _enable(struct omap_hwmod *oh)
 {
 	int r;
+	int hwsup = 0;
 
 	if (oh->_state != _HWMOD_STATE_INITIALIZED &&
 	    oh->_state != _HWMOD_STATE_IDLE &&
@@ -1250,10 +1251,16 @@ static int _enable(struct omap_hwmod *oh)
 		omap_hwmod_mux(oh->mux, _HWMOD_STATE_ENABLED);
 
 	_add_initiator_dep(oh, mpu_oh);
+	if (oh->_clk && oh->_clk->clkdm) {
+		hwsup = clkdm_is_idle(oh->_clk->clkdm);
+		clkdm_wakeup(oh->_clk->clkdm);
+	}
 	_enable_clocks(oh);
-
 	r = _wait_target_ready(oh);
 	if (!r) {
+		if (oh->_clk && oh->_clk->clkdm && hwsup)
+			clkdm_allow_idle(oh->_clk->clkdm);
+
 		oh->_state = _HWMOD_STATE_ENABLED;
 
 		/* Access the sysconfig only if the target is ready */
