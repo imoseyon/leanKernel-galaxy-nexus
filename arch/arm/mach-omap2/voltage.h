@@ -101,6 +101,8 @@ struct omap_volt_data {
  * struct omap_voltdm_pmic - PMIC specific data required by voltage driver.
  * @slew_rate:	PMIC slew rate (in uv/us)
  * @step_size:	PMIC voltage step size (in uv)
+ * @i2c_high_speed: whether VC uses I2C high-speed mode to PMIC
+ * @i2c_mcode: master code value for I2C high-speed preamble transmission
  * @vsel_to_uv:	PMIC API to convert vsel value to actual voltage in uV.
  * @uv_to_vsel:	PMIC API to convert voltage in uV to vsel value.
  */
@@ -121,6 +123,8 @@ struct omap_voltdm_pmic {
 	u8 i2c_slave_addr;
 	u8 volt_reg_addr;
 	u8 cmd_reg_addr;
+	bool i2c_high_speed;
+	u8 i2c_mcode;
 	unsigned long (*vsel_to_uv) (const u8 vsel);
 	u8 (*uv_to_vsel) (unsigned long uV);
 };

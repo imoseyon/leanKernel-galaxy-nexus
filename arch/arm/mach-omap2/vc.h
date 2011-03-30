@@ -35,6 +35,9 @@ struct voltagedomain;
  * @cmd_onlp_shift: ONLP field shift in PRM_VC_CMD_VAL_* register
  * @cmd_ret_shift: RET field shift in PRM_VC_CMD_VAL_* register
  * @cmd_off_shift: OFF field shift in PRM_VC_CMD_VAL_* register
+ * @i2c_cfg_reg: I2C configuration register offset
+ * @i2c_cfg_hsen_shift: high-speed mode bit field shift in I2C config register
+ * @i2c_mcode_mask: MCODE field mask for I2C config register
  *
  * XXX One of cmd_on_mask and cmd_on_shift are not needed
  * XXX VALID should probably be a shift, not a mask
@@ -54,6 +57,9 @@ struct omap_vc_common {
 	u8 cmd_ret_shift;
 	u8 cmd_off_shift;
 	u8 cfg_channel_reg;
+	u8 i2c_cfg_reg;
+	u8 i2c_cfg_hsen_shift;
+	u8 i2c_mcode_mask;
 };
 
 /* omap_vc_channel.flags values */
@@ -75,6 +81,7 @@ struct omap_vc_channel {
 	u8 cmd_reg_addr;
 	u8 cfg_channel;
 	u16 setup_time;
+	bool i2c_high_speed;
 
 	/* register access data */
 	const struct omap_vc_common *common;
@@ -101,6 +108,5 @@ void omap_vc_post_scale(struct voltagedomain *voltdm,
 			u8 target_vsel, u8 current_vsel);
 int omap_vc_bypass_scale_voltage(struct voltagedomain *voltdm,
 				 unsigned long target_volt);
-
 #endif
 
