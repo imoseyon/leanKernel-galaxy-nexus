@@ -559,7 +559,7 @@ static void omap4_panda_disable_dvi(struct omap_dss_device *dssdev)
 
 /* Using generic display panel */
 static struct panel_generic_dpi_data omap4_dvi_panel = {
-	.name			= "generic",
+	.name			= "generic_720p",
 	.platform_enable	= omap4_panda_enable_dvi,
 	.platform_disable	= omap4_panda_disable_dvi,
 };
