@@ -57,6 +57,24 @@ struct omap_volt_data omap34xx_vddcore_volt_data[] = {
 	VOLT_DATA_DEFINE(0, 0, 0, 0),
 };
 
+/* OMAP 3430 MPU Core VDD dependency table */
+static struct omap_vdd_dep_volt omap34xx_vdd_mpu_core_dep_data[] = {
+	{.main_vdd_volt = OMAP3430_VDD_MPU_OPP1_UV, .dep_vdd_volt = OMAP3430_VDD_CORE_OPP2_UV},
+	{.main_vdd_volt = OMAP3430_VDD_MPU_OPP2_UV, .dep_vdd_volt = OMAP3430_VDD_CORE_OPP2_UV},
+	{.main_vdd_volt = OMAP3430_VDD_MPU_OPP3_UV, .dep_vdd_volt = OMAP3430_VDD_CORE_OPP3_UV},
+	{.main_vdd_volt = OMAP3430_VDD_MPU_OPP4_UV, .dep_vdd_volt = OMAP3430_VDD_CORE_OPP3_UV},
+	{.main_vdd_volt = OMAP3430_VDD_MPU_OPP5_UV, .dep_vdd_volt = OMAP3430_VDD_CORE_OPP3_UV},
+};
+
+struct omap_vdd_dep_info omap34xx_vddmpu_dep_info[] = {
+	{
+		.name	= "core",
+		.dep_table = omap34xx_vdd_mpu_core_dep_data,
+		.nr_dep_entries = ARRAY_SIZE(omap34xx_vdd_mpu_core_dep_data),
+	},
+	{.name = NULL, .dep_table = NULL, .nr_dep_entries = 0},
+};
+
 /* 36xx */
 
 /* VDD1 */
@@ -148,6 +166,23 @@ static struct omap_opp_def __initdata omap36xx_opp_def_list[] = {
 	OPP_INITIALIZER("iva", false, 660000000, OMAP3630_VDD_MPU_OPP120_UV),
 	/* DSP OPP4 - OPP-SB */
 	OPP_INITIALIZER("iva", false, 800000000, OMAP3630_VDD_MPU_OPP1G_UV),
+};
+
+/* OMAP 3630 MPU Core VDD dependency table */
+static struct omap_vdd_dep_volt omap36xx_vdd_mpu_core_dep_data[] = {
+	{.main_vdd_volt = OMAP3630_VDD_MPU_OPP50_UV, .dep_vdd_volt = OMAP3630_VDD_CORE_OPP50_UV},
+	{.main_vdd_volt = OMAP3630_VDD_MPU_OPP100_UV, .dep_vdd_volt = OMAP3630_VDD_CORE_OPP100_UV},
+	{.main_vdd_volt = OMAP3630_VDD_MPU_OPP120_UV, .dep_vdd_volt = OMAP3630_VDD_CORE_OPP100_UV},
+	{.main_vdd_volt = OMAP3630_VDD_MPU_OPP1G_UV, .dep_vdd_volt = OMAP3630_VDD_CORE_OPP100_UV},
+};
+
+struct omap_vdd_dep_info omap36xx_vddmpu_dep_info[] = {
+	{
+		.name	= "core",
+		.dep_table = omap36xx_vdd_mpu_core_dep_data,
+		.nr_dep_entries = ARRAY_SIZE(omap36xx_vdd_mpu_core_dep_data),
+	},
+	{.name = NULL, .dep_table = NULL, .nr_dep_entries = 0},
 };
 
 /**

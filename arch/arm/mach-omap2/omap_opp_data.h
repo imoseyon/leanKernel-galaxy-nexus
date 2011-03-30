@@ -86,8 +86,10 @@ extern int __init omap_init_opp_table(struct omap_opp_def *opp_def,
 
 extern struct omap_volt_data omap34xx_vddmpu_volt_data[];
 extern struct omap_volt_data omap34xx_vddcore_volt_data[];
+extern struct omap_vdd_dep_info omap34xx_vddmpu_dep_info[];
 extern struct omap_volt_data omap36xx_vddmpu_volt_data[];
 extern struct omap_volt_data omap36xx_vddcore_volt_data[];
+extern struct omap_vdd_dep_info omap36xx_vddmpu_dep_info[];
 
 extern struct omap_volt_data omap443x_vdd_mpu_volt_data[];
 extern struct omap_volt_data omap443x_vdd_iva_volt_data[];
@@ -95,5 +97,8 @@ extern struct omap_volt_data omap443x_vdd_core_volt_data[];
 extern struct omap_volt_data omap446x_vdd_mpu_volt_data[];
 extern struct omap_volt_data omap446x_vdd_iva_volt_data[];
 extern struct omap_volt_data omap446x_vdd_core_volt_data[];
+
+extern struct omap_vdd_dep_info omap443x_vddmpu_dep_info[];
+extern struct omap_vdd_dep_info omap443x_vddiva_dep_info[];
 
 #endif		/* __ARCH_ARM_MACH_OMAP2_OMAP_OPP_DATA_H */
