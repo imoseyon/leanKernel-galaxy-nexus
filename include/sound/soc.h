@@ -617,6 +617,9 @@ struct snd_soc_codec_driver {
 	/* probe ordering - for components with runtime dependencies */
 	bool late_probe;
 	bool early_remove;
+
+	/* codec stream completion event */
+	int (*stream_event)(struct snd_soc_dapm_context *dapm);
 };
 
 /* SoC platform interface */
@@ -644,6 +647,8 @@ struct snd_soc_platform_driver {
 	/* probe ordering - for components with runtime dependencies */
 	bool late_probe;
 	bool early_remove;
+
+	int (*stream_event)(struct snd_soc_dapm_context *dapm);
 };
 
 struct snd_soc_platform {
