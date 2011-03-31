@@ -177,5 +177,7 @@ void vring_del_virtqueue(struct virtqueue *vq);
 void vring_transport_features(struct virtio_device *vdev);
 
 irqreturn_t vring_interrupt(int irq, void *_vq);
+struct vring_virtqueue;
+bool virtqueue_more_used(struct virtqueue *vq);
 #endif /* __KERNEL__ */
 #endif /* _LINUX_VIRTIO_RING_H */
