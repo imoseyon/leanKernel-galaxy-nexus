@@ -526,6 +526,7 @@ static IMG_VOID
 FreeBuf (BM_BUF *pBuf, IMG_UINT32 ui32Flags, IMG_BOOL bFromAllocator)
 {
 	BM_MAPPING *pMapping;
+	PVRSRV_DEVICE_NODE *psDeviceNode;
 
 	PVR_DPF ((PVR_DBG_MESSAGE,
 			"FreeBuf: pBuf=0x%x: DevVAddr=%08X CpuVAddr=0x%x CpuPAddr=%08X",
@@ -534,6 +535,12 @@ FreeBuf (BM_BUF *pBuf, IMG_UINT32 ui32Flags, IMG_BOOL bFromAllocator)
 
 	
 	pMapping = pBuf->pMapping;
+
+	psDeviceNode = pMapping->pBMHeap->pBMContext->psDeviceNode;
+	if (psDeviceNode->pfnCacheInvalidate)
+	{
+		psDeviceNode->pfnCacheInvalidate(psDeviceNode);
+	}
 
 	if(ui32Flags & PVRSRV_MEM_USER_SUPPLIED_DEVVADDR)
 	{

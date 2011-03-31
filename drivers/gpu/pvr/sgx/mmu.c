@@ -79,6 +79,8 @@ typedef struct _MMU_PT_INFO_
 	
 	IMG_VOID *hPTPageOSMemHandle;
 	IMG_CPU_VIRTADDR PTPageCpuVAddr;
+	
+	
 	IMG_UINT32 ui32ValidPTECount;
 } MMU_PT_INFO;
 
@@ -2167,7 +2169,8 @@ MMU_UnmapPagesAndFreePTs (MMU_HEAP *psMMUHeap,
 
 		
 
-		if (ppsPTInfoList[0] && ppsPTInfoList[0]->ui32ValidPTECount == 0)
+		if (ppsPTInfoList[0] && (ppsPTInfoList[0]->ui32ValidPTECount == 0)
+			)
 		{
 #if defined(FIX_HW_BRN_31620)
 			if (BRN31620FreePageTable(psMMUHeap, ui32PDIndex) == IMG_TRUE)

@@ -2959,6 +2959,29 @@ IMG_VOID OSFlushCPUCacheKM(IMG_VOID)
 #endif
 }
 
+static inline size_t pvr_dmac_range_len(const void *pvStart, const void *pvEnd)
+{
+	return (size_t)((char *)pvEnd - (char *)pvStart);
+}
+
+static void pvr_dmac_inv_range(const void *pvStart, const void *pvEnd)
+{
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,34))
+	dmac_inv_range(pvStart, pvEnd);
+#else
+	dmac_map_area(pvStart, pvr_dmac_range_len(pvStart, pvEnd), DMA_FROM_DEVICE);
+#endif
+}
+
+static void pvr_dmac_clean_range(const void *pvStart, const void *pvEnd)
+{
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,34))
+	dmac_clean_range(pvStart, pvEnd);
+#else
+	dmac_map_area(pvStart, pvr_dmac_range_len(pvStart, pvEnd), DMA_TO_DEVICE);
+#endif
+}
+
 IMG_BOOL OSFlushCPUCacheRangeKM(IMG_HANDLE hOSMemHandle,
 								IMG_VOID *pvRangeAddrStart,
 								IMG_UINT32 ui32Length)
@@ -2972,7 +2995,7 @@ IMG_BOOL OSCleanCPUCacheRangeKM(IMG_HANDLE hOSMemHandle,
 								IMG_UINT32 ui32Length)
 {
 	return CheckExecuteCacheOp(hOSMemHandle, pvRangeAddrStart, ui32Length,
-							   dmac_clean_range, outer_clean_range);
+							   pvr_dmac_clean_range, outer_clean_range);
 }
 
 IMG_BOOL OSInvalidateCPUCacheRangeKM(IMG_HANDLE hOSMemHandle,
@@ -2980,7 +3003,7 @@ IMG_BOOL OSInvalidateCPUCacheRangeKM(IMG_HANDLE hOSMemHandle,
 									 IMG_UINT32 ui32Length)
 {
 	return CheckExecuteCacheOp(hOSMemHandle, pvRangeAddrStart, ui32Length,
-							   dmac_inv_range, outer_inv_range);
+							   pvr_dmac_inv_range, outer_inv_range);
 }
 
 #else 
@@ -3002,7 +3025,8 @@ IMG_BOOL OSFlushCPUCacheRangeKM(IMG_HANDLE hOSMemHandle,
 								IMG_VOID *pvRangeAddrStart,
 								IMG_UINT32 ui32Length)
 {
-	dma_cache_wback_inv((IMG_UINTPTR_T)pvRangeAddrStart, ui32Length);
+	if (ui32Length)
+		dma_cache_wback_inv((IMG_UINTPTR_T)pvRangeAddrStart, ui32Length);	
 	return IMG_TRUE;
 }
 
@@ -3010,7 +3034,8 @@ IMG_BOOL OSCleanCPUCacheRangeKM(IMG_HANDLE hOSMemHandle,
 								IMG_VOID *pvRangeAddrStart,
 								IMG_UINT32 ui32Length)
 {
-	dma_cache_wback((IMG_UINTPTR_T)pvRangeAddrStart, ui32Length);
+	if (ui32Length)
+		dma_cache_wback((IMG_UINTPTR_T)pvRangeAddrStart, ui32Length);
 	return IMG_TRUE;
 }
 
@@ -3018,7 +3043,8 @@ IMG_BOOL OSInvalidateCPUCacheRangeKM(IMG_HANDLE hOSMemHandle,
 									 IMG_VOID *pvRangeAddrStart,
 									 IMG_UINT32 ui32Length)
 {
-	dma_cache_inv((IMG_UINTPTR_T)pvRangeAddrStart, ui32Length);
+	if (ui32Length)
+		dma_cache_inv((IMG_UINTPTR_T)pvRangeAddrStart, ui32Length);
 	return IMG_TRUE;
 }
 

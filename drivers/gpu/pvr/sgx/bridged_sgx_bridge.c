@@ -49,6 +49,7 @@
 #include "bridged_pvr_bridge.h"
 #include "bridged_sgx_bridge.h"
 #include "sgxutils.h"
+#include "buffer_manager.h"
 #include "pdump_km.h"
 
 static IMG_INT
@@ -3266,7 +3267,7 @@ SGXPDump3DSignatureRegistersBW(IMG_UINT32 ui32BridgeID,
 
 	
 	PVR_ASSERT(psDeviceNode->pfnMMUGetContextID != IMG_NULL)
-	ui32MMUContextID = psDeviceNode->pfnMMUGetContextID(hDevMemContextInt);
+	ui32MMUContextID = psDeviceNode->pfnMMUGetContextID((IMG_HANDLE)psDeviceNode->sDevMemoryInfo.pBMKernelContext);
 
 	PDumpSignatureBuffer(&psDeviceNode->sDevId,
 						 "out.tasig", "TA", 0,

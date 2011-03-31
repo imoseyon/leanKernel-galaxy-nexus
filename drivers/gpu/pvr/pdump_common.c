@@ -73,6 +73,8 @@ IMG_BOOL _PDumpIsPersistent(IMG_VOID)
 }
 
 #if defined(SUPPORT_PDUMP_MULTI_PROCESS)
+
+
 static INLINE
 IMG_BOOL _PDumpIsProcessActive(IMG_VOID)
 {
@@ -84,6 +86,7 @@ IMG_BOOL _PDumpIsProcessActive(IMG_VOID)
 	}
 	return psPerProc->bPDumpActive;
 }
+
 #endif 
 
 #if defined(PDUMP_DEBUG_OUTFILES)

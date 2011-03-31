@@ -127,7 +127,10 @@ PVRSRV_ERROR PVRSRVPerProcessDataConnect(IMG_UINT32	ui32PID, IMG_UINT32 ui32Flag
 	IMG_HANDLE hBlockAlloc;
 	PVRSRV_ERROR eError = PVRSRV_OK;
 
-	PVR_ASSERT(psHashTab != IMG_NULL);
+	if (psHashTab == IMG_NULL)
+	{
+		return PVRSRV_ERROR_INIT_FAILURE;
+	}
 
 	
 	psPerProc = (PVRSRV_PER_PROCESS_DATA *)HASH_Retrieve(psHashTab, (IMG_UINTPTR_T)ui32PID);

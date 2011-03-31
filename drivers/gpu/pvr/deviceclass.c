@@ -258,7 +258,7 @@ PVRSRV_ERROR PVRSRVRegisterDCDeviceKM (PVRSRV_DC_SRV2DISP_KMJTABLE *psFuncTable,
 	*psDCInfo->psFuncTable = *psFuncTable;
 
 	
-	if(OSAllocMem( PVRSRV_OS_PAGEABLE_HEAP,
+	if(OSAllocMem( PVRSRV_OS_NON_PAGEABLE_HEAP,
 					 sizeof(PVRSRV_DEVICE_NODE),
 					 (IMG_VOID **)&psDeviceNode, IMG_NULL,
 					 "Device Node") != PVRSRV_OK)
@@ -420,7 +420,7 @@ PVRSRV_ERROR PVRSRVRegisterBCDeviceKM (PVRSRV_BC_SRV2BUFFER_KMJTABLE *psFuncTabl
 	*psBCInfo->psFuncTable = *psFuncTable;
 
 	
-	if(OSAllocMem( PVRSRV_OS_PAGEABLE_HEAP,
+	if(OSAllocMem( PVRSRV_OS_NON_PAGEABLE_HEAP,
 					 sizeof(PVRSRV_DEVICE_NODE),
 					 (IMG_VOID **)&psDeviceNode, IMG_NULL,
 					 "Device Node") != PVRSRV_OK)

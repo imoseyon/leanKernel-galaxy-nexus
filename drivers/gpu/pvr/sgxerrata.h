@@ -363,10 +363,13 @@
 	#if SGX_CORE_REV == 216
 		#define FIX_HW_BRN_32044 
 	#else
+	#if SGX_CORE_REV == 302
+	#else
 	#if SGX_CORE_REV == SGX_CORE_REV_HEAD
 		
 	#else
 		#error "sgxerrata.h: SGX543 Core Revision unspecified"
+	#endif
 	#endif
 	#endif
 	#endif

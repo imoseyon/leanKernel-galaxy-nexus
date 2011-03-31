@@ -27,8 +27,6 @@
 #if !defined(__SOCCONFIG_H__)
 #define __SOCCONFIG_H__
 
-#include "syscommon.h"
-
 #define VS_PRODUCT_NAME	"OMAP4"
 
 #if defined(SGX540) && (SGX_CORE_REV == 120)

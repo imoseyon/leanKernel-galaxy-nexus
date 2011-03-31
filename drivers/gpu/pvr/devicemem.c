@@ -1388,9 +1388,6 @@ static PVRSRV_ERROR UnmapDeviceClassMemoryCallBack(IMG_PVOID  pvParam,
 #endif
 
 	(psDCMapInfo->psDeviceClassBuffer->ui32MemMapRefCount)--;
-	PVR_TRACE(("decrementing (0x%p) psDCMapInfo->psDeviceClassBuffer->ui32MemMapRefCount... == %d",
-			psDCMapInfo->psDeviceClassBuffer,
-			psDCMapInfo->psDeviceClassBuffer->ui32MemMapRefCount));
 
 	OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof(PVRSRV_DC_MAPINFO), psDCMapInfo, IMG_NULL);
 
@@ -1598,10 +1595,6 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVMapDeviceClassMemoryKM(PVRSRV_PER_PROCESS_DATA	*
 													&UnmapDeviceClassMemoryCallBack);
 
 	(psDeviceClassBuffer->ui32MemMapRefCount)++;
-	PVR_TRACE(("incrementing (0x%p) psDeviceClassBuffer->ui32MemMapRefCount... == %d",
-			psDeviceClassBuffer,
-			psDeviceClassBuffer->ui32MemMapRefCount));
-
 	psMemInfo->ui32RefCount++;
 
 	psMemInfo->memType = PVRSRV_MEMTYPE_DEVICECLASS;

@@ -274,9 +274,19 @@ OMAPLFB_UPDATE_MODE OMAPLFBGetUpdateMode(OMAPLFB_DEVINFO *psDevInfo)
 
 	enum omap_dss_update_mode eMode;
 
-	if (psDSSDrv == NULL || psDSSDrv->get_update_mode == NULL)
+	if (psDSSDrv == NULL)
 	{
-		DEBUG_PRINTK((KERN_INFO DRIVER_PREFIX ": %s: Device %u: Can't get update mode\n", __FUNCTION__, psDevInfo->uiFBDevID));
+		DEBUG_PRINTK((KERN_INFO DRIVER_PREFIX ": %s: Device %u: No DSS device\n", __FUNCTION__, psDevInfo->uiFBDevID));
+		return OMAPLFB_UPDATE_MODE_UNDEFINED;
+	}
+
+	if (psDSSDrv->get_update_mode == NULL)
+	{
+		if (strcmp(psDSSDev->name, "hdmi") == 0)
+		{
+			return OMAPLFB_UPDATE_MODE_AUTO;
+		}
+		DEBUG_PRINTK((KERN_INFO DRIVER_PREFIX ": %s: Device %u: No get_update_mode function\n", __FUNCTION__, psDevInfo->uiFBDevID));
 		return OMAPLFB_UPDATE_MODE_UNDEFINED;
 	}
 

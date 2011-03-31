@@ -1426,6 +1426,16 @@ PVRSRV_ERROR SGX_FreeMemTilingRange(PVRSRV_DEVICE_NODE *psDeviceNode,
 }
 #endif
 
+static IMG_VOID SGXCacheInvalidate(PVRSRV_DEVICE_NODE *psDeviceNode)
+{
+	PVRSRV_SGXDEV_INFO *psDevInfo = psDeviceNode->pvDevice;
+
+	#if defined(SGX_FEATURE_MP)
+	psDevInfo->ui32CacheControl |= SGXMKIF_CC_INVAL_BIF_SL;
+	#else
+	PVR_UNREFERENCED_PARAMETER(psDevInfo);
+	#endif 
+}
 
 PVRSRV_ERROR SGXRegisterDevice (PVRSRV_DEVICE_NODE *psDeviceNode)
 {
@@ -1497,6 +1507,8 @@ PVRSRV_ERROR SGXRegisterDevice (PVRSRV_DEVICE_NODE *psDeviceNode)
 	
 
 	psDeviceNode->pfnDeviceCommandComplete = &SGXCommandComplete;
+
+	psDeviceNode->pfnCacheInvalidate = SGXCacheInvalidate;
 
 	
 
