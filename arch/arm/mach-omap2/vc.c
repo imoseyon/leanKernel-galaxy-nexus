@@ -64,10 +64,7 @@ int omap_vc_pre_scale(struct voltagedomain *voltdm,
 	struct omap_vc_channel *vc = voltdm->vc;
 	struct omap_vdd_info *vdd = voltdm->vdd;
 	struct omap_volt_data *volt_data;
-	const struct omap_vp_common_data *vp_common;
 	u32 vc_cmdval, vp_errgain_val;
-
-	vp_common = vdd->vp_data->vp_common;
 
 	/* Check if sufficient pmic info is available for this vdd */
 	if (!voltdm->pmic) {
@@ -95,7 +92,7 @@ int omap_vc_pre_scale(struct voltagedomain *voltdm,
 		volt_data = NULL;
 
 	*target_vsel = voltdm->pmic->uv_to_vsel(target_volt);
-	*current_vsel = voltdm->read(vdd->vp_data->voltage);
+	*current_vsel = voltdm->read(voltdm->vp->voltage);
 
 	/* Setting the ON voltage to the new target voltage */
 	vc_cmdval = voltdm->read(vc->cmdval_reg);
@@ -105,12 +102,12 @@ int omap_vc_pre_scale(struct voltagedomain *voltdm,
 
 	/* Setting vp errorgain based on the voltage */
 	if (volt_data) {
-		vp_errgain_val = voltdm->read(vdd->vp_data->vpconfig);
+		vp_errgain_val = voltdm->read(voltdm->vp->vpconfig);
 		vdd->vp_rt_data.vpconfig_errorgain = volt_data->vp_errgain;
-		vp_errgain_val &= ~vp_common->vpconfig_errorgain_mask;
+		vp_errgain_val &= voltdm->vp->common->vpconfig_errorgain_mask;
 		vp_errgain_val |= vdd->vp_rt_data.vpconfig_errorgain <<
-			vp_common->vpconfig_errorgain_shift;
-		voltdm->write(vp_errgain_val, vdd->vp_data->vpconfig);
+			voltdm->vp->common->vpconfig_errorgain_shift;
+		voltdm->write(vp_errgain_val, voltdm->vp->vpconfig);
 	}
 
 	return 0;
