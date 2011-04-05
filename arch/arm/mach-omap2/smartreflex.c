@@ -826,7 +826,7 @@ static int __init omap_sr_probe(struct platform_device *pdev)
 	struct omap_sr *sr_info = kzalloc(sizeof(struct omap_sr), GFP_KERNEL);
 	struct omap_sr_data *pdata = pdev->dev.platform_data;
 	struct resource *mem, *irq;
-	struct dentry *vdd_dbg_dir, *nvalue_dir;
+	struct dentry *nvalue_dir;
 	struct omap_volt_data *volt_data;
 	int i, ret = 0;
 
@@ -899,17 +899,7 @@ static int __init omap_sr_probe(struct platform_device *pdev)
 
 	dev_info(&pdev->dev, "%s: SmartReflex driver initialized\n", __func__);
 
-	/*
-	 * If the voltage domain debugfs directory is not created, do
-	 * not try to create rest of the debugfs entries.
-	 */
-	vdd_dbg_dir = omap_voltage_get_dbgdir(sr_info->voltdm);
-	if (!vdd_dbg_dir) {
-		ret = -EINVAL;
-		goto err_iounmap;
-	}
-
-	sr_info->dbg_dir = debugfs_create_dir("smartreflex", vdd_dbg_dir);
+	sr_info->dbg_dir = debugfs_create_dir("smartreflex", NULL);
 	if (IS_ERR(sr_info->dbg_dir)) {
 		dev_err(&pdev->dev, "%s: Unable to create debugfs directory\n",
 			__func__);
