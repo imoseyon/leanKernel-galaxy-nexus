@@ -76,6 +76,11 @@ struct voltagedomain {
 	void (*write) (u32 val, u8 offset);
 	u32 (*rmw)(u32 mask, u32 bits, u8 offset);
 
+	union {
+		const char *name;
+		u32 rate;
+	} sys_clk;
+
 	struct omap_vdd_info *vdd;
 };
 
