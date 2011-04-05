@@ -60,6 +60,7 @@ struct omap_vfsm_instance {
  * @pwrdm_node: list_head linking all powerdomains in this voltagedomain
  * @vdd: to be removed
  * @pwrdms: powerdomains in this voltagedomain
+ * @scale: function used to scale the voltage of the voltagedomain
  */
 struct voltagedomain {
 	char *name;
@@ -80,6 +81,9 @@ struct voltagedomain {
 		const char *name;
 		u32 rate;
 	} sys_clk;
+
+	int (*scale) (struct voltagedomain *voltdm,
+		      unsigned long target_volt);
 
 	struct omap_vdd_info *vdd;
 };
@@ -141,14 +145,10 @@ struct omap_voltdm_pmic {
  * @volt_data		: voltage table having the distinct voltages supported
  *			  by the domain and other associated per voltage data.
  * @curr_volt		: current voltage for this vdd.
- * @volt_scale		: API to scale the voltage of the vdd.
  */
 struct omap_vdd_info {
 	struct omap_volt_data *volt_data;
 	u32 curr_volt;
-
-	int (*volt_scale) (struct voltagedomain *voltdm,
-		unsigned long target_volt);
 };
 
 int omap_voltage_scale_vdd(struct voltagedomain *voltdm,
