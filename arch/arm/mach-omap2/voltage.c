@@ -96,16 +96,12 @@ ovdc_out:
  */
 unsigned long omap_voltage_get_nom_volt(struct voltagedomain *voltdm)
 {
-	struct omap_vdd_info *vdd;
-
 	if (!voltdm || IS_ERR(voltdm)) {
 		pr_warning("%s: VDD specified does not exist!\n", __func__);
 		return 0;
 	}
 
-	vdd = voltdm->vdd;
-
-	return vdd->curr_volt;
+	return voltdm->curr_volt;
 }
 
 /**

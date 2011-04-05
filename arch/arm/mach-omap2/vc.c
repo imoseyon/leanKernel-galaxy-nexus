@@ -102,7 +102,6 @@ void omap_vc_post_scale(struct voltagedomain *voltdm,
 			unsigned long target_volt,
 			u8 target_vsel, u8 current_vsel)
 {
-	struct omap_vdd_info *vdd = voltdm->vdd;
 	u32 smps_steps = 0, smps_delay = 0;
 
 	smps_steps = abs(target_vsel - current_vsel);
@@ -111,7 +110,7 @@ void omap_vc_post_scale(struct voltagedomain *voltdm,
 			voltdm->pmic->slew_rate) + 2;
 	udelay(smps_delay);
 
-	vdd->curr_volt = target_volt;
+	voltdm->curr_volt = target_volt;
 }
 
 /* vc_bypass_scale_voltage - VC bypass method of voltage scaling */
