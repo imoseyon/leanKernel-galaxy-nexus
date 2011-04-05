@@ -93,6 +93,12 @@ static void omap4_clkdm_deny_idle(struct clockdomain *clkdm)
 					clkdm->cm_inst, clkdm->clkdm_offs);
 }
 
+static int omap4_clkdm_is_idle(struct clockdomain *clkdm)
+{
+	return omap4_cminst_is_clkdm_in_hwsup(clkdm->prcm_partition,
+				clkdm->cm_inst, clkdm->clkdm_offs);
+}
+
 static int omap4_clkdm_clk_enable(struct clockdomain *clkdm)
 {
 	bool hwsup = false;
@@ -129,6 +135,7 @@ struct clkdm_ops omap4_clkdm_operations = {
 	.clkdm_wakeup		= omap4_clkdm_wakeup,
 	.clkdm_allow_idle	= omap4_clkdm_allow_idle,
 	.clkdm_deny_idle	= omap4_clkdm_deny_idle,
+	.clkdm_is_idle		= omap4_clkdm_is_idle,
 	.clkdm_clk_enable	= omap4_clkdm_clk_enable,
 	.clkdm_clk_disable	= omap4_clkdm_clk_disable,
 };
