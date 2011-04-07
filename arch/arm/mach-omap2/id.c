@@ -331,8 +331,13 @@ static void __init omap3_check_revision(void)
 static void __init omap4_check_revision(void)
 {
 	u32 idcode;
-	u16 hawkeye;
 	u8 rev;
+	/*
+	 * NOTE: OMAP4460+ uses ramp system for identification and hawkeye
+	 * variable is reused for the same. Since the values are unique
+	 * we continue to use the current system
+	 */
+	u16 hawkeye;
 
 	/*
 	 * The IC rev detection is done with hawkeye and rev.
@@ -344,10 +349,10 @@ static void __init omap4_check_revision(void)
 	rev = (idcode >> 28) & 0xf;
 
 	/*
-	 * Few initial ES2.0 samples IDCODE is same as ES1.0
+	 * Few initial 4430 ES2.0 samples IDCODE is same as ES1.0
 	 * Use ARM register to detect the correct ES version
 	 */
-	if (!rev) {
+	if (!rev && (hawkeye != 0xb94e)) {
 		idcode = read_cpuid(CPUID_ID);
 		rev = (idcode & 0xf) - 1;
 	}
@@ -375,6 +380,15 @@ static void __init omap4_check_revision(void)
 		default:
 			omap_revision = OMAP4430_REV_ES2_2;
 			omap_chip.oc |= CHIP_IS_OMAP4430ES2_2;
+		}
+		break;
+	case 0xb94e:
+		switch (rev) {
+		case 0:
+		default:
+			omap_revision = OMAP4460_REV_ES1_0;
+			omap_chip.oc |= CHIP_IS_OMAP4460ES1_0;
+			break;
 		}
 		break;
 	default:
