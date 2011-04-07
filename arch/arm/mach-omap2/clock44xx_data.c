@@ -1264,6 +1264,13 @@ static struct clk l4_wkup_clk_mux_ck = {
 	.recalc		= &omap2_clksel_recalc,
 };
 
+static struct clk div_ts_ck = {
+	.name		= "div_ts_ck",
+	.parent		= &l4_wkup_clk_mux_ck,
+	.ops		= &clkops_null,
+	.recalc		= &followparent_recalc,
+};
+
 static const struct clksel per_abe_nc_fclk_div[] = {
 	{ .parent = &dpll_abe_m2_ck, .rates = div2_1to2_rates },
 	{ .parent = NULL },
@@ -1393,6 +1400,16 @@ static struct clk bandgap_fclk = {
 	.enable_bit	= OMAP4430_OPTFCLKEN_BGAP_32K_SHIFT,
 	.clkdm_name	= "l4_wkup_clkdm",
 	.parent		= &sys_32k_ck,
+	.recalc		= &followparent_recalc,
+};
+
+static struct clk bandgap_ts_fclk = {
+	.name		= "bandgap_ts_fclk",
+	.ops		= &clkops_omap2_dflt,
+	.enable_reg	= OMAP4430_CM_WKUP_BANDGAP_CLKCTRL,
+	.enable_bit	= OMAP4460_OPTFCLKEN_TS_FCLK_SHIFT,
+	.clkdm_name	= "l4_wkup_clkdm",
+	.parent		= &div_ts_ck,
 	.recalc		= &followparent_recalc,
 };
 
@@ -3098,6 +3115,7 @@ static struct omap_clk omap44xx_clks[] = {
 	CLK(NULL,	"l4_div_ck",			&l4_div_ck,	CK_44XX),
 	CLK(NULL,	"lp_clk_div_ck",		&lp_clk_div_ck,	CK_44XX),
 	CLK(NULL,	"l4_wkup_clk_mux_ck",		&l4_wkup_clk_mux_ck,	CK_44XX),
+	CLK(NULL,	"div_ts_ck",			&div_ts_ck,	CK_446X),
 	CLK(NULL,	"per_abe_nc_fclk",		&per_abe_nc_fclk,	CK_44XX),
 	CLK(NULL,	"mcasp2_fclk",			&mcasp2_fclk,	CK_44XX),
 	CLK(NULL,	"mcasp3_fclk",			&mcasp3_fclk,	CK_44XX),
@@ -3109,7 +3127,8 @@ static struct omap_clk omap44xx_clks[] = {
 	CLK(NULL,	"aes1_fck",			&aes1_fck,	CK_44XX),
 	CLK(NULL,	"aes2_fck",			&aes2_fck,	CK_44XX),
 	CLK(NULL,	"aess_fck",			&aess_fck,	CK_44XX),
-	CLK(NULL,	"bandgap_fclk",			&bandgap_fclk,	CK_44XX),
+	CLK(NULL,	"bandgap_fclk",			&bandgap_fclk,	CK_443X),
+	CLK(NULL,	"bandgap_ts_fclk",		&bandgap_ts_fclk,	CK_446X),
 	CLK(NULL,	"des3des_fck",			&des3des_fck,	CK_44XX),
 	CLK(NULL,	"dmic_sync_mux_ck",		&dmic_sync_mux_ck,	CK_44XX),
 	CLK(NULL,	"dmic_fck",			&dmic_fck,	CK_44XX),
