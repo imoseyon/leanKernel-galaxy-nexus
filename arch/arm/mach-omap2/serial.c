@@ -48,6 +48,7 @@ static struct omap_uart_port_info omap_serial_default_info[] = {
 	{
 		.use_dma	= 0,
 		.dma_rx_buf_size = DEFAULT_RXDMA_BUFSIZE,
+		.dma_rx_poll_rate = DEFAULT_RXDMA_POLLRATE,
 		.dma_rx_timeout = DEFAULT_RXDMA_TIMEOUT,
 		.auto_sus_timeout = DEFAULT_AUTOSUSPEND_DELAY,
 	},
@@ -364,6 +365,7 @@ void __init omap_serial_init_port(struct omap_board_data *bdata,
 	pdata->enable_wakeup = omap_uart_wakeup_enable;
 	pdata->use_dma = info->use_dma;
 	pdata->dma_rx_buf_size = info->dma_rx_buf_size;
+	pdata->dma_rx_poll_rate = info->dma_rx_poll_rate;
 	pdata->dma_rx_timeout = info->dma_rx_timeout;
 	pdata->auto_sus_timeout = info->auto_sus_timeout;
 	if (bdata->id == omap_uart_con_id)
