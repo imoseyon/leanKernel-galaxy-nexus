@@ -56,13 +56,21 @@
 
 #define MSR_SAVE_FLAGS		UART_MSR_ANY_DELTA
 
+#define UART_ERRATA_i202_MDR1_ACCESS	BIT(0)
+
 struct omap_uart_port_info {
-	bool			dma_enabled;	/* To specify DMA Mode */
+	int                     dma_rx_buf_size;/* DMA Rx Buffer Size */
+	int                     dma_rx_timeout; /* DMA RX timeout */
+	unsigned int            idle_timeout;   /* Omap Uart Idle Time out */
+	int                     use_dma;        /* DMA Enable / Disable */
 	unsigned int		uartclk;	/* UART clock rate */
-	void __iomem		*membase;	/* ioremap cookie or NULL */
-	resource_size_t		mapbase;	/* resource base */
-	unsigned long		irqflags;	/* request_irq flags */
 	upf_t			flags;		/* UPF_* flags */
+	unsigned int		errata;
+	unsigned int		console_uart;
+
+	void __iomem *wk_st;
+	void __iomem *wk_en;
+	u32 wk_mask;
 };
 
 struct uart_omap_dma {
@@ -100,6 +108,9 @@ struct uart_omap_port {
 	unsigned char		mcr;
 	unsigned char		fcr;
 	unsigned char		efr;
+	unsigned char		dll;
+	unsigned char		dlh;
+	unsigned char		mdr1;
 
 	int			use_dma;
 	/*
@@ -111,6 +122,6 @@ struct uart_omap_port {
 	unsigned char		msr_saved_flags;
 	char			name[20];
 	unsigned long		port_activity;
+	unsigned int		errata;
 };
-
 #endif /* __OMAP_SERIAL_H__ */
