@@ -161,7 +161,7 @@ static int __cpuinit omap_cpu_init(struct cpufreq_policy *policy)
 		mpu_clk = clk_get(NULL, "virt_prcm_set");
 	else if (cpu_is_omap34xx())
 		mpu_clk = clk_get(NULL, "dpll1_ck");
-	else if (cpu_is_omap34xx())
+	else if (cpu_is_omap44xx())
 		mpu_clk = clk_get(NULL, "dpll_mpu_ck");
 
 	if (IS_ERR(mpu_clk))
