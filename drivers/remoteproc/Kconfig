@@ -1,0 +1,7 @@
+#
+# Generic framework for controlling remote processors
+#
+
+# Remote proc gets selected by whoever wants it.
+config REMOTE_PROC
+	tristate
