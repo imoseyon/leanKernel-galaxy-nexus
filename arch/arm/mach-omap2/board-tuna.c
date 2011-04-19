@@ -89,8 +89,10 @@ static struct twl4030_usb_data omap4_usbphy_data = {
 
 static struct omap2_hsmmc_info mmc[] = {
 	{
-		.mmc		= 1,
+		.mmc		= 2,
+		.nonremovable	= true,
 		.caps		= MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA,
+		.ocr_mask       = MMC_VDD_165_195,
 		.gpio_wp	= -EINVAL,
 		.gpio_cd	= -EINVAL,
 	},
@@ -111,7 +113,7 @@ static struct omap2_hsmmc_info mmc[] = {
 static struct regulator_consumer_supply tuna_vmmc_supply[] = {
 	{
 		.supply = "vmmc",
-		.dev_name = "omap_hsmmc.0",
+		.dev_name = "omap_hsmmc.1",
 	},
 };
 
@@ -151,54 +153,6 @@ struct wl12xx_platform_data tuna_wlan_data  __initdata = {
 	/* PANDA ref clock is 38.4 MHz */
 	.board_ref_clock = 2,
 };
-
-static int omap4_twl6030_hsmmc_late_init(struct device *dev)
-{
-	int ret = 0;
-	struct platform_device *pdev = container_of(dev,
-				struct platform_device, dev);
-	struct omap_mmc_platform_data *pdata = dev->platform_data;
-
-	if (!pdata) {
-		dev_err(dev, "%s: NULL platform data\n", __func__);
-		return -EINVAL;
-	}
-	/* Setting MMC1 Card detect Irq */
-	if (pdev->id == 0) {
-		ret = twl6030_mmc_card_detect_config();
-		 if (ret)
-			dev_err(dev, "%s: Error card detect config(%d)\n",
-				__func__, ret);
-		 else
-			pdata->slots[0].card_detect = twl6030_mmc_card_detect;
-	}
-	return ret;
-}
-
-static __init void omap4_twl6030_hsmmc_set_late_init(struct device *dev)
-{
-	struct omap_mmc_platform_data *pdata;
-
-	/* dev can be null if CONFIG_MMC_OMAP_HS is not set */
-	if (!dev) {
-		pr_err("Failed omap4_twl6030_hsmmc_set_late_init\n");
-		return;
-	}
-	pdata = dev->platform_data;
-
-	pdata->init =	omap4_twl6030_hsmmc_late_init;
-}
-
-static int __init omap4_twl6030_hsmmc_init(struct omap2_hsmmc_info *controllers)
-{
-	struct omap2_hsmmc_info *c;
-
-	omap2_hsmmc_init(controllers);
-	for (c = controllers; c->mmc; c++)
-		omap4_twl6030_hsmmc_set_late_init(c->dev);
-
-	return 0;
-}
 
 static struct regulator_init_data tuna_vaux2 = {
 	.constraints = {
@@ -348,6 +302,19 @@ static int __init tuna_i2c_init(void)
 
 #ifdef CONFIG_OMAP_MUX
 static struct omap_board_mux board_mux[] __initdata = {
+	/* hsmmc d0-d7 */
+	OMAP4_MUX(GPMC_AD0, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
+	OMAP4_MUX(GPMC_AD1, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
+	OMAP4_MUX(GPMC_AD2, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
+	OMAP4_MUX(GPMC_AD3, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
+	OMAP4_MUX(GPMC_AD4, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
+	OMAP4_MUX(GPMC_AD5, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
+	OMAP4_MUX(GPMC_AD6, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
+	OMAP4_MUX(GPMC_AD7, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
+	/* hsmmc cmd */
+	OMAP4_MUX(GPMC_NWE, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
+	/* hsmmc clk */
+	OMAP4_MUX(GPMC_NOE, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
 	/* dispc2_data23 */
 	OMAP4_MUX(USBB2_ULPITLL_STP, OMAP_PIN_OUTPUT | OMAP_MUX_MODE5),
 	/* dispc2_data22 */
@@ -492,7 +459,7 @@ static void __init tuna_init(void)
 	platform_add_devices(tuna_devices, ARRAY_SIZE(tuna_devices));
 	platform_device_register(&omap_vwlan_device);
 	board_serial_init();
-	omap4_twl6030_hsmmc_init(mmc);
+	omap2_hsmmc_init(mmc);
 	usb_musb_init(&musb_board_data);
 }
 
