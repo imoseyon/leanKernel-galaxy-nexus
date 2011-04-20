@@ -22,10 +22,14 @@ struct omap_dsp_platform_data {
 	phys_addr_t phys_mempool_size;
 };
 
-#if defined(CONFIG_TIDSPBRIDGE) || defined(CONFIG_TIDSPBRIDGE_MODULE)
+#if defined(CONFIG_TIDSPBRIDGE) || defined(CONFIG_TIDSPBRIDGE_MODULE) || \
+	defined(CONFIG_OMAP_REMOTE_PROC)
 extern void omap_dsp_reserve_sdram_memblock(void);
 #else
 static inline void omap_dsp_reserve_sdram_memblock(void) { }
 #endif
+
+phys_addr_t omap_dsp_get_mempool_size(void);
+phys_addr_t omap_dsp_get_mempool_base(void);
 
 #endif
