@@ -45,6 +45,7 @@
 #include "hsmmc.h"
 #include "control.h"
 #include "mux.h"
+#include "board-tuna.h"
 
 #define GPIO_WIFI_PMENA		43
 #define GPIO_WIFI_IRQ		53
@@ -461,6 +462,7 @@ static void __init tuna_init(void)
 	board_serial_init();
 	omap2_hsmmc_init(mmc);
 	usb_musb_init(&musb_board_data);
+	omap4_tuna_android_usb_init();
 }
 
 static void __init tuna_map_io(void)
