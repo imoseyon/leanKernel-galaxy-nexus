@@ -5,3 +5,23 @@
 # Remote proc gets selected by whoever wants it.
 config REMOTE_PROC
 	tristate
+
+# can't be tristate, due to omap_device_* and omap_hwmod_* dependency
+config OMAP_REMOTE_PROC
+	bool "OMAP remoteproc support"
+	depends on ARCH_OMAP4
+	select OMAP_IOMMU
+	select REMOTE_PROC
+	default y
+	help
+	  Say y here to support OMAP's remote processors (dual M3
+	  and DSP on OMAP4) via the remote processor framework.
+
+	  Currently only supported on OMAP4.
+
+	  Usually you want to say y here, in order to enable multimedia
+	  use-cases to run on your platform (multimedia codecs are
+	  offloaded to remote DSP processors using this framework).
+
+	  It's safe to say n here if you're not interested in multimedia
+	  offloading or just want a bare minium kernel.
