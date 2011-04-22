@@ -15,5 +15,6 @@
 #define _MACH_OMAP2_BOARD_TUNA_H_
 
 void omap4_tuna_android_usb_init(void);
+void omap4_tuna_display_init(void);
 
 #endif

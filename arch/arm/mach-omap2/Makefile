@@ -252,6 +252,7 @@ obj-$(CONFIG_MACH_TUNA)			+= board-tuna.o \
 					   hsmmc.o \
 					   omap_phy_internal.o
 obj-$(CONFIG_MACH_TUNA)			+= board-tuna-android-usb.o
+obj-$(CONFIG_MACH_TUNA)			+= board-tuna-panel.o
 
 
 obj-$(CONFIG_MACH_OMAP3517EVM)		+= board-am3517evm.o \

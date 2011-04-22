@@ -39,7 +39,6 @@
 #include <plat/common.h>
 #include <plat/usb.h>
 #include <plat/mmc.h>
-#include <plat/panel-generic-dpi.h>
 #include "timer-gp.h"
 
 #include "hsmmc.h"
@@ -463,6 +462,7 @@ static void __init tuna_init(void)
 	omap2_hsmmc_init(mmc);
 	usb_musb_init(&musb_board_data);
 	omap4_tuna_android_usb_init();
+	omap4_tuna_display_init();
 }
 
 static void __init tuna_map_io(void)
