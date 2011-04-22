@@ -256,6 +256,31 @@ static struct panel_config generic_dpi_panels[] = {
 		.power_off_delay	= 0,
 		.name			= "powertip_ph480272t",
 	},
+	/* Samsung AMS452GN05 */
+	{
+		{
+			.x_res		= 480,
+			.y_res		= 800,
+
+			.pixel_clock	= 25600,
+
+			.hfp		= 16,
+			.hsw		= 2,
+			.hbp		= 16,
+
+			.vfp		= 9,
+			.vsw		= 2,
+			.vbp		= 3,
+		},
+		.acbi			= 0x0,
+		.acb			= 0x0,
+		.config			= OMAP_DSS_LCD_TFT | OMAP_DSS_LCD_IVS |
+					OMAP_DSS_LCD_IHS | OMAP_DSS_LCD_IPC |
+					OMAP_DSS_LCD_IEO | OMAP_DSS_LCD_ONOFF,
+		.power_on_delay		= 0,
+		.power_off_delay	= 0,
+		.name			= "samsung_ams452gn05",
+	},
 };
 
 struct panel_drv_data {
