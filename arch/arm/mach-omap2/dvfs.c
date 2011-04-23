@@ -17,6 +17,8 @@
 #include <linux/slab.h>
 #include <linux/opp.h>
 #include <linux/clk.h>
+#include <linux/debugfs.h>
+#include <linux/seq_file.h>
 #include <plat/common.h>
 #include <plat/omap_device.h>
 #include <plat/omap_hwmod.h>
@@ -889,6 +891,176 @@ out:
 }
 EXPORT_SYMBOL(omap_device_scale);
 
+#ifdef CONFIG_PM_DEBUG
+static int dvfs_dump_vdd(struct seq_file *sf, void *unused)
+{
+	int k;
+	struct omap_vdd_dvfs_info *dvfs_info;
+	struct omap_vdd_dev_list *tdev;
+	struct omap_dev_user_list *duser;
+	struct omap_vdd_user_list *vuser;
+	struct omap_vdd_info *vdd;
+	struct omap_vdd_dep_info *dep_info;
+	struct voltagedomain *voltdm;
+	struct omap_volt_data *volt_data;
+	int anyreq;
+	int anyreq2;
+
+	dvfs_info = (struct omap_vdd_dvfs_info *)sf->private;
+	if (IS_ERR_OR_NULL(dvfs_info)) {
+		pr_err("%s: NO DVFS?\n", __func__);
+		return -EINVAL;
+	}
+
+	voltdm = dvfs_info->voltdm;
+	if (IS_ERR_OR_NULL(voltdm)) {
+		pr_err("%s: NO voltdm?\n", __func__);
+		return -EINVAL;
+	}
+
+	vdd = voltdm->vdd;
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: NO vdd data?\n", __func__);
+		return -EINVAL;
+	}
+
+	seq_printf(sf, "vdd_%s\n", voltdm->name);
+	mutex_lock(&omap_dvfs_lock);
+	spin_lock(&dvfs_info->user_lock);
+
+	seq_printf(sf, "|- voltage requests\n|  |\n");
+	anyreq = 0;
+	plist_for_each_entry(vuser, &dvfs_info->vdd_user_list, node) {
+		seq_printf(sf, "|  |-%d: %s:%s\n",
+			   vuser->node.prio,
+			   dev_driver_string(vuser->dev), dev_name(vuser->dev));
+		anyreq = 1;
+	}
+
+	spin_unlock(&dvfs_info->user_lock);
+
+	if (!anyreq)
+		seq_printf(sf, "|  `-none\n");
+	else
+		seq_printf(sf, "|  X\n");
+	seq_printf(sf, "|\n");
+
+	seq_printf(sf, "|- frequency requests\n|  |\n");
+	anyreq2 = 0;
+	list_for_each_entry(tdev, &dvfs_info->dev_list, node) {
+		anyreq = 0;
+		seq_printf(sf, "|  |- %s:%s\n",
+			   dev_driver_string(tdev->dev), dev_name(tdev->dev));
+		spin_lock(&tdev->user_lock);
+		plist_for_each_entry(duser, &tdev->freq_user_list, node) {
+			seq_printf(sf, "|  |  |-%d: %s:%s\n",
+				   duser->node.prio,
+				   dev_driver_string(duser->dev),
+				   dev_name(duser->dev));
+			anyreq = 1;
+		}
+
+		spin_unlock(&tdev->user_lock);
+
+		if (!anyreq)
+			seq_printf(sf, "|  |  `-none\n");
+		else
+			seq_printf(sf, "|  |  X\n");
+		anyreq2 = 1;
+	}
+	if (!anyreq2)
+		seq_printf(sf, "|  `-none\n");
+	else
+		seq_printf(sf, "|  X\n");
+
+	volt_data = vdd->volt_data;
+	seq_printf(sf, "|- Supported voltages\n|  |\n");
+	anyreq = 0;
+	while (volt_data && volt_data->volt_nominal) {
+		seq_printf(sf, "|  |-%d\n", volt_data->volt_nominal);
+		anyreq = 1;
+		volt_data++;
+	}
+	if (!anyreq)
+		seq_printf(sf, "|  `-none\n");
+	else
+		seq_printf(sf, "|  X\n");
+
+	dep_info = vdd->dep_vdd_info;
+	seq_printf(sf, "`- voltage dependencies\n   |\n");
+	anyreq = 0;
+	while (dep_info && dep_info->nr_dep_entries) {
+		struct omap_vdd_dep_volt *dep_table = dep_info->dep_table;
+
+		seq_printf(sf, "   |-on vdd_%s\n", dep_info->name);
+
+		for (k = 0; k < dep_info->nr_dep_entries; k++) {
+			seq_printf(sf, "   |  |- %d => %d\n",
+				   dep_table[k].main_vdd_volt,
+				   dep_table[k].dep_vdd_volt);
+		}
+
+		anyreq = 1;
+		dep_info++;
+	}
+
+	if (!anyreq)
+		seq_printf(sf, "   `- none\n");
+	else
+		seq_printf(sf, "   X  X\n");
+
+	mutex_unlock(&omap_dvfs_lock);
+	return 0;
+}
+
+static int dvfs_dbg_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, dvfs_dump_vdd, inode->i_private);
+}
+
+static struct file_operations debugdvfs_fops = {
+	.open = dvfs_dbg_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static struct dentry __initdata *dvfsdebugfs_dir;
+
+static void __init dvfs_dbg_init(struct omap_vdd_dvfs_info *dvfs_info)
+{
+	struct dentry *ddir;
+
+	/* create a base dir */
+	if (!dvfsdebugfs_dir)
+		dvfsdebugfs_dir = debugfs_create_dir("dvfs", NULL);
+	if (IS_ERR_OR_NULL(dvfsdebugfs_dir)) {
+		WARN_ONCE("%s: Unable to create base DVFS dir\n", __func__);
+		return;
+	}
+
+	if (IS_ERR_OR_NULL(dvfs_info->voltdm)) {
+		pr_err("%s: no voltdm\n", __func__);
+		return;
+	}
+
+	ddir = debugfs_create_dir(dvfs_info->voltdm->name, dvfsdebugfs_dir);
+	if (IS_ERR_OR_NULL(ddir)) {
+		pr_warning("%s: unable to create subdir %s\n", __func__,
+			   dvfs_info->voltdm->name);
+		return;
+	}
+
+	debugfs_create_file("info", S_IRUGO, ddir,
+			    (void *)dvfs_info, &debugdvfs_fops);
+}
+#else				/* CONFIG_PM_DEBUG */
+static inline void dvfs_dbg_init(struct omap_vdd_dvfs_info *dvfs_info)
+{
+	return;
+}
+#endif				/* CONFIG_PM_DEBUG */
+
 /**
  * omap_dvfs_register_device - Add a parent device into dvfs managed list
  * @dev:		Device to be added
@@ -949,6 +1121,8 @@ int __init omap_dvfs_register_device(struct device *dev, char *voltdm_name,
 		INIT_LIST_HEAD(&dvfs_info->dev_list);
 
 		list_add(&dvfs_info->node, &omap_dvfs_info_list);
+
+		dvfs_dbg_init(dvfs_info);
 	}
 
 	/* If device already added, we dont need to do more.. */
