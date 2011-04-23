@@ -13,9 +13,12 @@
 
 #include <linux/platform_device.h>
 #include <linux/input.h>
+#include <linux/interrupt.h>
 #include <linux/keyreset.h>
 #include <linux/gpio_event.h>
 #include <linux/gpio.h>
+#include <linux/i2c.h>
+#include <linux/i2c/atmel_mxt_ts.h>
 #include <asm/mach-types.h>
 #include <plat/omap4-keypad.h>
 
@@ -70,8 +73,37 @@ static struct platform_device tuna_gpio_keypad_device = {
 	},
 };
 
+static struct mxt_platform_data atmel_mxt_ts_pdata = {
+	.x_line		= 19,
+	.y_line		= 11,
+	.x_size		= 1024,
+	.y_size		= 1024,
+	.blen		= 0x21,
+	.threshold	= 0x28,
+	.voltage	= 2800000,              /* 2.8V */
+	.orient		= MXT_DIAGONAL,
+	.irqflags	= IRQF_TRIGGER_FALLING,
+};
+
+static struct i2c_board_info __initdata tuna_i2c3_boardinfo[] = {
+	{
+		I2C_BOARD_INFO("atmel_mxt_ts", 0x4a),
+		.platform_data = &atmel_mxt_ts_pdata,
+		.irq = OMAP_GPIO_IRQ(46),
+	},
+};
+
 void __init omap4_tuna_input_init(void)
 {
+	gpio_request(46, "tsp_int_n");
+	gpio_direction_input(46);
+
+	gpio_request(54, "tsp_en");
+	gpio_direction_output(54, 1);
+
+	i2c_register_board_info(3, tuna_i2c3_boardinfo,
+		ARRAY_SIZE(tuna_i2c3_boardinfo));
+
 	omap4_keyboard_init(&tuna_keypad_data);
 	platform_device_register(&tuna_gpio_keypad_device);
 }
