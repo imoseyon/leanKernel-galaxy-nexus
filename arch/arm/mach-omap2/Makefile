@@ -255,6 +255,7 @@ obj-$(CONFIG_MACH_TUNA)			+= board-tuna-android-usb.o
 obj-$(CONFIG_MACH_TUNA)			+= board-tuna-display.o
 obj-$(CONFIG_MACH_TUNA)			+= board-tuna-input.o
 obj-$(CONFIG_MACH_TUNA)			+= board-tuna-power.o
+obj-$(CONFIG_MACH_TUNA)			+= board-tuna-sensors.o
 obj-$(CONFIG_MACH_TUNA)			+= board-tuna-wifi.o
 
 

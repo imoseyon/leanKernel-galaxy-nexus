@@ -539,6 +539,7 @@ static void __init tuna_init(void)
 	omap4_tuna_input_init();
 	omap4_tuna_power_init();
 	omap4_tuna_nfc_init();
+	omap4_tuna_sensors_init();
 }
 
 static void __init tuna_map_io(void)
