@@ -41,6 +41,8 @@ struct power_state {
 };
 
 static LIST_HEAD(pwrst_list);
+static struct powerdomain *mpu_pwrdm, *cpu0_pwrdm;
+static struct powerdomain *core_pwrdm, *per_pwrdm;
 
 #define MAX_IOPAD_LATCH_TIME 1000
 void omap4_trigger_ioctrl(void)
@@ -64,24 +66,39 @@ void omap4_trigger_ioctrl(void)
 /* This is a common low power function called from suspend and
  * cpuidle
  */
-void omap4_enter_sleep(void)
+void omap4_enter_sleep(unsigned int cpu, unsigned int power_state)
 {
-	u32 cpu_id = smp_processor_id();
+	int cpu0_next_state = PWRDM_POWER_ON;
+	int per_next_state = PWRDM_POWER_ON;
+	int core_next_state = PWRDM_POWER_ON;
 
-	omap_uart_prepare_idle(0);
-	omap_uart_prepare_idle(1);
-	omap_uart_prepare_idle(2);
-	omap_uart_prepare_idle(3);
-	omap2_gpio_prepare_for_idle(0);
-	omap4_trigger_ioctrl();
+	pwrdm_clear_all_prev_pwrst(cpu0_pwrdm);
+	pwrdm_clear_all_prev_pwrst(mpu_pwrdm);
+	pwrdm_clear_all_prev_pwrst(core_pwrdm);
+	pwrdm_clear_all_prev_pwrst(per_pwrdm);
 
-	omap4_enter_lowpower(cpu_id, PWRDM_POWER_OFF);
+	cpu0_next_state = pwrdm_read_next_pwrst(cpu0_pwrdm);
+	per_next_state = pwrdm_read_next_pwrst(per_pwrdm);
+	core_next_state = pwrdm_read_next_pwrst(core_pwrdm);
 
-	omap2_gpio_resume_after_idle();
-	omap_uart_resume_idle(0);
-	omap_uart_resume_idle(1);
-	omap_uart_resume_idle(2);
-	omap_uart_resume_idle(3);
+	if (core_next_state < PWRDM_POWER_ON) {
+		omap_uart_prepare_idle(0);
+		omap_uart_prepare_idle(1);
+		omap_uart_prepare_idle(2);
+		omap_uart_prepare_idle(3);
+		omap2_gpio_prepare_for_idle(0);
+		omap4_trigger_ioctrl();
+	}
+
+	omap4_enter_lowpower(cpu, power_state);
+
+	if (core_next_state < PWRDM_POWER_ON) {
+		omap2_gpio_resume_after_idle();
+		omap_uart_resume_idle(0);
+		omap_uart_resume_idle(1);
+		omap_uart_resume_idle(2);
+		omap_uart_resume_idle(3);
+	}
 
 	return;
 }
@@ -117,7 +134,7 @@ static int omap4_pm_suspend(void)
 	 * More details can be found in OMAP4430 TRM section 4.3.4.2.
 	 */
 	omap_uart_prepare_suspend();
-	omap4_enter_sleep();
+	omap4_enter_sleep(0, PWRDM_POWER_OFF);
 
 	/* Restore next powerdomain state */
 	list_for_each_entry(pwrst, &pwrst_list, node) {
@@ -245,6 +262,14 @@ static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+int omap4_can_sleep(void)
+{
+	if (!sleep_while_idle)
+		return -1;
+	if (!omap_uart_can_sleep())
+		return -1;
+	return 0;
+}
 
 /**
  * omap4_pm_init - Init routine for OMAP4 PM
@@ -329,6 +354,11 @@ static int __init omap4_pm_init(void)
 #ifdef CONFIG_SUSPEND
 	suspend_set_ops(&omap_pm_ops);
 #endif /* CONFIG_SUSPEND */
+
+	mpu_pwrdm = pwrdm_lookup("mpu_pwrdm");
+	cpu0_pwrdm = pwrdm_lookup("cpu0_pwrdm");
+	core_pwrdm = pwrdm_lookup("core_pwrdm");
+	per_pwrdm = pwrdm_lookup("l4per_pwrdm");
 
 	omap4_idle_init();
 
