@@ -450,7 +450,7 @@ static void __init tuna_init(void)
 
 	if (omap_rev() == OMAP4430_REV_ES1_0)
 		package = OMAP_PACKAGE_CBL;
-	omap4_mux_init(board_mux, package);
+	omap4_mux_init(board_mux, NULL, package);
 
 	if (wl12xx_set_platform_data(&tuna_wlan_data))
 		pr_err("error setting wl12xx data\n");
