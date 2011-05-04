@@ -52,7 +52,13 @@
 
 #define OMAP_UART_DMA_CH_FREE	-1
 
-#define RX_TIMEOUT		(3 * HZ)
+#define RX_TIMEOUT			(3 * HZ) /* RX DMA timeout (jiffies) */
+
+#define DEFAULT_RXDMA_TIMEOUT		1	/* RX DMA polling rate (us) */
+#define DEFAULT_RXDMA_BUFSIZE		4096	/* RX DMA buffer size */
+#define DEFAULT_AUTOSUSPEND_DELAY	3000	/* Runtime autosuspend (msecs)*/
+
+
 #define OMAP_MAX_HSUART_PORTS	4
 
 #define MSR_SAVE_FLAGS		UART_MSR_ANY_DELTA
@@ -69,6 +75,7 @@ struct omap_uart_port_info {
 	unsigned int		errata;
 	unsigned int		console_uart;
 	u16			wer;		/* Module Wakeup register */
+	unsigned int		auto_sus_timeout; /* Auto_suspend timeout */
 
 	void (*enable_wakeup)(struct platform_device *, bool);
 	void __iomem *wk_st;
@@ -97,8 +104,8 @@ struct uart_omap_dma {
 	spinlock_t		rx_lock;
 	/* timer to poll activity on rx dma */
 	struct timer_list	rx_timer;
-	int			rx_buf_size;
-	int			rx_timeout;
+	unsigned int		rx_buf_size;
+	unsigned int		rx_timeout;
 };
 
 struct uart_omap_port {

@@ -44,8 +44,6 @@
 #include <plat/omap-serial.h>
 #include <plat/omap_device.h>
 
-#define OMAP_UART_AUTOSUSPEND_DELAY (30 * HZ) /* Value is msecs */
-
 static struct uart_omap_port *ui[OMAP_MAX_HSUART_PORTS];
 
 /* Forward declaration of functions */
@@ -1411,7 +1409,7 @@ static int serial_omap_probe(struct platform_device *pdev)
 
 	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_runtime_set_autosuspend_delay(&pdev->dev,
-			OMAP_UART_AUTOSUSPEND_DELAY);
+			omap_up_info->auto_sus_timeout);
 
 	if (device_may_wakeup(&pdev->dev))
 		pm_runtime_enable(&pdev->dev);

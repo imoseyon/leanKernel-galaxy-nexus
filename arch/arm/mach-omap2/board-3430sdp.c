@@ -642,9 +642,9 @@ static struct omap_board_data serial3_data __initdata = {
 
 static inline void board_serial_init(void)
 {
-	omap_serial_init_port(&serial1_data);
-	omap_serial_init_port(&serial2_data);
-	omap_serial_init_port(&serial3_data);
+	omap_serial_init_port(&serial1_data, NULL);
+	omap_serial_init_port(&serial2_data, NULL);
+	omap_serial_init_port(&serial3_data, NULL);
 }
 #else
 #define board_mux	NULL
