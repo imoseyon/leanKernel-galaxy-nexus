@@ -829,6 +829,10 @@ static int mxt_initialize(struct mxt_data *data)
 			MXT_COMMAND_RESET, 1);
 	msleep(MXT_RESET_TIME);
 
+	error = mxt_make_highchg(data);
+	if (error)
+		return error;
+
 	/* Update matrix size at info struct */
 	error = mxt_read_reg(client, MXT_MATRIX_X_SIZE, &val);
 	if (error)
