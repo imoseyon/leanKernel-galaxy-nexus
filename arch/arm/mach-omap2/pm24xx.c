@@ -137,6 +137,8 @@ static void omap2_enter_full_retention(void)
 			   OMAP_SDRC_REGADDR(SDRC_DLLA_CTRL),
 			   OMAP_SDRC_REGADDR(SDRC_POWER));
 
+	omap_uart_resume_idle();
+
 no_sleep:
 	if (omap2_pm_debug) {
 		unsigned long long tmp;

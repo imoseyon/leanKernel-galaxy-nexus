@@ -79,6 +79,7 @@ struct omap_uart_port_info {
 	unsigned int		auto_sus_timeout; /* Auto_suspend timeout */
 
 	void (*enable_wakeup)(struct platform_device *, bool);
+	bool (*chk_wakeup)(struct platform_device *);
 	void __iomem *wk_st;
 	void __iomem *wk_en;
 	u32 wk_mask;
@@ -140,5 +141,6 @@ struct uart_omap_port {
 
 	unsigned int		errata;
 	void (*enable_wakeup)(struct platform_device *, bool);
+	bool (*chk_wakeup)(struct platform_device *);
 };
 #endif /* __OMAP_SERIAL_H__ */

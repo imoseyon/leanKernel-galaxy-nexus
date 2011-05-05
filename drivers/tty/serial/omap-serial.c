@@ -43,6 +43,7 @@
 #include <plat/dmtimer.h>
 #include <plat/omap-serial.h>
 #include <plat/omap_device.h>
+#include <plat/serial.h>
 
 static struct uart_omap_port *ui[OMAP_MAX_HSUART_PORTS];
 
@@ -106,6 +107,27 @@ static inline void serial_omap_port_disable(struct uart_omap_port *up)
 static inline void serial_omap_port_enable(struct uart_omap_port *up)
 {
 	pm_runtime_get_sync(&up->pdev->dev);
+}
+
+/* TBD: Should be removed once we irq-chaining mechanism in place */
+u32 omap_uart_resume_idle()
+{
+	int i;
+	u32 ret = 0;
+
+	for (i = 0; i < OMAP_MAX_HSUART_PORTS; i++) {
+		struct uart_omap_port *up = ui[i];
+
+		if (!up)
+			continue;
+
+		if (up->chk_wakeup(up->pdev)) {
+			serial_omap_port_enable(up);
+			serial_omap_port_disable(up);
+			ret++;
+		}
+	}
+	return ret;
 }
 
 static void serial_omap_stop_rxdma(struct uart_omap_port *up)
@@ -1394,6 +1416,7 @@ static int serial_omap_probe(struct platform_device *pdev)
 	up->errata = omap_up_info->errata;
 	up->enable_wakeup = omap_up_info->enable_wakeup;
 	up->wer = omap_up_info->wer;
+	up->chk_wakeup = omap_up_info->chk_wakeup;
 
 	if (omap_up_info->use_dma) {
 		up->uart_dma.uart_dma_tx = dma_tx->start;
