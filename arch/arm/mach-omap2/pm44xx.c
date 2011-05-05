@@ -34,12 +34,12 @@
 #include "prcm44xx.h"
 #include "prm44xx.h"
 #include "prminst44xx.h"
-
 #include "clock.h"
 #include "cm2_44xx.h"
 #include "cm1_44xx.h"
 #include "cm-regbits-44xx.h"
 #include "cminst44xx.h"
+#include "prcm-debug.h"
 
 #include "smartreflex.h"
 #include "dvfs.h"
@@ -344,6 +344,7 @@ static int omap4_pm_suspend(void)
 	 */
 	omap4_enter_sleep(0, PWRDM_POWER_OFF, true);
 	omap4_print_wakeirq();
+	prcmdebug_dump(PRCMDEBUG_LASTSLEEP);
 
 	/* Restore next powerdomain state */
 	list_for_each_entry(pwrst, &pwrst_list, node) {
