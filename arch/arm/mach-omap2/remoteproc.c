@@ -29,9 +29,41 @@
 #define L4_PERIPHERAL_L4CFG	(L4_44XX_BASE)
 #define IPU_PERIPHERAL_L4CFG	0xAA000000
 
+#define L4_PERIPHERAL_L4PER	0x48000000
+#define IPU_PERIPHERAL_L4PER	0xA8000000
+
+#define L4_PERIPHERAL_L4EMU	0x54000000
+#define IPU_PERIPHERAL_L4EMU	0xB4000000
+
+#define L3_IVAHD_CONFIG		0x5A000000
+#define IPU_IVAHD_CONFIG	0xBA000000
+
+#define L3_IVAHD_SL2		0x5B000000
+#define IPU_IVAHD_SL2		0xBB000000
+
+#define L3_TILER_MODE_0_1	0x60000000
+#define IPU_TILER_MODE_0_1	0x60000000
+
+#define L3_TILER_MODE_2		0x70000000
+#define IPU_TILER_MODE_2	0x70000000
+
+#define L3_TILER_MODE_3		0x78000000
+#define IPU_TILER_MODE_3	0x78000000
+
+#define L3_IVAHD_CONFIG		0x5A000000
+#define IPU_IVAHD_CONFIG	0xBA000000
+
+#define L3_IVAHD_SL2		0x5B000000
+#define IPU_IVAHD_SL2		0xBB000000
+
 #define IPU_MEM_TEXT		0x0
 #define IPU_MEM_DATA		0x80000000
 #define IPU_MEM_IPC		0xA0000000
+
+/* TODO: Remove hardcoded RAM Addresses once we have the PA->VA lookup integrated.
+ * IPC region should not be hard-coded. Text area is also not hard-coded since
+ * VA to PA translation is not required. */
+#define PHYS_MEM_DATA		0xB9800000
 
 /*
  * Memory mappings for the remote M3 subsystem
@@ -45,8 +77,14 @@
 static struct rproc_mem_entry ipu_memory_maps[] = {
 	{IPU_MEM_IPC, 0, SZ_1M}, /* keep this IPC region first */
 	{IPU_MEM_TEXT, 0, SZ_4M},
-	{IPU_MEM_DATA, 0, SZ_32M},
+	{IPU_MEM_DATA, PHYS_MEM_DATA, SZ_1M * 96},
 	{IPU_PERIPHERAL_L4CFG, L4_PERIPHERAL_L4CFG, SZ_16M},
+	{IPU_PERIPHERAL_L4PER, L4_PERIPHERAL_L4PER, SZ_16M},
+	{IPU_TILER_MODE_0_1, L3_TILER_MODE_0_1, SZ_256M},
+	{IPU_TILER_MODE_2, L3_TILER_MODE_2, SZ_128M},
+	{IPU_TILER_MODE_3, L3_TILER_MODE_3, SZ_128M},
+	{IPU_IVAHD_CONFIG, L3_IVAHD_CONFIG, SZ_16M},
+	{IPU_IVAHD_SL2, L3_IVAHD_SL2, SZ_16M},
 	{ }
 };
 
