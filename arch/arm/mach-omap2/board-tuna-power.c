@@ -13,10 +13,12 @@
  */
 
 #include <linux/err.h>
+#include <linux/i2c.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/gpio.h>
+#include <linux/max17040_battery.h>
 #include <linux/pda_power.h>
 #include <linux/platform_device.h>
 
@@ -51,6 +53,11 @@ static int charger_is_ac_online(void)
 	return !gpio_get_value(GPIO_TA_NCONNECTED);
 }
 
+static int charger_is_charging(void)
+{
+	return !gpio_get_value(GPIO_CHARGING_N);
+}
+
 static const __initdata struct resource charger_resources[] = {
 	{
 		.name = "ac",
@@ -77,6 +84,18 @@ static const __initdata struct pda_power_pdata charger_pdata = {
 	.wait_for_charger = 500,
 };
 
+static struct max17040_platform_data max17043_pdata = {
+	.charger_online = charger_is_ac_online,
+	.charger_enable = charger_is_charging,
+};
+
+static const __initdata struct i2c_board_info max17043_i2c[] = {
+	{
+		I2C_BOARD_INFO("max17040", (0x6C >> 1)),
+		.platform_data = &max17043_pdata,
+	}
+};
+
 void __init omap4_tuna_power_init(void)
 {
 	struct platform_device *pdev;
@@ -84,4 +103,6 @@ void __init omap4_tuna_power_init(void)
 	pdev = platform_device_register_resndata(NULL, "pda-power", -1,
 		charger_resources, ARRAY_SIZE(charger_resources),
 		&charger_pdata, sizeof(charger_pdata));
+
+	i2c_register_board_info(4, max17043_i2c, ARRAY_SIZE(max17043_i2c));
 }
