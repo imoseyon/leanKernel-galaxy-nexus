@@ -242,15 +242,20 @@ static int rpmsg_omx_release(struct inode *inode, struct file *filp)
 	struct rpmsg_omx_service *omxserv = omx->omxserv;
 	char kbuf[512];
 	struct omx_msg_hdr *hdr = (struct omx_msg_hdr *) kbuf;
+	struct omx_disc_req *disc_req = (struct omx_disc_req *)hdr->data;
 	int use, ret;
 
 	/* todo: release resources here */
 
-	/* send a disconnect msg to the OMX instance */
+	/* send a disconnect msg with the OMX instance addr */
 	hdr->type = OMX_DISCONNECT;
 	hdr->flags = 0;
-	hdr->len = 0;
-	use = sizeof(*hdr);
+	hdr->len = sizeof(struct omx_disc_req);
+	disc_req->addr = omx->dst;
+	use = sizeof(*hdr) + hdr->len;
+
+	dev_info(omxserv->dev, "Disconnecting from OMX service at %d\n",
+		omx->dst);
 
 	/* send the msg to the remote OMX connection service */
 	ret = rpmsg_send_offchannel(omxserv->rpdev, omx->ept->addr,

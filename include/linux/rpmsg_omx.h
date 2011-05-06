@@ -115,6 +115,11 @@ struct omx_conn_rsp {
 	u32 addr;
 } __packed;
 
+struct omx_disc_req {
+	u32 addr;
+} __packed;
+
+
 #endif /* __KERNEL__ */
 
 /* temporarily exposed to user space too */
