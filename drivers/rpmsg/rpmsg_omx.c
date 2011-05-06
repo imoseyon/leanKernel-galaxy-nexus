@@ -35,8 +35,17 @@
 #include <linux/rpmsg.h>
 #include <linux/rpmsg_omx.h>
 
+#include <mach/tiler.h>
+
 /* maximum OMX devices this driver can handle */
 #define MAX_OMX_DEVICES		8
+
+enum rpc_omx_map_info_type {
+	RPC_OMX_MAP_INFO_NONE          = 0,
+	RPC_OMX_MAP_INFO_ONE_BUF       = 1,
+	RPC_OMX_MAP_INFO_TWO_BUF       = 2,
+	RPC_OMX_MAP_INFO_MAX           = 0x7FFFFFFF
+};
 
 struct rpmsg_omx_service {
 	struct cdev cdev;
@@ -56,12 +65,64 @@ struct rpmsg_omx_instance {
 	int state;
 };
 
+/* the packet structure (actual message sent to omx service) */
+struct omx_packet {
+	uint16_t      desc;	/* descriptor, and omx service status */
+	uint16_t      msg_id;	/* message id */
+	uint32_t      flags;	/* Set to a fixed value for now. */
+	uint32_t      fxn_idx;	/* Index into OMX service's function table.*/
+	int32_t       result;	/* The OMX function status. */
+	uint32_t      data_size;/* Size of in/out data to/from the function. */
+	uint32_t      data[0];	/* Payload of data_size char's passed to
+				   function. */
+};
+
 static struct class *rpmsg_omx_class;
 static dev_t rpmsg_omx_dev;
 
 /* store all remote omx connection services (usually one per remoteproc) */
 static DEFINE_IDR(rpmsg_omx_services);
 static DEFINE_SPINLOCK(rpmsg_omx_services_lock);
+
+static int _rpmsg_omx_map_buf(char *packet)
+{
+	int ret = -1, offset = 0;
+	long *buffer;
+	char *data;
+	enum rpc_omx_map_info_type maptype;
+	u32 pa = 0;
+
+	data = (char *)((struct omx_packet *)packet)->data;
+	maptype = *((enum rpc_omx_map_info_type *)data);
+
+	/*Nothing to map*/
+	if (maptype == RPC_OMX_MAP_INFO_NONE)
+		return 0;
+	if ((maptype != RPC_OMX_MAP_INFO_TWO_BUF) &&
+			(maptype != RPC_OMX_MAP_INFO_ONE_BUF))
+		return ret;
+
+	offset = *(int *)((int)data + sizeof(maptype));
+	buffer = (long *)((int)data + offset);
+
+	pa = tiler_virt2phys(*buffer);
+	if (pa) {
+		*buffer = pa;
+		ret = 0;
+	}
+
+	if (!ret && maptype == RPC_OMX_MAP_INFO_TWO_BUF) {
+		buffer = (long *)((int)data + offset + sizeof(*buffer));
+		ret = -1;
+		pa = tiler_virt2phys(*buffer);
+		if (pa) {
+			*buffer = pa;
+			ret = 0;
+		}
+	}
+
+	return ret;
+}
 
 static void rpmsg_omx_cb(struct rpmsg_channel *rpdev, void *data, int len,
 							void *priv, u32 src)
@@ -339,6 +400,9 @@ static ssize_t rpmsg_omx_write(struct file *filp, const char __user *ubuf,
 	 */
 	if (copy_from_user(hdr->data, ubuf, use))
 		return -EMSGSIZE;
+
+	if (_rpmsg_omx_map_buf(hdr->data))
+		return -EFAULT;
 
 	hdr->type = OMX_RAW_MSG;
 	hdr->flags = 0;
