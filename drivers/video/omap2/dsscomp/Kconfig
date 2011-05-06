@@ -1,0 +1,9 @@
+menuconfig DSSCOMP
+        tristate "OMAP DSS Composition support (EXPERIMENTAL)"
+        depends on OMAP2_DSS
+	default y
+
+        help
+          Frame composition driver using OMAP DSS2.  Allows using all
+	  DSS2 resources in a unified configuration.  Should not be used
+	  together with other DSS2 devices, such as V4L2 or framebuffer.
