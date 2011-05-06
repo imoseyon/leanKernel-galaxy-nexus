@@ -310,6 +310,10 @@ static struct omap_board_mux board_mux[] __initdata = {
 	OMAP4_MUX(GPMC_A22, OMAP_MUX_MODE3 | OMAP_PIN_INPUT_PULLUP),
 	/* touch en */
 	OMAP4_MUX(GPMC_NWP, OMAP_MUX_MODE3 | OMAP_PIN_OUTPUT),
+	/* lunchbox charger */
+	OMAP4_MUX(DPM_EMU0, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
+	OMAP4_MUX(DPM_EMU1, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
+	OMAP4_MUX(DPM_EMU2, OMAP_MUX_MODE3 | OMAP_PIN_OUTPUT),
 	/* hsmmc d0-d7 */
 	OMAP4_MUX(GPMC_AD0, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
 	OMAP4_MUX(GPMC_AD1, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
@@ -478,6 +482,7 @@ static void __init tuna_init(void)
 	omap4_tuna_android_usb_init();
 	omap4_tuna_display_init();
 	omap4_tuna_input_init();
+	omap4_tuna_power_init();
 }
 
 static void __init tuna_map_io(void)

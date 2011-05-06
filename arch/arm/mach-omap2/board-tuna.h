@@ -17,5 +17,6 @@
 void omap4_tuna_android_usb_init(void);
 void omap4_tuna_display_init(void);
 void omap4_tuna_input_init(void);
+void omap4_tuna_power_init(void);
 
 #endif
