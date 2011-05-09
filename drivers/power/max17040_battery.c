@@ -107,6 +107,11 @@ static void max17040_reset(struct i2c_client *client)
 {
 	max17040_write_reg(client, MAX17040_CMD_MSB, 0x54);
 	max17040_write_reg(client, MAX17040_CMD_LSB, 0x00);
+
+	msleep(125);
+
+	max17040_write_reg(client, MAX17040_MODE_MSB, 0x40);
+	max17040_write_reg(client, MAX17040_MODE_LSB, 0x00);
 }
 
 static void max17040_get_vcell(struct i2c_client *client)
