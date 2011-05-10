@@ -53,6 +53,7 @@ static struct gpio_event_input_info tuna_gpio_keypad_keys_info = {
 	.keymap = tuna_gpio_keypad_keys_map,
 	.keymap_size = ARRAY_SIZE(tuna_gpio_keypad_keys_map),
 	.info.no_suspend = false,
+	.flags = GPIOEDF_ACTIVE_HIGH,
 };
 
 static struct gpio_event_info *tuna_gpio_keypad_info[] = {
