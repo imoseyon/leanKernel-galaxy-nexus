@@ -23,6 +23,7 @@
 #include <plat/omap4-keypad.h>
 
 #include "board-tuna.h"
+#include "mux.h"
 
 static const int tuna_keymap[] = {
 	KEY(1, 1, KEY_VOLUMEDOWN),
@@ -98,13 +99,21 @@ void __init omap4_tuna_input_init(void)
 {
 	gpio_request(46, "tsp_int_n");
 	gpio_direction_input(46);
+	omap_mux_init_gpio(46, OMAP_PIN_INPUT_PULLUP);
 
 	gpio_request(54, "tsp_en");
 	gpio_direction_output(54, 1);
+	omap_mux_init_gpio(54, OMAP_PIN_OUTPUT);
 
 	i2c_register_board_info(3, tuna_i2c3_boardinfo,
 		ARRAY_SIZE(tuna_i2c3_boardinfo));
 
-	omap4_keyboard_init(&tuna_keypad_data);
+	if (omap4_tuna_get_revision() == TUNA_REV_PRE_LUNCHBOX) {
+		omap_mux_init_signal("kpd_row1.kpd_row1", OMAP_PIN_INPUT_PULLUP);
+		omap_mux_init_signal("kpd_row2.kpd_row2", OMAP_PIN_INPUT_PULLUP);
+		omap_mux_init_signal("kpd_col1.kpd_col1", OMAP_PIN_OUTPUT);
+		omap4_keyboard_init(&tuna_keypad_data);
+	}
+
 	platform_device_register(&tuna_gpio_keypad_device);
 }
