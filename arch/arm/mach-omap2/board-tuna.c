@@ -446,6 +446,12 @@ static void __init tuna_init(void)
 
 	omap4_tuna_init_hw_rev();
 
+	if (omap4_tuna_get_revision() != TUNA_REV_PRE_LUNCHBOX) {
+		gpio_request(158, "emmc_en");
+		gpio_direction_output(158, 1);
+		omap_mux_init_gpio(158, OMAP_PIN_OUTPUT);
+	}
+
 	if (wl12xx_set_platform_data(&tuna_wlan_data))
 		pr_err("error setting wl12xx data\n");
 
