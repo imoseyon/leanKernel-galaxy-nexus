@@ -14,6 +14,13 @@
 #ifndef _MACH_OMAP2_BOARD_TUNA_H_
 #define _MACH_OMAP2_BOARD_TUNA_H_
 
+#define TUNA_REV_PRE_LUNCHBOX	0x5
+#define TUNA_REV_LUNCHBOX	0x0
+#define TUNA_REV_MASK		0xf
+#define TUNA_TYPE_MASK		0x10
+
+int omap4_tuna_get_revision(void);
+int omap4_tuna_get_type(void);
 void omap4_tuna_android_usb_init(void);
 void omap4_tuna_display_init(void);
 void omap4_tuna_input_init(void);

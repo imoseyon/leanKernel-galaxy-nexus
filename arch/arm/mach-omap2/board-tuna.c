@@ -49,6 +49,42 @@
 #define GPIO_WIFI_PMENA		43
 #define GPIO_WIFI_IRQ		53
 
+static int tuna_hw_rev;
+
+static struct gpio tuna_hw_rev_gpios[] = {
+	{76, GPIOF_IN, "hw_rev0"},
+	{75, GPIOF_IN, "hw_rev1"},
+	{74, GPIOF_IN, "hw_rev2"},
+	{73, GPIOF_IN, "hw_rev3"},
+	{170, GPIOF_IN, "hw_rev4"},
+};
+
+static void omap4_tuna_init_hw_rev(void)
+{
+	int ret;
+	int i;
+
+	ret = gpio_request_array(tuna_hw_rev_gpios,
+		ARRAY_SIZE(tuna_hw_rev_gpios));
+
+	BUG_ON(ret);
+
+	for (i = 0; i < ARRAY_SIZE(tuna_hw_rev_gpios); i++)
+		tuna_hw_rev |= gpio_get_value(tuna_hw_rev_gpios[i].gpio) << i;
+
+	pr_info("Tuna HW revision: %02x\n", tuna_hw_rev);
+}
+
+int omap4_tuna_get_revision(void)
+{
+	return tuna_hw_rev & TUNA_REV_MASK;
+}
+
+int omap4_tuna_get_type(void)
+{
+	return tuna_hw_rev & TUNA_TYPE_MASK;
+}
+
 /* wl127x BT, FM, GPS connectivity chip */
 static int wl1271_gpios[] = {46, -1, -1};
 static struct platform_device wl1271_device = {
@@ -302,6 +338,12 @@ static int __init tuna_i2c_init(void)
 
 #ifdef CONFIG_OMAP_MUX
 static struct omap_board_mux board_mux[] __initdata = {
+	/* hwrev */
+	OMAP4_MUX(CSI21_DY4, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
+	OMAP4_MUX(CSI21_DX4, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
+	OMAP4_MUX(CSI21_DY3, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
+	OMAP4_MUX(CSI21_DX3, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
+	OMAP4_MUX(USBB2_HSIC_STROBE, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
 	/* key gpios */
 	OMAP4_MUX(KPD_ROW1, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP),
 	OMAP4_MUX(KPD_ROW2, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP),
@@ -469,6 +511,8 @@ static void __init tuna_init(void)
 	if (omap_rev() == OMAP4430_REV_ES1_0)
 		package = OMAP_PACKAGE_CBL;
 	omap4_mux_init(board_mux, board_wkup_mux, package);
+
+	omap4_tuna_init_hw_rev();
 
 	if (wl12xx_set_platform_data(&tuna_wlan_data))
 		pr_err("error setting wl12xx data\n");
