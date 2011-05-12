@@ -41,24 +41,42 @@ static struct omap4_keypad_platform_data tuna_keypad_data = {
 	.cols			= 2,
 };
 
-static struct gpio_event_direct_entry tuna_gpio_keypad_keys_map[] = {
+static struct gpio_event_direct_entry tuna_gpio_keypad_keys_map_high[] = {
 	{
 		.code	= KEY_POWER,
 		.gpio	= 3,
 	},
 };
 
-static struct gpio_event_input_info tuna_gpio_keypad_keys_info = {
+static struct gpio_event_input_info tuna_gpio_keypad_keys_info_high = {
 	.info.func = gpio_event_input_func,
 	.type = EV_KEY,
-	.keymap = tuna_gpio_keypad_keys_map,
-	.keymap_size = ARRAY_SIZE(tuna_gpio_keypad_keys_map),
-	.info.no_suspend = false,
+	.keymap = tuna_gpio_keypad_keys_map_high,
+	.keymap_size = ARRAY_SIZE(tuna_gpio_keypad_keys_map_high),
 	.flags = GPIOEDF_ACTIVE_HIGH,
 };
 
+static struct gpio_event_direct_entry tuna_gpio_keypad_keys_map_low[] = {
+	{
+		.code	= KEY_VOLUMEDOWN,
+		.gpio	= 8,
+	},
+	{
+		.code	= KEY_VOLUMEUP,
+		.gpio	= 30,
+	},
+};
+
+static struct gpio_event_input_info tuna_gpio_keypad_keys_info_low = {
+	.info.func = gpio_event_input_func,
+	.type = EV_KEY,
+	.keymap = tuna_gpio_keypad_keys_map_low,
+	.keymap_size = ARRAY_SIZE(tuna_gpio_keypad_keys_map_low),
+};
+
 static struct gpio_event_info *tuna_gpio_keypad_info[] = {
-	&tuna_gpio_keypad_keys_info.info,
+	&tuna_gpio_keypad_keys_info_high.info,
+	&tuna_gpio_keypad_keys_info_low.info,
 };
 
 static struct gpio_event_platform_data tuna_gpio_keypad_data = {
@@ -113,6 +131,10 @@ void __init omap4_tuna_input_init(void)
 		omap_mux_init_signal("kpd_row2.kpd_row2", OMAP_PIN_INPUT_PULLUP);
 		omap_mux_init_signal("kpd_col1.kpd_col1", OMAP_PIN_OUTPUT);
 		omap4_keyboard_init(&tuna_keypad_data);
+		tuna_gpio_keypad_data.info_count = 1;
+	} else {
+		omap_mux_init_gpio(8, OMAP_PIN_INPUT);
+		omap_mux_init_gpio(30, OMAP_PIN_INPUT);
 	}
 
 	platform_device_register(&tuna_gpio_keypad_device);
