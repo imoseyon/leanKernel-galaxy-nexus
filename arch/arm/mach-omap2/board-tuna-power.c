@@ -22,9 +22,12 @@
 #include <linux/pda_power.h>
 #include <linux/platform_device.h>
 
-/* These will be different on lunchbox hardware */
-#define GPIO_CHARGING_N		11
-#define GPIO_TA_NCONNECTED	12
+#include "board-tuna.h"
+#include "mux.h"
+
+/* These will be different on pre-lunchbox, lunchbox, and final */
+#define GPIO_CHARGING_N		159
+#define GPIO_TA_NCONNECTED	160
 #define GPIO_CHARGE_N		13
 
 static struct gpio charger_gpios[] = {
@@ -99,6 +102,15 @@ static const __initdata struct i2c_board_info max17043_i2c[] = {
 void __init omap4_tuna_power_init(void)
 {
 	struct platform_device *pdev;
+
+	if (omap4_tuna_get_revision() == TUNA_REV_PRE_LUNCHBOX) {
+		charger_gpios[0].gpio = 11;
+		charger_gpios[1].gpio = 12;
+	}
+
+	omap_mux_init_gpio(charger_gpios[0].gpio, OMAP_PIN_INPUT);
+	omap_mux_init_gpio(charger_gpios[1].gpio, OMAP_PIN_INPUT);
+	omap_mux_init_gpio(charger_gpios[2].gpio, OMAP_PIN_OUTPUT);
 
 	pdev = platform_device_register_resndata(NULL, "pda-power", -1,
 		charger_resources, ARRAY_SIZE(charger_resources),
