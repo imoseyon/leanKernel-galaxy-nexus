@@ -411,6 +411,14 @@ static struct platform_device omap_pcm = {
 };
 
 /*
+ * Device for the ASoC OMAP4 HDMI machine driver
+ */
+static struct platform_device omap4_hdmi_audio = {
+	.name	= "omap4-hdmi-audio",
+	.id	= -1,
+};
+
+/*
  * OMAP2420 has 2 McBSP ports
  * OMAP2430 has 5 McBSP ports
  * OMAP3 has 5 McBSP ports
@@ -438,6 +446,8 @@ static void omap_init_audio(void)
 			NULL, 0, false);
 		WARN(IS_ERR(od_hdmi), "%s: could not build omap_device for %s\n",
 			__func__, dev_hdmi_name);
+
+		platform_device_register(&omap4_hdmi_audio);
 	}
 
 	platform_device_register(&omap_mcbsp1);
