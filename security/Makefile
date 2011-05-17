@@ -26,3 +26,4 @@ obj-$(CONFIG_CGROUP_DEVICE)		+= device_cgroup.o
 # Object integrity file lists
 subdir-$(CONFIG_IMA)			+= integrity/ima
 obj-$(CONFIG_IMA)			+= integrity/ima/built-in.o
+obj-$(CONFIG_SECURITY_MIDDLEWARE_COMPONENT)     += smc/

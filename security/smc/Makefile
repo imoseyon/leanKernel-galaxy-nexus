@@ -1,0 +1,3 @@
+ifeq ($(CONFIG_SECURITY_MIDDLEWARE_COMPONENT),y)
+obj-$(CONFIG_ARCH_OMAP4)	+= omap4/
+endif

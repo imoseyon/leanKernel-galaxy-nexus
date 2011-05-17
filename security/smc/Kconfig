@@ -1,0 +1,45 @@
+config TF_MSHIELD
+	bool
+
+config SECURITY_MIDDLEWARE_COMPONENT
+	bool "Enable SMC Driver"
+	depends on ARCH_OMAP3 || ARCH_OMAP4
+	default n
+	select TF_MSHIELD
+	help
+	  This option adds kernel support for communication with the SMC
+	  Protected Application.
+
+	  If you are unsure how to answer this question, answer N.
+
+config SMC_KERNEL_CRYPTO
+	bool "Register SMC into kernel crypto subsytem"
+	depends on SECURITY_MIDDLEWARE_COMPONENT
+	default y
+	help
+	  This option enables crypto subsystem to use SMC and OMAP hardware
+	  accelerators.
+
+	  If you are unsure how to answer this question, answer Y.
+
+config SECURE_TRACE
+	bool "Enable SMC secure traces"
+	depends on SECURITY_MIDDLEWARE_COMPONENT && ARCH_OMAP4
+	default y
+	help
+	  This option enables traces from the SMC Protected Application to be
+	  displayed in kernel logs.
+
+config TF_DRIVER_DEBUG_SUPPORT
+	bool "Debug support"
+	depends on SECURITY_MIDDLEWARE_COMPONENT
+	default n
+	help
+	  This options enables debug traces in the driver.
+
+config SMC_BENCH_SECURE_CYCLE
+	bool "Enable secure cycles benchmarks"
+	depends on TF_DRIVER_DEBUG_SUPPORT && ARCH_OMAP4
+	default n
+	help
+	  This options enables benchmarks.
