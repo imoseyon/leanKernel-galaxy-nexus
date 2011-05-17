@@ -399,5 +399,14 @@ void cpufreq_frequency_table_get_attr(struct cpufreq_frequency_table *table,
 
 void cpufreq_frequency_table_put_attr(unsigned int cpu);
 
+/* the following are for use in governors, or anywhere else */
+extern int cpufreq_frequency_table_next_lowest(struct cpufreq_policy *policy,
+					struct cpufreq_frequency_table *table,
+					int *index);
+
+extern int cpufreq_frequency_table_next_highest(struct cpufreq_policy *policy,
+					struct cpufreq_frequency_table *table,
+					int *index);
+
 
 #endif /* _LINUX_CPUFREQ_H */
