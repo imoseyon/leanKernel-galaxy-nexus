@@ -1071,6 +1071,14 @@
 #define OMAP4430_SCLL_SHIFT						8
 #define OMAP4430_SCLL_MASK						(0xff << 8)
 
+/* Used by PRM_VC_CFG_I2C_CLK */
+#define OMAP4430_HSCLH_SHIFT						16
+#define OMAP4430_HSCLH_MASK						(0xff << 16)
+
+/* Used by PRM_VC_CFG_I2C_CLK */
+#define OMAP4430_HSCLL_SHIFT						24
+#define OMAP4430_HSCLL_MASK						(0xff << 24)
+
 /* Used by PRM_RSTST */
 #define OMAP4430_SECURE_WDT_RST_SHIFT					4
 #define OMAP4430_SECURE_WDT_RST_MASK					(1 << 4)

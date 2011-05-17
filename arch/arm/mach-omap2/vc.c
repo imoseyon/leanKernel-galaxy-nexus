@@ -291,14 +291,22 @@ static void __init omap3_vc_init_channel(struct voltagedomain *voltdm)
 static void __init omap4_vc_init_channel(struct voltagedomain *voltdm)
 {
 	static bool is_initialized;
-	u32 vc_val;
+	struct omap_voltdm_pmic *pmic = voltdm->pmic;
+	u32 vc_val = 0;
 
 	if (is_initialized)
 		return;
 
-	/* XXX These are magic numbers and do not belong! */
-	vc_val = (0x60 << OMAP4430_SCLL_SHIFT | 0x26 << OMAP4430_SCLH_SHIFT);
-	voltdm->write(vc_val, OMAP4_PRM_VC_CFG_I2C_CLK_OFFSET);
+	if (pmic->i2c_high_speed) {
+		vc_val |= pmic->i2c_hscll_low << OMAP4430_HSCLL_SHIFT;
+		vc_val |= pmic->i2c_hscll_high << OMAP4430_HSCLH_SHIFT;
+	}
+
+	vc_val |= pmic->i2c_scll_low << OMAP4430_SCLL_SHIFT;
+	vc_val |= pmic->i2c_scll_high << OMAP4430_SCLH_SHIFT;
+
+	if (vc_val)
+		voltdm->write(vc_val, OMAP4_PRM_VC_CFG_I2C_CLK_OFFSET);
 
 	is_initialized = true;
 }
