@@ -88,6 +88,7 @@ struct voltagedomain {
 	u32 curr_volt;
 
 	struct omap_vdd_info *vdd;
+	struct dentry *debug_dir;
 };
 
 /**

@@ -282,6 +282,65 @@ void omap_change_voltscale_method(struct voltagedomain *voltdm,
 	}
 }
 
+/* Voltage debugfs support */
+static int vp_volt_debug_get(void *data, u64 *val)
+{
+	struct voltagedomain *voltdm = (struct voltagedomain *)data;
+
+	if (!voltdm) {
+		pr_warning("Wrong paramater passed\n");
+		return -EINVAL;
+	}
+	*val = omap_vp_get_curr_volt(voltdm);
+
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(vp_volt_debug_fops, vp_volt_debug_get, NULL, "%llu\n");
+
+static int nom_volt_debug_get(void *data, u64 *val)
+{
+	struct voltagedomain *voltdm = (struct voltagedomain *) data;
+
+	if (!voltdm) {
+		pr_warning("Wrong paramater passed\n");
+		return -EINVAL;
+	}
+
+	*val = omap_voltage_get_nom_volt(voltdm);
+
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(nom_volt_debug_fops, nom_volt_debug_get, NULL,
+								"%llu\n");
+
+static void __init voltdm_debugfs_init(struct dentry *voltage_dir,
+					struct voltagedomain *voltdm)
+{
+	char *name;
+
+	name = kasprintf(GFP_KERNEL, "vdd_%s", voltdm->name);
+	if (!name) {
+		pr_warning("%s:vdd_%s: no mem for debugfs\n", __func__,
+				voltdm->name);
+		return;
+	}
+
+	voltdm->debug_dir = debugfs_create_dir(name, voltage_dir);
+	kfree(name);
+	if (IS_ERR_OR_NULL(voltdm->debug_dir)) {
+		pr_warning("%s: Unable to create debugfs directory for"
+			" vdd_%s\n", __func__, voltdm->name);
+		voltdm->debug_dir = NULL;
+		return;
+	}
+
+	(void) debugfs_create_file("curr_vp_volt", S_IRUGO, voltdm->debug_dir,
+				(void *) voltdm, &vp_volt_debug_fops);
+	(void) debugfs_create_file("curr_nominal_volt", S_IRUGO,
+				voltdm->debug_dir, (void *) voltdm,
+				&nom_volt_debug_fops);
+}
+
 /**
  * omap_voltage_late_init() - Init the various voltage parameters
  *
@@ -292,12 +351,15 @@ void omap_change_voltscale_method(struct voltagedomain *voltdm,
 int __init omap_voltage_late_init(void)
 {
 	struct voltagedomain *voltdm;
+	struct dentry *voltage_dir;
 
 	if (list_empty(&voltdm_list)) {
 		pr_err("%s: Voltage driver support not added\n",
 			__func__);
 		return -EINVAL;
 	}
+
+	voltage_dir = debugfs_create_dir("voltage", NULL);
 
 	list_for_each_entry(voltdm, &voltdm_list, node) {
 		if (!voltdm->scalable)
@@ -311,6 +373,10 @@ int __init omap_voltage_late_init(void)
 
 		if (voltdm->vc)
 			omap_vc_init_channel(voltdm);
+
+		if (voltage_dir)
+			voltdm_debugfs_init(voltage_dir, voltdm);
+
 	}
 
 	return 0;
