@@ -971,7 +971,7 @@ static s32 map_block(enum tiler_fmt fmt, u32 width, u32 height,
 		     u32 key, u32 gid, struct process_info *pi,
 		     struct mem_info **info, u32 usr_addr)
 {
-	u32 i = 0, tmp = -1, *mem = NULL;
+	u32 i = 0, tmp = -1, *mem = NULL, use_gp = 1;
 	u8 write = 0;
 	s32 res = -ENOMEM;
 	struct mem_info *mi = NULL;
@@ -1065,19 +1065,29 @@ static s32 map_block(enum tiler_fmt fmt, u32 width, u32 height,
 
 	tmp = mi->usr;
 	for (i = 0; i < mi->num_pg; i++) {
-		if (get_user_pages(curr_task, mm, tmp, 1, write, 1, &page,
-								NULL) && page) {
+		/*
+		 * At first use get_user_pages which works best for
+		 * userspace buffers.  If it fails (e.g. for kernel
+		 * allocated buffers), fall back to using the page
+		 * table directly.
+		 */
+		if (use_gp && get_user_pages(curr_task, mm, tmp, 1, write, 1,
+							&page, NULL) && page) {
 			if (page_count(page) < 1) {
 				printk(KERN_ERR "Bad page count from"
 							"get_user_pages()\n");
 			}
 			mi->pg_ptr[i] = (u32)page;
 			mem[i] = page_to_phys(page);
-			tmp += PAGE_SIZE;
 		} else {
-			printk(KERN_ERR "get_user_pages() failed\n");
-			goto fault;
+			use_gp = mi->pg_ptr[i] = 0;
+			mem[i] = tiler_virt2phys(tmp);
+			if (!mem[i]) {
+				printk(KERN_ERR "get_user_pages() failed and virtual address is not in page table\n");
+				goto fault;
+			}
 		}
+		tmp += PAGE_SIZE;
 	}
 	up_read(&mm->mmap_sem);
 
