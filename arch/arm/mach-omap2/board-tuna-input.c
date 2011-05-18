@@ -19,11 +19,15 @@
 #include <linux/gpio.h>
 #include <linux/i2c.h>
 #include <linux/i2c/atmel_mxt_ts.h>
+#include <linux/platform_data/mms_ts.h>
 #include <asm/mach-types.h>
 #include <plat/omap4-keypad.h>
 
 #include "board-tuna.h"
 #include "mux.h"
+
+#define GPIO_TOUCH_EN		54
+#define GPIO_TOUCH_IRQ		46
 
 static const int tuna_keymap[] = {
 	KEY(1, 1, KEY_VOLUMEDOWN),
@@ -105,34 +109,53 @@ static struct mxt_platform_data atmel_mxt_ts_pdata = {
 	.irqflags	= IRQF_TRIGGER_FALLING,
 };
 
-static struct i2c_board_info __initdata tuna_i2c3_boardinfo[] = {
+static struct i2c_board_info __initdata tuna_i2c3_boardinfo_pre_lunchbox[] = {
 	{
 		I2C_BOARD_INFO("atmel_mxt_ts", 0x4a),
 		.platform_data = &atmel_mxt_ts_pdata,
-		.irq = OMAP_GPIO_IRQ(46),
+		.irq = OMAP_GPIO_IRQ(GPIO_TOUCH_IRQ),
+	},
+};
+
+static struct mms_ts_platform_data mms_ts_pdata = {
+	.max_x		= 480,
+	.max_y		= 854,
+	.invert_x	= true,
+	.invert_y	= true,
+};
+
+static struct i2c_board_info __initdata tuna_i2c3_boardinfo_lunchbox[] = {
+	{
+		I2C_BOARD_INFO("mms_ts", 0x48),
+		.flags = I2C_CLIENT_WAKE,
+		.platform_data = &mms_ts_pdata,
+		.irq = OMAP_GPIO_IRQ(GPIO_TOUCH_IRQ),
 	},
 };
 
 void __init omap4_tuna_input_init(void)
 {
-	gpio_request(46, "tsp_int_n");
-	gpio_direction_input(46);
-	omap_mux_init_gpio(46, OMAP_PIN_INPUT_PULLUP);
+	gpio_request(GPIO_TOUCH_IRQ, "tsp_int_n");
+	gpio_direction_input(GPIO_TOUCH_IRQ);
+	omap_mux_init_gpio(GPIO_TOUCH_IRQ, OMAP_PIN_INPUT_PULLUP);
 
-	gpio_request(54, "tsp_en");
-	gpio_direction_output(54, 1);
-	omap_mux_init_gpio(54, OMAP_PIN_OUTPUT);
-
-	i2c_register_board_info(3, tuna_i2c3_boardinfo,
-		ARRAY_SIZE(tuna_i2c3_boardinfo));
+	gpio_request(GPIO_TOUCH_EN, "tsp_en");
+	gpio_direction_output(GPIO_TOUCH_EN, 1);
+	omap_mux_init_gpio(GPIO_TOUCH_EN, OMAP_PIN_OUTPUT);
 
 	if (omap4_tuna_get_revision() == TUNA_REV_PRE_LUNCHBOX) {
+		i2c_register_board_info(3, tuna_i2c3_boardinfo_pre_lunchbox,
+			ARRAY_SIZE(tuna_i2c3_boardinfo_pre_lunchbox));
+
 		omap_mux_init_signal("kpd_row1.kpd_row1", OMAP_PIN_INPUT_PULLUP);
 		omap_mux_init_signal("kpd_row2.kpd_row2", OMAP_PIN_INPUT_PULLUP);
 		omap_mux_init_signal("kpd_col1.kpd_col1", OMAP_PIN_OUTPUT);
 		omap4_keyboard_init(&tuna_keypad_data);
 		tuna_gpio_keypad_data.info_count = 1;
 	} else {
+		i2c_register_board_info(3, tuna_i2c3_boardinfo_lunchbox,
+			ARRAY_SIZE(tuna_i2c3_boardinfo_lunchbox));
+
 		omap_mux_init_gpio(8, OMAP_PIN_INPUT);
 		omap_mux_init_gpio(30, OMAP_PIN_INPUT);
 	}
