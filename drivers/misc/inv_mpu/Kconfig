@@ -1,0 +1,25 @@
+config MPU_SENSORS_TIMERIRQ
+	tristate "MPU Timer IRQ"
+	help
+	  If you say yes here you get access to the timerirq device handle which
+	  can be used to select on.  This can be used instead of IRQ's, sleeping,
+	  or timer threads.  Reading from this device returns the same type of
+	  information as reading from the MPU and slave IRQ's.
+
+menuconfig: INV_SENSORS
+	bool "Motion Processing Unit"
+	depends on I2C
+	default n
+
+if INV_SENSORS
+
+config MPU_SENSORS_MPU3050
+	tristate "MPU3050"
+	depends on I2C && INV_SENSORS
+	select MPU_SENSORS_MPU3050_GYRO
+	help
+	  If you say yes here you get support for the MPU3050 Gyroscope driver
+	  This driver can also be built as a module.  If so, the module
+	  will be called mpu3050.
+
+endif #INV_SENSORS
