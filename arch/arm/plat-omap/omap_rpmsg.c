@@ -397,11 +397,13 @@ static struct virtio_config_ops omap_rpmsg_config_ops = {
 };
 
 static struct rpmsg_channel_info omap_ipuc0_hardcoded_chnls[] = {
+	{ "rpmsg-resmgr", 100, RPMSG_ADDR_ANY },
 	{ "rpmsg-server-sample", 137, RPMSG_ADDR_ANY },
 	{ },
 };
 
 static struct rpmsg_channel_info omap_ipuc1_hardcoded_chnls[] = {
+	{ "rpmsg-resmgr", 100, RPMSG_ADDR_ANY },
 	{ },
 };
 
