@@ -87,7 +87,7 @@ void __init omap_vp_init(struct voltagedomain *voltdm)
 	voltdm->write(val, vp->vstepmin);
 
 	/* VSTEPMAX */
-	val = (waittime << vp->common->vstepmax_stepmax_shift) |
+	val = (vstepmax << vp->common->vstepmax_stepmax_shift) |
 		(waittime << vp->common->vstepmax_smpswaittimemax_shift);
 	voltdm->write(val, vp->vstepmax);
 
