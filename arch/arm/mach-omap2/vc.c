@@ -231,8 +231,8 @@ static void __init omap_vc_i2c_init(struct voltagedomain *voltdm)
 
 	i2c_high_speed = voltdm->pmic->i2c_high_speed;
 	if (i2c_high_speed)
-		voltdm->rmw(vc->common->i2c_cfg_hsen_shift,
-			    vc->common->i2c_cfg_hsen_shift,
+		voltdm->rmw(vc->common->i2c_cfg_hsen_mask,
+			    vc->common->i2c_cfg_hsen_mask,
 			    vc->common->i2c_cfg_reg);
 
 	mcode = voltdm->pmic->i2c_mcode;
