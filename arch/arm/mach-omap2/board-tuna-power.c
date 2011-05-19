@@ -29,11 +29,13 @@
 #define GPIO_CHARGING_N		159
 #define GPIO_TA_NCONNECTED	160
 #define GPIO_CHARGE_N		13
+#define CHG_CUR_ADJ		102
 
 static struct gpio charger_gpios[] = {
 	{ .gpio = GPIO_CHARGING_N, .flags = GPIOF_IN, .label = "charging_n" },
 	{ .gpio = GPIO_TA_NCONNECTED, .flags = GPIOF_IN, .label = "charger_n" },
-	{ .gpio = GPIO_CHARGE_N, .flags = GPIOF_OUT_INIT_LOW, .label = "charge_n " },
+	{ .gpio = GPIO_CHARGE_N, .flags = GPIOF_OUT_INIT_LOW, .label = "charge_n" },
+	{ .gpio = CHG_CUR_ADJ, .flags = GPIOF_OUT_INIT_LOW, .label = "charge_cur_adj" },
 };
 
 static int charger_init(struct device *dev)
