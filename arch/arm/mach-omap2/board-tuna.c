@@ -225,10 +225,16 @@ static struct regulator_init_data tuna_vaux2 = {
 	},
 };
 
+static struct regulator_consumer_supply tuna_vaux3_supplies[] = {
+	{
+		.supply = "vlcd",
+	},
+};
+
 static struct regulator_init_data tuna_vaux3 = {
 	.constraints = {
-		.min_uV			= 1000000,
-		.max_uV			= 3000000,
+		.min_uV			= 3300000,
+		.max_uV			= 3300000,
 		.apply_uV		= true,
 		.valid_modes_mask	= REGULATOR_MODE_NORMAL
 					| REGULATOR_MODE_STANDBY,
@@ -236,6 +242,8 @@ static struct regulator_init_data tuna_vaux3 = {
 					| REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
 	},
+	.num_consumer_supplies = ARRAY_SIZE(tuna_vaux3_supplies),
+	.consumer_supplies = &tuna_vaux3_supplies,
 };
 
 static struct regulator_init_data tuna_vmmc = {
@@ -277,6 +285,11 @@ static struct regulator_init_data tuna_vana = {
 	},
 };
 
+static struct regulator_consumer_supply tuna_vcxio_supply[] = {
+	REGULATOR_SUPPLY("vdds_dsi", "omapdss_dss"),
+	REGULATOR_SUPPLY("vdds_dsi", "omapdss_dsi1"),
+};
+
 static struct regulator_init_data tuna_vcxio = {
 	.constraints = {
 		.min_uV			= 1800000,
@@ -286,6 +299,9 @@ static struct regulator_init_data tuna_vcxio = {
 		.valid_ops_mask	 = REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
 	},
+	.num_consumer_supplies	= ARRAY_SIZE(tuna_vcxio_supply),
+	.consumer_supplies	= tuna_vcxio_supply,
+
 };
 
 static struct regulator_init_data tuna_vdac = {
