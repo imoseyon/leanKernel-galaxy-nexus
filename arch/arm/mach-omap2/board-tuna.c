@@ -429,6 +429,7 @@ static inline void board_serial_init(void)
 }
 #else
 #define board_mux	NULL
+#define board_wkup_mux	NULL
 
 static inline void board_serial_init(void)
 {
