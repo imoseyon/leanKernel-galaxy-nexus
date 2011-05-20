@@ -124,6 +124,11 @@ enum omap_panel_config {
 	OMAP_DSS_LCD_TFT		= 1<<20,
 };
 
+enum omap_dss_dsi_type {
+	OMAP_DSS_DSI_TYPE_CMD_MODE = 0,
+	OMAP_DSS_DSI_TYPE_VIDEO_MODE,
+};
+
 enum omap_dss_venc_type {
 	OMAP_DSS_VENC_TYPE_COMPOSITE,
 	OMAP_DSS_VENC_TYPE_SVIDEO,
@@ -144,6 +149,11 @@ enum omap_dss_display_state {
 	OMAP_DSS_DISPLAY_DISABLED = 0,
 	OMAP_DSS_DISPLAY_ACTIVE,
 	OMAP_DSS_DISPLAY_SUSPENDED,
+};
+
+enum omap_dispc_irq_type {
+	OMAP_DISPC_IRQ_TYPE_FRAMEDONE,
+	OMAP_DISPC_IRQ_TYPE_VSYNC,
 };
 
 /* XXX perhaps this should be removed */
@@ -241,6 +251,8 @@ int dsi_vc_set_max_rx_packet_size(struct omap_dss_device *dssdev, int channel,
 		u16 len);
 int dsi_vc_send_null(struct omap_dss_device *dssdev, int channel);
 int dsi_vc_send_bta_sync(struct omap_dss_device *dssdev, int channel);
+
+int dsi_video_mode_enable(struct omap_dss_device *dssdev, u8 data_type);
 
 /* Board specific data */
 struct omap_dss_board_info {
@@ -416,6 +428,7 @@ struct omap_dss_device {
 		} sdi;
 
 		struct {
+			enum omap_dss_dsi_type type;
 			u8 clk_lane;
 			u8 clk_pol;
 			u8 data1_lane;
@@ -426,7 +439,6 @@ struct omap_dss_device {
 			u8 data3_pol;
 			u8 data4_lane;
 			u8 data4_pol;
-
 			int module;
 
 			bool ext_te;
@@ -591,6 +603,8 @@ int omap_dispc_unregister_isr(omap_dispc_isr_t isr, void *arg, u32 mask);
 int omap_dispc_wait_for_irq_timeout(u32 irqmask, unsigned long timeout);
 int omap_dispc_wait_for_irq_interruptible_timeout(u32 irqmask,
 		unsigned long timeout);
+
+void omap_dispc_set_irq_type(int channel, enum omap_dispc_irq_type type);
 
 #define to_dss_driver(x) container_of((x), struct omap_dss_driver, driver)
 #define to_dss_device(x) container_of((x), struct omap_dss_device, dev)

@@ -492,6 +492,12 @@ static int omap_dss_set_device(struct omap_overlay_manager *mgr,
 	mgr->device = dssdev;
 	mgr->device_changed = true;
 
+	if (dssdev->type == OMAP_DISPLAY_TYPE_DSI &&
+	    !(dssdev->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE))
+		omap_dispc_set_irq_type(mgr->id, OMAP_DISPC_IRQ_TYPE_VSYNC);
+	else
+		omap_dispc_set_irq_type(mgr->id, OMAP_DISPC_IRQ_TYPE_FRAMEDONE);
+
 	return 0;
 }
 
