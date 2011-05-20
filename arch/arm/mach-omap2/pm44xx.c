@@ -224,10 +224,7 @@ static int __init pwrdms_setup(struct powerdomain *pwrdm, void *unused)
 		(!strcmp(pwrdm->name, "cpu1_pwrdm")))
 		return 0;
 
-	if (!strcmp(pwrdm->name, "mpu_pwrdm"))
-		next_state = PWRDM_POWER_OFF;
-	else
-		next_state = PWRDM_POWER_RET;
+	next_state = PWRDM_POWER_RET;
 
 	pwrst = kmalloc(sizeof(struct power_state), GFP_ATOMIC);
 	if (!pwrst)

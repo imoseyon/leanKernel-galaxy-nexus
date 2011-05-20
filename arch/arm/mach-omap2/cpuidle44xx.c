@@ -37,7 +37,7 @@
 #define OMAP4_STATE_C2		1
 /* C3 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
 #define OMAP4_STATE_C3		2
-/* C4 - CPU0 OFF + CPU1 OFF + MPU OFF + CORE CSWR */
+/* C4 - CPU0 OFF + CPU1 OFF + MPU RET + CORE CSWR */
 #define OMAP4_STATE_C4		3
 
 struct omap4_processor_cx {
@@ -75,7 +75,7 @@ static struct cpuidle_params cpuidle_params_table[] = {
 	{1,	140,	160,	300},
 	/* C3 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
 	{1,	200,	300,	7000},
-	/* C4 - CPU0 OFF + CPU1 OFF + MPU OFF + CORE CSWR */
+	/* C4 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
 	{1,	1400,	600,	15000},
 };
 
@@ -275,12 +275,12 @@ void omap4_init_power_states(void)
 	omap4_power_states[OMAP4_STATE_C4].threshold =
 			cpuidle_params_table[OMAP4_STATE_C4].threshold;
 	omap4_power_states[OMAP4_STATE_C4].cpu0_state = PWRDM_POWER_OFF;
-	omap4_power_states[OMAP4_STATE_C4].mpu_state = PWRDM_POWER_OFF;
-	omap4_power_states[OMAP4_STATE_C4].mpu_logic_state = PWRDM_POWER_OFF;
+	omap4_power_states[OMAP4_STATE_C4].mpu_state = PWRDM_POWER_RET;
+	omap4_power_states[OMAP4_STATE_C4].mpu_logic_state = PWRDM_POWER_RET;
 	omap4_power_states[OMAP4_STATE_C4].core_state = PWRDM_POWER_RET;
 	omap4_power_states[OMAP4_STATE_C4].core_logic_state = PWRDM_POWER_RET;
 	omap4_power_states[OMAP4_STATE_C4].flags = CPUIDLE_FLAG_TIME_VALID;
-	omap4_power_states[OMAP4_STATE_C4].desc = "MPU OFF + CORE CSWR";
+	omap4_power_states[OMAP4_STATE_C4].desc = "MPU CSWR + CORE CSWR";
 
 }
 
