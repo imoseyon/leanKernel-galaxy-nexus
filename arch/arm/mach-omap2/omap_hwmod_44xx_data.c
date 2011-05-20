@@ -1745,7 +1745,7 @@ static struct omap_hwmod_opt_clk gpio1_opt_clks[] = {
 	{ .role = "dbclk", .clk = "gpio1_dbclk" },
 };
 
-static struct omap_hwmod omap44xx_gpio1_hwmod = {
+static struct omap_hwmod omap443x_gpio1_hwmod = {
 	.name		= "gpio1",
 	.class		= &omap44xx_gpio_hwmod_class,
 	.mpu_irqs	= omap44xx_gpio1_irqs,
@@ -1761,7 +1761,27 @@ static struct omap_hwmod omap44xx_gpio1_hwmod = {
 	.dev_attr	= &gpio_dev_attr,
 	.slaves		= omap44xx_gpio1_slaves,
 	.slaves_cnt	= ARRAY_SIZE(omap44xx_gpio1_slaves),
-	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
+	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP4430),
+};
+
+static struct omap_hwmod omap446x_gpio1_hwmod = {
+	.name		= "gpio1",
+	.class		= &omap44xx_gpio_hwmod_class,
+	.flags          = HWMOD_INIT_NO_RESET,
+	.mpu_irqs	= omap44xx_gpio1_irqs,
+	.mpu_irqs_cnt	= ARRAY_SIZE(omap44xx_gpio1_irqs),
+	.main_clk	= "gpio1_ick",
+	.prcm = {
+		.omap4 = {
+			.clkctrl_reg = OMAP4430_CM_WKUP_GPIO1_CLKCTRL,
+		},
+	},
+	.opt_clks	= gpio1_opt_clks,
+	.opt_clks_cnt	= ARRAY_SIZE(gpio1_opt_clks),
+	.dev_attr	= &gpio_dev_attr,
+	.slaves		= omap44xx_gpio1_slaves,
+	.slaves_cnt	= ARRAY_SIZE(omap44xx_gpio1_slaves),
+	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP446X),
 };
 
 /* gpio2 */
@@ -5079,7 +5099,8 @@ static __initdata struct omap_hwmod *omap44xx_hwmods[] = {
 	&omap44xx_dss_venc_hwmod,
 
 	/* gpio class */
-	&omap44xx_gpio1_hwmod,
+	&omap443x_gpio1_hwmod,
+	&omap446x_gpio1_hwmod,
 	&omap44xx_gpio2_hwmod,
 	&omap44xx_gpio3_hwmod,
 	&omap44xx_gpio4_hwmod,
