@@ -30,6 +30,12 @@ config PANEL_NEC_NL8048HL11_01B
 		This NEC NL8048HL11-01B panel is TFT LCD
 		used in the Zoom2/3/3630 sdp boards.
 
+config PANEL_S6E8AA0
+        tristate "S6E8AA0 DSI Panel"
+        depends on OMAP2_DSS_DSI
+        help
+          S6E8AA0 video mode panel.
+
 config PANEL_TAAL
         tristate "Taal DSI Panel"
         depends on OMAP2_DSS_DSI
