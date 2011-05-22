@@ -14,6 +14,22 @@
 #define OMAP_ARCH_OMAP4_COMMON_H
 
 #include <asm/proc-fns.h>
+/*
+ * Secure low power context save/restore API index
+ */
+#define HAL_SAVESECURERAM_INDEX		0x1a
+#define HAL_SAVEHW_INDEX		0x1b
+#define HAL_SAVEALL_INDEX		0x1c
+#define HAL_SAVEGIC_INDEX		0x1d
+#define PPA_SERVICE_NS_SMP		0x25
+/*
+ * Secure HAL API flags
+ */
+#define FLAG_START_CRITICAL		0x4
+#define FLAG_IRQFIQ_MASK		0x3
+#define FLAG_IRQ_ENABLE			0x2
+#define FLAG_FIQ_ENABLE			0x1
+#define NO_FLAG				0x0
 
 #ifndef __ASSEMBLER__
 
@@ -65,6 +81,9 @@ extern int omap4_mpuss_init(void);
 extern int omap4_enter_lowpower(unsigned int cpu, unsigned int power_state);
 extern void omap4_cpu_suspend(unsigned int cpu, unsigned int save_state);
 extern void omap4_cpu_resume(void);
+extern u32 omap_smc2(u32 id, u32 falg, u32 pargs);
+extern u32 omap4_secure_dispatcher(u32 idx, u32 flag, u32 nargs,
+				u32 arg1, u32 arg2, u32 arg3, u32 arg4);
 #else
 static inline int omap4_enter_lowpower(unsigned int cpu,
 					unsigned int power_state)
@@ -86,6 +105,15 @@ static inline void omap4_cpu_resume(void)
 {
 }
 
+static inline u32 omap_smc2(u32 id, u32 falg, u32 pargs)
+{
+	return 0;
+}
+static inline u32 omap4_secure_dispatcher(u32 idx, u32 flag, u32 nargs,
+				u32 arg1, u32 arg2, u32 arg3, u32 arg4)
+{
+	return 0;
+}
 #endif	/* CONFIG_PM */
 #endif	/* CONFIG_SMP */
 #endif /* __ASSEMBLER__ */

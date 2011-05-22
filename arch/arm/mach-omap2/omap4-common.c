@@ -18,6 +18,7 @@
 
 #include <asm/hardware/gic.h>
 #include <asm/hardware/cache-l2x0.h>
+#include <asm/cacheflush.h>
 
 #include <mach/hardware.h>
 #include <mach/omap4-common.h>
@@ -185,3 +186,38 @@ static int __init omap4_sar_ram_init(void)
 	return 0;
 }
 early_initcall(omap4_sar_ram_init);
+
+
+/*
+ * omap4_sec_dispatcher: Routine to dispatch low power secure
+ * service routines
+ *
+ * @idx: The HAL API index
+ * @flag: The flag indicating criticality of operation
+ * @nargs: Number of valid arguments out of four.
+ * @arg1, arg2, arg3 args4: Parameters passed to secure API
+ *
+ * Return the error value on success/failure
+ */
+u32 omap4_secure_dispatcher(u32 idx, u32 flag, u32 nargs, u32 arg1, u32 arg2,
+							 u32 arg3, u32 arg4)
+{
+	u32 ret;
+	u32 param[5];
+
+	param[0] = nargs;
+	param[1] = arg1;
+	param[2] = arg2;
+	param[3] = arg3;
+	param[4] = arg4;
+
+	/*
+	 * Secure API needs physical address
+	 * pointer for the parameters
+	 */
+	flush_cache_all();
+	outer_clean_range(__pa(param), __pa(param + 5));
+	ret = omap_smc2(idx, flag, __pa(param));
+
+	return ret;
+}
