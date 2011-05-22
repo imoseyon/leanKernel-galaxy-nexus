@@ -30,7 +30,7 @@
 #define CACHE_DISABLE_MASK			0xffffe7fb
 #define TABLE_ADDRESS_OFFSET			0x04
 #define CR_VALUE_OFFSET				0x08
-
+#define SCU_CLEAR_STATE				0xFCFC
 /*
  * =============================
  * == CPU suspend entry point ==
@@ -179,6 +179,25 @@ sync:
 #endif
 
 do_WFI:
+	bl	omap4_get_sar_ram_base
+	mov	r4, r0
+	ldr     r9, [r4, #OMAP_TYPE_OFFSET]
+	cmp	r9, #0x1		@ Check for HS device
+	bne	scu_gp_set
+	orr	r4, r4, #SCU_OFFSET0
+	ldr     r0, [r4, #0x04]
+	ldr     r1, [r4, #0x08]
+	stmfd   r13!, {r4-r12, r14}
+	ldr	r12, =0x108		@ SCU power state secure API
+	smc	#0
+	ldmfd   r13!, {r4-r12, r14}
+	b	skip_gp_set
+scu_gp_set:
+	ldr     r3, [r4, #SCU_OFFSET0]
+	bl	omap4_get_sar_ram_base		@ Take CPUx out of coherency
+	mov	r2, r0
+	str	r3, [r2, #0x08]
+skip_gp_set:
 	/*
 	 * Execute an ISB instruction to ensure that all of the
 	 * CP15 register changes have been committed.
@@ -199,6 +218,22 @@ do_WFI:
 	 * CPU is in idle and low power state.
 	 */
 	wfi					@ Wait For Interrupt
+
+	cmp	r9, #0x1
+	bne	scu_gp_clear
+	mov     r0, #0x00
+	mov     r1, #0xff
+	stmfd   r13!, {r4-r12, r14}
+	ldr	r12, =0x108		@ SCU power state secure API
+	smc	#0
+	ldmfd   r13!, {r4-r12, r14}
+	b	skip_gp
+scu_gp_clear:
+	ldr	r3, =SCU_CLEAR_STATE
+	str	r3, [r2, #0x08]
+skip_gp:
+	dsb				@ Issue a write memory barrier
+
 
 	/*
 	 * CPU is here when it failed to enter OFF/DORMANT or

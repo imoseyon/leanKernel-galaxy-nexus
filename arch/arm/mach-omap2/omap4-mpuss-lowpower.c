@@ -133,14 +133,16 @@ static inline void clear_cpu_prev_pwrst(unsigned int cpu_id)
 static void scu_pwrst_prepare(unsigned int cpu_id, unsigned int cpu_state)
 {
 	struct omap4_cpu_pm_info *pm_info = &per_cpu(omap4_pm_info, cpu_id);
-	u32 scu_pwr_st;
+	u32 scu_pwr_st, l1_state;
 
 	switch (cpu_state) {
 	case PWRDM_POWER_RET:
 		scu_pwr_st = SCU_PM_DORMANT;
+		l1_state = 0x00;
 		break;
 	case PWRDM_POWER_OFF:
 		scu_pwr_st = SCU_PM_POWEROFF;
+		l1_state = 0xff;
 		break;
 	case PWRDM_POWER_ON:
 	case PWRDM_POWER_INACTIVE:
@@ -150,6 +152,8 @@ static void scu_pwrst_prepare(unsigned int cpu_id, unsigned int cpu_state)
 	}
 
 	__raw_writel(scu_pwr_st, pm_info->scu_sar_addr);
+	if (omap_type() != OMAP2_DEVICE_TYPE_GP)
+		writel(l1_state, pm_info->scu_sar_addr + 0x04);
 }
 
 /*
@@ -395,6 +399,20 @@ int __init omap4_mpuss_init(void)
 	if (!pm_info->pwrdm) {
 		pr_err("Lookup failed for CPU1 pwrdm\n");
 		return -ENODEV;
+	}
+
+	/*
+	 * Check the OMAP type and store it to scratchpad
+	 */
+	if (omap_type() != OMAP2_DEVICE_TYPE_GP) {
+		/* Memory not released */
+		secure_ram = dma_alloc_coherent(NULL, OMAP4_SECURE_RAM_STORAGE,
+			(dma_addr_t *)&omap4_secure_ram_phys, GFP_KERNEL);
+		if (!secure_ram)
+			pr_err("Unable to allocate secure ram storage\n");
+		writel(0x1, sar_base + OMAP_TYPE_OFFSET);
+	} else {
+		writel(0x0, sar_base + OMAP_TYPE_OFFSET);
 	}
 
 	/* Clear CPU previous power domain state */
