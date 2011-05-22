@@ -508,11 +508,12 @@ int __init omap4_mpuss_init(void)
 	 * program the SAR locations for interrupt security registers to
 	 * reflect the same.
 	 */
-	sar_writel(GIC_ISR_NON_SECURE, ICDISR_CPU0_OFFSET, 0);
-	sar_writel(GIC_ISR_NON_SECURE, ICDISR_CPU1_OFFSET, 0);
-	for (i = 0; i < max_spi_reg; i++)
-		sar_writel(GIC_ISR_NON_SECURE, ICDISR_SPI_OFFSET, i);
-
+	if (omap_type() == OMAP2_DEVICE_TYPE_GP) {
+		sar_writel(GIC_ISR_NON_SECURE, ICDISR_CPU0_OFFSET, 0);
+		sar_writel(GIC_ISR_NON_SECURE, ICDISR_CPU1_OFFSET, 0);
+		for (i = 0; i < max_spi_reg; i++)
+			sar_writel(GIC_ISR_NON_SECURE, ICDISR_SPI_OFFSET, i);
+	}
 	save_l2x0_auxctrl();
 
 	return 0;
