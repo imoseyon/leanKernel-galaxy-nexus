@@ -44,6 +44,8 @@
 #include <linux/smp.h>
 
 #include <asm/cacheflush.h>
+#include <linux/dma-mapping.h>
+
 #include <asm/tlbflush.h>
 #include <asm/smp_scu.h>
 #include <asm/system.h>
@@ -71,6 +73,15 @@
 
 /* GIC save SAR bank base */
 static struct powerdomain *mpuss_pd;
+/*
+ * Maximum Secure memory storage size.
+ */
+#define OMAP4_SECURE_RAM_STORAGE		(88 * SZ_1K)
+/*
+ * Physical address of secure memory storage
+ */
+dma_addr_t omap4_secure_ram_phys;
+static void *secure_ram;
 
 /* Variables to store maximum spi(Shared Peripheral Interrupts) registers. */
 static u32 max_spi_irq, max_spi_reg;
@@ -234,6 +245,33 @@ static void gic_save_context(void)
 	val |= (SAR_BACKUP_STATUS_GIC_CPU0 | SAR_BACKUP_STATUS_GIC_CPU1);
 	__raw_writel(val, sar_base + SAR_BACKUP_STATUS_OFFSET);
 }
+/*
+ * API to save GIC and Wakeupgen using secure API
+ * for HS/EMU device
+ */
+static void save_gic_wakeupgen_secure(void)
+{
+	u32 ret;
+	ret = omap4_secure_dispatcher(HAL_SAVEGIC_INDEX,
+					FLAG_IRQFIQ_MASK | FLAG_START_CRITICAL,
+					0, 0, 0, 0, 0);
+	if (!ret)
+		pr_debug("GIC and Wakeupgen context save failed\n");
+}
+
+/*
+ * API to save Secure RAM using secure API
+ * for HS/EMU device
+ */
+static void save_secure_ram(void)
+{
+	u32 ret;
+	ret = omap4_secure_dispatcher(HAL_SAVESECURERAM_INDEX,
+					FLAG_IRQFIQ_MASK | FLAG_START_CRITICAL,
+					1, omap4_secure_ram_phys, 0, 0, 0);
+	if (!ret)
+		pr_debug("Secure ram context save failed\n");
+}
 
 /*
  * OMAP4 MPUSS Low Power Entry Function
@@ -300,9 +338,24 @@ int omap4_enter_lowpower(unsigned int cpu, unsigned int power_state)
 	 * GIC lost during MPU OFF and OSWR
 	 */
 	pwrdm_clear_all_prev_pwrst(mpuss_pd);
+	if (pwrdm_read_next_pwrst(mpuss_pd) == PWRDM_POWER_RET) {
+		if (pwrdm_read_logic_retst(mpuss_pd) == PWRDM_POWER_OFF) {
+			if (omap_type() != OMAP2_DEVICE_TYPE_GP) {
+				save_gic_wakeupgen_secure();
+			} else {
+				omap_wakeupgen_save();
+				gic_save_context();
+			}
+		}
+	}
 	if (pwrdm_read_next_pwrst(mpuss_pd) == PWRDM_POWER_OFF) {
+	if (omap_type() != OMAP2_DEVICE_TYPE_GP) {
+			save_secure_ram();
+			save_gic_wakeupgen_secure();
+	} else {
 		omap_wakeupgen_save();
 		gic_save_context();
+	}
 		save_state = 3;
 	}
 
