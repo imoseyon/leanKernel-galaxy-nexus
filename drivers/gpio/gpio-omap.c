@@ -889,47 +889,94 @@ static void __init omap_gpio_show_rev(struct gpio_bank *bank)
  */
 static struct lock_class_key gpio_lock_class;
 
-/* TODO: Cleanup cpu_is_* checks */
 static void omap_gpio_mod_init(struct gpio_bank *bank)
 {
-	if (cpu_class_is_omap2()) {
-		if (cpu_is_omap44xx()) {
-			__raw_writel(0xffffffff, bank->base +
-					OMAP4_GPIO_IRQSTATUSCLR0);
-			__raw_writel(0x00000000, bank->base +
-					 OMAP4_GPIO_DEBOUNCENABLE);
-			/* Initialize interface clk ungated, module enabled */
-			__raw_writel(0, bank->base + OMAP4_GPIO_CTRL);
-		} else if (cpu_is_omap34xx()) {
-			__raw_writel(0x00000000, bank->base +
-					OMAP24XX_GPIO_IRQENABLE1);
-			__raw_writel(0xffffffff, bank->base +
-					OMAP24XX_GPIO_IRQSTATUS1);
-			__raw_writel(0x00000000, bank->base +
-					OMAP24XX_GPIO_DEBOUNCE_EN);
+	if (bank->width == 32) {
+		u32 clr_all = 0;		/* clear all the bits */
+		u32 set_all = 0xFFFFFFFF;	/* set all the bits */
 
+		if (bank_is_mpuio(bank)) {
+			__raw_writel(set_all, bank->base +
+						bank->regs->irqenable);
+
+			if (bank->suspend_support)
+				mpuio_init(bank);
+
+			return;
+		}
+
+		if (bank->regs->ctrl)
 			/* Initialize interface clk ungated, module enabled */
-			__raw_writel(0, bank->base + OMAP24XX_GPIO_CTRL);
+			 __raw_writel(clr_all, bank->base + bank->regs->ctrl);
+
+		if (bank->regs->clr_irqenable) {
+			__raw_writel(set_all, bank->base +
+						bank->regs->clr_irqenable);
+		} else if (bank->regs->irqenable) {
+			u32 i;
+
+			if (bank->regs->irqenable_inv)
+				i = set_all;
+			else
+				i = clr_all;
+
+			__raw_writel(i, bank->base + bank->regs->irqenable);
 		}
-	} else if (cpu_class_is_omap1()) {
-		if (bank_is_mpuio(bank) && bank->suspend_support) {
-			__raw_writew(0xffff, bank->base +
-				OMAP_MPUIO_GPIO_MASKIT / bank->stride);
-			mpuio_init(bank);
+
+		if (bank->regs->irqstatus) {
+			u32 i;
+
+			if (bank->regs->irqenable_inv)
+				i = clr_all;
+			else
+				i = set_all;
+
+			__raw_writel(i, bank->base + bank->regs->irqstatus);
 		}
-		if (cpu_is_omap15xx() && bank->method == METHOD_GPIO_1510) {
-			__raw_writew(0xffff, bank->base
-						+ OMAP1510_GPIO_INT_MASK);
-			__raw_writew(0x0000, bank->base
-						+ OMAP1510_GPIO_INT_STATUS);
+
+		if (bank->regs->debounce_en)
+			__raw_writel(clr_all, bank->base +
+						bank->regs->debounce_en);
+
+	} else if (bank->width == 16) {
+		u16 clr_all = 0;	/* clear all the bits */
+		u16 set_all = 0xFFFF;	/* set all the bits */
+
+		if (bank_is_mpuio(bank)) {
+			__raw_writew(set_all, bank->base +
+						bank->regs->irqenable);
+
+			if (bank->suspend_support)
+				mpuio_init(bank);
+
+			return;
 		}
-		if (cpu_is_omap16xx() && bank->method == METHOD_GPIO_1610) {
-			__raw_writew(0x0000, bank->base
-						+ OMAP1610_GPIO_IRQENABLE1);
-			__raw_writew(0xffff, bank->base
-						+ OMAP1610_GPIO_IRQSTATUS1);
-			__raw_writew(0x0014, bank->base
-						+ OMAP1610_GPIO_SYSCONFIG);
+
+		if (bank->regs->irqenable) {
+			u16 i;
+
+			if (bank->regs->irqenable_inv)
+				i = set_all;
+			else
+				i = clr_all;
+
+			__raw_writew(i, bank->base + bank->regs->irqenable);
+		}
+
+		if (bank->regs->irqstatus) {
+			u32 i;
+
+			if (bank->regs->irqenable_inv)
+				i = clr_all;
+			else
+				i = set_all;
+
+			__raw_writew(i, bank->base + bank->regs->irqstatus);
+		}
+
+		if (bank->regs->sysconfig) {
+			/* set wakeup-enable and smart-idle */
+			__raw_writew(0x14, bank->base + bank->regs->sysconfig);
 
 			/*
 			 * Enable system clock for GPIO module.
@@ -937,12 +984,6 @@ static void omap_gpio_mod_init(struct gpio_bank *bank)
 			 */
 			omap_writel(omap_readl(ULPD_CAM_CLK_CTRL) | 0x04,
 						ULPD_CAM_CLK_CTRL);
-		}
-		if (cpu_is_omap7xx() && bank->method == METHOD_GPIO_7XX) {
-			__raw_writel(0xffffffff, bank->base
-						+ OMAP7XX_GPIO_INT_MASK);
-			__raw_writel(0x00000000, bank->base
-						+ OMAP7XX_GPIO_INT_STATUS);
 		}
 	}
 }

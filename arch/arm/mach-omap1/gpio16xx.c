@@ -96,6 +96,7 @@ static struct omap_gpio_reg_offs omap16xx_gpio_regs = {
 	.wkup_set	= OMAP1610_GPIO_SET_WAKEUPENA,
 	.edgectrl1	= OMAP1610_GPIO_EDGE_CTRL1,
 	.edgectrl2	= OMAP1610_GPIO_EDGE_CTRL2,
+	.sysconfig	= OMAP1610_GPIO_SYSCONFIG,
 };
 
 static struct __initdata omap_gpio_platform_data omap16xx_gpio1_config = {
