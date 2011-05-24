@@ -101,16 +101,12 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 
 		pressed |= finger_mask;
 
-		/* slot must be first */
-		input_report_abs(info->input_dev, ABS_MT_SLOT, id);
+		input_mt_slot(info->input_dev, id);
+		input_mt_report_slot_state(info->input_dev,
+					   MT_TOOL_FINGER, true);
 		input_report_abs(info->input_dev, ABS_MT_TOUCH_MAJOR, 0xff);
 		input_report_abs(info->input_dev, ABS_MT_POSITION_X, x);
 		input_report_abs(info->input_dev, ABS_MT_POSITION_Y, y);
-
-		/* only need to provide the tracking id on first touch */
-		if (!(was_pressed & finger_mask))
-			input_report_abs(info->input_dev, ABS_MT_TRACKING_ID,
-					 id);
 
 		dev_dbg(&client->dev,
 			"finger %d (%d): x=%d y=%d\n", id, i, x, y);
@@ -122,20 +118,12 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 		dev_vdbg(&client->dev, "fingers %lx lifted\n", was_pressed);
 
 	for_each_set_bit(i, &was_pressed, MAX_FINGERS) {
-		input_report_abs(info->input_dev, ABS_MT_SLOT, i);
-		input_report_abs(info->input_dev, ABS_MT_TRACKING_ID, -1);
+		input_mt_slot(info->input_dev, i);
+		input_mt_report_slot_state(info->input_dev,
+					   MT_TOOL_FINGER, false);
 	}
 
-	if (num_fingers > 0) {
-		/* report the last finger we found down as the single touch,
-		 * totally arbitrary */
-		input_report_abs(info->input_dev, ABS_X, x);
-		input_report_abs(info->input_dev, ABS_Y, y);
-	}
-
-	input_report_key(info->input_dev, BTN_TOUCH, num_fingers > 0);
 	input_sync(info->input_dev);
-
 	info->pressed = pressed;
 
 out:
@@ -193,11 +181,7 @@ static int __devinit mms_ts_probe(struct i2c_client *client,
 	input_dev->dev.parent = &client->dev;
 
 	__set_bit(EV_ABS, input_dev->evbit);
-	__set_bit(EV_KEY, input_dev->evbit);
-	__set_bit(BTN_TOUCH, input_dev->keybit);
 	__set_bit(INPUT_PROP_DIRECT, input_dev->propbit);
-	input_set_abs_params(input_dev, ABS_X, 0, info->max_x, 0, 0);
-	input_set_abs_params(input_dev, ABS_Y, 0, info->max_y, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, 0, 0xff, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_X,
 			     0, info->max_x, 0, 0);
