@@ -523,6 +523,14 @@ static int dss_ovl_set_overlay_info(struct omap_overlay *ovl,
 		}
 	}
 
+	/* complete previous settings */
+	if (ovl->info_dirty)
+		dss_ovl_cb(&old_info.cb, ovl->id,
+			   (info->cb.fn == old_info.cb.fn &&
+			    info->cb.data == old_info.cb.data) ?
+			   DSS_COMPLETION_CHANGED_SET :
+			   DSS_COMPLETION_ECLIPSED_SET);
+
 	ovl->info_dirty = true;
 
 	return 0;

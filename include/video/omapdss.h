@@ -319,6 +319,24 @@ extern const struct omap_video_timings omap_dss_pal_timings;
 extern const struct omap_video_timings omap_dss_ntsc_timings;
 #endif
 
+enum omapdss_completion_status {
+	DSS_COMPLETION_PROGRAMMED = 0,
+	DSS_COMPLETION_DISPLAYED = 4,
+	DSS_COMPLETION_CHANGED_SET,
+	DSS_COMPLETION_CHANGED_CACHE,
+	DSS_COMPLETION_RELEASED = 8,
+	DSS_COMPLETION_ECLIPSED_SET,
+	DSS_COMPLETION_ECLIPSED_CACHE,
+	DSS_COMPLETION_ECLIPSED_SHADOW,
+	DSS_COMPLETION_TORN,
+};
+
+struct omapdss_ovl_cb {
+	/* optional callback method */
+	void (*fn)(void *data, int id, int status);
+	void *data;
+};
+
 struct omap_overlay_info {
 	bool enabled;
 
@@ -340,6 +358,8 @@ struct omap_overlay_info {
 	u8 global_alpha;
 	u8 pre_mult_alpha;
 	enum omap_overlay_zorder zorder;
+
+	struct omapdss_ovl_cb cb;
 };
 
 struct omap_overlay {
@@ -379,6 +399,8 @@ struct omap_overlay_manager_info {
 	bool trans_enabled;
 
 	bool alpha_enabled;
+
+	struct omapdss_ovl_cb cb;
 };
 
 struct omap_overlay_manager {
