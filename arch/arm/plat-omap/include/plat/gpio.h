@@ -202,6 +202,7 @@ struct omap_gpio_reg_offs {
 	u16 edgectrl2;
 	/* Not applicable for OMAP2+ as hwmod layer takes care of sysconfig */
 	u16 sysconfig;
+	u16 pinctrl;
 
 	bool irqenable_inv;
 };
