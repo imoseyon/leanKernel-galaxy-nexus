@@ -223,7 +223,7 @@ config OMAP_SERIAL_WAKE
 config OMAP_CARVEOUT_MEMPOOL_SIZE
 	hex "Physical carveout memory pool size (Byte)"
 	depends on OMAP_REMOTE_PROC
-	default 0x3300000
+	default 0x700000
 	help
 	  Allocate specified size of memory at boot time so we can ioremap
 	  it safely.
