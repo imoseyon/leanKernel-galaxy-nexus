@@ -199,6 +199,13 @@ enum omap_dss_clk_source {
 	OMAP_DSS_CLK_SRC_DSI2_PLL_HSDIV_DSI,	/* OMAP4: PLL2_CLK2 */
 };
 
+enum omap_overlay_zorder {
+	OMAP_DSS_OVL_ZORDER_0   = 0,
+	OMAP_DSS_OVL_ZORDER_1   = 1,
+	OMAP_DSS_OVL_ZORDER_2   = 2,
+	OMAP_DSS_OVL_ZORDER_3   = 3,
+};
+
 /* RFBI */
 
 struct rfbi_timings {
@@ -331,6 +338,7 @@ struct omap_overlay_info {
 	u16 out_height;	/* if 0, out_height == height */
 	u8 global_alpha;
 	u8 pre_mult_alpha;
+	enum omap_overlay_zorder zorder;
 };
 
 struct omap_overlay {

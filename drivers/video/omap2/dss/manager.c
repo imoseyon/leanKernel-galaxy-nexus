@@ -422,6 +422,7 @@ struct overlay_cache_data {
 	u32 fifo_high;
 
 	bool manual_update;
+	enum omap_overlay_zorder zorder;
 };
 
 struct manager_cache_data {
@@ -885,6 +886,8 @@ static int configure_overlay(enum omap_plane plane)
 	dispc_enable_replication(plane, c->replication);
 
 	dispc_set_burst_size(plane, c->burst_size);
+	dispc_set_zorder(plane, c->zorder);
+	dispc_enable_zorder(plane, 1);
 	dispc_setup_plane_fifo(plane, c->fifo_low, c->fifo_high);
 
 	dispc_enable_plane(plane, 1);
@@ -1314,6 +1317,7 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 		oc->out_height = ovl->info.out_height;
 		oc->global_alpha = ovl->info.global_alpha;
 		oc->pre_mult_alpha = ovl->info.pre_mult_alpha;
+		oc->zorder = ovl->info.zorder;
 
 		oc->replication =
 			dss_use_replication(dssdev, ovl->info.color_mode);

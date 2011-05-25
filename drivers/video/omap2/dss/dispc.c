@@ -1054,6 +1054,29 @@ void dispc_enable_gamma_table(bool enable)
 	REG_FLD_MOD(DISPC_CONFIG, enable, 9, 9);
 }
 
+void dispc_set_zorder(enum omap_plane plane,
+			enum omap_overlay_zorder zorder)
+{
+	u32 val;
+
+	if (!dss_has_feature(FEAT_OVL_ZORDER))
+		return;
+	val = dispc_read_reg(DISPC_OVL_ATTRIBUTES(plane));
+	val = FLD_MOD(val, zorder, 27, 26);
+	dispc_write_reg(DISPC_OVL_ATTRIBUTES(plane), val);
+}
+
+void dispc_enable_zorder(enum omap_plane plane, bool enable)
+{
+	u32 val;
+
+	if (!dss_has_feature(FEAT_OVL_ZORDER))
+		return;
+	val = dispc_read_reg(DISPC_OVL_ATTRIBUTES(plane));
+	val = FLD_MOD(val, enable, 25, 25);
+	dispc_write_reg(DISPC_OVL_ATTRIBUTES(plane), val);
+}
+
 static void _dispc_set_vid_color_conv(enum omap_plane plane, bool enable)
 {
 	u32 val;

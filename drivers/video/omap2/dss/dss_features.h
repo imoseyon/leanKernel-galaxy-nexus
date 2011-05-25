@@ -57,6 +57,7 @@ enum dss_feat_id {
 	FEAT_FIR_COEF_V			= 1 << 25,
 	FEAT_ALPHA_OMAP3_COMPAT		= 1 << 26,
 	FEAT_OVL_VID3			= 1 << 27,
+	FEAT_OVL_ZORDER			= 1 << 28,
 };
 
 /* DSS register field id */
