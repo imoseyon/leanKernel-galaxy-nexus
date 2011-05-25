@@ -143,7 +143,7 @@ static struct twl4030_usb_data omap4_usbphy_data = {
 
 static struct omap2_hsmmc_info mmc[] = {
 	{
-		.mmc		= 2,
+		.mmc		= 1,
 		.nonremovable	= true,
 		.caps		= MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA,
 		.ocr_mask       = MMC_VDD_165_195,
@@ -165,6 +165,10 @@ static struct omap2_hsmmc_info mmc[] = {
 };
 
 static struct regulator_consumer_supply tuna_vmmc_supply[] = {
+	{
+		.supply = "vmmc",
+		.dev_name = "omap_hsmmc.0",
+	},
 	{
 		.supply = "vmmc",
 		.dev_name = "omap_hsmmc.1",
@@ -234,11 +238,10 @@ static struct regulator_init_data tuna_vaux3 = {
 	},
 };
 
-/* VMMC1 for MMC1 card */
 static struct regulator_init_data tuna_vmmc = {
 	.constraints = {
-		.min_uV			= 1200000,
-		.max_uV			= 3000000,
+		.min_uV			= 1800000,
+		.max_uV			= 1800000,
 		.apply_uV		= true,
 		.valid_modes_mask	= REGULATOR_MODE_NORMAL
 					| REGULATOR_MODE_STANDBY,
@@ -246,8 +249,8 @@ static struct regulator_init_data tuna_vmmc = {
 					| REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
 	},
-	.num_consumer_supplies  = 1,
-	.consumer_supplies      = tuna_vmmc_supply,
+	.num_consumer_supplies = 2,
+	.consumer_supplies = tuna_vmmc_supply,
 };
 
 static struct regulator_init_data tuna_vpp = {
@@ -362,19 +365,6 @@ static struct omap_board_mux board_mux[] __initdata = {
 	OMAP4_MUX(CSI21_DY3, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
 	OMAP4_MUX(CSI21_DX3, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
 	OMAP4_MUX(USBB2_HSIC_STROBE, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
-	/* hsmmc d0-d7 */
-	OMAP4_MUX(GPMC_AD0, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
-	OMAP4_MUX(GPMC_AD1, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
-	OMAP4_MUX(GPMC_AD2, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
-	OMAP4_MUX(GPMC_AD3, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
-	OMAP4_MUX(GPMC_AD4, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
-	OMAP4_MUX(GPMC_AD5, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
-	OMAP4_MUX(GPMC_AD6, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
-	OMAP4_MUX(GPMC_AD7, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
-	/* hsmmc cmd */
-	OMAP4_MUX(GPMC_NWE, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
-	/* hsmmc clk */
-	OMAP4_MUX(GPMC_NOE, OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP),
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 
@@ -455,6 +445,9 @@ static inline void board_serial_init(void)
 }
 #endif
 
+#define HSMMC2_MUX (OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP)
+#define HSMMC1_MUX (OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP)
+
 static void __init tuna_init(void)
 {
 	int package = OMAP_PACKAGE_CBS;
@@ -464,6 +457,38 @@ static void __init tuna_init(void)
 	omap4_mux_init(board_mux, board_wkup_mux, package);
 
 	omap4_tuna_init_hw_rev();
+
+	if (omap4_tuna_final_gpios()) {
+		/* hsmmc d0-d7 */
+		omap_mux_init_signal("sdmmc1_dat0.sdmmc1_dat0", HSMMC1_MUX);
+		omap_mux_init_signal("sdmmc1_dat1.sdmmc1_dat1", HSMMC1_MUX);
+		omap_mux_init_signal("sdmmc1_dat2.sdmmc1_dat2", HSMMC1_MUX);
+		omap_mux_init_signal("sdmmc1_dat3.sdmmc1_dat3", HSMMC1_MUX);
+		omap_mux_init_signal("sdmmc1_dat4.sdmmc1_dat4", HSMMC1_MUX);
+		omap_mux_init_signal("sdmmc1_dat5.sdmmc1_dat5", HSMMC1_MUX);
+		omap_mux_init_signal("sdmmc1_dat6.sdmmc1_dat6", HSMMC1_MUX);
+		omap_mux_init_signal("sdmmc1_dat7.sdmmc1_dat7", HSMMC1_MUX);
+		/* hsmmc cmd */
+		omap_mux_init_signal("sdmmc1_cmd.sdmmc1_cmd", HSMMC1_MUX);
+		/* hsmmc clk */
+		omap_mux_init_signal("sdmmc1_clk.sdmmc1_clk", HSMMC1_MUX);
+	} else {
+		/* hsmmc d0-d7 */
+		omap_mux_init_signal("gpmc_ad0", HSMMC2_MUX);
+		omap_mux_init_signal("gpmc_ad1", HSMMC2_MUX);
+		omap_mux_init_signal("gpmc_ad2", HSMMC2_MUX);
+		omap_mux_init_signal("gpmc_ad3", HSMMC2_MUX);
+		omap_mux_init_signal("gpmc_ad4", HSMMC2_MUX);
+		omap_mux_init_signal("gpmc_ad5", HSMMC2_MUX);
+		omap_mux_init_signal("gpmc_ad6", HSMMC2_MUX);
+		omap_mux_init_signal("gpmc_ad7", HSMMC2_MUX);
+		/* hsmmc cmd */
+		omap_mux_init_signal("gpmc_nwe", HSMMC2_MUX);
+		/* hsmmc clk */
+		omap_mux_init_signal("gpmc_noe", HSMMC2_MUX);
+
+		mmc[0].mmc = 2;
+	}
 
 	if (omap4_tuna_get_revision() != TUNA_REV_PRE_LUNCHBOX) {
 		gpio_request(158, "emmc_en");
