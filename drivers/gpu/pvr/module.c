@@ -24,11 +24,15 @@
  *
  ******************************************************************************/
 
+#include <linux/version.h>
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38))
 #ifndef AUTOCONF_INCLUDED
- #include <linux/config.h>
+#include <linux/config.h>
+#endif
 #endif
 
-#if defined(SUPPORT_DRI_DRM)
+#if defined(SUPPORT_DRI_DRM) && !defined(SUPPORT_DRI_DRM_PLUGIN)
 #define	PVR_MOD_STATIC
 #else
 	
@@ -53,7 +57,6 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/version.h>
 #include <linux/fs.h>
 #include <linux/proc_fs.h>
 
@@ -100,7 +103,9 @@
 #if defined(SUPPORT_DRI_DRM)
 #include "pvr_drm.h"
 #endif
-#define DRVNAME		PVRSRV_MODNAME
+#if defined(PVR_LDM_MODULE)
+#define	DRVNAME		PVR_LDM_DRIVER_REGISTRATION_NAME
+#endif
 #define DEVNAME		PVRSRV_MODNAME
 
 #if defined(SUPPORT_DRI_DRM)
@@ -122,7 +127,7 @@ MODULE_PARM_DESC(gPVRDebugLevel, "Sets the level of debug output (default 0x7)")
 EXPORT_SYMBOL(PVRGetDisplayClassJTable);
 EXPORT_SYMBOL(PVRGetBufferClassJTable);
 
-#if defined(PVR_LDM_MODULE)
+#if defined(PVR_LDM_MODULE) && !defined(SUPPORT_DRI_DRM)
 static struct class *psPvrClass;
 #endif
 
@@ -253,10 +258,9 @@ static int __devinit PVRSRVDriverProbe(LDM_DEV *pDevice, const struct pci_device
 #endif	
 	
 	psSysData = SysAcquireDataNoCheck();
-	if ( psSysData == IMG_NULL)
+	if (psSysData == IMG_NULL)
 	{
 		gpsPVRLDMDev = pDevice;
-
 		if (SysInitialise() != PVRSRV_OK)
 		{
 			return -ENODEV;
@@ -311,7 +315,12 @@ static void __devexit PVRSRVDriverRemove(LDM_DEV *pDevice)
 
 
 #if defined(PVR_LDM_MODULE) || defined(PVR_DRI_DRM_PLATFORM_DEV)
+#if defined(SUPPORT_DRI_DRM) && !defined(PVR_DRI_DRM_PLATFORM_DEV) && \
+	!defined(SUPPORT_DRI_DRM_PLUGIN)
+void PVRSRVDriverShutdown(struct drm_device *pDevice)
+#else
 PVR_MOD_STATIC void PVRSRVDriverShutdown(LDM_DEV *pDevice)
+#endif
 {
 	PVR_TRACE(("PVRSRVDriverShutdown(pDevice=%p)", pDevice));
 
@@ -322,7 +331,8 @@ PVR_MOD_STATIC void PVRSRVDriverShutdown(LDM_DEV *pDevice)
 
 
 #if defined(PVR_LDM_MODULE) || defined(SUPPORT_DRI_DRM)
-#if defined(SUPPORT_DRI_DRM) && !defined(PVR_DRI_DRM_PLATFORM_DEV)
+#if defined(SUPPORT_DRI_DRM) && !defined(PVR_DRI_DRM_PLATFORM_DEV) && \
+	!defined(SUPPORT_DRI_DRM_PLUGIN)
 int PVRSRVDriverSuspend(struct drm_device *pDevice, pm_message_t state)
 #else
 PVR_MOD_STATIC int PVRSRVDriverSuspend(LDM_DEV *pDevice, pm_message_t state)
@@ -340,7 +350,8 @@ PVR_MOD_STATIC int PVRSRVDriverSuspend(LDM_DEV *pDevice, pm_message_t state)
 }
 
 
-#if defined(SUPPORT_DRI_DRM) && !defined(PVR_DRI_DRM_PLATFORM_DEV)
+#if defined(SUPPORT_DRI_DRM) && !defined(PVR_DRI_DRM_PLATFORM_DEV) && \
+	!defined(SUPPORT_DRI_DRM_PLUGIN)
 int PVRSRVDriverResume(struct drm_device *pDevice)
 #else
 PVR_MOD_STATIC int PVRSRVDriverResume(LDM_DEV *pDevice)
@@ -519,7 +530,9 @@ static int __init PVRCore_Init(void)
 #if !defined(PVR_LDM_MODULE)
 	PVRSRV_ERROR eError;
 #else
+#if !defined(SUPPORT_DRI_DRM)
 	struct device *psDev;
+#endif
 #endif
 
 #if !defined(SUPPORT_DRI_DRM)
@@ -556,7 +569,7 @@ static int __init PVRCore_Init(void)
 
 #if defined(PVR_LDM_MODULE)
 
-#if defined(PVR_LDM_PLATFORM_MODULE)
+#if defined(PVR_LDM_PLATFORM_MODULE) || defined(SUPPORT_DRI_DRM_PLUGIN)
 	if ((error = platform_driver_register(&powervr_driver)) != 0)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "PVRCore_Init: unable to register platform driver (%d)", error));
@@ -584,8 +597,9 @@ static int __init PVRCore_Init(void)
 		goto init_failed;
 	}
 #endif 
+#endif 
 
-#else 
+#if !defined(PVR_LDM_MODULE)
 	
 	if ((eError = SysInitialise()) != PVRSRV_OK)
 	{
@@ -613,7 +627,6 @@ static int __init PVRCore_Init(void)
 	}
 
 	PVR_TRACE(("PVRCore_Init: major device %d", AssignedMajorNumber));
-#endif 
 
 #if defined(PVR_LDM_MODULE)
 	
@@ -638,16 +651,17 @@ static int __init PVRCore_Init(void)
 		goto destroy_class;
 	}
 #endif 
+#endif 
 
 	return 0;
 
+#if !defined(SUPPORT_DRI_DRM)
 #if defined(PVR_LDM_MODULE)
 destroy_class:
 	class_destroy(psPvrClass);
 unregister_device:
-	unregister_chrdev((IMG_UINT)AssignedMajorNumber, DRVNAME);
+	unregister_chrdev((IMG_UINT)AssignedMajorNumber, DEVNAME);
 #endif
-#if !defined(SUPPORT_DRI_DRM)
 sys_deinit:
 #endif
 #if defined(PVR_LDM_MODULE)
@@ -701,16 +715,17 @@ static void __exit PVRCore_Cleanup(void)
 	SysAcquireData(&psSysData);
 #endif
 
+#if !defined(SUPPORT_DRI_DRM)
+
 #if defined(PVR_LDM_MODULE)
 	device_destroy(psPvrClass, MKDEV(AssignedMajorNumber, 0));
 	class_destroy(psPvrClass);
 #endif
 
-#if !defined(SUPPORT_DRI_DRM)
 #if (LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,22))
 	if (
 #endif	
-		unregister_chrdev((IMG_UINT)AssignedMajorNumber, DRVNAME)
+		unregister_chrdev((IMG_UINT)AssignedMajorNumber, DEVNAME)
 #if !(LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,22))
 								;
 #else	

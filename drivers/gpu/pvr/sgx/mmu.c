@@ -37,6 +37,7 @@
 #include "mmu.h"
 #include "sgxconfig.h"
 #include "sgx_bridge_km.h"
+#include "pdump_osfunc.h"
 
 #define UINT32_MAX_VALUE	0xFFFFFFFFUL
 
@@ -2313,6 +2314,8 @@ MMU_Create (MMU_CONTEXT *psMMUContext,
 	pMMUHeap->ui32PDMask = SGX_MMU_PD_MASK & (SGX_MMU_PD_MASK>>(32-SGX_FEATURE_ADDRESS_SPACE_SIZE));
 
 	
+#if !defined (SUPPORT_EXTERNAL_SYSTEM_CACHE)
+	
 
 
 
@@ -2325,7 +2328,7 @@ MMU_Create (MMU_CONTEXT *psMMUContext,
 						& (pMMUHeap->ui32DataPageMask
 							| pMMUHeap->ui32PTMask)) == 0);
 	}
-
+#endif
 	
 	pMMUHeap->ui32PTETotalUsable = pMMUHeap->psDevArena->ui32Size >> pMMUHeap->ui32PTShift;
 
@@ -3522,110 +3525,73 @@ IMG_VOID WorkaroundBRN22997Free(PVRSRV_DEVICE_NODE *psDeviceNode)
 #if defined(SUPPORT_EXTERNAL_SYSTEM_CACHE)
 PVRSRV_ERROR MMU_MapExtSystemCacheRegs(PVRSRV_DEVICE_NODE *psDeviceNode)
 {
-	PVRSRV_ERROR eError;
-	SYS_DATA *psSysData;
-	RA_ARENA *psLocalDevMemArena;
-	IMG_HANDLE hPTPageOSMemHandle = IMG_NULL;
-	IMG_UINT32 *pui32PD;
-	IMG_UINT32 *pui32PT = IMG_NULL;
-	IMG_CPU_PHYADDR sCpuPAddr;
-	IMG_DEV_PHYADDR sPTDevPAddr;
+	IMG_UINT32 *pui32PT;
 	PVRSRV_SGXDEV_INFO *psDevInfo;
 	IMG_UINT32 ui32PDIndex;
 	IMG_UINT32 ui32PTIndex;
+	PDUMP_MMU_ATTRIB sMMUAttrib;
 
 	psDevInfo = (PVRSRV_SGXDEV_INFO*)psDeviceNode->pvDevice;
-	pui32PD = (IMG_UINT32*)psDeviceNode->sDevMemoryInfo.pBMKernelContext->psMMUContext->pvPDCpuVAddr;
 
-	SysAcquireData(&psSysData);
+	sMMUAttrib = psDevInfo->sMMUAttrib;
+#if defined(PDUMP)
+	MMU_SetPDumpAttribs(&sMMUAttrib, psDeviceNode,
+						SGX_MMU_PAGE_MASK,
+						SGX_MMU_PT_SIZE * sizeof(IMG_UINT32));
+#endif
 
-	psLocalDevMemArena = psSysData->apsLocalDevMemArena[0];
-
-	
-	if(psLocalDevMemArena == IMG_NULL)
+#if defined(PDUMP)
 	{
-		
-		eError = OSAllocPages(PVRSRV_HAP_WRITECOMBINE | PVRSRV_HAP_KERNEL_ONLY,
-						   SGX_MMU_PAGE_SIZE,
-						   SGX_MMU_PAGE_SIZE,
-						   (IMG_VOID **)&pui32PT,
-						   &hPTPageOSMemHandle);
-		if (eError != PVRSRV_OK)
-		{
-			PVR_DPF((PVR_DBG_ERROR, "MMU_MapExtSystemCacheRegs: ERROR call to OSAllocPages failed"));
-			return eError;
-		}
+		IMG_CHAR		szScript[128];
 
-		
-		if(pui32PT)
-        {
-            sCpuPAddr = OSMapLinToCPUPhys(hPTPageOSMemHandle,
-										  pui32PT);
-        }
-        else
-        {
-            
-            sCpuPAddr = OSMemHandleToCpuPAddr(hPTPageOSMemHandle, 0);
-        }
-		sPTDevPAddr = SysCpuPAddrToDevPAddr(PVRSRV_DEVICE_TYPE_SGX, sCpuPAddr);
+		sprintf(szScript, "MALLOC :EXTSYSCACHE:PA_%08X%08X %u %u 0x%08X\r\n", 0, psDevInfo->sExtSysCacheRegsDevPBase.uiAddr, SGX_MMU_PAGE_SIZE, SGX_MMU_PAGE_SIZE, psDevInfo->sExtSysCacheRegsDevPBase.uiAddr);
+		PDumpOSWriteString2(szScript, PDUMP_FLAGS_CONTINUOUS);
 	}
-	else
-	{
-		IMG_SYS_PHYADDR sSysPAddr;
-
-		
-		if(RA_Alloc(psLocalDevMemArena,
-					SGX_MMU_PAGE_SIZE,
-					IMG_NULL,
-					IMG_NULL,
-					0,
-					SGX_MMU_PAGE_SIZE,
-					0,
-					&(sSysPAddr.uiAddr))!= IMG_TRUE)
-		{
-			PVR_DPF((PVR_DBG_ERROR, "MMU_MapExtSystemCacheRegs: ERROR call to RA_Alloc failed"));
-			return PVRSRV_ERROR_OUT_OF_MEMORY;
-		}
-
-		
-		sCpuPAddr = SysSysPAddrToCpuPAddr(sSysPAddr);
-		pui32PT = OSMapPhysToLin(sCpuPAddr,
-								SGX_MMU_PAGE_SIZE,
-                                PVRSRV_HAP_WRITECOMBINE|PVRSRV_HAP_KERNEL_ONLY,
-								&hPTPageOSMemHandle);
-		if(!pui32PT)
-		{
-			PVR_DPF((PVR_DBG_ERROR, "MMU_MapExtSystemCacheRegs: ERROR failed to map page tables"));
-			return PVRSRV_ERROR_BAD_MAPPING;
-		}
-
-		
-		sPTDevPAddr = SysCpuPAddrToDevPAddr(PVRSRV_DEVICE_TYPE_SGX, sCpuPAddr);
-
-		
-		psDevInfo->sExtSystemCacheRegsPTSysPAddr = sSysPAddr;
-	}
-
-	OSMemSet(pui32PT, 0, SGX_MMU_PAGE_SIZE);
+#endif
 
 	ui32PDIndex = (SGX_EXT_SYSTEM_CACHE_REGS_DEVVADDR_BASE & SGX_MMU_PD_MASK) >> (SGX_MMU_PAGE_SHIFT + SGX_MMU_PT_SHIFT);
 	ui32PTIndex = (SGX_EXT_SYSTEM_CACHE_REGS_DEVVADDR_BASE & SGX_MMU_PT_MASK) >> SGX_MMU_PAGE_SHIFT;
 
-	
-	pui32PD[ui32PDIndex] = (sPTDevPAddr.uiAddr>>SGX_MMU_PDE_ADDR_ALIGNSHIFT)
-							| SGX_MMU_PDE_VALID;
+	pui32PT = (IMG_UINT32 *) psDeviceNode->sDevMemoryInfo.pBMKernelContext->psMMUContext->apsPTInfoList[ui32PDIndex]->PTPageCpuVAddr;
+
 	
 	pui32PT[ui32PTIndex] = (psDevInfo->sExtSysCacheRegsDevPBase.uiAddr>>SGX_MMU_PTE_ADDR_ALIGNSHIFT)
 							| SGX_MMU_PTE_VALID;
 
+#if defined(PDUMP)
 	
-	PDUMPMALLOCPAGETABLE(&psDeviceNode->sDevId, hPTPageOSMemHandle, 0, pui32PT, SGX_MMU_PAGE_SIZE, 0, PDUMP_PT_UNIQUETAG);
-	PDUMPMEMPTENTRIES(&psDevInfo->sMMUAttrib, psDeviceNode->sDevMemoryInfo.pBMKernelContext->psMMUContext->hPDOSMemHandle, pui32PD, SGX_MMU_PAGE_SIZE, 0, IMG_TRUE, PDUMP_PD_UNIQUETAG, PDUMP_PT_UNIQUETAG);
-	PDUMPMEMPTENTRIES(&psDevInfo->sMMUAttrib, hPTPageOSMemHandle, pui32PT, SGX_MMU_PAGE_SIZE, 0, IMG_TRUE, PDUMP_PT_UNIQUETAG, PDUMP_PD_UNIQUETAG);
+	{
+		IMG_DEV_PHYADDR sDevPAddr;
+		IMG_CPU_PHYADDR sCpuPAddr;
+		IMG_UINT32 ui32PageMask;
+		IMG_UINT32 ui32PTE;
+		PVRSRV_ERROR eErr;
 
-	
-	psDevInfo->pui32ExtSystemCacheRegsPT = pui32PT;
-	psDevInfo->hExtSystemCacheRegsPTPageOSMemHandle = hPTPageOSMemHandle;
+		PDUMP_GET_SCRIPT_AND_FILE_STRING();
+
+		ui32PageMask = sMMUAttrib.ui32PTSize - 1;
+		sCpuPAddr = OSMapLinToCPUPhys(psDeviceNode->sDevMemoryInfo.pBMKernelContext->psMMUContext->apsPTInfoList[ui32PDIndex]->hPTPageOSMemHandle, &pui32PT[ui32PTIndex]);
+		sDevPAddr = SysCpuPAddrToDevPAddr(sMMUAttrib.sDevId.eDeviceType, sCpuPAddr);
+		ui32PTE = *((IMG_UINT32 *) (&pui32PT[ui32PTIndex]));
+
+		eErr = PDumpOSBufprintf(hScript,
+								ui32MaxLenScript,
+								"WRW :%s:PA_%08X%08X:0x%08X :%s:PA_%08X%08X:0x%08X\r\n",
+								sMMUAttrib.sDevId.pszPDumpDevName,
+								(IMG_UINT32)(IMG_UINTPTR_T)PDUMP_PT_UNIQUETAG,
+								(sDevPAddr.uiAddr) & ~ui32PageMask,
+								(sDevPAddr.uiAddr) & ui32PageMask,
+								"EXTSYSCACHE",
+								(IMG_UINT32)(IMG_UINTPTR_T)PDUMP_PD_UNIQUETAG,
+								(ui32PTE & sMMUAttrib.ui32PDEMask) << sMMUAttrib.ui32PTEAlignShift,
+								ui32PTE & ~sMMUAttrib.ui32PDEMask);
+					if(eErr != PVRSRV_OK)
+					{
+						return eErr;
+					}
+					PDumpOSWriteString2(hScript, PDUMP_FLAGS_CONTINUOUS);
+	}
+#endif
 
 	return PVRSRV_OK;
 }
@@ -3637,45 +3603,39 @@ PVRSRV_ERROR MMU_UnmapExtSystemCacheRegs(PVRSRV_DEVICE_NODE *psDeviceNode)
 	RA_ARENA *psLocalDevMemArena;
 	PVRSRV_SGXDEV_INFO *psDevInfo;
 	IMG_UINT32 ui32PDIndex;
-	IMG_UINT32 *pui32PD;
+	IMG_UINT32 ui32PTIndex;
+	IMG_UINT32 *pui32PT;
+	PDUMP_MMU_ATTRIB sMMUAttrib;
 
 	psDevInfo = (PVRSRV_SGXDEV_INFO*)psDeviceNode->pvDevice;
-	pui32PD = (IMG_UINT32*)psDeviceNode->sDevMemoryInfo.pBMKernelContext->psMMUContext->pvPDCpuVAddr;
 
+	sMMUAttrib = psDevInfo->sMMUAttrib;
+
+#if defined(PDUMP)
+	MMU_SetPDumpAttribs(&sMMUAttrib, psDeviceNode,
+						SGX_MMU_PAGE_MASK,
+						SGX_MMU_PT_SIZE * sizeof(IMG_UINT32));
+#endif
 	SysAcquireData(&psSysData);
 
 	psLocalDevMemArena = psSysData->apsLocalDevMemArena[0];
 
 	
 	ui32PDIndex = (SGX_EXT_SYSTEM_CACHE_REGS_DEVVADDR_BASE & SGX_MMU_PD_MASK) >> (SGX_MMU_PAGE_SHIFT + SGX_MMU_PT_SHIFT);
-	pui32PD[ui32PDIndex] = 0;
-
-	PDUMPMEMPTENTRIES(PVRSRV_DEVICE_TYPE_SGX, psDeviceNode->sDevMemoryInfo.pBMKernelContext->psMMUContext->hPDOSMemHandle, pui32PD, SGX_MMU_PAGE_SIZE, 0, IMG_TRUE, PDUMP_PD_UNIQUETAG, PDUMP_PT_UNIQUETAG);
-	PDUMPFREEPAGETABLE(&psDeviceNode->sDevId, psDevInfo->hExtSystemCacheRegsPTPageOSMemHandle, psDevInfo->pui32ExtSystemCacheRegsPT, SGX_MMU_PAGE_SIZE, 0, PDUMP_PT_UNIQUETAG);
+	ui32PTIndex = (SGX_EXT_SYSTEM_CACHE_REGS_DEVVADDR_BASE & SGX_MMU_PT_MASK) >> SGX_MMU_PAGE_SHIFT;
 
 	
-	if(psLocalDevMemArena == IMG_NULL)
+	if (psDeviceNode->sDevMemoryInfo.pBMKernelContext->psMMUContext->apsPTInfoList[ui32PDIndex])
 	{
-		if (psDevInfo->pui32ExtSystemCacheRegsPT != IMG_NULL)
+		if (psDeviceNode->sDevMemoryInfo.pBMKernelContext->psMMUContext->apsPTInfoList[ui32PDIndex]->PTPageCpuVAddr)
 		{
-			OSFreePages(PVRSRV_HAP_WRITECOMBINE | PVRSRV_HAP_KERNEL_ONLY,
-						  SGX_MMU_PAGE_SIZE,
-						  psDevInfo->pui32ExtSystemCacheRegsPT,
-						  psDevInfo->hExtSystemCacheRegsPTPageOSMemHandle);
+			pui32PT = (IMG_UINT32 *) psDeviceNode->sDevMemoryInfo.pBMKernelContext->psMMUContext->apsPTInfoList[ui32PDIndex]->PTPageCpuVAddr;
 		}
 	}
-	else
-	{
-		if (psDevInfo->pui32ExtSystemCacheRegsPT != IMG_NULL)
-		{
-			OSUnMapPhysToLin(psDevInfo->pui32ExtSystemCacheRegsPT,
-				 SGX_MMU_PAGE_SIZE,
-				 PVRSRV_HAP_WRITECOMBINE|PVRSRV_HAP_KERNEL_ONLY,
-				 psDevInfo->hExtSystemCacheRegsPTPageOSMemHandle);
 
-			RA_Free(psLocalDevMemArena, psDevInfo->sExtSystemCacheRegsPTSysPAddr.uiAddr, IMG_FALSE);
-		}
-	}
+	pui32PT[ui32PTIndex] = 0;
+
+	PDUMPMEMPTENTRIES(&sMMUAttrib, psDeviceNode->sDevMemoryInfo.pBMKernelContext->psMMUContext->hPDOSMemHandle, &pui32PT[ui32PTIndex], sizeof(IMG_UINT32), 0, IMG_FALSE, PDUMP_PD_UNIQUETAG, PDUMP_PT_UNIQUETAG);
 
 	return PVRSRV_OK;
 }

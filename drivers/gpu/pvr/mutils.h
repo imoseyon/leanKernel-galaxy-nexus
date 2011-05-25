@@ -27,11 +27,13 @@
 #ifndef __IMG_LINUX_MUTILS_H__
 #define __IMG_LINUX_MUTILS_H__
 
+#include <linux/version.h>
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38))
 #ifndef AUTOCONF_INCLUDED
 #include <linux/config.h>
 #endif
-
-#include <linux/version.h>
+#endif
 
 #if !(defined(__i386__) && (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26)))
 #if defined(SUPPORT_LINUX_X86_PAT)

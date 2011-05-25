@@ -83,7 +83,7 @@ IMG_BOOL OSUnMapPhysToLin(IMG_VOID *pvLinAddr, IMG_SIZE_T ui32Bytes, IMG_UINT32 
 PVRSRV_ERROR OSReservePhys(IMG_CPU_PHYADDR BasePAddr, IMG_SIZE_T ui32Bytes, IMG_UINT32 ui32Flags, IMG_VOID **ppvCpuVAddr, IMG_HANDLE *phOSMemHandle);
 PVRSRV_ERROR OSUnReservePhys(IMG_VOID *pvCpuVAddr, IMG_SIZE_T ui32Bytes, IMG_UINT32 ui32Flags, IMG_HANDLE hOSMemHandle);
 
-#if defined(__linux__) && defined(__KERNEL__)
+#if (defined(__linux__) && defined(__KERNEL__)) || (UNDER_CE >= 600)
 
 IMG_VOID OSFlushCPUCacheKM(IMG_VOID);
 

@@ -265,5 +265,11 @@ void OMAPLFBAtomicIntSet(OMAPLFB_ATOMIC_INT *psAtomic, int iVal);
 int OMAPLFBAtomicIntRead(OMAPLFB_ATOMIC_INT *psAtomic);
 void OMAPLFBAtomicIntInc(OMAPLFB_ATOMIC_INT *psAtomic);
 
+#if defined(DEBUG)
+void OMAPLFBPrintInfo(OMAPLFB_DEVINFO *psDevInfo);
+#else
+#define	OMAPLFBPrintInfo(psDevInfo)
+#endif
+
 #endif 
 

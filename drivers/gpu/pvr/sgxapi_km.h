@@ -63,7 +63,11 @@ extern "C" {
 #define SGX_CGBUFFER_HEAP_ID					13
 #endif
 #endif
-#define SGX_MAX_HEAP_ID							14
+#if defined(SUPPORT_MEMORY_TILING)
+#define SGX_VPB_TILED_HEAP_ID			14
+#endif
+
+#define SGX_MAX_HEAP_ID							15
 
 #if (defined(SUPPORT_PERCONTEXT_PB) || defined(SUPPORT_HYBRID_PB))
 #define SGX_3DPARAMETERS_HEAP_ID			SGX_PERCONTEXT_3DPARAMETERS_HEAP_ID	

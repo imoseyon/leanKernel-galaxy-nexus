@@ -35,6 +35,7 @@
 #if defined(TTRACE)
 #include "ttrace.h"
 #endif
+#include "perfkm.h"
 
 #include "pvrversion.h"
 
@@ -263,6 +264,7 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVInit(PSYS_DATA psSysData)
 	PDUMPINIT();
 	g_ui32InitFlags |= INIT_DATA_ENABLE_PDUMPINIT;
 
+	PERFINIT();
 	return eError;
 
 Error:
@@ -283,6 +285,9 @@ IMG_VOID IMG_CALLCONV PVRSRVDeInit(PSYS_DATA psSysData)
 		PVR_DPF((PVR_DBG_ERROR,"PVRSRVDeInit: PVRSRVHandleDeInit failed - invalid param"));
 		return;
 	}
+
+	PERFDEINIT();
+
 #if defined(TTRACE)
 	
 	if ((g_ui32InitFlags & INIT_DATA_ENABLE_TTARCE) > 0)

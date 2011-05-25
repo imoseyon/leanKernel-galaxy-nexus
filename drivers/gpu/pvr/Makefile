@@ -36,6 +36,9 @@ ccflags-y += \
 	-DPVR_PROC_USE_SEQ_FILE \
 	-DPVR_BUILD_DATE="" \
 	-DPVRSRV_MODNAME="\"pvrsrvkm\"" \
+	-DPVR_LDM_DRIVER_REGISTRATION_NAME="\"pvrsrvkm\"" \
+	-DPVRSRV_FLUSH_KERNEL_OPS_LAST_ONLY \
+	-DPVRSRV_DO_NOT_FLUSH_CLIENT_OPS \
 	-Idrivers/gpu/pvr/sgx
 
 ccflags-$(CONFIG_PVR_SGXCORE_540) += \

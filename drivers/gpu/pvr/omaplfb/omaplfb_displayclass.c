@@ -907,6 +907,9 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 			psDevInfo->uiFBDevID, ulLCM));
 
 	
+	OMAPLFBPrintInfo(psDevInfo);
+
+	
 	psPVRFBInfo->sSysAddr.uiAddr = psLINFBInfo->fix.smem_start;
 	psPVRFBInfo->sCPUVAddr = psLINFBInfo->screen_base;
 

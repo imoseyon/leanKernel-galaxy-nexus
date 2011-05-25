@@ -28,11 +28,14 @@
 #include "resman.h"
 
 #ifdef __linux__
+#include <linux/version.h>
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38))
 #ifndef AUTOCONF_INCLUDED
- #include <linux/config.h>
+#include <linux/config.h>
+#endif
 #endif
 
-#include <linux/version.h>
 #include <linux/sched.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,9)
 #include <linux/hardirq.h>
@@ -40,22 +43,34 @@
 #include <asm/hardirq.h>
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
+#include <linux/mutex.h>
+#else
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27)
 #include <linux/semaphore.h>
 #else
 #include <asm/semaphore.h>
 #endif
+#endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
+static DEFINE_MUTEX(lock);
+#define	DOWN(m) mutex_lock(m)
+#define	UP(m) mutex_unlock(m)
+#else
 static DECLARE_MUTEX(lock);
+#define	DOWN(m) down(m)
+#define	UP(m) up(m)
+#endif
 
 #define ACQUIRE_SYNC_OBJ  do {							\
 		if (in_interrupt()) { 							\
-			printk ("ISR cannot take RESMAN mutex\n"); 	\
+			printk("ISR cannot take RESMAN mutex\n"); 	\
 			BUG(); 										\
 		} 												\
-		else down (&lock); 								\
+		else DOWN(&lock); 								\
 } while (0)
-#define RELEASE_SYNC_OBJ up (&lock)
+#define RELEASE_SYNC_OBJ UP(&lock)
 
 #else
 

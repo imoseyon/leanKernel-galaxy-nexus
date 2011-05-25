@@ -41,6 +41,15 @@
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 
+#if defined(SUPPORT_DRI_DRM_PLUGIN)
+#include <drm/drmP.h>
+#include <drm/drm.h>
+
+#include <linux/omap_gpu.h>
+
+#include "pvr_drm.h"
+#endif
+
 #define	ONE_MHZ	1000000
 #define	HZ_TO_MHZ(m) ((m) / ONE_MHZ)
 
@@ -489,3 +498,42 @@ PVRSRV_ERROR SysPMRuntimeUnregister(void)
 #endif
 	return PVRSRV_OK;
 }
+
+#if defined(SUPPORT_DRI_DRM_PLUGIN)
+static struct omap_gpu_plugin sOMAPGPUPlugin;
+
+#define	SYS_DRM_SET_PLUGIN_FIELD(d, s, f) (d)->f = (s)->f
+int
+SysDRMRegisterPlugin(PVRSRV_DRM_PLUGIN *psDRMPlugin)
+{
+	int iRes;
+
+	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, name);
+	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, open);
+	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, load);
+	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, unload);
+	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, release);
+	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, mmap);
+	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, ioctls);
+	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, num_ioctls);
+	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, ioctl_start);
+
+	iRes = omap_gpu_register_plugin(&sOMAPGPUPlugin);
+	if (iRes != 0)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: omap_gpu_register_plugin failed (%d)", __FUNCTION__, iRes));
+	}
+
+	return iRes;
+}
+
+void
+SysDRMUnregisterPlugin(PVRSRV_DRM_PLUGIN *psDRMPlugin)
+{
+	int iRes = omap_gpu_unregister_plugin(&sOMAPGPUPlugin);
+	if (iRes != 0)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: omap_gpu_unregister_plugin failed (%d)", __FUNCTION__, iRes));
+	}
+}
+#endif

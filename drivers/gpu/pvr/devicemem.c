@@ -30,6 +30,7 @@
 #include "buffer_manager.h"
 #include "pdump_km.h"
 #include "pvr_bridge_km.h"
+#include "osfunc.h"
 
 static PVRSRV_ERROR AllocDeviceMem(IMG_HANDLE		hDevCookie,
 									IMG_HANDLE		hDevMemHeap,
@@ -95,6 +96,8 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVGetDeviceMemHeapsKM(IMG_HANDLE hDevCookie,
 		psHeapInfo[i].sDevVAddrBase = psDeviceMemoryHeap[i].sDevVAddrBase;
 		psHeapInfo[i].ui32HeapByteSize = psDeviceMemoryHeap[i].ui32HeapSize;
 		psHeapInfo[i].ui32Attribs = psDeviceMemoryHeap[i].ui32Attribs;
+		
+		psHeapInfo[i].ui32XTileStride = psDeviceMemoryHeap[i].ui32XTileStride;
 	}
 
 	for(; i < PVRSRV_MAX_CLIENT_HEAPS; i++)
@@ -174,6 +177,12 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVCreateDeviceMemContextKM(IMG_HANDLE					hDevCook
 				psHeapInfo[ui32ClientHeapCount].sDevVAddrBase = psDeviceMemoryHeap[i].sDevVAddrBase;
 				psHeapInfo[ui32ClientHeapCount].ui32HeapByteSize = psDeviceMemoryHeap[i].ui32HeapSize;
 				psHeapInfo[ui32ClientHeapCount].ui32Attribs = psDeviceMemoryHeap[i].ui32Attribs;
+				#if defined(SUPPORT_MEMORY_TILING)
+				psHeapInfo[ui32ClientHeapCount].ui32XTileStride = psDeviceMemoryHeap[i].ui32XTileStride;
+				#else
+				psHeapInfo[ui32ClientHeapCount].ui32XTileStride = 0;
+				#endif
+
 #if defined(PVR_SECURE_HANDLES) || defined (SUPPORT_SID_INTERFACE)
 				pbShared[ui32ClientHeapCount] = IMG_TRUE;
 #endif
@@ -203,6 +212,11 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVCreateDeviceMemContextKM(IMG_HANDLE					hDevCook
 				psHeapInfo[ui32ClientHeapCount].sDevVAddrBase = psDeviceMemoryHeap[i].sDevVAddrBase;
 				psHeapInfo[ui32ClientHeapCount].ui32HeapByteSize = psDeviceMemoryHeap[i].ui32HeapSize;
 				psHeapInfo[ui32ClientHeapCount].ui32Attribs = psDeviceMemoryHeap[i].ui32Attribs;
+				#if defined(SUPPORT_MEMORY_TILING)
+				psHeapInfo[ui32ClientHeapCount].ui32XTileStride = psDeviceMemoryHeap[i].ui32XTileStride;
+				#else
+				psHeapInfo[ui32ClientHeapCount].ui32XTileStride = 0;
+				#endif
 #if defined(PVR_SECURE_HANDLES) || defined (SUPPORT_SID_INTERFACE)
 				pbShared[ui32ClientHeapCount] = IMG_FALSE;
 #endif
@@ -285,6 +299,7 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVGetDeviceMemHeapInfoKM(IMG_HANDLE					hDevCookie
 				psHeapInfo[ui32ClientHeapCount].sDevVAddrBase = psDeviceMemoryHeap[i].sDevVAddrBase;
 				psHeapInfo[ui32ClientHeapCount].ui32HeapByteSize = psDeviceMemoryHeap[i].ui32HeapSize;
 				psHeapInfo[ui32ClientHeapCount].ui32Attribs = psDeviceMemoryHeap[i].ui32Attribs;
+				psHeapInfo[ui32ClientHeapCount].ui32XTileStride = psDeviceMemoryHeap[i].ui32XTileStride;
 #if defined(PVR_SECURE_HANDLES) || defined (SUPPORT_SID_INTERFACE)
 				pbShared[ui32ClientHeapCount] = IMG_TRUE;
 #endif
@@ -314,6 +329,7 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVGetDeviceMemHeapInfoKM(IMG_HANDLE					hDevCookie
 				psHeapInfo[ui32ClientHeapCount].sDevVAddrBase = psDeviceMemoryHeap[i].sDevVAddrBase;
 				psHeapInfo[ui32ClientHeapCount].ui32HeapByteSize = psDeviceMemoryHeap[i].ui32HeapSize;
 				psHeapInfo[ui32ClientHeapCount].ui32Attribs = psDeviceMemoryHeap[i].ui32Attribs;
+				psHeapInfo[ui32ClientHeapCount].ui32XTileStride = psDeviceMemoryHeap[i].ui32XTileStride;
 #if defined(PVR_SECURE_HANDLES) || defined (SUPPORT_SID_INTERFACE)
 				pbShared[ui32ClientHeapCount] = IMG_FALSE;
 #endif
@@ -585,6 +601,113 @@ static IMG_VOID freeWrapped(PVRSRV_KERNEL_MEM_INFO *psMemInfo)
 	}
 }
 
+
+#if defined (PVRSRV_FLUSH_KERNEL_OPS_LAST_ONLY)
+static
+PVRSRV_ERROR _PollUntilAtLeast(volatile IMG_UINT32* pui32WatchedValue,
+                               IMG_UINT32 ui32MinimumValue,
+                               IMG_UINT32 ui32Waitus,
+                               IMG_UINT32 ui32Tries)
+{
+	PVRSRV_ERROR eError;
+	IMG_INT32 iDiff;
+
+	for(;;)
+	{
+		SYS_DATA *psSysData = SysAcquireDataNoCheck();
+		iDiff = *pui32WatchedValue - ui32MinimumValue;
+
+		if (iDiff >= 0)
+		{
+			eError = PVRSRV_OK;
+			break;
+		}
+
+		if(!ui32Tries)
+		{
+			eError = PVRSRV_ERROR_TIMEOUT_POLLING_FOR_VALUE;
+			break;
+		}
+
+		ui32Tries--;
+
+		
+		if (psSysData->psGlobalEventObject)
+		{
+			IMG_HANDLE hOSEventKM;
+			if(psSysData->psGlobalEventObject)
+			{
+				eError = OSEventObjectOpenKM(psSysData->psGlobalEventObject, &hOSEventKM);
+				if (eError |= PVRSRV_OK)
+				{
+					PVR_DPF((PVR_DBG_ERROR,
+								"_PollUntilAtLeast: OSEventObjectOpen failed"));
+					goto Exit;
+				}
+				eError = OSEventObjectWaitKM(hOSEventKM);
+				if (eError != PVRSRV_OK)
+				{
+					PVR_DPF((PVR_DBG_ERROR,
+								"_PollUntilAtLeast: PVRSRVEventObjectWait failed"));
+					goto Exit;
+				}
+				eError = OSEventObjectCloseKM(psSysData->psGlobalEventObject, hOSEventKM);
+				if (eError != PVRSRV_OK)
+				{
+					PVR_DPF((PVR_DBG_ERROR,
+								"_PollUntilAtLeast: OSEventObjectClose failed"));
+				}
+			}
+		}
+	}
+Exit:
+	return eError;
+}
+
+static PVRSRV_ERROR FlushKernelOps(PVRSRV_SYNC_DATA *psSyncData)
+{
+	PVRSRV_ERROR eError;
+
+	if(!psSyncData)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "FlushKernelOps: invalid psSyncData"));
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	
+
+
+
+
+
+
+
+
+	eError = _PollUntilAtLeast(&psSyncData->ui32ReadOpsComplete,
+                               psSyncData->ui32ReadOpsPending,
+                               MAX_HW_TIME_US/WAIT_TRY_COUNT,
+                               WAIT_TRY_COUNT);
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "FlushClientOps: Read ops pending timeout"));
+		PVR_DBG_BREAK; 
+		return eError;
+	}
+
+	eError = _PollUntilAtLeast(&psSyncData->ui32WriteOpsComplete,
+                               psSyncData->ui32WriteOpsPending,
+                               MAX_HW_TIME_US/WAIT_TRY_COUNT,
+                               WAIT_TRY_COUNT);
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "FlushClientOps: Write ops pending timeout"));
+		PVR_DBG_BREAK; 
+	}
+
+	return eError;
+}
+#endif 
+
 static PVRSRV_ERROR FreeMemCallBackCommon(PVRSRV_KERNEL_MEM_INFO *psMemInfo,
 										  IMG_UINT32	ui32Param,
 										  IMG_BOOL	bFromAllocator)
@@ -630,6 +753,15 @@ static PVRSRV_ERROR FreeMemCallBackCommon(PVRSRV_KERNEL_MEM_INFO *psMemInfo,
 	
 	if (psMemInfo->ui32RefCount == 0)
 	{
+#if defined (PVRSRV_FLUSH_KERNEL_OPS_LAST_ONLY)
+		if (psMemInfo->psKernelSyncInfo)
+		{
+			if (psMemInfo->psKernelSyncInfo->ui32RefCount == 1)
+			{
+				FlushKernelOps(psMemInfo->psKernelSyncInfo->psSyncData);
+			}
+		}
+#endif
 		switch(psMemInfo->memType)
 		{
 			

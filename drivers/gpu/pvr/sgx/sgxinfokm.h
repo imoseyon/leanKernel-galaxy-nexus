@@ -101,6 +101,7 @@ typedef struct _PVRSRV_SGXDEV_INFO_
 	
 	IMG_DEV_PHYADDR			sKernelPDDevPAddr;
 
+	IMG_UINT32				ui32HeapCount;			
 	IMG_VOID				*pvDeviceMemoryHeap;
 	PPVRSRV_KERNEL_MEM_INFO	psKernelCCBMemInfo;			
 	PVRSRV_SGX_KERNEL_CCB	*psKernelCCB;			

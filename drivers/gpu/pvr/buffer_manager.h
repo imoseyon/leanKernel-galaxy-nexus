@@ -86,6 +86,8 @@ struct _BM_HEAP_
 	
 	struct _BM_HEAP_ 		*psNext;
 	struct _BM_HEAP_ 		**ppsThis;
+	
+	IMG_UINT32 				ui32XTileStride;
 };
 
 struct _BM_CONTEXT_

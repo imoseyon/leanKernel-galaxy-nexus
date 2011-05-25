@@ -24,42 +24,13 @@
  *
  ******************************************************************************/
 
-#if !defined(__SOCCONFIG_H__)
-#define __SOCCONFIG_H__
+#ifndef _PERFKM_H_
+#define _PERFKM_H_
 
-#define VS_PRODUCT_NAME	"OMAP4"
+#include "img_types.h"
 
-#if defined(SGX540) && (SGX_CORE_REV == 120)
-#define SYS_SGX_CLOCK_SPEED		320000000
-#else
-#define SYS_SGX_CLOCK_SPEED		304742400
-#endif
+#define PERFINIT()
+#define PERFDEINIT()
 
-#define SYS_SGX_HWRECOVERY_TIMEOUT_FREQ		(100)	
-#define SYS_SGX_PDS_TIMER_FREQ				(1000)	
+#endif 
 
-#if !defined(SYS_SGX_ACTIVE_POWER_LATENCY_MS)
-#define SYS_SGX_ACTIVE_POWER_LATENCY_MS		(1)
-#endif
-
-
-#define SYS_OMAP4430_SGX_REGS_SYS_PHYS_BASE  0x56000000
-
-#define SYS_OMAP4430_SGX_REGS_SIZE           0xFFFF
-
-#define SYS_OMAP4430_SGX_IRQ				 53 
-
-#define SYS_OMAP4430_GP11TIMER_ENABLE_SYS_PHYS_BASE	0x48088038
-#define SYS_OMAP4430_GP11TIMER_REGS_SYS_PHYS_BASE	0x4808803C
-#define SYS_OMAP4430_GP11TIMER_TSICR_SYS_PHYS_BASE	0x48088054
-
-#if defined(__linux__)
-#if defined(PVR_LDM_PLATFORM_PRE_REGISTERED_DEV)
-#define	SYS_SGX_DEV_NAME	PVR_LDM_PLATFORM_PRE_REGISTERED_DEV
-#else
-#define	SYS_SGX_DEV_NAME	"omap_gpu"
-#endif	
-#endif	
-
- 
-#endif	

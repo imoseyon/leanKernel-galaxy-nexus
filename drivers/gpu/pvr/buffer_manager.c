@@ -175,15 +175,22 @@ AllocMemory (BM_CONTEXT				*pBMContext,
 		}
 		else
 		{
+			IMG_BOOL bResult;
 			
 
 			
-			pBMContext->psDeviceNode->pfnMMUAlloc (psBMHeap->pMMUHeap,
+			bResult = pBMContext->psDeviceNode->pfnMMUAlloc (psBMHeap->pMMUHeap,
 													uSize,
 													IMG_NULL,
 													0,
 													uDevVAddrAlignment,
 													&pBuf->DevVAddr);
+
+			if(!bResult)
+			{
+				PVR_DPF((PVR_DBG_ERROR, "AllocMemory: MMUAlloc failed"));
+				return IMG_FALSE;
+			}
 		}
 
 		
@@ -1059,6 +1066,9 @@ BM_CreateHeap (IMG_HANDLE hBMContext,
 	psBMHeap->sDevArena.ui32DataPageSize = psDevMemHeapInfo->ui32DataPageSize;
 	psBMHeap->sDevArena.psDeviceMemoryHeapInfo = psDevMemHeapInfo;
 	psBMHeap->ui32Attribs = psDevMemHeapInfo->ui32Attribs;
+#if defined(SUPPORT_MEMORY_TILING)
+	psBMHeap->ui32XTileStride = psDevMemHeapInfo->ui32XTileStride;
+#endif
 
 	
 	psBMHeap->pBMContext = pBMContext;
