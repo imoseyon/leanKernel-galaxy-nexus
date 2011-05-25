@@ -63,6 +63,12 @@ static void omap4_tuna_init_hw_rev(void)
 {
 	int ret;
 	int i;
+	u32 r;
+
+	/* Disable weak driver pulldown on usbb2_hsic_strobe */
+	r = omap4_ctrl_pad_readl(OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_USBB_HSIC);
+	r &= ~OMAP4_USBB2_HSIC_STROBE_WD_MASK;
+	omap4_ctrl_pad_writel(r, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_USBB_HSIC);
 
 	ret = gpio_request_array(tuna_hw_rev_gpios,
 		ARRAY_SIZE(tuna_hw_rev_gpios));
@@ -83,6 +89,18 @@ int omap4_tuna_get_revision(void)
 int omap4_tuna_get_type(void)
 {
 	return tuna_hw_rev & TUNA_TYPE_MASK;
+}
+
+bool omap4_tuna_final_gpios(void)
+{
+	int type = omap4_tuna_get_type();
+	int rev = omap4_tuna_get_revision();
+
+	if (type == TUNA_TYPE_TORO ||
+	    (rev != TUNA_REV_PRE_LUNCHBOX && rev != TUNA_REV_LUNCHBOX))
+		return true;
+
+	return false;
 }
 
 /* wl127x BT, FM, GPS connectivity chip */

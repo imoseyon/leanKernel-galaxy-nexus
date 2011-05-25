@@ -17,10 +17,14 @@
 #define TUNA_REV_PRE_LUNCHBOX	0x5
 #define TUNA_REV_LUNCHBOX	0x0
 #define TUNA_REV_MASK		0xf
+
+#define TUNA_TYPE_TORO		0x10
+#define TUNA_TYPE_MAGURO	0x00
 #define TUNA_TYPE_MASK		0x10
 
 int omap4_tuna_get_revision(void);
 int omap4_tuna_get_type(void);
+bool omap4_tuna_final_gpios(void);
 void omap4_tuna_android_usb_init(void);
 void omap4_tuna_display_init(void);
 void omap4_tuna_input_init(void);
