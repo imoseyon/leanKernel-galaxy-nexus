@@ -1,5 +1,6 @@
 config RPMSG
 	tristate "Virtio-based remote processor messaging bus"
+	default y
 	select VIRTIO
 	select VIRTIO_RING
 	depends on OMAP_RPMSG
@@ -16,6 +17,7 @@ config RPMSG
 
 config RPMSG_OMX
 	tristate "rpmsg OMX driver"
+	default y
 	depends on RPMSG
 	---help---
 	  An rpmsg driver that exposes OMX API to user space, in order to
@@ -26,6 +28,7 @@ config RPMSG_OMX
 
 config RPMSG_CLIENT_SAMPLE
 	tristate "An rpmsg client sample"
+	default m
 	depends on RPMSG
 	---help---
 	  This is just a sample client driver for the rpmsg bus.
@@ -33,6 +36,7 @@ config RPMSG_CLIENT_SAMPLE
 
 config RPMSG_SERVER_SAMPLE
 	tristate "An rpmsg server sample"
+	default m
 	depends on RPMSG
 	---help---
 	  This is just a sample server driver for the rpmsg bus.
