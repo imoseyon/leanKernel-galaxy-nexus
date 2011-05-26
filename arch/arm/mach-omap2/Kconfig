@@ -342,6 +342,15 @@ config OMAP3_SDRC_AC_TIMING
 	  wish to say no.  Selecting yes without understanding what is
 	  going on could result in system crashes;
 
+config OMAP_ALLOW_OSWR
+	bool  "Enable Open Switch Retention"
+	depends on ARCH_OMAP4
+	default n
+	help
+	  Select this option to enable OSWR support.
+	  Which means the Logic of power domains can be lost now
+	  unlike the CSWR wherein the logic is retained
+
 endmenu
 
 endif
