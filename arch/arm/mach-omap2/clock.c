@@ -327,6 +327,10 @@ int omap2_clk_enable(struct clk *clk)
 		}
 	}
 
+	/* If clockdomain supports hardware control, enable it */
+	if (clk->clkdm)
+		clkdm_allow_idle(clk->clkdm);
+
 	return 0;
 
 oce_err3:
