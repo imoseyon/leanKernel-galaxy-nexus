@@ -101,6 +101,27 @@ static inline u32 tiler_size(const struct tiler_block_t *b)
 	return b->height * tiler_vstride(b);
 }
 
+/* Event types */
+#define TILER_DEVICE_CLOSE	0
+
+/**
+ * Registers a notifier block with TILER driver.
+ *
+ * @param nb		notifier_block
+ *
+ * @return error status
+ */
+s32 tiler_reg_notifier(struct notifier_block *nb);
+
+/**
+ * Un-registers a notifier block with TILER driver.
+ *
+ * @param nb		notifier_block
+ *
+ * @return error status
+ */
+s32 tiler_unreg_notifier(struct notifier_block *nb);
+
 /**
  * Get the physical address for a given user va.
  *
@@ -143,6 +164,23 @@ s32 tiler_alloc(struct tiler_block_t *blk, enum tiler_fmt fmt, u32 align,
  */
 s32 tiler_allocx(struct tiler_block_t *blk, enum tiler_fmt fmt, u32 align,
 					u32 offs, u32 gid, pid_t pid);
+
+/**
+ * Mmaps a portion of a tiler block to a virtual address.  Use this method in
+ * your driver's mmap function to potentially combine multiple tiler blocks as
+ * one virtual buffer.
+ *
+ * @param blk		pointer to tiler block data
+ * @param offs		offset from where to map (must be page aligned)
+ * @param size		size of area to map (must be page aligned)
+ * @param vma		VMM memory area to map to
+ * @param voffs		offset (from vm_start) in the VMM memory area to start
+ *			mapping at
+ *
+ * @return error status
+ */
+s32 tiler_mmap_blk(struct tiler_block_t *blk, u32 offs, u32 size,
+				struct vm_area_struct *vma, u32 voffs);
 
 /**
  * Ioremaps a portion of a tiler block.  Use this method in your driver instead
@@ -334,6 +372,23 @@ s32 tilview_rotate(struct tiler_view_t *view, s32 rotation);
  *	   updated in place.
  */
 s32 tilview_flip(struct tiler_view_t *view, bool flip_x, bool flip_y);
+
+/*
+ * ---------------------------- IOCTL Definitions ----------------------------
+ */
+
+/* ioctls */
+#define TILIOC_GBLK  _IOWR('z', 100, struct tiler_block_info)
+#define TILIOC_FBLK   _IOW('z', 101, struct tiler_block_info)
+#define TILIOC_GSSP  _IOWR('z', 102, u32)
+#define TILIOC_MBLK  _IOWR('z', 103, struct tiler_block_info)
+#define TILIOC_UMBLK  _IOW('z', 104, struct tiler_block_info)
+#define TILIOC_QBUF  _IOWR('z', 105, struct tiler_buf_info)
+#define TILIOC_RBUF  _IOWR('z', 106, struct tiler_buf_info)
+#define TILIOC_URBUF _IOWR('z', 107, struct tiler_buf_info)
+#define TILIOC_QBLK  _IOWR('z', 108, struct tiler_block_info)
+#define TILIOC_PRBLK  _IOW('z', 109, struct tiler_block_info)
+#define TILIOC_URBLK  _IOW('z', 110, u32)
 
 struct area {
 	u16 width;
