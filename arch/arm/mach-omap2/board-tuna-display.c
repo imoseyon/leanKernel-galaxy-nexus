@@ -30,7 +30,8 @@
 
 #define TUNA_FB_RAM_SIZE		SZ_16M /* ~1280*720*4 * 2 */
 
-#define TUNA_GPIO_MLCD_RST		35
+#define TUNA_GPIO_MLCD_RST_LUNCHBOX	35
+#define TUNA_GPIO_MLCD_RST		23
 
 static struct panel_generic_dpi_data tuna_lcd_panel = {
 	.name			= "samsung_ams452gn05",
@@ -189,7 +190,9 @@ void __init omap4_tuna_display_init(void)
 		dss_data = &prelunchbox_dss_data;
 	} else {
 		omap4_ctrl_pad_writel(0x1F000000, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_DSIPHY);
-		omap_mux_init_signal("gpmc_ad11", OMAP_MUX_MODE3 | OMAP_PIN_OUTPUT);
+		if (omap4_tuna_final_gpios())
+			tuna_oled_data.reset_gpio = TUNA_GPIO_MLCD_RST_LUNCHBOX;
+		omap_mux_init_gpio(tuna_oled_data.reset_gpio, OMAP_PIN_OUTPUT);
 		dss_data = &tuna_dss_data;
 	}
 
