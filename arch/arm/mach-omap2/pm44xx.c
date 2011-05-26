@@ -261,8 +261,6 @@ static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 
 int omap4_can_sleep(void)
 {
-	if (!sleep_while_idle)
-		return -1;
 	if (!omap_uart_can_sleep())
 		return -1;
 	return 0;
