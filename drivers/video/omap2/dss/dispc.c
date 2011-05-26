@@ -944,6 +944,8 @@ static void _dispc_setup_global_alpha(enum omap_plane plane, u8 global_alpha)
 
 	if (plane == OMAP_DSS_GFX)
 		REG_FLD_MOD(DISPC_GLOBAL_ALPHA, global_alpha, 7, 0);
+	else if (plane == OMAP_DSS_VIDEO1)
+		REG_FLD_MOD(DISPC_GLOBAL_ALPHA, global_alpha, 15, 8);
 	else if (plane == OMAP_DSS_VIDEO2)
 		REG_FLD_MOD(DISPC_GLOBAL_ALPHA, global_alpha, 23, 16);
 }
