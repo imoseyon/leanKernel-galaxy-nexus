@@ -831,7 +831,7 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 	unsigned long ulLCM;
 	unsigned uiFBDevID = psDevInfo->uiFBDevID;
 
-	acquire_console_sem();
+	console_lock();
 
 	psLINFBInfo = registered_fb[uiFBDevID];
 	if (psLINFBInfo == NULL)
@@ -976,7 +976,7 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 ErrorModPut:
 	module_put(psLINFBOwner);
 ErrorRelSem:
-	release_console_sem();
+	console_unlock();
 
 	return eError;
 }
@@ -986,7 +986,7 @@ static void OMAPLFBDeInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 	struct fb_info *psLINFBInfo = psDevInfo->psLINFBInfo;
 	struct module *psLINFBOwner;
 
-	acquire_console_sem();
+	console_lock();
 
 	psLINFBOwner = psLINFBInfo->fbops->owner;
 
@@ -997,7 +997,7 @@ static void OMAPLFBDeInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 
 	module_put(psLINFBOwner);
 
-	release_console_sem();
+	console_unlock();
 }
 
 static OMAPLFB_DEVINFO *OMAPLFBInitDev(unsigned uiFBDevID)

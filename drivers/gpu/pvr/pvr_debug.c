@@ -76,7 +76,7 @@ static IMG_CHAR gszBufferIRQ[PVR_MAX_MSG_LEN + 1];
 static PVRSRV_LINUX_MUTEX gsDebugMutexNonIRQ;
 
  
-static spinlock_t gsDebugLockIRQ = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(gsDebugLockIRQ);
 
 #if !defined (USE_SPIN_LOCK)  
 #define	USE_SPIN_LOCK (in_interrupt() || !preemptible())
