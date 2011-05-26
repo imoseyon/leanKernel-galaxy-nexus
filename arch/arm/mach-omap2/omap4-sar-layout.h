@@ -19,4 +19,15 @@
 #define SAR_BANK3_OFFSET		0x2000
 #define SAR_BANK4_OFFSET		0x3000
 
+/* Scratch pad memory offsets from SAR_BANK1 */
+#define CPU0_SAVE_OFFSET			0xb00
+#define CPU1_SAVE_OFFSET			0xc00
+#define MMU_OFFSET				0xd00
+#define SCU_OFFSET0				0xd20
+#define SCU_OFFSET1				0xd24
+
+/* CPUx Wakeup Non-Secure Physical Address offsets in SAR_BANK3 */
+#define CPU0_WAKEUP_NS_PA_ADDR_OFFSET		0xa04
+#define CPU1_WAKEUP_NS_PA_ADDR_OFFSET		0xa08
+
 #endif

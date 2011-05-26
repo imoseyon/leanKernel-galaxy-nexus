@@ -111,6 +111,12 @@ static int __init omap4_pm_init(void)
 		goto err2;
 	}
 
+	ret = omap4_mpuss_init();
+	if (ret) {
+		pr_err("Failed to initialise OMAP4 MPUSS\n");
+		goto err2;
+	}
+
 #ifdef CONFIG_SUSPEND
 	suspend_set_ops(&omap_pm_ops);
 #endif /* CONFIG_SUSPEND */
