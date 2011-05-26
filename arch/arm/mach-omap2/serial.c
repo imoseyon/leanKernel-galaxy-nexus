@@ -57,9 +57,9 @@
  * NOTE: By default the serial timeout is disabled as it causes lost characters
  * over the serial ports. This means that the UART clocks will stay on until
  * disabled via sysfs. This also causes that any deeper omap sleep states are
- * blocked. 
+ * blocked.
  */
-#define DEFAULT_TIMEOUT 0
+#define DEFAULT_TIMEOUT 1000
 
 #define MAX_UART_HWMOD_NAME_LEN		16
 
@@ -451,6 +451,10 @@ int omap_uart_can_sleep(void)
 			continue;
 
 		if (!uart->can_sleep) {
+			can_sleep = 0;
+			continue;
+		}
+		if(omap_uart_active(uart->num, uart->timeout)) {
 			can_sleep = 0;
 			continue;
 		}
