@@ -79,11 +79,11 @@ static struct cpuidle_params cpuidle_params_table[] = {
 	{1,	1400,	600,	15000},
 };
 
-static int omap4_idle_bm_check(void)
+static bool omap4_idle_bm_busy(void)
 {
-	if (omap4_can_sleep())
-		return 0;
-	return -1;
+	if (!omap4_can_sleep())
+		return true;
+	return false;
 }
 
 /**
@@ -182,7 +182,7 @@ static int omap4_enter_idle(struct cpuidle_device *dev,
 static int omap4_enter_idle_bm(struct cpuidle_device *dev,
 			       struct cpuidle_state *state)
 {
-	if ((state->flags & CPUIDLE_FLAG_CHECK_BM) && (!omap4_idle_bm_check())) {
+	if ((state->flags & CPUIDLE_FLAG_CHECK_BM) && (omap4_idle_bm_busy())) {
 		BUG_ON(!dev->safe_state);
 		state = dev->safe_state;
 	}
