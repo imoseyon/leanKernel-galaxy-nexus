@@ -76,7 +76,7 @@ static struct cpuidle_params cpuidle_params_table[] = {
 	/* C3 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
 	{1,	200,	300,	7000},
 	/* C4 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
-	{1,	1400,	600,	15000},
+	{0,	1400,	600,	15000},
 };
 
 static bool omap4_idle_bm_busy(void)
@@ -276,11 +276,12 @@ void omap4_init_power_states(void)
 			cpuidle_params_table[OMAP4_STATE_C4].threshold;
 	omap4_power_states[OMAP4_STATE_C4].cpu0_state = PWRDM_POWER_OFF;
 	omap4_power_states[OMAP4_STATE_C4].mpu_state = PWRDM_POWER_RET;
-	omap4_power_states[OMAP4_STATE_C4].mpu_logic_state = PWRDM_POWER_RET;
+	omap4_power_states[OMAP4_STATE_C4].mpu_logic_state = PWRDM_POWER_OFF;
 	omap4_power_states[OMAP4_STATE_C4].core_state = PWRDM_POWER_RET;
-	omap4_power_states[OMAP4_STATE_C4].core_logic_state = PWRDM_POWER_RET;
-	omap4_power_states[OMAP4_STATE_C4].flags = CPUIDLE_FLAG_TIME_VALID;
-	omap4_power_states[OMAP4_STATE_C4].desc = "MPU CSWR + CORE CSWR";
+	omap4_power_states[OMAP4_STATE_C4].core_logic_state = PWRDM_POWER_OFF;
+	omap4_power_states[OMAP4_STATE_C4].flags = CPUIDLE_FLAG_TIME_VALID |
+			CPUIDLE_FLAG_CHECK_BM;
+	omap4_power_states[OMAP4_STATE_C4].desc = "MPU OSWR + CORE OSWR";
 
 }
 
