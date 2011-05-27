@@ -43,7 +43,7 @@ config OMAP_RPMSG
 	depends on ARCH_OMAP4
 	select VIRTIO
 	select VIRTIO_RING
-	select CONFIG_OMAP_MBOX_FWK
+	select OMAP_MBOX_FWK
 	help
 	  Say Y if you want to enable OMAP virtio-based remote-processor
 	  communication, currently only available with OMAP4. This is required
@@ -129,7 +129,7 @@ config OMAP_MCBSP
 	  Buffered Serial Port.
 
 config OMAP_MBOX_FWK
-	tristate "Mailbox framework support"
+	bool "Mailbox framework support"
 	depends on ARCH_OMAP
 	help
 	  Say Y here if you want to use OMAP Mailbox framework support for
