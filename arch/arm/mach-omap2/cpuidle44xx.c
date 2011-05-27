@@ -74,9 +74,9 @@ static struct cpuidle_params cpuidle_params_table[] = {
 	/* C2 - CPU0 ON + CPU1 OFF + MPU ON  + CORE ON */
 	{1,	140,	160,	300},
 	/* C3 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
-	{1,	200,	300,	7000},
-	/* C4 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
-	{0,	1400,	600,	15000},
+	{1,	1516,	3230,	15000},
+	/* C4 - CPU0 OFF + CPU1 OFF + MPU OSWR + CORE OSWR */
+	{0,	1644,	3298,	39000},
 };
 
 static bool omap4_idle_bm_busy(void)
