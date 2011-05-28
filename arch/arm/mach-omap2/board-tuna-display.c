@@ -190,7 +190,7 @@ void __init omap4_tuna_display_init(void)
 		dss_data = &prelunchbox_dss_data;
 	} else {
 		omap4_ctrl_pad_writel(0x1F000000, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_DSIPHY);
-		if (omap4_tuna_final_gpios())
+		if (!omap4_tuna_final_gpios())
 			tuna_oled_data.reset_gpio = TUNA_GPIO_MLCD_RST_LUNCHBOX;
 		omap_mux_init_gpio(tuna_oled_data.reset_gpio, OMAP_PIN_OUTPUT);
 		dss_data = &tuna_dss_data;
