@@ -230,28 +230,22 @@ static int __init clkdms_setup(struct clockdomain *clkdm, void *unused)
 static int __init pwrdms_setup(struct powerdomain *pwrdm, void *unused)
 {
 	struct power_state *pwrst;
-	int next_state;
 
 	if (!pwrdm->pwrsts)
 		return 0;
-
-	/*
-	 * Skip CPU0 and CPU1 power domains. CPU1 is programmed
-	 * through hotplug path and CPU0 explicitly programmed
-	 * further down in the code path
-	 */
-	if ((!strcmp(pwrdm->name, "cpu0_pwrdm")) ||
-		(!strcmp(pwrdm->name, "cpu1_pwrdm")))
-		return 0;
-
-	next_state = PWRDM_POWER_RET;
 
 	pwrst = kmalloc(sizeof(struct power_state), GFP_ATOMIC);
 	if (!pwrst)
 		return -ENOMEM;
 
 	pwrst->pwrdm = pwrdm;
-	pwrst->next_state = next_state;
+	if ((!strcmp(pwrdm->name, "mpu_pwrdm")) ||
+			(!strcmp(pwrdm->name, "core_pwrdm")) ||
+			(!strcmp(pwrdm->name, "cpu0_pwrdm")) ||
+			(!strcmp(pwrdm->name, "cpu1_pwrdm")))
+		pwrst->next_state = PWRDM_POWER_ON;
+	else
+		pwrst->next_state = PWRDM_POWER_RET;
 	list_add(&pwrst->node, &pwrst_list);
 
 	return omap_set_pwrdm_state(pwrst->pwrdm, pwrst->next_state);
