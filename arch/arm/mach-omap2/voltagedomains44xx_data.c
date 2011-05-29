@@ -91,9 +91,17 @@ static int __init omap44xx_voltage_early_init(void)
 	 * XXX Will depend on the process, validation, and binning
 	 * for the currently-running IC
 	 */
-	omap4_vdd_mpu_info.volt_data = omap44xx_vdd_mpu_volt_data;
-	omap4_vdd_iva_info.volt_data = omap44xx_vdd_iva_volt_data;
-	omap4_vdd_core_info.volt_data = omap44xx_vdd_core_volt_data;
+	if (cpu_is_omap443x()) {
+		omap4_vdd_mpu_info.volt_data = omap443x_vdd_mpu_volt_data;
+		omap4_vdd_iva_info.volt_data = omap443x_vdd_iva_volt_data;
+		omap4_vdd_core_info.volt_data = omap443x_vdd_core_volt_data;
+	} else if (cpu_is_omap446x()) {
+		omap4_vdd_mpu_info.volt_data = omap446x_vdd_mpu_volt_data;
+		omap4_vdd_iva_info.volt_data = omap446x_vdd_iva_volt_data;
+		omap4_vdd_core_info.volt_data = omap446x_vdd_core_volt_data;
+	} else {
+		return -ENODATA;
+	}
 
 	return omap_voltage_early_init(prm_mod, prm_irqst_ocp_mod,
 				       omap4_vdd_info,
