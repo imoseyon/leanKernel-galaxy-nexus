@@ -147,25 +147,23 @@ void omap_vc_post_scale(struct voltagedomain *voltdm,
 	voltdm->curr_volt = target_volt;
 }
 
-/* vc_bypass_scale_voltage - VC bypass method of voltage scaling */
-int omap_vc_bypass_scale_voltage(struct voltagedomain *voltdm,
-				 unsigned long target_volt)
+static int omap_vc_bypass_send_value(struct voltagedomain *voltdm,
+		struct omap_vc_channel *vc, u8 sa, u8 reg, u32 data)
 {
-	struct omap_vc_channel *vc = voltdm->vc;
 	u32 loop_cnt = 0, retries_cnt = 0;
 	u32 vc_valid, vc_bypass_val_reg, vc_bypass_value;
-	u8 target_vsel, current_vsel;
-	int ret;
 
-	ret = omap_vc_pre_scale(voltdm, target_volt, &target_vsel, &current_vsel);
-	if (ret)
-		return ret;
+	if (IS_ERR_OR_NULL(vc->common)) {
+		pr_err("%s voldm=%s bad value for vc->common\n",
+				__func__, voltdm->name);
+		return -EINVAL;
+	}
 
 	vc_valid = vc->common->valid;
 	vc_bypass_val_reg = vc->common->bypass_val_reg;
-	vc_bypass_value = (target_vsel << vc->common->data_shift) |
-		(vc->volt_reg_addr << vc->common->regaddr_shift) |
-		(vc->i2c_slave_addr << vc->common->slaveaddr_shift);
+	vc_bypass_value = (data << vc->common->data_shift) |
+		(reg << vc->common->regaddr_shift) |
+		(sa << vc->common->slaveaddr_shift);
 
 	voltdm->write(vc_bypass_value, vc_bypass_val_reg);
 	voltdm->write(vc_bypass_value | vc_valid, vc_bypass_val_reg);
@@ -192,8 +190,77 @@ int omap_vc_bypass_scale_voltage(struct voltagedomain *voltdm,
 		vc_bypass_value = voltdm->read(vc_bypass_val_reg);
 	}
 
+	return 0;
+
+}
+
+/* vc_bypass_scale_voltage - VC bypass method of voltage scaling */
+int omap_vc_bypass_scale_voltage(struct voltagedomain *voltdm,
+				 unsigned long target_volt)
+{
+	struct omap_vc_channel *vc;
+	u8 target_vsel, current_vsel;
+	int ret;
+
+	if (IS_ERR_OR_NULL(voltdm)) {
+		pr_err("%s bad voldm\n", __func__);
+		return -EINVAL;
+	}
+
+	vc = voltdm->vc;
+	if (IS_ERR_OR_NULL(vc)) {
+		pr_err("%s voldm=%s bad vc\n", __func__, voltdm->name);
+		return -EINVAL;
+	}
+
+	ret = omap_vc_pre_scale(voltdm, target_volt, &target_vsel,
+				&current_vsel);
+	if (ret)
+		return ret;
+
+	ret = omap_vc_bypass_send_value(voltdm, vc, vc->i2c_slave_addr,
+					vc->volt_reg_addr, target_vsel);
+	if (ret)
+		return ret;
+
 	omap_vc_post_scale(voltdm, target_volt, target_vsel, current_vsel);
 	return 0;
+}
+
+/**
+ * omap_vc_bypass_send_i2c_msg() - Function to control PMIC registers over SRI2C
+ * @voltdm:	voltage domain
+ * @slave_addr:	slave address of the device.
+ * @reg_addr:	register address to access
+ * @data:	what do we want to write there
+ *
+ * Many simpler PMICs with a single I2C interface still have configuration
+ * registers that may need population. Typical being slew rate configurations
+ * thermal shutdown configuration etc. When these PMICs are hooked on I2C_SR,
+ * this function allows these configuration registers to be accessed.
+ *
+ * WARNING: Though this could be used for voltage register configurations over
+ * I2C_SR, DONOT use it for that purpose, all the Voltage controller's internal
+ * information is bypassed using this function and must be used judiciously.
+ */
+int omap_vc_bypass_send_i2c_msg(struct voltagedomain *voltdm, u8 slave_addr,
+				u8 reg_addr, u8 data)
+{
+	struct omap_vc_channel *vc;
+
+	if (IS_ERR_OR_NULL(voltdm)) {
+		pr_err("%s bad voldm\n", __func__);
+		return -EINVAL;
+	}
+
+	vc = voltdm->vc;
+	if (IS_ERR_OR_NULL(vc)) {
+		pr_err("%s voldm=%s bad vc\n", __func__, voltdm->name);
+		return -EINVAL;
+	}
+
+	return omap_vc_bypass_send_value(voltdm, vc, slave_addr,
+					reg_addr, data);
 }
 
 static void __init omap3_vfsm_init(struct voltagedomain *voltdm)
