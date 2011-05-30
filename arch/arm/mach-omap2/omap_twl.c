@@ -180,7 +180,7 @@ static struct omap_voltdm_pmic omap3_core_pmic = {
 	.uv_to_vsel		= twl4030_uv_to_vsel,
 };
 
-static struct omap_voltdm_pmic omap4_mpu_pmic = {
+static struct omap_voltdm_pmic omap443x_mpu_pmic = {
 	.slew_rate		= 4000,
 	.step_size		= 12660,
 	.on_volt		= 1375000,
@@ -224,7 +224,7 @@ static struct omap_voltdm_pmic omap4_iva_pmic = {
 	.uv_to_vsel		= twl6030_uv_to_vsel,
 };
 
-static struct omap_voltdm_pmic omap4_core_pmic = {
+static struct omap_voltdm_pmic omap443x_core_pmic = {
 	.slew_rate		= 4000,
 	.step_size		= 12660,
 	.on_volt		= 1200000,
@@ -245,38 +245,36 @@ static struct omap_voltdm_pmic omap4_core_pmic = {
 	.uv_to_vsel		= twl6030_uv_to_vsel,
 };
 
-int __init omap4_twl_init(void)
+/* Core uses the MPU rail of 4430 */
+static struct omap_voltdm_pmic omap446x_core_pmic = {
+	.slew_rate		= 4000,
+	.step_size		= 12660,
+	.on_volt		= 1200000,
+	.onlp_volt		= 1200000,
+	.ret_volt		= 830000,
+	.off_volt		= 0,
+	.volt_setup_time	= 0,
+	.vp_erroroffset		= OMAP4_VP_CONFIG_ERROROFFSET,
+	.vp_vstepmin		= OMAP4_VP_VSTEPMIN_VSTEPMIN,
+	.vp_vstepmax		= OMAP4_VP_VSTEPMAX_VSTEPMAX,
+	.vp_vddmin		= OMAP4_VP_CORE_VLIMITTO_VDDMIN,
+	.vp_vddmax		= OMAP4_VP_CORE_VLIMITTO_VDDMAX,
+	.vp_timeout_us		= OMAP4_VP_VLIMITTO_TIMEOUT_US,
+	.i2c_slave_addr		= OMAP4_SRI2C_SLAVE_ADDR,
+	.i2c_high_speed		= true,
+	.i2c_scll_low		= 0x28,
+	.i2c_scll_high		= 0x2C,
+	.i2c_hscll_low		= 0x0B,
+	.i2c_hscll_high		= 0x00,
+	.volt_reg_addr		= OMAP4_VDD_MPU_SR_VOLT_REG,
+	.cmd_reg_addr		= OMAP4_VDD_MPU_SR_CMD_REG,
+	.vsel_to_uv		= twl6030_vsel_to_uv,
+	.uv_to_vsel		= twl6030_uv_to_vsel,
+};
+
+static int __init twl_set_sr(struct voltagedomain *voltdm)
 {
-	struct voltagedomain *voltdm;
-
-	if (!cpu_is_omap44xx())
-		return -ENODEV;
-
-	voltdm = voltdm_lookup("mpu");
-	omap_voltage_register_pmic(voltdm, &omap4_mpu_pmic);
-
-	voltdm = voltdm_lookup("iva");
-	omap_voltage_register_pmic(voltdm, &omap4_iva_pmic);
-
-	voltdm = voltdm_lookup("core");
-	omap_voltage_register_pmic(voltdm, &omap4_core_pmic);
-
-	return 0;
-}
-
-int __init omap3_twl_init(void)
-{
-	struct voltagedomain *voltdm;
-
-	if (!cpu_is_omap34xx())
-		return -ENODEV;
-
-	if (cpu_is_omap3630()) {
-		omap3_mpu_pmic.vp_vddmin = OMAP3630_VP1_VLIMITTO_VDDMIN;
-		omap3_mpu_pmic.vp_vddmax = OMAP3630_VP1_VLIMITTO_VDDMAX;
-		omap3_core_pmic.vp_vddmin = OMAP3630_VP2_VLIMITTO_VDDMIN;
-		omap3_core_pmic.vp_vddmax = OMAP3630_VP2_VLIMITTO_VDDMAX;
-	}
+	int r = 0;
 
 	/*
 	 * The smartreflex bit on twl4030 specifies if the setting of voltage
@@ -288,15 +286,61 @@ int __init omap3_twl_init(void)
 	 * voltage scaling will not function on TWL over I2C_SR.
 	 */
 	if (!twl_sr_enable_autoinit)
-		omap3_twl_set_sr_bit(true);
+		r = omap3_twl_set_sr_bit(true);
+	return r;
+}
 
-	voltdm = voltdm_lookup("mpu_iva");
-	omap_voltage_register_pmic(voltdm, &omap3_mpu_pmic);
+#define OMAP3_TWL4030_USED	(CHIP_GE_OMAP3430ES2 |	\
+				CHIP_GE_OMAP3630ES1_1 |	\
+				CHIP_IS_OMAP3630ES1)
 
-	voltdm = voltdm_lookup("core");
-	omap_voltage_register_pmic(voltdm, &omap3_core_pmic);
+static __initdata struct omap_pmic_map omap_twl_map[] = {
+	{
+		.name = "mpu_iva",
+		.omap_chip = OMAP_CHIP_INIT(OMAP3_TWL4030_USED),
+		.pmic_data = &omap3_mpu_pmic,
+		.special_action = twl_set_sr,
+	},
+	{
+		.name = "core",
+		.omap_chip = OMAP_CHIP_INIT(OMAP3_TWL4030_USED),
+		.pmic_data = &omap3_core_pmic,
+	},
+	{
+		.name = "mpu",
+		.omap_chip = OMAP_CHIP_INIT(CHIP_IS_OMAP443X),
+		.pmic_data = &omap443x_mpu_pmic,
+	},
+	{
+		.name = "core",
+		.omap_chip = OMAP_CHIP_INIT(CHIP_IS_OMAP443X),
+		.pmic_data = &omap443x_core_pmic,
+	},
+	{
+		.name = "core",
+		.omap_chip = OMAP_CHIP_INIT(CHIP_IS_OMAP446X),
+		.pmic_data = &omap446x_core_pmic,
+	},
+	{
+		.name = "iva",
+		.omap_chip = OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
+		.pmic_data = &omap4_iva_pmic,
+	},
+	/* Terminator */
+	{ .name = NULL, .pmic_data = NULL},
+};
 
-	return 0;
+int __init omap_twl_init(void)
+{
+	/* Reuse OMAP3430 values */
+	if (cpu_is_omap3630()) {
+		omap3_mpu_pmic.vp_vddmin = OMAP3630_VP1_VLIMITTO_VDDMIN;
+		omap3_mpu_pmic.vp_vddmax = OMAP3630_VP1_VLIMITTO_VDDMAX;
+		omap3_core_pmic.vp_vddmin = OMAP3630_VP2_VLIMITTO_VDDMIN;
+		omap3_core_pmic.vp_vddmax = OMAP3630_VP2_VLIMITTO_VDDMAX;
+	}
+
+	return omap_pmic_register_data(omap_twl_map);
 }
 
 /**

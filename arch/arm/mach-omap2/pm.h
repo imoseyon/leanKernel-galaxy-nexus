@@ -125,16 +125,39 @@ static inline int omap_devinit_smartreflex(void)
 static inline void omap_enable_smartreflex_on_init(void) {}
 #endif
 
-#ifdef CONFIG_TWL4030_CORE
-extern int omap3_twl_init(void);
-extern int omap4_twl_init(void);
-extern int omap3_twl_set_sr_bit(bool enable);
+/**
+ * struct omap_pmic_map - Describe the OMAP PMIC data for OMAP
+ * @name:	name of the voltage domain
+ * @pmic_data:	pmic data associated with it
+ * @omap_chip:	initialize with OMAP_CHIP_INIT the OMAP chips this data maps to
+ * @special_action: callback for any specific action to take for that map
+ *
+ * Since we support multiple PMICs each potentially functioning on multiple
+ * OMAP devices, we describe the parameters in a map allowing us to reuse the
+ * data as necessary.
+ */
+struct omap_pmic_map {
+	char			*name;
+	struct omap_voltdm_pmic	*pmic_data;
+	struct omap_chip_id	omap_chip;
+	int			(*special_action)(struct voltagedomain *);
+};
+
+#ifdef CONFIG_PM
+extern int omap_pmic_register_data(struct omap_pmic_map *map);
 #else
-static inline int omap3_twl_init(void)
+static inline int omap_pmic_register_data(struct omap_pmic_map *map)
 {
 	return -EINVAL;
 }
-static inline int omap4_twl_init(void)
+#endif
+extern void omap_pmic_data_init(void);
+
+#ifdef CONFIG_TWL4030_CORE
+extern int omap_twl_init(void);
+extern int omap3_twl_set_sr_bit(bool enable);
+#else
+static inline int omap_twl_init(void)
 {
 	return -EINVAL;
 }
