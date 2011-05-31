@@ -135,12 +135,12 @@ int omap_pm_set_max_mpu_wakeup_lat(struct pm_qos_request_list **qos_request,
  *
  * Multiple calls to omap_pm_set_min_bus_tput() will replace the
  * previous rate value for this device.  To remove the interconnect
- * throughput restriction for this device, call with r = 0.
+ * throughput restriction for this device, call with r = -1.
  *
  * Returns -EINVAL for an invalid argument, -ERANGE if the constraint
  * is not satisfiable, or 0 upon success.
  */
-int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, unsigned long r);
+int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, long r);
 
 
 /**
@@ -355,9 +355,9 @@ unsigned long omap_pm_cpu_get_freq(void);
  * driver must restore device context.   If the number of context losses
  * exceeds the maximum positive integer, the function will wrap to 0 and
  * continue counting.  Returns the number of context losses for this device,
- * or zero upon error.
+ * or -EINVAL upon error.
  */
-u32 omap_pm_get_dev_context_loss_count(struct device *dev);
+int omap_pm_get_dev_context_loss_count(struct device *dev);
 
 void omap_pm_enable_off_mode(void);
 void omap_pm_disable_off_mode(void);

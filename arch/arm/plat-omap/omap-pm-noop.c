@@ -61,7 +61,7 @@ int omap_pm_set_max_mpu_wakeup_lat(struct pm_qos_request_list **pmqos_req,
 	return 0;
 }
 
-int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, unsigned long r)
+int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, long r)
 {
 	if (!dev || (agent_id != OCP_INITIATOR_AGENT &&
 	    agent_id != OCP_TARGET_AGENT)) {

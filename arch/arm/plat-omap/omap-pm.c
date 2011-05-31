@@ -17,6 +17,10 @@
 #include <linux/init.h>
 #include <linux/cpufreq.h>
 #include <linux/device.h>
+#include <linux/errno.h>
+#include <linux/err.h>
+#include <linux/slab.h>
+#include <linux/list.h>
 
 /* Interface documentation is in mach/omap-pm.h */
 #include <plat/omap-pm.h>
@@ -26,6 +30,191 @@
 struct omap_opp *dsp_opps;
 struct omap_opp *mpu_opps;
 struct omap_opp *l3_opps;
+
+static DEFINE_MUTEX(bus_tput_mutex);
+
+/* Used to model a Interconnect Throughput */
+static struct interconnect_tput {
+	/* Total no of users at any point of interconnect */
+	u8 no_of_users;
+	/* List of all the current users for interconnect */
+	struct list_head users_list;
+	struct list_head node;
+	/* Protect interconnect throughput */
+	struct mutex throughput_mutex;
+	/* Target level for interconnect throughput */
+	unsigned long target_level;
+} *bus_tput;
+
+/* Used to represent a user of a interconnect throughput */
+struct users {
+	/* Device pointer used to uniquely identify the user */
+	struct device *dev;
+	struct list_head node;
+	/* Current level as requested for interconnect throughput by the user */
+	u32 level;
+};
+
+/* Private/Internal Functions */
+
+/**
+ * user_lookup - look up a user by its device pointer, return a pointer
+ * @dev: The device to be looked up
+ *
+ * Looks for a interconnect user by its device pointer. Returns a
+ * pointer to
+ * the struct users if found, else returns NULL.
+ **/
+
+static struct users *user_lookup(struct device *dev)
+{
+	struct users *usr, *tmp_usr;
+
+	usr = NULL;
+	list_for_each_entry(tmp_usr, &bus_tput->users_list, node) {
+		if (tmp_usr->dev == dev) {
+			usr = tmp_usr;
+			break;
+		}
+	}
+
+	return usr;
+}
+
+/**
+ * get_user - gets a new users_list struct dynamically
+ *
+ * This function allocates dynamcially the user node
+ * Returns a pointer to users struct on success. On dynamic allocation
+ * failure
+ * returns a ERR_PTR(-ENOMEM).
+ **/
+
+static struct users *get_user(void)
+{
+	struct users *user;
+
+	user = kmalloc(sizeof(struct  users), GFP_KERNEL);
+	if (!user) {
+		pr_err("%s FATAL ERROR: kmalloc "
+			"failed\n",  __func__);
+		return ERR_PTR(-ENOMEM);
+	}
+	return user;
+}
+
+
+/**
+ * omap_bus_tput_init - Initializes the interconnect throughput
+ * userlist
+ * Allocates memory for global throughput variable dynamically.
+ * Intializes Userlist, no. of users and throughput target level.
+ * Returns 0 on sucess, else returns EINVAL if memory
+ * allocation fails.
+ */
+int omap_bus_tput_init(void)
+{
+	bus_tput = kmalloc(sizeof(struct interconnect_tput), GFP_KERNEL);
+	if (!bus_tput) {
+		pr_err("%s FATAL ERROR: kmalloc failed\n", __func__);
+		return -EINVAL;
+       }
+	INIT_LIST_HEAD(&bus_tput->users_list);
+	mutex_init(&bus_tput->throughput_mutex);
+	bus_tput->no_of_users = 0;
+	bus_tput->target_level = 0;
+	return 0;
+}
+
+
+/**
+ * add_req_tput  - Request for a required level by a device
+ * @dev: Uniquely identifes the caller
+ * @level: The requested level for the interconnect bandwidth in KiB/s
+ *
+ * This function recomputes the target level of the interconnect
+ * bandwidth
+ * based on the level requested by all the users.
+ * Multiple calls to this function by the same device will
+ * replace the previous level requested
+ * Returns the updated level of interconnect throughput.
+ * In case of Invalid dev or user pointer, it returns 0.
+ */
+static unsigned long add_req_tput(struct device *dev, unsigned long level)
+{
+	int ret;
+	struct  users *user;
+
+	if (!dev) {
+		pr_err("Invalid dev pointer\n");
+		ret = 0;
+	}
+	mutex_lock(&bus_tput->throughput_mutex);
+	user = user_lookup(dev);
+	if (user == NULL) {
+		user = get_user();
+		if (IS_ERR(user)) {
+			pr_err("Couldn't get user from the list to"
+				"add new throughput constraint");
+			ret = 0;
+			goto unlock;
+		}
+		bus_tput->target_level += level;
+		bus_tput->no_of_users++;
+		user->dev = dev;
+		list_add(&user->node, &bus_tput->users_list);
+		user->level = level;
+	} else {
+		bus_tput->target_level -= user->level;
+		bus_tput->target_level += level;
+		user->level = level;
+	}
+		ret = bus_tput->target_level;
+unlock:
+	mutex_unlock(&bus_tput->throughput_mutex);
+	return ret;
+}
+
+
+/**
+ * remove_req_tput - Release a previously requested level of
+ * a throughput level for interconnect
+ * @dev: Device pointer to dev
+ *
+ * This function recomputes the target level of the interconnect
+ * throughput after removing
+ * the level requested by the user.
+ * Returns 0, if the dev structure is invalid
+ * else returns modified interconnect throughput rate.
+ */
+static unsigned long remove_req_tput(struct device *dev)
+{
+	struct users *user;
+	int found = 0;
+	int ret;
+
+	mutex_lock(&bus_tput->throughput_mutex);
+	list_for_each_entry(user, &bus_tput->users_list, node) {
+		if (user->dev == dev) {
+			found = 1;
+			break;
+		}
+	}
+	if (!found) {
+		/* No such user exists */
+		pr_err("Invalid Device Structure\n");
+		ret = 0;
+		goto unlock;
+	}
+	bus_tput->target_level -= user->level;
+	bus_tput->no_of_users--;
+	list_del(&user->node);
+	kfree(user);
+	ret = bus_tput->target_level;
+unlock:
+	mutex_unlock(&bus_tput->throughput_mutex);
+	return ret;
+}
 
 /*
  * Device-driver-originated constraints (via board-*.c files)
@@ -51,31 +240,48 @@ int omap_pm_set_max_mpu_wakeup_lat(struct pm_qos_request_list **qos_request,
 }
 
 
-int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, unsigned long r)
+int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, long r)
 {
+
+	int ret;
+	struct device *l3_dev;
+	struct device dummy_l3_dev;
+	unsigned long target_level;
+
 	if (!dev || (agent_id != OCP_INITIATOR_AGENT &&
 	    agent_id != OCP_TARGET_AGENT)) {
 		WARN(1, "OMAP PM: %s: invalid parameter(s)", __func__);
 		return -EINVAL;
 	};
 
-	if (r == 0)
-		pr_debug("OMAP PM: remove min bus tput constraint: "
-			 "dev %s for agent_id %d\n", dev_name(dev), agent_id);
-	else
-		pr_debug("OMAP PM: add min bus tput constraint: "
-			 "dev %s for agent_id %d: rate %ld KiB\n",
-			 dev_name(dev), agent_id, r);
+	mutex_lock(&bus_tput_mutex);
 
-	/*
-	 * This code should model the interconnect and compute the
-	 * required clock frequency, convert that to a VDD2 OPP ID, then
-	 * set the VDD2 OPP appropriately.
-	 *
-	 * TI CDP code can call constraint_set here on the VDD2 OPP.
-	 */
-
-	return 0;
+	l3_dev = omap2_get_l3_device();
+	if (!l3_dev) {
+		pr_err("Unable to get l3 device pointer");
+		return -EINVAL;
+	}
+	if (r == -1) {
+		pr_debug("OMAP PM: remove min bus tput constraint for: "
+			"interconnect dev %s for agent_id %d\n", dev_name(dev),
+				agent_id);
+		target_level = remove_req_tput(dev);
+	} else {
+		pr_debug("OMAP PM: add min bus tput constraint for: "
+			"interconnect dev %s for agent_id %d: rate %ld KiB\n",
+				dev_name(dev), agent_id, r);
+		target_level = add_req_tput(dev, r);
+	}
+	if (!target_level)
+		return -EINVAL;
+	/* Convert the throughput(in KiB/s) into Hz. */
+	target_level = (target_level * 1000)/4;
+	ret = omap_device_set_rate(&dummy_l3_dev, l3_dev, target_level);
+	mutex_unlock(&bus_tput_mutex);
+	if (ret)
+		pr_err("Unable to change level for interconnect bandwidth to %ld\n",
+			target_level);
+	return ret;
 }
 
 int omap_pm_set_max_dev_wakeup_lat(struct device *req_dev, struct device *dev,
@@ -330,7 +536,12 @@ int __init omap_pm_if_early_init()
 /* Must be called after clock framework is initialized */
 int __init omap_pm_if_init(void)
 {
-	return 0;
+	int ret;
+	ret = omap_bus_tput_init();
+	if (ret)
+		pr_err("Failed to initialize interconnect"
+			" bandwidth users list\n");
+	return ret;
 }
 
 void omap_pm_if_exit(void)
