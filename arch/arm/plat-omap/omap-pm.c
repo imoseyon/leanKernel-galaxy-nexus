@@ -512,6 +512,8 @@ unsigned long omap_pm_cpu_get_freq(void)
 
 int omap_pm_get_dev_context_loss_count(struct device *dev)
 {
+	static u32 counter = 1;
+
 	if (!dev) {
 		WARN_ON(1);
 		return -EINVAL;
@@ -525,7 +527,8 @@ int omap_pm_get_dev_context_loss_count(struct device *dev)
 	 * off counter.
 	 */
 
-	return 0;
+	/* Let the counter roll-over: its for test only */
+	return counter++;
 }
 
 
