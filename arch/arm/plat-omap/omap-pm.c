@@ -33,6 +33,7 @@ struct omap_opp *l3_opps;
 
 static DEFINE_MUTEX(bus_tput_mutex);
 static DEFINE_MUTEX(mpu_tput_mutex);
+static DEFINE_MUTEX(mpu_lat_mutex);
 
 /* Used to model a Interconnect Throughput */
 static struct interconnect_tput {
@@ -230,6 +231,8 @@ int omap_pm_set_max_mpu_wakeup_lat(struct pm_qos_request_list **qos_request,
 		return -EINVAL;
 	};
 
+	mutex_lock(&mpu_lat_mutex);
+
 	if (t == -1) {
 		pm_qos_remove_request(*qos_request);
 		*qos_request = NULL;
@@ -238,6 +241,7 @@ int omap_pm_set_max_mpu_wakeup_lat(struct pm_qos_request_list **qos_request,
 	else
 		pm_qos_update_request(*qos_request, t);
 
+	mutex_unlock(&mpu_lat_mutex);
 	return 0;
 }
 
