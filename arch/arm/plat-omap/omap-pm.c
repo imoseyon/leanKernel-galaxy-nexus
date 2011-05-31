@@ -245,7 +245,7 @@ int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, long r)
 
 	int ret;
 	struct device *l3_dev;
-	struct device dummy_l3_dev;
+	static struct device dummy_l3_dev;
 	unsigned long target_level = 0;
 
 	if (!dev || (agent_id != OCP_INITIATOR_AGENT &&
