@@ -246,7 +246,7 @@ int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, long r)
 	int ret;
 	struct device *l3_dev;
 	struct device dummy_l3_dev;
-	unsigned long target_level;
+	unsigned long target_level = 0;
 
 	if (!dev || (agent_id != OCP_INITIATOR_AGENT &&
 	    agent_id != OCP_TARGET_AGENT)) {
@@ -278,11 +278,11 @@ int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, long r)
 	target_level = (target_level * 1000)/4;
 	ret = omap_device_set_rate(&dummy_l3_dev, l3_dev, target_level);
 
-unlock:
-	mutex_unlock(&bus_tput_mutex);
 	if (ret)
 		pr_err("Unable to change level for interconnect bandwidth to %ld\n",
 			target_level);
+unlock:
+	mutex_unlock(&bus_tput_mutex);
 	return ret;
 }
 
