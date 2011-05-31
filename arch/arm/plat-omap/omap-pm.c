@@ -20,7 +20,7 @@
 
 /* Interface documentation is in mach/omap-pm.h */
 #include <plat/omap-pm.h>
-
+#include <plat/omap_device.h>
 #include <plat/powerdomain.h>
 
 struct omap_opp *dsp_opps;
@@ -81,17 +81,52 @@ int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, unsigned long r)
 int omap_pm_set_max_dev_wakeup_lat(struct device *req_dev, struct device *dev,
 				   long t)
 {
+	struct omap_device *odev;
+	struct powerdomain *pwrdm_dev;
+	struct platform_device *pdev;
+	int ret = 0;
+
 	if (!req_dev || !dev || t < -1) {
 		WARN(1, "OMAP PM: %s: invalid parameter(s)", __func__);
 		return -EINVAL;
 	};
 
-	if (t == -1)
+	/* Look for the devices Power Domain */
+	pdev = container_of(dev, struct platform_device, dev);
+
+	/* Try to catch non platform devices. */
+	if (pdev->name == NULL) {
+		pr_err("OMAP-PM: Error: platform device not valid\n");
+		return -EINVAL;
+	}
+
+	odev = to_omap_device(pdev);
+	if (odev) {
+		pwrdm_dev = omap_device_get_pwrdm(odev);
+	} else {
+		pr_err("OMAP-PM: Error: Could not find omap_device "
+			"for %s\n", pdev->name);
+		return -EINVAL;
+	}
+
+	/* Catch devices with undefined powerdomains. */
+	if (!pwrdm_dev) {
+		pr_err("OMAP-PM: Error: could not find parent "
+			"powerdomain for %s\n", pdev->name);
+		return -EINVAL;
+	}
+
+	if (t == -1) {
 		pr_debug("OMAP PM: remove max device latency constraint: "
-			 "dev %s\n", dev_name(dev));
-	else
+			 "dev %s, pwrdm %s, req by %s\n", dev_name(dev),
+				pwrdm_dev->name, dev_name(req_dev));
+		ret = pwrdm_wakeuplat_release_constraint(pwrdm_dev, req_dev);
+	} else {
 		pr_debug("OMAP PM: add max device latency constraint: "
-			 "dev %s, t = %ld usec\n", dev_name(dev), t);
+			 "dev %s, t = %ld usec, pwrdm %s, req by %s\n",
+			 dev_name(dev), t, pwrdm_dev->name, dev_name(req_dev));
+		ret = pwrdm_wakeuplat_set_constraint(pwrdm_dev, req_dev, t);
+	}
 
 	/*
 	 * For current Linux, this needs to map the device to a
@@ -106,7 +141,7 @@ int omap_pm_set_max_dev_wakeup_lat(struct device *req_dev, struct device *dev,
 	 * TI CDP code can call constraint_set here.
 	 */
 
-	return 0;
+	return ret;
 }
 
 int omap_pm_set_max_sdma_lat(struct pm_qos_request_list **qos_request,
