@@ -22,4 +22,8 @@ config MPU_SENSORS_MPU3050
 	  This driver can also be built as a module.  If so, the module
 	  will be called mpu3050.
 
+source "drivers/misc/inv_mpu/accel/Kconfig"
+source "drivers/misc/inv_mpu/compass/Kconfig"
+source "drivers/misc/inv_mpu/pressure/Kconfig"
+
 endif #INV_SENSORS
