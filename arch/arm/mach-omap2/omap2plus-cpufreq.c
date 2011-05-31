@@ -38,6 +38,8 @@
 
 #include <mach/hardware.h>
 
+#include "dvfs.h"
+
 static struct cpufreq_frequency_table *freq_table;
 static atomic_t freq_table_users = ATOMIC_INIT(0);
 static struct clk *mpu_clk;
@@ -112,7 +114,7 @@ set_freq:
 	pr_info("cpufreq-omap: transition: %u --> %u\n", freqs.old, freqs.new);
 #endif
 
-	ret = clk_set_rate(mpu_clk, freqs.new * 1000);
+	ret = omap_device_scale(mpu_dev, mpu_dev, freqs.new * 1000);
 
 	/*
 	 * Generic CPUFREQ driver jiffy update is under !SMP. So jiffies
