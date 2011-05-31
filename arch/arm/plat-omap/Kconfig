@@ -209,7 +209,7 @@ config OMAP_SERIAL_WAKE
 choice
 	prompt "OMAP PM layer selection"
 	depends on ARCH_OMAP
-	default OMAP_PM_NOOP
+	default OMAP_PM
 
 config OMAP_PM_NONE
 	bool "No PM layer"
