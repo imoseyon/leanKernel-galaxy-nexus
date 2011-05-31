@@ -23,6 +23,8 @@
 #include "cm-regbits-44xx.h"
 
 #define OMAP_1GHz	1000000000
+#define OMAP_920MHz	920000000
+#define OMAP_748MHz	748000000
 
 /* Supported only on OMAP4 */
 int omap4_dpllmx_gatectrl_read(struct clk *clk)
@@ -137,6 +139,27 @@ int omap4460_mpu_dpll_set_rate(struct clk *clk, unsigned long rate)
 	}
 
 	clk->rate = rate;
+
+	/*
+	 * The interconnect frequency to EMIF should
+	 * be switched between MPU clk divide by 4 (for
+	 * frequencies higher than 920Mhz) and MPU clk divide
+	 * by 2 (for frequencies lower than or equal to 920Mhz)
+	 * Also the async bridge to ABE must be MPU clk divide
+	 * by 8 for MPU clk > 748Mhz and MPU clk divide by 4
+	 * for lower frequencies.
+	 */
+	v = __raw_readl(OMAP4430_CM_MPU_MPU_CLKCTRL);
+	if (rate > OMAP_920MHz)
+		v |= OMAP4460_CLKSEL_EMIF_DIV_MODE_MASK;
+	else
+		v &= ~OMAP4460_CLKSEL_EMIF_DIV_MODE_MASK;
+
+	if (rate > OMAP_748MHz)
+		v |= OMAP4460_CLKSEL_ABE_DIV_MODE_MASK;
+	else
+		v &= ~OMAP4460_CLKSEL_ABE_DIV_MODE_MASK;
+	__raw_writel(v, OMAP4430_CM_MPU_MPU_CLKCTRL);
 
 	return 0;
 }
