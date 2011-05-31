@@ -259,7 +259,8 @@ int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, long r)
 	l3_dev = omap2_get_l3_device();
 	if (!l3_dev) {
 		pr_err("Unable to get l3 device pointer");
-		return -EINVAL;
+		ret = -EINVAL;
+		goto unlock;
 	}
 	if (r == -1) {
 		pr_debug("OMAP PM: remove min bus tput constraint for: "
@@ -272,11 +273,12 @@ int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, long r)
 				dev_name(dev), agent_id, r);
 		target_level = add_req_tput(dev, r);
 	}
-	if (!target_level)
-		return -EINVAL;
+
 	/* Convert the throughput(in KiB/s) into Hz. */
 	target_level = (target_level * 1000)/4;
 	ret = omap_device_set_rate(&dummy_l3_dev, l3_dev, target_level);
+
+unlock:
 	mutex_unlock(&bus_tput_mutex);
 	if (ret)
 		pr_err("Unable to change level for interconnect bandwidth to %ld\n",
