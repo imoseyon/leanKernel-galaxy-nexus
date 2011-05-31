@@ -137,6 +137,11 @@ struct omap_volt_data {
 #define OMAP4_VP_CORE_VLIMITTO_VDDMIN	830000
 #define OMAP4_VP_CORE_VLIMITTO_VDDMAX	1200000
 
+#define OMAP4_VP_CONFIG_ERROROFFSET	0x00
+#define OMAP4_VP_VSTEPMIN_VSTEPMIN	0x01
+#define OMAP4_VP_VSTEPMAX_VSTEPMAX	0x04
+#define OMAP4_VP_VLIMITTO_TIMEOUT_US	200
+
 /**
  * struct omap_voltdm_pmic - PMIC specific data required by voltage driver.
  * @slew_rate:	PMIC slew rate (in uv/us)

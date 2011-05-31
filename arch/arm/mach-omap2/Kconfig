@@ -314,6 +314,7 @@ config MACH_OMAP_4430SDP
 	select OMAP_PACKAGE_CBL
 	select OMAP_PACKAGE_CBS
 	select REGULATOR_FIXED_VOLTAGE
+	select OMAP_TPS6236X
 
 config MACH_OMAP4_PANDA
 	bool "OMAP4 Panda Board"
@@ -341,6 +342,9 @@ config OMAP3_SDRC_AC_TIMING
 	  users who will wish to say yes at this point - almost everyone will
 	  wish to say no.  Selecting yes without understanding what is
 	  going on could result in system crashes;
+
+config OMAP_TPS6236X
+       bool
 
 endmenu
 

@@ -43,6 +43,7 @@
 #include "timer-gp.h"
 #include "control.h"
 #include "common-board-devices.h"
+#include "pm.h"
 
 #define ETH_KS8851_IRQ			34
 #define ETH_KS8851_POWER_ON		48
@@ -51,6 +52,8 @@
 #define OMAP4_SFH7741_ENABLE_GPIO		188
 #define HDMI_GPIO_HPD 60 /* Hot plug pin for HDMI */
 #define HDMI_GPIO_LS_OE 41 /* Level shifter for HDMI */
+
+#define TPS62361_GPIO   7
 
 static const int sdp4430_keymap[] = {
 	KEY(0, 0, KEY_E),
@@ -757,6 +760,14 @@ static void __init omap_4430sdp_init(void)
 		pr_err("Keypad initialization failed: %d\n", status);
 
 	omap_4430sdp_display_init();
+
+	if (cpu_is_omap446x()) {
+		/* Vsel0 = gpio, vsel1 = gnd */
+		status = omap_tps6236x_board_setup(true, TPS62361_GPIO, -1,
+					OMAP_PIN_OFF_OUTPUT_HIGH, -1);
+		if (status)
+			pr_err("TPS62361 initialization failed: %d\n", status);
+	}
 }
 
 static void __init omap_4430sdp_map_io(void)
