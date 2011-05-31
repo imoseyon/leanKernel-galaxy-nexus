@@ -36,18 +36,21 @@ struct device *omap2_get_mpuss_device(void)
 	WARN_ON_ONCE(!mpu_dev);
 	return mpu_dev;
 }
+EXPORT_SYMBOL(omap2_get_mpuss_device);
 
 struct device *omap2_get_iva_device(void)
 {
 	WARN_ON_ONCE(!iva_dev);
 	return iva_dev;
 }
+EXPORT_SYMBOL(omap2_get_iva_device);
 
 struct device *omap2_get_l3_device(void)
 {
 	WARN_ON_ONCE(!l3_dev);
 	return l3_dev;
 }
+EXPORT_SYMBOL(omap2_get_l3_device);
 
 struct device *omap4_get_dsp_device(void)
 {

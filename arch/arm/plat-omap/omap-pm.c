@@ -25,7 +25,8 @@
 /* Interface documentation is in mach/omap-pm.h */
 #include <plat/omap-pm.h>
 #include <plat/omap_device.h>
-#include <plat/powerdomain.h>
+#include <plat/common.h>
+#include "../mach-omap2/powerdomain.h"
 
 struct omap_opp *dsp_opps;
 struct omap_opp *mpu_opps;
@@ -34,6 +35,8 @@ struct omap_opp *l3_opps;
 static DEFINE_MUTEX(bus_tput_mutex);
 static DEFINE_MUTEX(mpu_tput_mutex);
 static DEFINE_MUTEX(mpu_lat_mutex);
+
+static bool off_mode_enabled;
 
 /* Used to model a Interconnect Throughput */
 static struct interconnect_tput {
@@ -235,10 +238,12 @@ int omap_pm_set_max_mpu_wakeup_lat(struct pm_qos_request_list **qos_request,
 
 	if (t == -1) {
 		pm_qos_remove_request(*qos_request);
+		kfree(*qos_request);
 		*qos_request = NULL;
-	} else if (*qos_request == NULL)
-		*qos_request = pm_qos_add_request(PM_QOS_CPU_DMA_LATENCY, t);
-	else
+	} else if (*qos_request == NULL) {
+		*qos_request = kzalloc(sizeof(struct pm_qos_request_list), GFP_KERNEL);
+		pm_qos_add_request(*qos_request, PM_QOS_CPU_DMA_LATENCY, t);
+	} else
 		pm_qos_update_request(*qos_request, t);
 
 	mutex_unlock(&mpu_lat_mutex);
@@ -282,8 +287,11 @@ int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, long r)
 
 	/* Convert the throughput(in KiB/s) into Hz. */
 	target_level = (target_level * 1000)/4;
-	ret = omap_device_set_rate(&dummy_l3_dev, l3_dev, target_level);
 
+	WARN(1, "OMAP PM: %s: constraint not called, needs DVFS", __func__);
+#if 0
+	ret = omap_device_scale(&dummy_l3_dev, l3_dev, target_level);
+#endif
 	if (ret)
 		pr_err("Unable to change level for interconnect bandwidth to %ld\n",
 			target_level);
@@ -368,10 +376,12 @@ int omap_pm_set_max_sdma_lat(struct pm_qos_request_list **qos_request,
 
 	if (t == -1) {
 		pm_qos_remove_request(*qos_request);
+		kfree(*qos_request);
 		*qos_request = NULL;
-	} else if (*qos_request == NULL)
-		*qos_request = pm_qos_add_request(PM_QOS_CPU_DMA_LATENCY, t);
-	else
+	} else if (*qos_request == NULL) {
+		*qos_request = kzalloc(sizeof(struct pm_qos_request_list), GFP_KERNEL);
+		pm_qos_add_request(*qos_request, PM_QOS_CPU_DMA_LATENCY, t);
+	} else
 		pm_qos_update_request(*qos_request, t);
 
 	return 0;
@@ -512,6 +522,28 @@ unsigned long omap_pm_cpu_get_freq(void)
 	return 0;
 }
 
+/**
+ * omap_pm_enable_off_mode - notify OMAP PM that off-mode is enabled
+ *
+ * Intended for use only by OMAP PM core code to notify this layer
+ * that off mode has been enabled.
+ */
+void omap_pm_enable_off_mode(void)
+{
+	off_mode_enabled = true;
+}
+
+/**
+ * omap_pm_disable_off_mode - notify OMAP PM that off-mode is disabled
+ *
+ * Intended for use only by OMAP PM core code to notify this layer
+ * that off mode has been disabled.
+ */
+void omap_pm_disable_off_mode(void)
+{
+	off_mode_enabled = false;
+}
+
 /*
  * Device context loss tracking
  */
@@ -584,7 +616,10 @@ int omap_pm_set_min_mpu_freq(struct device *dev, unsigned long f)
 	/* Rescale the frequency if a change is detected with
 	 * the new constraint.
 	 */
+	WARN(1, "OMAP PM: %s: constraint not called, needs DVFS", __func__);
+#if 0
 	ret = omap_device_set_rate(dev, mpu_dev, f);
+#endif
 	if (ret)
 		pr_err("Unable to set MPU frequency to %ld\n", f);
 

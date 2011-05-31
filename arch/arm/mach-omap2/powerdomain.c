@@ -1158,10 +1158,8 @@ int pwrdm_wakeuplat_update_pwrst(struct powerdomain *pwrdm)
 		new_state = PWRDM_FUNC_PWRST_CSWR;
 
 	if (pwrdm->state != new_state) {
-		if (cpu_is_omap44xx())
-			omap4_set_pwrdm_state(pwrdm, new_state);
-		else if (cpu_is_omap34xx())
-			set_pwrdm_state(pwrdm, new_state);
+		if (cpu_is_omap44xx() || cpu_is_omap34xx())
+			omap_set_pwrdm_state(pwrdm, new_state);
 	}
 
 	pr_debug("OMAP PM: %s pwrst: curr= %d, prev= %d next= %d "
