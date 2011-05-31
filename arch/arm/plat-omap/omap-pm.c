@@ -1,14 +1,11 @@
 /*
- * omap-pm-noop.c - OMAP power management interface - dummy version
+ * omap-pm.c - OMAP power management interface
  *
- * This code implements the OMAP power management interface to
- * drivers, CPUIdle, CPUFreq, and DSP Bridge.  It is strictly for
- * debug/demonstration use, as it does nothing but printk() whenever a
- * function is called (when DEBUG is defined, below)
- *
- * Copyright (C) 2008-2009 Texas Instruments, Inc.
+ * Copyright (C) 2008-2010 Texas Instruments, Inc.
  * Copyright (C) 2008-2009 Nokia Corporation
- * Paul Walmsley
+ * Vishwanath BS
+ *
+ * This code is based on plat-omap/omap-pm-noop.c.
  *
  * Interface developed by (in alphabetical order):
  * Karthik Dasu, Tony Lindgren, Rajendra Nayak, Sakari Poussa, Veeramanikandan
@@ -20,46 +17,39 @@
 #include <linux/init.h>
 #include <linux/cpufreq.h>
 #include <linux/device.h>
-#include <linux/platform_device.h>
 
 /* Interface documentation is in mach/omap-pm.h */
 #include <plat/omap-pm.h>
-#include <plat/omap_device.h>
 
-static bool off_mode_enabled;
-static u32 dummy_context_loss_counter;
+#include <plat/powerdomain.h>
+
+struct omap_opp *dsp_opps;
+struct omap_opp *mpu_opps;
+struct omap_opp *l3_opps;
 
 /*
  * Device-driver-originated constraints (via board-*.c files)
  */
 
-int omap_pm_set_max_mpu_wakeup_lat(struct pm_qos_request_list **pmqos_req,
-			long t)
+int omap_pm_set_max_mpu_wakeup_lat(struct pm_qos_request_list **qos_request,
+					long t)
 {
-	if (!pmqos_req || t < -1) {
+	if (!qos_request || t < -1) {
 		WARN(1, "OMAP PM: %s: invalid parameter(s)", __func__);
 		return -EINVAL;
 	};
 
-	if (t == -1)
-		pr_debug("OMAP PM: remove max MPU wakeup latency constraint\n");
+	if (t == -1) {
+		pm_qos_remove_request(*qos_request);
+		*qos_request = NULL;
+	} else if (*qos_request == NULL)
+		*qos_request = pm_qos_add_request(PM_QOS_CPU_DMA_LATENCY, t);
 	else
-		pr_debug("OMAP PM: add max MPU wakeup latency constraint:"
-			"t = %ld usec\n", t);
-
-	/*
-	 * For current Linux, this needs to map the MPU to a
-	 * powerdomain, then go through the list of current max lat
-	 * constraints on the MPU and find the smallest.  If
-	 * the latency constraint has changed, the code should
-	 * recompute the state to enter for the next powerdomain
-	 * state.
-	 *
-	 * TI CDP code can call constraint_set here.
-	 */
+		pm_qos_update_request(*qos_request, t);
 
 	return 0;
 }
+
 
 int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, unsigned long r)
 {
@@ -119,30 +109,21 @@ int omap_pm_set_max_dev_wakeup_lat(struct device *req_dev, struct device *dev,
 	return 0;
 }
 
-int omap_pm_set_max_sdma_lat(struct pm_qos_request_list **qos_request, long t)
+int omap_pm_set_max_sdma_lat(struct pm_qos_request_list **qos_request,
+					long t)
 {
 	if (!qos_request || t < -1) {
 		WARN(1, "OMAP PM: %s: invalid parameter(s)", __func__);
 		return -EINVAL;
 	};
 
-	if (t == -1)
-		pr_debug("OMAP PM: remove max DMA latency constraint:\n");
+	if (t == -1) {
+		pm_qos_remove_request(*qos_request);
+		*qos_request = NULL;
+	} else if (*qos_request == NULL)
+		*qos_request = pm_qos_add_request(PM_QOS_CPU_DMA_LATENCY, t);
 	else
-		pr_debug("OMAP PM: add max DMA latency constraint:"
-			"t = %ld usec\n", t);
-
-	/*
-	 * For current Linux PM QOS params, this code should scan the
-	 * list of maximum CPU and DMA latencies and select the
-	 * smallest, then set cpu_dma_latency pm_qos_param
-	 * accordingly.
-	 *
-	 * For future Linux PM QOS params, with separate CPU and DMA
-	 * latency params, this code should just set the dma_latency param.
-	 *
-	 * TI CDP code can call constraint_set here.
-	 */
+		pm_qos_update_request(*qos_request, t);
 
 	return 0;
 }
@@ -282,70 +263,37 @@ unsigned long omap_pm_cpu_get_freq(void)
 	return 0;
 }
 
-/**
- * omap_pm_enable_off_mode - notify OMAP PM that off-mode is enabled
- *
- * Intended for use only by OMAP PM core code to notify this layer
- * that off mode has been enabled.
- */
-void omap_pm_enable_off_mode(void)
-{
-	off_mode_enabled = true;
-}
-
-/**
- * omap_pm_disable_off_mode - notify OMAP PM that off-mode is disabled
- *
- * Intended for use only by OMAP PM core code to notify this layer
- * that off mode has been disabled.
- */
-void omap_pm_disable_off_mode(void)
-{
-	off_mode_enabled = false;
-}
-
 /*
  * Device context loss tracking
  */
 
-#ifdef CONFIG_ARCH_OMAP2PLUS
-
-u32 omap_pm_get_dev_context_loss_count(struct device *dev)
+int omap_pm_get_dev_context_loss_count(struct device *dev)
 {
-	struct platform_device *pdev = to_platform_device(dev);
-	u32 count;
+	if (!dev) {
+		WARN_ON(1);
+		return -EINVAL;
+	};
 
-	if (WARN_ON(!dev))
-		return 0;
+	pr_debug("OMAP PM: returning context loss count for dev %s\n",
+		 dev_name(dev));
 
-	if (dev->parent == &omap_device_parent) {
-		count = omap_device_get_context_loss_count(pdev);
-	} else {
-		WARN_ONCE(off_mode_enabled, "omap_pm: using dummy context loss counter; device %s should be converted to omap_device",
-			  dev_name(dev));
-		if (off_mode_enabled)
-			dummy_context_loss_counter++;
-		count = dummy_context_loss_counter;
-	}
+	/*
+	 * Map the device to the powerdomain.  Return the powerdomain
+	 * off counter.
+	 */
 
-	pr_debug("OMAP PM: context loss count for dev %s = %d\n",
-		 dev_name(dev), count);
-
-	return count;
+	return 0;
 }
 
-#else
-
-u32 omap_pm_get_dev_context_loss_count(struct device *dev)
-{
-	return dummy_context_loss_counter;
-}
-
-#endif
 
 /* Should be called before clk framework init */
-int __init omap_pm_if_early_init(void)
+int __init omap_pm_if_early_init(struct omap_opp *mpu_opp_table,
+				 struct omap_opp *dsp_opp_table,
+				 struct omap_opp *l3_opp_table)
 {
+	mpu_opps = mpu_opp_table;
+	dsp_opps = dsp_opp_table;
+	l3_opps = l3_opp_table;
 	return 0;
 }
 
@@ -359,4 +307,5 @@ void omap_pm_if_exit(void)
 {
 	/* Deallocate CPUFreq frequency table here */
 }
+
 

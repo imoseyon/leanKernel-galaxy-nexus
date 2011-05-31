@@ -17,6 +17,7 @@
 #include <linux/device.h>
 #include <linux/cpufreq.h>
 #include <linux/clk.h>
+#include <linux/pm_qos_params.h>
 #include <linux/opp.h>
 
 /*
@@ -73,7 +74,8 @@ void omap_pm_if_exit(void);
 
 /**
  * omap_pm_set_max_mpu_wakeup_lat - set the maximum MPU wakeup latency
- * @dev: struct device * requesting the constraint
+ * @qos_request: handle for the constraint. The pointer should be
+ * initialized to NULL
  * @t: maximum MPU wakeup latency in microseconds
  *
  * Request that the maximum interrupt latency for the MPU to be no
@@ -105,7 +107,8 @@ void omap_pm_if_exit(void);
  * Returns -EINVAL for an invalid argument, -ERANGE if the constraint
  * is not satisfiable, or 0 upon success.
  */
-int omap_pm_set_max_mpu_wakeup_lat(struct device *dev, long t);
+int omap_pm_set_max_mpu_wakeup_lat(struct pm_qos_request_list **qos_request,
+				long t);
 
 
 /**
@@ -172,7 +175,8 @@ int omap_pm_set_max_dev_wakeup_lat(struct device *req_dev, struct device *dev,
 
 /**
  * omap_pm_set_max_sdma_lat - set the maximum system DMA transfer start latency
- * @dev: struct device *
+ * @qos_request: handle for the constraint. The pointer should be
+ * initialized to NULL
  * @t: maximum DMA transfer start latency in microseconds
  *
  * Request that the maximum system DMA transfer start latency for this
@@ -197,7 +201,8 @@ int omap_pm_set_max_dev_wakeup_lat(struct device *req_dev, struct device *dev,
  * Returns -EINVAL for an invalid argument, -ERANGE if the constraint
  * is not satisfiable, or 0 upon success.
  */
-int omap_pm_set_max_sdma_lat(struct device *dev, long t);
+int omap_pm_set_max_sdma_lat(struct pm_qos_request_list **qos_request,
+					long t);
 
 
 /**
