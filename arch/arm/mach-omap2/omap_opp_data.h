@@ -49,6 +49,8 @@
  */
 struct omap_opp_def {
 	char *hwmod_name;
+	char *voltdm_name;
+	char *clk_name;
 
 	unsigned long freq;
 	unsigned long u_volt;
@@ -59,9 +61,11 @@ struct omap_opp_def {
 /*
  * Initialization wrapper used to define an OPP for OMAP variants.
  */
-#define OPP_INITIALIZER(_hwmod_name, _enabled, _freq, _uv)	\
+#define OPP_INITIALIZER(_hwmod_name, _clk_name, _voltdm_name, _enabled, _freq, _uv)	\
 {								\
 	.hwmod_name	= _hwmod_name,				\
+	.clk_name	= _clk_name,				\
+	.voltdm_name	= _voltdm_name,				\
 	.default_available	= _enabled,			\
 	.freq		= _freq,				\
 	.u_volt		= _uv,					\
