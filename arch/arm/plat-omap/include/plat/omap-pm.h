@@ -359,6 +359,15 @@ unsigned long omap_pm_cpu_get_freq(void);
  */
 int omap_pm_get_dev_context_loss_count(struct device *dev);
 
+
+/**
+ * omap_pm_set_min_mpu_freq - sets the min frequency the mpu should be allowed
+ * to run. The function works with a granularity of 1000000. Any frequency requested,
+ * will set the mpu frequency to the closet higher frequency that can match the request.
+ * to release the constraint, the f parameter should be passed as -1.
+ */
+int omap_pm_set_min_mpu_freq(struct device *dev, unsigned long f);
+
 void omap_pm_enable_off_mode(void);
 void omap_pm_disable_off_mode(void);
 

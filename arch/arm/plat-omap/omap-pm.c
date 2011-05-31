@@ -32,6 +32,7 @@ struct omap_opp *mpu_opps;
 struct omap_opp *l3_opps;
 
 static DEFINE_MUTEX(bus_tput_mutex);
+static DEFINE_MUTEX(mpu_tput_mutex);
 
 /* Used to model a Interconnect Throughput */
 static struct interconnect_tput {
@@ -44,6 +45,7 @@ static struct interconnect_tput {
 	struct mutex throughput_mutex;
 	/* Target level for interconnect throughput */
 	unsigned long target_level;
+
 } *bus_tput;
 
 /* Used to represent a user of a interconnect throughput */
@@ -554,4 +556,36 @@ void omap_pm_if_exit(void)
 	/* Deallocate CPUFreq frequency table here */
 }
 
+int omap_pm_set_min_mpu_freq(struct device *dev, unsigned long f)
+{
 
+	int ret = 0;
+	struct device *mpu_dev;
+
+	if (!dev) {
+		WARN(1, "OMAP PM: %s: invalid parameter(s)", __func__);
+		return -EINVAL;
+	}
+
+	mutex_lock(&mpu_tput_mutex);
+
+	mpu_dev = omap2_get_mpuss_device();
+	if (!mpu_dev) {
+		pr_err("Unable to get MPU device pointer");
+		ret = -EINVAL;
+		goto unlock;
+	}
+
+
+	/* Rescale the frequency if a change is detected with
+	 * the new constraint.
+	 */
+	ret = omap_device_set_rate(dev, mpu_dev, f);
+	if (ret)
+		pr_err("Unable to set MPU frequency to %ld\n", f);
+
+unlock:
+	mutex_unlock(&mpu_tput_mutex);
+	return ret;
+}
+EXPORT_SYMBOL(omap_pm_set_min_mpu_freq);
