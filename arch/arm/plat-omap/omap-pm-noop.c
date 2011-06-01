@@ -310,7 +310,7 @@ void omap_pm_disable_off_mode(void)
 
 #ifdef CONFIG_ARCH_OMAP2PLUS
 
-u32 omap_pm_get_dev_context_loss_count(struct device *dev)
+int omap_pm_get_dev_context_loss_count(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	u32 count;
