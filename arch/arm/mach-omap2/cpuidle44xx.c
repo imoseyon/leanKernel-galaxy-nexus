@@ -69,13 +69,13 @@ static unsigned int state_flags = CPUIDLE_FLAG_IGNORE;
  */
 static struct cpuidle_params cpuidle_params_table[] = {
 	/* C1 - CPU0 ON + CPU1 ON + MPU ON  + CORE ON */
-	{.exit_latency = 2 + 2,	.exit_latency = 5, .valid = 1},
+	{.exit_latency = 2 + 2,	.target_residency = 5, .valid = 1},
 	/* C2 - CPU0 ON + CPU1 OFF + MPU ON  + CORE ON */
-	{.exit_latency = 140 + 160, .exit_latency = 300, .valid = 1},
+	{.exit_latency = 140 + 160, .target_residency = 300, .valid = 1},
 	/* C3 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
-	{.exit_latency = 1516 + 3220, .exit_latency = 15000, .valid = 1},
+	{.exit_latency = 1516 + 3220, .target_residency = 15000, .valid = 1},
 	/* C4 - CPU0 OFF + CPU1 OFF + MPU OSWR + CORE OSWR */
-	{.exit_latency = 1644 + 3298, .exit_latency = 39000, .valid = 0},
+	{.exit_latency = 1644 + 3298, .target_residency = 39000, .valid = 0},
 };
 
 static bool omap4_idle_bm_busy(void)
