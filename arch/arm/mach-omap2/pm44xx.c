@@ -395,6 +395,7 @@ static int __init omap4_pm_init(void)
 {
 	int ret;
 	struct clockdomain *emif_clkdm, *mpuss_clkdm, *l3_1_clkdm;
+	struct clockdomain *ducati_clkdm, *l3_2_clkdm;
 
 	if (!cpu_is_omap44xx())
 		return -ENODEV;
@@ -422,33 +423,33 @@ static int __init omap4_pm_init(void)
 		goto err2;
 	}
 
-	(void) clkdm_for_each(clkdms_setup, NULL);
-
 	/*
-	 * FIXME: Remove the MPUSS <-> EMIF static dependency once the
-	 * dynamic dependency issue is root-caused.
-	 * The dynamic dependency between MPUSS <-> MEMIF and MPUSS <-> L3_1
-	 * doesn't seems to work as expected and MPUSS does not wakeup
-	 * from off-mode if the static dependency is not set between them.
-	 * At times CPUs dead-locks with above static dependencies cleared.
+	 * The dynamic dependency between MPUSS -> MEMIF and
+	 * MPUSS -> L3_* and DUCATI -> doesn't work as expected.
+	 * The hardware recommendation is to keep above dependencies.
+	 * Without this system locks up or randomly crashesh.
 	 */
 	mpuss_clkdm = clkdm_lookup("mpuss_clkdm");
 	emif_clkdm = clkdm_lookup("l3_emif_clkdm");
 	l3_1_clkdm = clkdm_lookup("l3_1_clkdm");
-	if ((!mpuss_clkdm) || (!emif_clkdm) || (!l3_1_clkdm))
+	l3_2_clkdm = clkdm_lookup("l3_2_clkdm");
+	ducati_clkdm = clkdm_lookup("ducati_clkdm");
+	if ((!mpuss_clkdm) || (!emif_clkdm) || (!l3_1_clkdm) ||
+			(!l3_2_clkdm) || (!ducati_clkdm))
 		goto err2;
 
 	ret = clkdm_add_wkdep(mpuss_clkdm, emif_clkdm);
+	ret |= clkdm_add_wkdep(mpuss_clkdm, l3_1_clkdm);
+	ret |= clkdm_add_wkdep(mpuss_clkdm, l3_2_clkdm);
+	ret |= clkdm_add_wkdep(ducati_clkdm, l3_1_clkdm);
+	ret |= clkdm_add_wkdep(ducati_clkdm, l3_2_clkdm);
 	if (ret) {
-		pr_err("Failed to add MPUSS <-> EMIF wakeup dependency\n");
+		pr_err("Failed to add MPUSS -> L3/EMIF, DUCATI -> L3"
+				"wakeup dependency\n");
 		goto err2;
 	}
 
-	ret = clkdm_add_wkdep(mpuss_clkdm, l3_1_clkdm);
-	if (ret) {
-		pr_err("Failed to add MPUSS <-> L3_MAIN_1 wakeup dependency\n");
-		goto err2;
-	}
+	(void) clkdm_for_each(clkdms_setup, NULL);
 
 	pr_info("OMAP4 PM: Temporary static dependency added between"
 		"MPUSS <-> EMIF and MPUSS <-> L3_MAIN_1.\n");
