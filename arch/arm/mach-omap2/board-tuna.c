@@ -46,8 +46,8 @@
 #include "mux.h"
 #include "board-tuna.h"
 
-#define GPIO_WIFI_PMENA		43
-#define GPIO_WIFI_IRQ		53
+#define GPIO_WIFI_PMENA		104
+#define GPIO_WIFI_IRQ		16
 
 static int tuna_hw_rev;
 
@@ -150,17 +150,15 @@ static struct omap2_hsmmc_info mmc[] = {
 		.gpio_wp	= -EINVAL,
 		.gpio_cd	= -EINVAL,
 	},
-#if 0
 	{
-		.name		= "wl1271",
+		.name		= "omap_wlan",
 		.mmc		= 5,
-		.caps		= MMC_CAP_4_BIT_DATA | MMC_CAP_POWER_OFF_CARD,
+		.caps		= MMC_CAP_4_BIT_DATA,
 		.gpio_wp	= -EINVAL,
 		.gpio_cd	= -EINVAL,
-		.ocr_mask	= MMC_VDD_165_195,
+		.ocr_mask	= MMC_VDD_165_195 | MMC_VDD_20_21,
 		.nonremovable	= true,
 	},
-#endif
 	{}	/* Terminator */
 };
 
@@ -190,7 +188,7 @@ static struct regulator_init_data tuna_vmmc5 = {
 
 static struct fixed_voltage_config tuna_vwlan = {
 	.supply_name = "vwl1271",
-	.microvolts = 1800000, /* 1.8V */
+	.microvolts = 2000000, /* 2.0V */
 	.gpio = GPIO_WIFI_PMENA,
 	.startup_delay = 70000, /* 70msec */
 	.enable_high = 1,
@@ -461,8 +459,27 @@ static inline void board_serial_init(void)
 }
 #endif
 
-#define HSMMC2_MUX (OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP)
-#define HSMMC1_MUX (OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP)
+#define HSMMC2_MUX	(OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP)
+#define HSMMC1_MUX	OMAP_PIN_INPUT_PULLUP
+#define HSMMC5_MUX	OMAP_PIN_INPUT_PULLUP
+
+static void tuna_wlan_init(void)
+{
+	/* WLAN SDIO: MMC5 CMD */
+	omap_mux_init_signal("sdmmc5_cmd", HSMMC5_MUX);
+	/* WLAN SDIO: MMC5 CLK */
+	omap_mux_init_signal("sdmmc5_clk", HSMMC5_MUX);
+	/* WLAN SDIO: MMC5 DAT[0-3] */
+	omap_mux_init_signal("sdmmc5_dat0", HSMMC5_MUX);
+	omap_mux_init_signal("sdmmc5_dat1", HSMMC5_MUX);
+	omap_mux_init_signal("sdmmc5_dat2", HSMMC5_MUX);
+	omap_mux_init_signal("sdmmc5_dat3", HSMMC5_MUX);
+	/* WLAN OOB - BCM4330 - GPIO 16 or GPIO 2 */
+	omap_mux_init_gpio(GPIO_WIFI_IRQ, OMAP_PIN_INPUT);
+	omap_mux_init_signal("sim_reset", OMAP_MUX_MODE3 | OMAP_PIN_INPUT);
+	/* WLAN PMENA - GPIO 104 */
+	omap_mux_init_gpio(GPIO_WIFI_PMENA, OMAP_PIN_OUTPUT);
+}
 
 static void __init tuna_init(void)
 {
@@ -515,6 +532,7 @@ static void __init tuna_init(void)
 	if (wl12xx_set_platform_data(&tuna_wlan_data))
 		pr_err("error setting wl12xx data\n");
 
+	tuna_wlan_init();
 	tuna_i2c_init();
 	platform_add_devices(tuna_devices, ARRAY_SIZE(tuna_devices));
 	platform_device_register(&omap_vwlan_device);
