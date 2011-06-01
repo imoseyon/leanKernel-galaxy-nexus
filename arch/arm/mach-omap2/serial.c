@@ -317,9 +317,9 @@ static void omap_uart_enable_wakeup(struct omap_uart_state *uart)
 	}
 
 	if (cpu_is_omap44xx() && uart->padconf) {
-		u32 v = omap4_ctrl_pad_readl(uart->padconf);
+		u16 v = omap4_ctrl_pad_readw(uart->padconf);
 		v |= OMAP44XX_PADCONF_WAKEUPENABLE0;
-		omap4_ctrl_pad_writel(v, uart->padconf);
+		omap4_ctrl_pad_writew(v, uart->padconf);
 	}
 }
 
