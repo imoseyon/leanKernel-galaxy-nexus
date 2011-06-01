@@ -375,7 +375,6 @@ void omap_sram_idle(void)
 		printk(KERN_ERR "Invalid mpu state in sram_idle\n");
 		return;
 	}
-	pwrdm_pre_transition();
 
 	/* NEON control */
 	if (pwrdm_read_pwrst(neon_pwrdm) == PWRDM_POWER_ON)
@@ -397,6 +396,8 @@ void omap_sram_idle(void)
 		    core_next_state < PWRDM_POWER_ON)
 			if (!console_trylock())
 				goto console_still_active;
+
+	pwrdm_pre_transition();
 
 	/* PER */
 	if (per_next_state < PWRDM_POWER_ON) {
@@ -467,6 +468,8 @@ void omap_sram_idle(void)
 	}
 	omap3_intc_resume_idle();
 
+	pwrdm_post_transition();
+
 	/* PER */
 	if (per_next_state < PWRDM_POWER_ON) {
 		per_prev_state = pwrdm_read_prev_pwrst(per_pwrdm);
@@ -489,8 +492,6 @@ console_still_active:
 					     PM_WKEN);
 		omap3_disable_io_chain();
 	}
-
-	pwrdm_post_transition();
 
 	clkdm_allow_idle(mpu_pwrdm->pwrdm_clkdms[0]);
 }
