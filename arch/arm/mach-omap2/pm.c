@@ -174,7 +174,8 @@ static int __init omap2_set_init_voltage(char *vdd_name, char *clk_name,
 	struct voltagedomain *voltdm;
 	struct clk *clk;
 	struct opp *opp;
-	unsigned long freq, bootup_volt;
+	unsigned long freq_cur, freq_valid, bootup_volt;
+	int ret = -EINVAL;
 
 	if (!vdd_name || !clk_name || !dev) {
 		printk(KERN_ERR "%s: Invalid parameters!\n", __func__);
@@ -195,16 +196,20 @@ static int __init omap2_set_init_voltage(char *vdd_name, char *clk_name,
 		goto exit;
 	}
 
-	freq = clk->rate;
-	clk_put(clk);
+	freq_cur = clk->rate;
+	freq_valid = freq_cur;
 
 	rcu_read_lock();
-	opp = opp_find_freq_ceil(dev, &freq);
+	opp = opp_find_freq_ceil(dev, &freq_valid);
 	if (IS_ERR(opp)) {
-		rcu_read_unlock();
-		printk(KERN_ERR "%s: unable to find boot up OPP for vdd_%s\n",
-			__func__, vdd_name);
-		goto exit;
+		opp = opp_find_freq_floor(dev, &freq_valid);
+		if (IS_ERR(opp)) {
+			rcu_read_unlock();
+			pr_err("%s: no boot OPP match for %ld on vdd_%s\n",
+				__func__, freq_cur, vdd_name);
+			ret = -ENOENT;
+			goto exit_ck;
+		}
 	}
 
 	bootup_volt = opp_get_voltage(opp);
@@ -212,11 +217,57 @@ static int __init omap2_set_init_voltage(char *vdd_name, char *clk_name,
 	if (!bootup_volt) {
 		printk(KERN_ERR "%s: unable to find voltage corresponding"
 			"to the bootup OPP for vdd_%s\n", __func__, vdd_name);
-		goto exit;
+		ret = -ENOENT;
+		goto exit_ck;
 	}
 
-	voltdm_scale(voltdm, bootup_volt);
-	return 0;
+	/*
+	 * Frequency and Voltage have to be sequenced: if we move from
+	 * a lower frequency to higher frequency, raise voltage, followed by
+	 * frequency, and vice versa. we assume that the voltage at boot
+	 * is the required voltage for the frequency it was set for.
+	 * NOTE:
+	 * we can check the frequency, but there is numerous ways to set
+	 * voltage. We play the safe path and just set the voltage.
+	 */
+
+	if (freq_cur < freq_valid) {
+		ret = voltdm_scale(voltdm, bootup_volt);
+		if (ret) {
+			pr_err("%s: Fail set voltage-%s(f=%ld v=%ld)on vdd%s\n",
+				__func__, vdd_name, freq_valid,
+				bootup_volt, vdd_name);
+			goto exit_ck;
+		}
+	}
+
+	/* Set freq only if there is a difference in freq */
+	if (freq_valid != freq_cur) {
+		ret = clk_set_rate(clk, freq_valid);
+		if (ret) {
+			pr_err("%s: Fail set clk-%s(f=%ld v=%ld)on vdd%s\n",
+				__func__, clk_name, freq_valid,
+				bootup_volt, vdd_name);
+			goto exit_ck;
+		}
+	}
+
+	if (freq_cur >= freq_valid) {
+		ret = voltdm_scale(voltdm, bootup_volt);
+		if (ret) {
+			pr_err("%s: Fail set voltage-%s(f=%ld v=%ld)on vdd%s\n",
+				__func__, clk_name, freq_valid,
+				bootup_volt, vdd_name);
+			goto exit_ck;
+		}
+	}
+
+	ret = 0;
+exit_ck:
+	clk_put(clk);
+
+	if (!ret)
+		return 0;
 
 exit:
 	printk(KERN_ERR "%s: Unable to put vdd_%s to its init voltage\n\n",
