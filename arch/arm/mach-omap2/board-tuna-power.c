@@ -26,15 +26,15 @@
 #include "mux.h"
 
 /* These will be different on pre-lunchbox, lunchbox, and final */
-#define GPIO_CHARGING_N		159
-#define GPIO_TA_NCONNECTED	160
+#define GPIO_CHARGING_N		83
+#define GPIO_TA_NCONNECTED	142
 #define GPIO_CHARGE_N		13
 #define CHG_CUR_ADJ		102
 
 static struct gpio charger_gpios[] = {
 	{ .gpio = GPIO_CHARGING_N, .flags = GPIOF_IN, .label = "charging_n" },
 	{ .gpio = GPIO_TA_NCONNECTED, .flags = GPIOF_IN, .label = "charger_n" },
-	{ .gpio = GPIO_CHARGE_N, .flags = GPIOF_OUT_INIT_LOW, .label = "charge_n" },
+	{ .gpio = GPIO_CHARGE_N, .flags = GPIOF_OUT_INIT_HIGH, .label = "charge_n" },
 	{ .gpio = CHG_CUR_ADJ, .flags = GPIOF_OUT_INIT_LOW, .label = "charge_cur_adj" },
 };
 
@@ -84,6 +84,7 @@ static const __initdata struct pda_power_pdata charger_pdata = {
 	.init = charger_init,
 	.exit = charger_exit,
 	.is_ac_online = charger_is_ac_online,
+	.is_usb_online = charger_is_ac_online,
 	.set_charge = charger_set_charge,
 	.wait_for_status = 500,
 	.wait_for_charger = 500,
@@ -108,6 +109,9 @@ void __init omap4_tuna_power_init(void)
 	if (omap4_tuna_get_revision() == TUNA_REV_PRE_LUNCHBOX) {
 		charger_gpios[0].gpio = 11;
 		charger_gpios[1].gpio = 12;
+	} else if (!omap4_tuna_final_gpios()) {
+		charger_gpios[0].gpio = 159;
+		charger_gpios[1].gpio = 160;
 	}
 
 	omap_mux_init_gpio(charger_gpios[0].gpio, OMAP_PIN_INPUT);
