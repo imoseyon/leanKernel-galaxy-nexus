@@ -137,9 +137,27 @@ static struct platform_device ramconsole_device = {
 	.resource       = ramconsole_resources,
 };
 
+static struct platform_device bcm4330_bluetooth_device = {
+	.name = "bcm4330_bluetooth",
+	.id = -1,
+};
+
+static void __init tuna_bt_init(void)
+{
+	/* BT_EN - GPIO 104 */
+	omap_mux_init_signal("gpmc_ncs6.gpio_103", OMAP_PIN_OUTPUT);
+	/*BT_nRST - GPIO 42 */
+	omap_mux_init_signal("gpmc_a18.gpio_42", OMAP_PIN_OUTPUT);
+	/* BT_WAKE - GPIO 27 */
+	omap_mux_init_signal("dpm_emu16.gpio_27", OMAP_PIN_OUTPUT);
+	/* BT_HOST_WAKE  - GPIO 177 */
+	omap_mux_init_signal("kpd_row5.gpio_177", OMAP_PIN_INPUT);
+}
+
 static struct platform_device *tuna_devices[] __initdata = {
 	&ramconsole_device,
 	&wl1271_device,
+	&bcm4330_bluetooth_device,
 };
 
 static void __init tuna_init_early(void)
@@ -571,6 +589,7 @@ static void __init tuna_init(void)
 	tuna_wlan_init();
 	tuna_audio_init();
 	tuna_i2c_init();
+	tuna_bt_init();
 	platform_add_devices(tuna_devices, ARRAY_SIZE(tuna_devices));
 	board_serial_init();
 	omap2_hsmmc_init(mmc);
