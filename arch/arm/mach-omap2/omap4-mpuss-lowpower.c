@@ -460,7 +460,7 @@ int __init omap4_mpuss_init(void)
 	if (omap_type() != OMAP2_DEVICE_TYPE_GP) {
 		/* Memory not released */
 		secure_ram = dma_alloc_coherent(NULL, OMAP4_SECURE_RAM_STORAGE,
-			(dma_addr_t *)&omap4_secure_ram_phys, GFP_KERNEL);
+			(dma_addr_t *)&omap4_secure_ram_phys, GFP_ATOMIC);
 		if (!secure_ram)
 			pr_err("Unable to allocate secure ram storage\n");
 		writel(0x1, sar_base + OMAP_TYPE_OFFSET);
