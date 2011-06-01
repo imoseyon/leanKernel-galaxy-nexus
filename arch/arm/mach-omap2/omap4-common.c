@@ -25,6 +25,7 @@
 #include <mach/omap-wakeupgen.h>
 
 #include "omap4-sar-layout.h"
+#include "clockdomain.h"
 
 #ifdef CONFIG_CACHE_L2X0
 #define L2X0_POR_OFFSET_VALUE		0x9
@@ -34,6 +35,7 @@ static void __iomem *l2cache_base;
 static void __iomem *gic_dist_base_addr;
 static void __iomem *gic_cpu_base;
 static void __iomem *sar_ram_base;
+static struct clockdomain *l4_secure_clkdm;
 
 void __iomem *omap4_get_gic_dist_base(void)
 {
@@ -225,6 +227,8 @@ static int __init omap4_sar_ram_init(void)
 	if (WARN_ON(!sar_ram_base))
 		return -ENODEV;
 
+	l4_secure_clkdm = clkdm_lookup("l4_secure_clkdm");
+
 	return 0;
 }
 early_initcall(omap4_sar_ram_init);
@@ -254,12 +258,25 @@ u32 omap4_secure_dispatcher(u32 idx, u32 flag, u32 nargs, u32 arg1, u32 arg2,
 	param[4] = arg4;
 
 	/*
+	 * Put l4 secure to software wakeup  so that secure
+	 * modules are accessible
+	 */
+	clkdm_wakeup(l4_secure_clkdm);
+
+	/*
 	 * Secure API needs physical address
 	 * pointer for the parameters
 	 */
 	flush_cache_all();
 	outer_clean_range(__pa(param), __pa(param + 5));
+
 	ret = omap_smc2(idx, flag, __pa(param));
+
+	/*
+	 * Restore l4 secure to hardware superwised to allow
+	 * secure modules idle
+	 */
+	clkdm_allow_idle(l4_secure_clkdm);
 
 	return ret;
 }
