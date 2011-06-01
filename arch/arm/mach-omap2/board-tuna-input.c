@@ -26,7 +26,8 @@
 #include "board-tuna.h"
 #include "mux.h"
 
-#define GPIO_TOUCH_EN		54
+#define GPIO_TOUCH_EN		19
+#define GPIO_LUNCHBOX_TOUCH_EN	54
 #define GPIO_TOUCH_IRQ		46
 
 static const int tuna_keymap[] = {
@@ -139,9 +140,15 @@ void __init omap4_tuna_input_init(void)
 	gpio_direction_input(GPIO_TOUCH_IRQ);
 	omap_mux_init_gpio(GPIO_TOUCH_IRQ, OMAP_PIN_INPUT_PULLUP);
 
-	gpio_request(GPIO_TOUCH_EN, "tsp_en");
-	gpio_direction_output(GPIO_TOUCH_EN, 1);
-	omap_mux_init_gpio(GPIO_TOUCH_EN, OMAP_PIN_OUTPUT);
+	if (omap4_tuna_final_gpios()) {
+		gpio_request(GPIO_TOUCH_EN, "tsp_en");
+		gpio_direction_output(GPIO_TOUCH_EN, 1);
+		omap_mux_init_gpio(GPIO_TOUCH_EN, OMAP_PIN_OUTPUT);
+	} else {
+		gpio_request(GPIO_LUNCHBOX_TOUCH_EN, "tsp_en");
+		gpio_direction_output(GPIO_LUNCHBOX_TOUCH_EN, 1);
+		omap_mux_init_gpio(GPIO_LUNCHBOX_TOUCH_EN, OMAP_PIN_OUTPUT);
+	}
 
 	if (omap4_tuna_get_revision() == TUNA_REV_PRE_LUNCHBOX) {
 		i2c_register_board_info(3, tuna_i2c3_boardinfo_pre_lunchbox,
