@@ -359,6 +359,10 @@ static struct i2c_board_info __initdata tuna_i2c1_boardinfo[] = {
 
 static int __init tuna_i2c_init(void)
 {
+	omap_mux_init_signal("sys_nirq1", OMAP_PIN_INPUT_PULLUP);
+	omap_mux_init_signal("i2c1_scl.i2c1_scl", OMAP_PIN_INPUT_PULLUP);
+	omap_mux_init_signal("i2c1_sda.i2c1_sda", OMAP_PIN_INPUT_PULLUP);
+
 	/*
 	 * Phoenix Audio IC needs I2C1 to
 	 * start with 400 KHz or less
