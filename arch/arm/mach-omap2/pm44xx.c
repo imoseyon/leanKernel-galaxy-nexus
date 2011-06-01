@@ -265,7 +265,10 @@ static void __init prcm_setup_regs(void)
 	omap3_dpll_allow_idle(dpll_core_ck);
 	dpll_iva_ck = clk_get(NULL, "dpll_iva_ck");
 	omap3_dpll_allow_idle(dpll_iva_ck);
-	dpll_mpu_ck = clk_get(NULL, "dpll_mpu_ck");
+	if (cpu_is_omap446x())
+		dpll_mpu_ck = clk_get(NULL, "virt_dpll_mpu_ck");
+	else
+		dpll_mpu_ck = clk_get(NULL, "dpll_mpu_ck");
 	omap3_dpll_allow_idle(dpll_mpu_ck);
 	dpll_per_ck = clk_get(NULL, "dpll_per_ck");
 	omap3_dpll_allow_idle(dpll_per_ck);
