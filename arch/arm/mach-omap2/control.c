@@ -204,9 +204,29 @@ void omap_ctrl_writel(u32 val, u16 offset)
  * registers. This APIs will work only for OMAP4
  */
 
+u8 omap4_ctrl_pad_readb(u16 offset)
+{
+	return __raw_readb(OMAP4_CTRL_PAD_REGADDR(offset));
+}
+
+u16 omap4_ctrl_pad_readw(u16 offset)
+{
+	return __raw_readw(OMAP4_CTRL_PAD_REGADDR(offset));
+}
+
 u32 omap4_ctrl_pad_readl(u16 offset)
 {
 	return __raw_readl(OMAP4_CTRL_PAD_REGADDR(offset));
+}
+
+void omap4_ctrl_pad_writeb(u8 val, u16 offset)
+{
+	__raw_writeb(val, OMAP4_CTRL_PAD_REGADDR(offset));
+}
+
+void omap4_ctrl_pad_writew(u16 val, u16 offset)
+{
+	__raw_writew(val, OMAP4_CTRL_PAD_REGADDR(offset));
 }
 
 void omap4_ctrl_pad_writel(u32 val, u16 offset)
