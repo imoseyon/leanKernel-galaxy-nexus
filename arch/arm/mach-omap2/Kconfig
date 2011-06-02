@@ -331,6 +331,7 @@ config MACH_TUNA
 	select OMAP_PACKAGE_CBL
 	select OMAP_PACKAGE_CBS
 	select REGULATOR_FIXED_VOLTAGE
+	select OMAP_TPS6236X
 
 config OMAP3_EMU
 	bool "OMAP3 debugging peripherals"

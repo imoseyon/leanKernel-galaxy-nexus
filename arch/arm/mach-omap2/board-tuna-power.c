@@ -24,12 +24,15 @@
 
 #include "board-tuna.h"
 #include "mux.h"
+#include "pm.h"
 
 /* These will be different on pre-lunchbox, lunchbox, and final */
 #define GPIO_CHARGING_N		83
 #define GPIO_TA_NCONNECTED	142
 #define GPIO_CHARGE_N		13
 #define CHG_CUR_ADJ		102
+
+#define TPS62361_GPIO   7
 
 static struct gpio charger_gpios[] = {
 	{ .gpio = GPIO_CHARGING_N, .flags = GPIOF_IN, .label = "charging_n" },
@@ -105,6 +108,15 @@ static const __initdata struct i2c_board_info max17043_i2c[] = {
 void __init omap4_tuna_power_init(void)
 {
 	struct platform_device *pdev;
+	int status;
+
+	if (omap4_tuna_final_gpios()) {
+		/* Vsel0 = gpio, vsel1 = gnd */
+		status = omap_tps6236x_board_setup(true, TPS62361_GPIO, -1,
+					OMAP_PIN_OFF_OUTPUT_HIGH, -1);
+		if (status)
+			pr_err("TPS62361 initialization failed: %d\n", status);
+	}
 
 	if (omap4_tuna_get_revision() == TUNA_REV_PRE_LUNCHBOX) {
 		charger_gpios[0].gpio = 11;
