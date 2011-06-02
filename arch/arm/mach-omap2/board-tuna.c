@@ -241,7 +241,7 @@ static struct regulator_init_data tuna_vaux3 = {
 					| REGULATOR_CHANGE_STATUS,
 	},
 	.num_consumer_supplies = ARRAY_SIZE(tuna_vaux3_supplies),
-	.consumer_supplies = &tuna_vaux3_supplies,
+	.consumer_supplies = tuna_vaux3_supplies,
 };
 
 static struct regulator_init_data tuna_vmmc = {
