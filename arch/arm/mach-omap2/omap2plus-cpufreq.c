@@ -93,7 +93,7 @@ static int omap_target(struct cpufreq_policy *policy,
 	freqs.old = omap_getspeed(policy->cpu);
 	freqs.cpu = policy->cpu;
 
-	if (freqs.old == freqs.new)
+	if (freqs.old == freqs.new && policy->cur == freqs.new)
 		return ret;
 
 	if (!is_smp()) {
