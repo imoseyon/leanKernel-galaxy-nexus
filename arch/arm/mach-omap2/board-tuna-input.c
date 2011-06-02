@@ -27,7 +27,6 @@
 #include "mux.h"
 
 #define GPIO_TOUCH_EN		19
-#define GPIO_LUNCHBOX_TOUCH_EN	54
 #define GPIO_TOUCH_IRQ		46
 
 static const int tuna_keymap[] = {
@@ -118,12 +117,35 @@ static struct i2c_board_info __initdata tuna_i2c3_boardinfo_pre_lunchbox[] = {
 	},
 };
 
+static int melfas_mux_fw_flash(bool to_gpios)
+{
+	if (to_gpios) {
+		/* EN is always an output */
+		gpio_direction_output(GPIO_TOUCH_EN, 0);
+		gpio_direction_output(GPIO_TOUCH_IRQ, 0);
+		omap_mux_init_gpio(GPIO_TOUCH_IRQ, OMAP_PIN_INPUT);
+		gpio_direction_output(130, 0);
+		omap_mux_init_signal("i2c3_scl.gpio_130", OMAP_PIN_INPUT);
+		gpio_direction_output(131, 0);
+		omap_mux_init_signal("i2c3_sda.gpio_131", OMAP_PIN_INPUT);
+	} else {
+		gpio_direction_input(GPIO_TOUCH_IRQ);
+		omap_mux_init_gpio(GPIO_TOUCH_IRQ, OMAP_PIN_INPUT_PULLUP);
+		omap_mux_init_signal("i2c3_scl.i2c3_scl", OMAP_PIN_INPUT);
+		omap_mux_init_signal("i2c3_sda.i2c3_sda", OMAP_PIN_INPUT);
+		gpio_direction_output(GPIO_TOUCH_EN, 1);
+	}
+
+	return 0;
+}
+
 static struct mms_ts_platform_data mms_ts_pdata = {
 	.max_x		= 720,
 	.max_y		= 1280,
+	.mux_fw_flash	= melfas_mux_fw_flash,
 };
 
-static struct i2c_board_info __initdata tuna_i2c3_boardinfo_lunchbox[] = {
+static struct i2c_board_info __initdata tuna_i2c3_boardinfo_final[] = {
 	{
 		I2C_BOARD_INFO("mms_ts", 0x48),
 		.flags = I2C_CLIENT_WAKE,
@@ -142,10 +164,11 @@ void __init omap4_tuna_input_init(void)
 		gpio_request(GPIO_TOUCH_EN, "tsp_en");
 		gpio_direction_output(GPIO_TOUCH_EN, 1);
 		omap_mux_init_gpio(GPIO_TOUCH_EN, OMAP_PIN_OUTPUT);
-	} else {
-		gpio_request(GPIO_LUNCHBOX_TOUCH_EN, "tsp_en");
-		gpio_direction_output(GPIO_LUNCHBOX_TOUCH_EN, 1);
-		omap_mux_init_gpio(GPIO_LUNCHBOX_TOUCH_EN, OMAP_PIN_OUTPUT);
+		gpio_request(130, "ap_i2c3_scl");
+		gpio_request(131, "ap_i2c3_sda");
+
+		i2c_register_board_info(3, tuna_i2c3_boardinfo_lunchbox,
+			ARRAY_SIZE(tuna_i2c3_boardinfo_lunchbox));
 	}
 
 	if (omap4_tuna_get_revision() == TUNA_REV_PRE_LUNCHBOX) {
@@ -158,9 +181,6 @@ void __init omap4_tuna_input_init(void)
 		omap4_keyboard_init(&tuna_keypad_data);
 		tuna_gpio_keypad_data.info_count = 1;
 	} else {
-		i2c_register_board_info(3, tuna_i2c3_boardinfo_lunchbox,
-			ARRAY_SIZE(tuna_i2c3_boardinfo_lunchbox));
-
 		omap_mux_init_gpio(8, OMAP_PIN_INPUT);
 		omap_mux_init_gpio(30, OMAP_PIN_INPUT);
 	}
