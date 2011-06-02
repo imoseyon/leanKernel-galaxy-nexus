@@ -269,5 +269,5 @@ static void __exit omap_cpufreq_exit(void)
 
 MODULE_DESCRIPTION("cpufreq driver for OMAP2PLUS SOCs");
 MODULE_LICENSE("GPL");
-module_init(omap_cpufreq_init);
+late_initcall(omap_cpufreq_init);
 module_exit(omap_cpufreq_exit);
