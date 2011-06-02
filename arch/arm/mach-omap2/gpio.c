@@ -23,6 +23,7 @@
 
 #include <plat/omap_hwmod.h>
 #include <plat/omap_device.h>
+#include <plat/omap-pm.h>
 
 #include "powerdomain.h"
 
@@ -33,6 +34,16 @@ static struct omap_device_pm_latency omap_gpio_latency[] = {
 		.flags		 = OMAP_DEVICE_LATENCY_AUTO_ADJUST,
 	},
 };
+
+#ifdef CONFIG_PM
+static int omap_gpio_get_context_loss(struct device *dev)
+{
+	return omap_pm_get_dev_context_loss_count(dev);
+}
+
+#else
+#define omap_gpio_get_context_loss NULL
+#endif
 
 static int omap2_gpio_dev_init(struct omap_hwmod *oh, void *unused)
 {
@@ -63,6 +74,7 @@ static int omap2_gpio_dev_init(struct omap_hwmod *oh, void *unused)
 	pdata->bank_width = dev_attr->bank_width;
 	pdata->dbck_flag = dev_attr->dbck_flag;
 	pdata->virtual_irq_start = IH_GPIO_BASE + 32 * (id - 1);
+	pdata->get_context_loss_count = omap_gpio_get_context_loss;
 
 	pdata->regs = kzalloc(sizeof(struct omap_gpio_reg_offs), GFP_KERNEL);
 	if (!pdata) {
