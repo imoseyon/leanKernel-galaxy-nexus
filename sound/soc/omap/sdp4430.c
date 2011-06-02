@@ -720,8 +720,9 @@ static int __init sdp4430_soc_init(void)
 {
 	int ret;
 
-	if (!machine_is_omap_4430sdp() && !machine_is_omap4_panda()) {
-		pr_debug("Not SDP4430 or PandaBoard!\n");
+	if (!machine_is_omap_4430sdp() && !machine_is_omap4_panda() &&
+			!machine_is_tuna()) {
+		pr_debug("Not SDP4430, PandaBoard or Tuna!\n");
 		return -ENODEV;
 	}
 	printk(KERN_INFO "SDP4430 SoC init\n");
@@ -729,6 +730,8 @@ static int __init sdp4430_soc_init(void)
 		snd_soc_sdp4430.name = "SDP4430";
 	else if (machine_is_omap4_panda())
 		snd_soc_sdp4430.name = "Panda";
+	else if (machine_is_tuna())
+		snd_soc_sdp4430.name = "Tuna";
 
 	sdp4430_snd_device = platform_device_alloc("soc-audio", -1);
 	if (!sdp4430_snd_device) {
