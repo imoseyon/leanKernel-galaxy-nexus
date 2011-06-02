@@ -87,8 +87,8 @@ static dma_addr_t dmac_pa;
  *  TMM connectors
  *  ==========================================================================
  */
-/* wrapper around tmm_map */
-static s32 refill_pat(struct tmm *tmm, struct tcm_area *area, u32 *ptr)
+/* wrapper around tmm_pin */
+static s32 pin_mem_to_area(struct tmm *tmm, struct tcm_area *area, u32 *ptr)
 {
 	s32 res = 0;
 	struct pat_area p_area = {0};
@@ -106,7 +106,8 @@ static s32 refill_pat(struct tmm *tmm, struct tcm_area *area, u32 *ptr)
 		memcpy(dmac_va, ptr, sizeof(*ptr) * tcm_sizeof(slice));
 		ptr += tcm_sizeof(slice);
 
-		if (tmm_map(tmm, p_area, dmac_pa)) {
+		/* pin memory into DMM */
+		if (tmm_pin(tmm, p_area, dmac_pa)) {
 			res = -EFAULT;
 			break;
 		}
@@ -115,8 +116,8 @@ static s32 refill_pat(struct tmm *tmm, struct tcm_area *area, u32 *ptr)
 	return res;
 }
 
-/* wrapper around tmm_clear */
-static void clear_pat(struct tmm *tmm, struct tcm_area *area)
+/* wrapper around tmm_unpin */
+static void unpin_mem_from_area(struct tmm *tmm, struct tcm_area *area)
 {
 	struct pat_area p_area = {0};
 	struct tcm_area slice, area_s;
@@ -127,7 +128,7 @@ static void clear_pat(struct tmm *tmm, struct tcm_area *area)
 		p_area.x1 = slice.p1.x;
 		p_area.y1 = slice.p1.y;
 
-		tmm_clear(tmm, p_area);
+		tmm_unpin(tmm, p_area);
 	}
 }
 
@@ -582,7 +583,7 @@ static void _m_unpin(struct mem_info *mi)
 	kfree(mi->pa.mem);
 	mi->pa.mem = NULL;
 	mi->pa.num_pg = 0;
-	clear_pat(tmm[tiler_fmt(mi->blk.phys)], &mi->area);
+	unpin_mem_from_area(tmm[tiler_fmt(mi->blk.phys)], &mi->area);
 }
 
 /* (must have mutex) free block and any freed areas */
@@ -865,7 +866,7 @@ static void fill_block_info(struct mem_info *i, struct tiler_block_info *blk)
  *  Block operations
  *  ==========================================================================
  */
-static struct mem_info *__get_area(enum tiler_fmt fmt, u32 width, u32 height,
+static struct mem_info *alloc_area(enum tiler_fmt fmt, u32 width, u32 height,
 				   u16 align, u16 offs, struct gid_info *gi)
 {
 	u16 x, y, band, in_offs = 0;
@@ -932,7 +933,7 @@ static struct mem_info *alloc_block_area(enum tiler_fmt fmt, u32 width,
 		return ERR_PTR(-ENOMEM);
 
 	/* reserve area in tiler container */
-	mi = __get_area(fmt, width, height, align, offs, gi);
+	mi = alloc_area(fmt, width, height, align, offs, gi);
 	if (!mi) {
 		mutex_lock(&mtx);
 		gi->refs--;
@@ -961,7 +962,7 @@ static s32 pin_memory(struct mem_info *mi, struct tiler_pa_info *pa)
 	struct tcm_area area = mi->area;
 
 	/* ensure we can pin */
-	if (!tmm_can_map(tmm[fmt]))
+	if (!tmm_can_pin(tmm[fmt]))
 		return -EINVAL;
 
 	/* ensure pages fit into area */
@@ -981,7 +982,7 @@ static s32 pin_memory(struct mem_info *mi, struct tiler_pa_info *pa)
 	if (fmt == TILFMT_PAGE)
 		tcm_1d_limit(&area, pa->num_pg);
 	if (mi->pa.num_pg)
-		return refill_pat(tmm[fmt], &area, mi->pa.mem);
+		return pin_mem_to_area(tmm[fmt], &area, mi->pa.mem);
 	return 0;
 }
 
@@ -1027,7 +1028,7 @@ static s32 alloc_block(enum tiler_fmt fmt, u32 width, u32 height,
 		return mi ? -ENOMEM : PTR_ERR(mi);
 
 	/* allocate and map if mapping is supported */
-	if (tmm_can_map(tmm[fmt])) {
+	if (tmm_can_pin(tmm[fmt])) {
 		/* allocate back memory */
 		pa = get_new_pa(tmm[fmt], tcm_sizeof(mi->area));
 		if (!pa)
@@ -1056,6 +1057,7 @@ static struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg)
 	struct task_struct *curr_task = current;
 	struct mm_struct *mm = current->mm;
 	struct vm_area_struct *vma = NULL;
+
 	struct tiler_pa_info *pa = NULL;
 	struct page *page = NULL;
 	u32 *mem = NULL, got_pg = 1, i = 0, write;
@@ -1145,7 +1147,7 @@ static struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg)
 	return pa;
 }
 
-static s32 map_any_block(enum tiler_fmt fmt, u32 width, u32 height,
+static s32 pin_any_block(enum tiler_fmt fmt, u32 width, u32 height,
 		     u32 key, u32 gid, struct process_info *pi,
 		     struct mem_info **info, struct tiler_pa_info *pa)
 {
@@ -1159,7 +1161,7 @@ static s32 map_any_block(enum tiler_fmt fmt, u32 width, u32 height,
 		goto done;
 
 	/* check if mapping is supported by tmm */
-	if (!tmm_can_map(tmm[fmt]))
+	if (!tmm_can_pin(tmm[fmt]))
 		goto done;
 
 	/* get allocation area */
@@ -1185,7 +1187,7 @@ done:
 	return res;
 }
 
-static s32 map_block(enum tiler_fmt fmt, u32 width, u32 height,
+static s32 pin_block(enum tiler_fmt fmt, u32 width, u32 height,
 		     u32 key, u32 gid, struct process_info *pi,
 		     struct mem_info **info, u32 usr_addr)
 {
@@ -1196,7 +1198,7 @@ static s32 map_block(enum tiler_fmt fmt, u32 width, u32 height,
 	if (IS_ERR_OR_NULL(pa))
 		return pa ? PTR_ERR(pa) : -ENOMEM;
 
-	return map_any_block(fmt, width, height, key, gid, pi, info, pa);
+	return pin_any_block(fmt, width, height, key, gid, pi, info, pa);
 }
 
 /*
@@ -1215,7 +1217,7 @@ static s32 __init tiler_init(void)
 	struct pat_area area = {0};
 
 	tiler.alloc = alloc_block;
-	tiler.map = map_block;
+	tiler.pin = pin_block;
 	tiler.lock = find_n_lock;
 	tiler.unlock_free = unlock_n_free;
 	tiler.lay_2d = lay_2d;
@@ -1268,7 +1270,7 @@ static s32 __init tiler_init(void)
 	/* Clear out all PAT entries */
 	area.x1 = tiler.width - 1;
 	area.y1 = tiler.height - 1;
-	tmm_clear(tmm_pat, area);
+	tmm_unpin(tmm_pat, area);
 
 	tiler.nv12_packed = tcm[TILFMT_8BIT] == tcm[TILFMT_16BIT];
 
@@ -1370,7 +1372,7 @@ tiler_blk_handle tiler_map_1d_block(struct tiler_pa_info *pa)
 {
 	struct mem_info *mi = NULL;
 	struct tiler_pa_info *pa_tmp = kmemdup(pa, sizeof(*pa), GFP_KERNEL);
-	s32 res = map_any_block(TILFMT_PAGE, pa->num_pg << PAGE_SHIFT, 1, 0, 0,
+	s32 res = pin_any_block(TILFMT_PAGE, pa->num_pg << PAGE_SHIFT, 1, 0, 0,
 						__get_pi(0, true), &mi, pa_tmp);
 	return res ? ERR_PTR(res) : mi;
 }

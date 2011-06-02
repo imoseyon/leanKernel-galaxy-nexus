@@ -107,7 +107,7 @@ struct tiler_ops {
 			u32 align, u32 offs, u32 key,
 			u32 gid, struct process_info *pi,
 			struct mem_info **info);
-	s32 (*map) (enum tiler_fmt fmt, u32 width, u32 height,
+	s32 (*pin) (enum tiler_fmt fmt, u32 width, u32 height,
 			u32 key, u32 gid, struct process_info *pi,
 			struct mem_info **info, u32 usr_addr);
 	void (*reserve_nv12) (u32 n, u32 width, u32 height, u32 align, u32 offs,

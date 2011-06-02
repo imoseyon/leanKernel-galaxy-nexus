@@ -49,8 +49,8 @@ struct tmm {
 	/* function table */
 	u32 *(*get)	(struct tmm *tmm, u32 num_pages);
 	void (*free)	(struct tmm *tmm, u32 *pages);
-	s32  (*map)	(struct tmm *tmm, struct pat_area area, u32 page_pa);
-	void (*clear)	(struct tmm *tmm, struct pat_area area);
+	s32  (*pin)	(struct tmm *tmm, struct pat_area area, u32 page_pa);
+	void (*unpin)	(struct tmm *tmm, struct pat_area area);
 	void (*deinit)	(struct tmm *tmm);
 };
 
@@ -83,10 +83,10 @@ void tmm_free(struct tmm *tmm, u32 *pages)
  * @param list of pages
  */
 static inline
-s32 tmm_map(struct tmm *tmm, struct pat_area area, u32 page_pa)
+s32 tmm_pin(struct tmm *tmm, struct pat_area area, u32 page_pa)
 {
-	if (tmm && tmm->map && tmm->pvt)
-		return tmm->map(tmm, area, page_pa);
+	if (tmm && tmm->pin && tmm->pvt)
+		return tmm->pin(tmm, area, page_pa);
 	return -ENODEV;
 }
 
@@ -95,19 +95,19 @@ s32 tmm_map(struct tmm *tmm, struct pat_area area, u32 page_pa)
  * @param area PAT area
  */
 static inline
-void tmm_clear(struct tmm *tmm, struct pat_area area)
+void tmm_unpin(struct tmm *tmm, struct pat_area area)
 {
-	if (tmm && tmm->clear && tmm->pvt)
-		tmm->clear(tmm, area);
+	if (tmm && tmm->unpin && tmm->pvt)
+		tmm->unpin(tmm, area);
 }
 
 /**
  * Checks whether tiler memory manager supports mapping
  */
 static inline
-bool tmm_can_map(struct tmm *tmm)
+bool tmm_can_pin(struct tmm *tmm)
 {
-	return tmm && tmm->map;
+	return tmm && tmm->pin;
 }
 
 /**

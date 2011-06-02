@@ -400,7 +400,7 @@ static long tiler_ioctl(struct file *filp, u32 cmd, unsigned long arg)
 		if (!block_info.ptr)
 			return -EFAULT;
 
-		r = ops->map(block_info.fmt, block_info.dim.len, 1,
+		r = ops->pin(block_info.fmt, block_info.dim.len, 1,
 			      block_info.key, block_info.group_id, pi,
 			      &mi, (u32)block_info.ptr);
 		if (r)
@@ -731,7 +731,7 @@ s32 tiler_mapx(struct tiler_block_t *blk, enum tiler_fmt fmt, u32 gid,
 	if (!pi)
 		return -ENOMEM;
 
-	res = ops->map(fmt, blk->width, blk->height, blk->key, gid, pi, &mi,
+	res = ops->pin(fmt, blk->width, blk->height, blk->key, gid, pi, &mi,
 								usr_addr);
 	if (mi) {
 		blk->phys = mi->blk.phys;

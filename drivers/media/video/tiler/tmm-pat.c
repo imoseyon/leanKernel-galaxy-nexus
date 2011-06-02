@@ -249,7 +249,7 @@ static void tmm_pat_free_pages(struct tmm *tmm, u32 *page_list)
 	mutex_unlock(&mtx);
 }
 
-static s32 tmm_pat_map(struct tmm *tmm, struct pat_area area, u32 page_pa)
+static s32 tmm_pat_pin(struct tmm *tmm, struct pat_area area, u32 page_pa)
 {
 	struct dmm_mem *pvt = (struct dmm_mem *) tmm->pvt;
 	struct pat pat_desc = {0};
@@ -268,7 +268,7 @@ static s32 tmm_pat_map(struct tmm *tmm, struct pat_area area, u32 page_pa)
 	return dmm_pat_refill(pvt->dmm, &pat_desc, MANUAL);
 }
 
-static void tmm_pat_clear(struct tmm *tmm, struct pat_area area)
+static void tmm_pat_unpin(struct tmm *tmm, struct pat_area area)
 {
 	u16 w = (u8) area.x1 - (u8) area.x0;
 	u16 h = (u8) area.y1 - (u8) area.y0;
@@ -278,7 +278,7 @@ static void tmm_pat_clear(struct tmm *tmm, struct pat_area area)
 	while (i--)
 		pvt->dmac_va[i] = pvt->dummy_pa;
 
-	tmm_pat_map(tmm, area, pvt->dmac_pa);
+	tmm_pat_pin(tmm, area, pvt->dmac_pa);
 }
 
 struct tmm *tmm_pat_init(u32 pat_id, u32 *dmac_va, u32 dmac_pa)
@@ -312,8 +312,8 @@ struct tmm *tmm_pat_init(u32 pat_id, u32 *dmac_va, u32 dmac_pa)
 		tmm->deinit = tmm_pat_deinit;
 		tmm->get = tmm_pat_get_pages;
 		tmm->free = tmm_pat_free_pages;
-		tmm->map = tmm_pat_map;
-		tmm->clear = tmm_pat_clear;
+		tmm->pin = tmm_pat_pin;
+		tmm->unpin = tmm_pat_unpin;
 
 		return tmm;
 	}
