@@ -167,8 +167,8 @@ void __init omap4_tuna_input_init(void)
 		gpio_request(130, "ap_i2c3_scl");
 		gpio_request(131, "ap_i2c3_sda");
 
-		i2c_register_board_info(3, tuna_i2c3_boardinfo_lunchbox,
-			ARRAY_SIZE(tuna_i2c3_boardinfo_lunchbox));
+		i2c_register_board_info(3, tuna_i2c3_boardinfo_final,
+			ARRAY_SIZE(tuna_i2c3_boardinfo_final));
 	}
 
 	if (omap4_tuna_get_revision() == TUNA_REV_PRE_LUNCHBOX) {
