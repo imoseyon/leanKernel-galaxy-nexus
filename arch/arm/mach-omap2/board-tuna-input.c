@@ -119,10 +119,8 @@ static struct i2c_board_info __initdata tuna_i2c3_boardinfo_pre_lunchbox[] = {
 };
 
 static struct mms_ts_platform_data mms_ts_pdata = {
-	.max_x		= 480,
-	.max_y		= 854,
-	.invert_x	= true,
-	.invert_y	= true,
+	.max_x		= 720,
+	.max_y		= 1280,
 };
 
 static struct i2c_board_info __initdata tuna_i2c3_boardinfo_lunchbox[] = {
