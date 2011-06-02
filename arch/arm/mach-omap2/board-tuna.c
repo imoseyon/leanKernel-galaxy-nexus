@@ -47,6 +47,7 @@
 
 #define GPIO_WIFI_PMENA		104
 #define GPIO_WIFI_IRQ		16
+#define GPIO_AUD_PWRON		127
 
 static int tuna_hw_rev;
 
@@ -330,6 +331,26 @@ static struct regulator_init_data tuna_clk32kg = {
 	},
 };
 
+static void omap4_audio_conf(void)
+{
+	/* twl6040 naudint */
+	omap_mux_init_signal("sys_nirq2.sys_nirq2", \
+		OMAP_PIN_INPUT_PULLUP);
+	/* aud_pwron */
+	omap_mux_init_gpio(GPIO_AUD_PWRON, OMAP_PIN_OUTPUT);
+}
+
+static struct twl4030_codec_audio_data twl6040_audio = {
+	/* Add audio only data */
+};
+
+static struct twl4030_codec_data twl6040_codec = {
+	.audio		= &twl6040_audio,
+	.audpwron_gpio	= GPIO_AUD_PWRON,
+	.naudint_irq	= OMAP44XX_IRQ_SYS_2N,
+	.irq_base	= TWL6040_CODEC_IRQ_BASE,
+};
+
 static struct twl4030_platform_data tuna_twldata = {
 	.irq_base	= TWL6030_IRQ_BASE,
 	.irq_end	= TWL6030_IRQ_END,
@@ -345,6 +366,9 @@ static struct twl4030_platform_data tuna_twldata = {
 	.vaux3		= &tuna_vaux3,
 	.clk32kg	= &tuna_clk32kg,
 	.usb		= &omap4_usbphy_data,
+
+	/* children */
+	.codec		= &twl6040_codec,
 };
 
 static struct i2c_board_info __initdata tuna_i2c1_boardinfo[] = {
@@ -537,6 +561,7 @@ static void __init tuna_init(void)
 
 	tuna_wlan_init();
 	tuna_i2c_init();
+	omap4_audio_conf();
 	platform_add_devices(tuna_devices, ARRAY_SIZE(tuna_devices));
 	platform_device_register(&omap_vwlan_device);
 	board_serial_init();
