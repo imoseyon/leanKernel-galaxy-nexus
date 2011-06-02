@@ -21,6 +21,8 @@ struct mms_ts_platform_data {
 
 	bool	invert_x;
 	bool	invert_y;
+
+	int	(*mux_fw_flash)(bool to_gpios);
 };
 
 #endif /* _LINUX_MMS_TOUCH_H */
