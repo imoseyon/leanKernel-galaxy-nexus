@@ -1418,6 +1418,7 @@ static void soc_remove_dai_link(struct snd_soc_card *card, int num)
 		}
 		codec_dai->probed = 0;
 		list_del(&codec_dai->card_list);
+		module_put(codec_dai->dev->driver->owner);
 	}
 
 	/* remove the platform */
@@ -1617,6 +1618,7 @@ static int soc_probe_dai_link(struct snd_soc_card *card, int num)
 	rtd->pmdown_time = pmdown_time;
 
 	/* probe the cpu_dai */
+
 	if (!cpu_dai->probed) {
 		if (!try_module_get(cpu_dai->dev->driver->owner))
 			return -ENODEV;
@@ -1663,11 +1665,14 @@ static int soc_probe_dai_link(struct snd_soc_card *card, int num)
 
 	/* probe the CODEC DAI */
 	if (!codec_dai->probed) {
+		if (!try_module_get(codec_dai->dev->driver->owner))
+			return -ENODEV;
 		if (codec_dai->driver->probe) {
 			ret = codec_dai->driver->probe(codec_dai);
 			if (ret < 0) {
 				printk(KERN_ERR "asoc: failed to probe CODEC DAI %s\n",
 						codec_dai->name);
+				module_put(codec_dai->dev->driver->owner);
 				return ret;
 			}
 		}
