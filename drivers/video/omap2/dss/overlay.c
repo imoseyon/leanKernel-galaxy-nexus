@@ -353,6 +353,86 @@ static ssize_t overlay_zorder_store(struct omap_overlay *ovl,
 	return size;
 }
 
+static ssize_t overlay_decim_show(u16 min, u16 max, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d..%d\n", min, max);
+}
+
+static ssize_t overlay_x_decim_show(struct omap_overlay *ovl, char *buf)
+{
+	return overlay_decim_show(ovl->info.min_x_decim, ovl->info.max_x_decim,
+									buf);
+}
+
+static ssize_t overlay_y_decim_show(struct omap_overlay *ovl, char *buf)
+{
+	return overlay_decim_show(ovl->info.min_y_decim, ovl->info.max_y_decim,
+									buf);
+}
+
+static ssize_t overlay_decim_store(u16 *min, u16 *max,
+						const char *buf, size_t size)
+{
+	char *last;
+
+	*min = *max = simple_strtoul(buf, &last, 10);
+	if (last < buf + size && *last == '.') {
+		/* check for .. separator */
+		if (last + 2 >= buf + size || last[1] != '.')
+			return -EINVAL;
+
+		*max = simple_strtoul(last + 2, &last, 10);
+
+		/* fix order */
+		if (*max < *min)
+			swap(*min, *max);
+	}
+
+	/* decimation must be positive */
+	if (*min == 0)
+		return -EINVAL;
+
+	return 0;
+}
+
+static ssize_t overlay_x_decim_store(struct omap_overlay *ovl,
+						const char *buf, size_t size)
+{
+	int r;
+	struct omap_overlay_info info;
+
+	ovl->get_overlay_info(ovl, &info);
+
+	r = overlay_decim_store(&info.min_x_decim, &info.max_x_decim,
+				buf, size);
+
+	r = r ? : ovl->set_overlay_info(ovl, &info);
+
+	if (!r && ovl->manager)
+		r = ovl->manager->apply(ovl->manager);
+
+	return r ? : size;
+}
+
+static ssize_t overlay_y_decim_store(struct omap_overlay *ovl,
+						const char *buf, size_t size)
+{
+	int r;
+	struct omap_overlay_info info;
+
+	ovl->get_overlay_info(ovl, &info);
+
+	r = overlay_decim_store(&info.min_y_decim, &info.max_y_decim,
+				   buf, size);
+
+	r = r ? : ovl->set_overlay_info(ovl, &info);
+
+	if (!r && ovl->manager)
+		r = ovl->manager->apply(ovl->manager);
+
+	return r ? : size;
+}
+
 struct overlay_attribute {
 	struct attribute attr;
 	ssize_t (*show)(struct omap_overlay *, char *);
@@ -379,6 +459,10 @@ static OVERLAY_ATTR(global_alpha, S_IRUGO|S_IWUSR,
 static OVERLAY_ATTR(pre_mult_alpha, S_IRUGO|S_IWUSR,
 		overlay_pre_mult_alpha_show,
 		overlay_pre_mult_alpha_store);
+static OVERLAY_ATTR(x_decim, S_IRUGO|S_IWUSR,
+		overlay_x_decim_show, overlay_x_decim_store);
+static OVERLAY_ATTR(y_decim, S_IRUGO|S_IWUSR,
+		overlay_y_decim_show, overlay_y_decim_store);
 static OVERLAY_ATTR(zorder, S_IRUGO|S_IWUSR,
 		overlay_zorder_show, overlay_zorder_store);
 
@@ -393,6 +477,8 @@ static struct attribute *overlay_sysfs_attrs[] = {
 	&overlay_attr_global_alpha.attr,
 	&overlay_attr_pre_mult_alpha.attr,
 	&overlay_attr_zorder.attr,
+	&overlay_attr_x_decim.attr,
+	&overlay_attr_y_decim.attr,
 	NULL
 };
 
@@ -703,6 +789,10 @@ void dss_init_overlays(struct platform_device *pdev)
 			break;
 
 		}
+
+		ovl->info.min_x_decim = ovl->info.min_y_decim = 1;
+		ovl->info.max_x_decim = ovl->info.max_y_decim =
+			cpu_is_omap44xx() ? 16 : 1;
 
 		ovl->set_manager = &omap_dss_set_manager;
 		ovl->unset_manager = &omap_dss_unset_manager;

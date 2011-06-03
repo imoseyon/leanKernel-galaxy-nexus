@@ -895,11 +895,11 @@ static void _dispc_set_color_mode(enum omap_plane plane,
 		switch (color_mode) {
 		case OMAP_DSS_COLOR_NV12:
 			m = 0x0; break;
-		case OMAP_DSS_COLOR_RGB12U:
+		case OMAP_DSS_COLOR_RGBX16:
 			m = 0x1; break;
 		case OMAP_DSS_COLOR_RGBA16:
 			m = 0x2; break;
-		case OMAP_DSS_COLOR_RGBX16:
+		case OMAP_DSS_COLOR_RGB12U:
 			m = 0x4; break;
 		case OMAP_DSS_COLOR_ARGB16:
 			m = 0x5; break;
@@ -949,8 +949,10 @@ static void _dispc_set_color_mode(enum omap_plane plane,
 		case OMAP_DSS_COLOR_RGB24P:
 			m = 0x9; break;
 		case OMAP_DSS_COLOR_YUV2:
+		case OMAP_DSS_COLOR_RGBX16:
 			m = 0xa; break;
 		case OMAP_DSS_COLOR_UYVY:
+		case OMAP_DSS_COLOR_RGBA16:
 			m = 0xb; break;
 		case OMAP_DSS_COLOR_ARGB32:
 			m = 0xc; break;
@@ -1392,7 +1394,8 @@ static void _dispc_set_scaling(enum omap_plane plane,
 }
 
 static void _dispc_set_rotation_attrs(enum omap_plane plane, u8 rotation,
-		bool mirroring, enum omap_color_mode color_mode)
+		bool mirroring, enum omap_color_mode color_mode,
+		enum omap_dss_rotation_type type)
 {
 	bool row_repeat = false;
 	int vidrot = 0;
@@ -1447,7 +1450,8 @@ static void _dispc_set_rotation_attrs(enum omap_plane plane, u8 rotation,
 		/* this will never happen for GFX */
 		/* 1D NV12 buffer is always non-rotated or vert. mirrored */
 		bool doublestride = (rotation == OMAP_DSS_ROT_0 ||
-				     rotation == OMAP_DSS_ROT_180);
+				     rotation == OMAP_DSS_ROT_180) &&
+				     type == OMAP_DSS_ROT_TILER;
 		/* DOUBLESTRIDE */
 		REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(plane), doublestride, 22, 22);
 	}
@@ -1500,6 +1504,7 @@ static s32 pixinc(int pixels, u8 ps)
 }
 
 static void calc_tiler_row_rotation(struct tiler_view_t *view,
+		u16 width, int bpp, int y_decim,
 		s32 *row_inc, unsigned *offset1, bool ilace)
 {
 	/* assume TB. We worry about swapping top/bottom outside of this call */
@@ -1508,13 +1513,14 @@ static void calc_tiler_row_rotation(struct tiler_view_t *view,
 		/* even and odd frames are interleaved */
 
 		/* offset1 is always at an odd line */
-		*offset1 = view->v_inc;
+		*offset1 = view->v_inc * (y_decim | 1);
+		y_decim *= 2;
 	}
-	*row_inc = view->v_inc + 1 - view->width * view->bpp;
+	*row_inc = view->v_inc * y_decim + 1 - width * bpp;
 
-	DSSDBG(" ps: %d, width: %d, offset1: %d,"
-		" height: %d, row_inc:%d\n",
-		view->bpp, view->width, *offset1, view->height, *row_inc);
+	DSSDBG(" ps: %d/%d, width: %d/%d, offset1: %d,"
+		" height: %d, row_inc:%d\n", view->bpp, bpp,
+		view->width, width, *offset1, view->height, *row_inc);
 
 	return;
 }
@@ -1609,7 +1615,7 @@ static void calc_dma_rotation_offset(u8 rotation, bool mirror,
 		enum omap_color_mode color_mode, bool fieldmode,
 		unsigned int field_offset,
 		unsigned *offset0, unsigned *offset1,
-		s32 *row_inc, s32 *pix_inc)
+		s32 *row_inc, s32 *pix_inc, int x_decim, int y_decim)
 {
 	u8 ps;
 	u16 fbw, fbh;
@@ -1622,6 +1628,15 @@ static void calc_dma_rotation_offset(u8 rotation, bool mirror,
 	case OMAP_DSS_COLOR_CLUT8:
 		BUG();
 		return;
+	case OMAP_DSS_COLOR_YUV2:
+	case OMAP_DSS_COLOR_UYVY:
+		if (cpu_is_omap44xx()) {
+			/* on OMAP4 YUYV is handled as 32-bit data */
+			ps = 4;
+			screen_width /= 2;
+			break;
+		}
+		/* fall through */
 	default:
 		ps = color_mode_to_bpp(color_mode) / 8;
 		break;
@@ -1651,10 +1666,10 @@ static void calc_dma_rotation_offset(u8 rotation, bool mirror,
 			*offset0 = *offset1 + field_offset * screen_width * ps;
 		else
 			*offset0 = *offset1;
-		*row_inc = pixinc(1 + (screen_width - fbw) +
+		*row_inc = pixinc(1 + (y_decim * screen_width - fbw * x_decim) +
 				(fieldmode ? screen_width : 0),
 				ps);
-		*pix_inc = pixinc(1, ps);
+		*pix_inc = pixinc(x_decim, ps);
 		break;
 	case OMAP_DSS_ROT_90:
 		*offset1 = screen_width * (fbh - 1) * ps;
@@ -1751,6 +1766,11 @@ static unsigned long calc_fclk_five_taps(enum omap_channel channel, u16 width,
 	/* FIXME venc pclk? */
 	u64 tmp, pclk = dispc_pclk_rate(channel);
 
+	/* do conservative guess on OMAP4 until better formula is available */
+	if (cpu_is_omap44xx())
+		return pclk * DIV_ROUND_UP(width, out_width) *
+				DIV_ROUND_UP(height, out_height);
+
 	if (height > out_height) {
 		/* FIXME get real display PPL */
 		unsigned int ppl = 800;
@@ -1809,6 +1829,174 @@ static unsigned long calc_fclk(enum omap_channel channel, u16 width,
 	return dispc_pclk_rate(channel) * vf * hf;
 }
 
+int dispc_scaling_decision(u16 width, u16 height,
+				u16 out_width, u16 out_height,
+				enum omap_plane plane,
+				enum omap_color_mode color_mode,
+				enum omap_channel channel, u8 rotation,
+				u16 min_x_decim, u16 max_x_decim,
+				u16 min_y_decim, u16 max_y_decim,
+				u16 *x_decim, u16 *y_decim, bool *five_taps)
+{
+	int maxdownscale = cpu_is_omap24xx() ? 2 : 4;
+	int bpp = color_mode_to_bpp(color_mode);
+
+	/*
+	 * For now only whole byte formats on OMAP4 can be predecimated.
+	 * Later SDMA decimation support may be added
+	 */
+	bool can_decimate_x = cpu_is_omap44xx() && !(bpp & 7);
+	bool can_decimate_y = can_decimate_x;
+
+	bool can_scale = plane != OMAP_DSS_GFX;
+
+	u16 in_width, in_height;
+	unsigned long fclk = 0, fclk5 = 0;
+	int min_factor, max_factor;	/* decimation search limits */
+	int x, y;			/* decimation search variables */
+	unsigned long fclk_max = dispc_fclk_rate();
+
+	/* No decimation for bitmap formats */
+	if (color_mode == OMAP_DSS_COLOR_CLUT1 ||
+	    color_mode == OMAP_DSS_COLOR_CLUT2 ||
+	    color_mode == OMAP_DSS_COLOR_CLUT4 ||
+	    color_mode == OMAP_DSS_COLOR_CLUT8) {
+		*x_decim = 1;
+		*y_decim = 1;
+		*five_taps = false;
+		return 0;
+	}
+
+	/* restrict search region based on whether we can decimate */
+	if (!can_decimate_x) {
+		if (min_x_decim > 1)
+			return -EINVAL;
+		min_x_decim = max_x_decim = 1;
+	} else {
+		if (max_x_decim > 16)
+			max_x_decim = 16;
+	}
+
+	if (!can_decimate_y) {
+		if (min_y_decim > 1)
+			return -EINVAL;
+		min_y_decim = max_y_decim = 1;
+	}
+
+	/*
+	 * Find best supported quality.  In the search algorithm, we make use
+	 * of the fact, that increased decimation in either direction will have
+	 * lower quality.  However, we do not differentiate horizontal and
+	 * vertical decimation even though they may affect quality differently
+	 * given the exact geometry involved.
+	 *
+	 * Also, since the clock calculations are abstracted, we cannot make
+	 * assumptions on how decimation affects the clock rates in our search.
+	 *
+	 * We search the whole search region in increasing layers from
+	 * min_factor to max_factor.  In each layer we search in increasing
+	 * factors alternating between x and y axis:
+	 *
+	 *   x:	1	2	3
+	 * y:
+	 * 1	1st |	3rd |	6th |
+	 *	----+	    |	    |
+	 * 2	2nd	4th |	8th |
+	 *	------------+	    |
+	 * 3	5th	7th	9th |
+	*	--------------------+
+	 */
+	min_factor = min(min_x_decim, min_y_decim);
+	max_factor = max(max_x_decim, max_y_decim);
+	x = min_x_decim;
+	y = min_y_decim;
+	while (1) {
+		if (x < min_x_decim || x > max_x_decim ||
+			y < min_y_decim || y > max_y_decim)
+			goto loop;
+
+		in_width = DIV_ROUND_UP(width, x);
+		in_height = DIV_ROUND_UP(height, y);
+
+		if (in_width == out_width && in_height == out_height)
+			break;
+
+		if (!can_scale)
+			goto loop;
+
+		if (out_width < in_width / maxdownscale ||
+			out_height < in_height / maxdownscale)
+			goto loop;
+
+		/* Use 5-tap filter unless must use 3-tap */
+		if (!cpu_is_omap44xx())
+			*five_taps = in_width <= 1024;
+		else if (omap_rev() == OMAP4430_REV_ES1_0)
+			*five_taps = in_width <= 1280;
+		else
+			*five_taps = true;
+
+		/* Also use 3-tap if downscaling by 2 or less */
+		*five_taps &= out_height * 2 < in_height;
+
+		/*
+		 * Predecimation on OMAP4 still fetches the whole lines
+		 * :TODO: How does it affect the required clock speed?
+		 */
+		fclk = calc_fclk(channel, in_width, in_height,
+					out_width, out_height);
+		fclk5 = *five_taps ?
+			calc_fclk_five_taps(channel, in_width, in_height,
+					out_width, out_height, color_mode) : 0;
+
+		DSSDBG("%d*%d,%d*%d->%d,%d requires %lu(3T), %lu(5T) Hz\n",
+			in_width, x, in_height, y, out_width, out_height,
+			fclk, fclk5);
+
+		/* Use 3-tap if 5-tap clock requirement is too high */
+		*five_taps &= fclk5 <= fclk_max;
+
+		/* for now we always use 5-tap unless 3-tap is required */
+		if (*five_taps)
+			fclk = fclk5;
+
+		/* OMAP2/3 has a scaler size limitation */
+		if (!cpu_is_omap44xx() && in_width > (1024 << !*five_taps))
+			goto loop;
+
+		DSSDBG("required fclk rate = %lu Hz\n", fclk);
+		DSSDBG("current fclk rate = %lu Hz\n", fclk_max);
+
+		if (fclk > fclk_max)
+			goto loop;
+		break;
+
+loop:
+		/* err if exhausted search region */
+		if (x == max_x_decim && y == max_y_decim) {
+			DSSERR("failed to set up scaling, "
+					"required fclk rate = %lu Hz, "
+					"current fclk rate = %lu Hz\n",
+					fclk, fclk_max);
+			return -EINVAL;
+		}
+
+		/* get to next factor */
+		if (x == y) {
+			x = min_factor;
+			y++;
+		} else {
+			swap(x, y);
+			if (x < y)
+				x++;
+		}
+	}
+
+	*x_decim = x;
+	*y_decim = y;
+	return 0;
+}
+
 int dispc_setup_plane(enum omap_plane plane,
 		u32 paddr, u16 screen_width,
 		u16 pos_x, u16 pos_y,
@@ -1816,13 +2004,13 @@ int dispc_setup_plane(enum omap_plane plane,
 		u16 out_width, u16 out_height,
 		enum omap_color_mode color_mode,
 		bool ilace,
+		int x_decim, int y_decim, bool five_taps,
 		enum omap_dss_rotation_type rotation_type,
 		u8 rotation, bool mirror,
 		u8 global_alpha, u8 pre_mult_alpha,
 		enum omap_channel channel, u32 puv_addr)
 {
-	const int maxdownscale = cpu_is_omap34xx() ? 4 : 2;
-	bool five_taps = 0;
+	const int maxdownscale = cpu_is_omap24xx() ? 2 : 4;
 	bool fieldmode = 0;
 	int cconv = 0;
 	unsigned offset0, offset1;
@@ -1830,14 +2018,17 @@ int dispc_setup_plane(enum omap_plane plane,
 	s32 pix_inc;
 	u16 frame_height = height;
 	unsigned int field_offset = 0;
+	int pixpg = (color_mode &
+		(OMAP_DSS_COLOR_YUV2 | OMAP_DSS_COLOR_UYVY)) ? 2 : 1;
+	unsigned long tiler_width, tiler_height;
 
-	DSSDBG("dispc_setup_plane %d, pa %x, sw %d, %d,%d, %dx%d -> "
-	       "%dx%d, ilace %d, cmode %x, rot %d, mir %d chan %d\n",
+	DSSDBG("dispc_setup_plane %d, pa %x, sw %d, %d,%d, %d/%dx%d/%d -> "
+	       "%dx%d, ilace %d, cmode %x, rot %d, mir %d chan %d %dtap\n",
 	       plane, paddr, screen_width, pos_x, pos_y,
-	       width, height,
+	       width, x_decim, height, y_decim,
 	       out_width, out_height,
 	       ilace, color_mode,
-	       rotation, mirror, channel);
+	       rotation, mirror, channel, five_taps ? 5 : 3);
 
 	if (paddr == 0)
 		return -EINVAL;
@@ -1859,59 +2050,41 @@ int dispc_setup_plane(enum omap_plane plane,
 	if (!dss_feat_color_mode_supported(plane, color_mode))
 		return -EINVAL;
 
+	/* predecimate */
+
+	/* adjust for group-of-pixels*/
+	if (rotation & 1)
+		height /= pixpg;
+	else
+		width /= pixpg;
+
+	/* remember tiler block's size as we are reconstructing it */
+	tiler_width  = width;
+	tiler_height = height;
+
+	width = DIV_ROUND_UP(width, x_decim);
+	height = DIV_ROUND_UP(height, y_decim);
+
+	/* NV12 width has to be even (height apparently does not) */
+	if (color_mode == OMAP_DSS_COLOR_NV12)
+		width &= ~1;
+
 	if (plane == OMAP_DSS_GFX) {
 		if (width != out_width || height != out_height)
 			return -EINVAL;
 	} else {
 		/* video plane */
 
-		unsigned long fclk = 0;
-
-		if (out_width < width / maxdownscale ||
-		   out_width > width * 8)
+		if (out_width < width / maxdownscale)
 			return -EINVAL;
 
-		if (out_height < height / maxdownscale ||
-		   out_height > height * 8)
+		if (out_height < height / maxdownscale)
 			return -EINVAL;
 
 		if (color_mode == OMAP_DSS_COLOR_YUV2 ||
 			color_mode == OMAP_DSS_COLOR_UYVY ||
 			color_mode == OMAP_DSS_COLOR_NV12)
 			cconv = 1;
-
-		/* Must use 5-tap filter? */
-		five_taps = height > out_height * 2;
-
-		if (!five_taps) {
-			fclk = calc_fclk(channel, width, height, out_width,
-					out_height);
-
-			/* Try 5-tap filter if 3-tap fclk is too high */
-			if (cpu_is_omap34xx() && height > out_height &&
-					fclk > dispc_fclk_rate())
-				five_taps = true;
-		}
-
-		if (width > (2048 >> five_taps)) {
-			DSSERR("failed to set up scaling, fclk too low\n");
-			return -EINVAL;
-		}
-
-		if (five_taps)
-			fclk = calc_fclk_five_taps(channel, width, height,
-					out_width, out_height, color_mode);
-
-		DSSDBG("required fclk rate = %lu Hz\n", fclk);
-		DSSDBG("current fclk rate = %lu Hz\n", dispc_fclk_rate());
-
-		if (!fclk || fclk > dispc_fclk_rate()) {
-			DSSERR("failed to set up scaling, "
-					"required fclk rate = %lu Hz, "
-					"current fclk rate = %lu Hz\n",
-					fclk, dispc_fclk_rate());
-			return -EINVAL;
-		}
 	}
 
 	if (ilace && !fieldmode) {
@@ -1948,7 +2121,7 @@ int dispc_setup_plane(enum omap_plane plane,
 
 	if (rotation_type == OMAP_DSS_ROT_TILER) {
 		struct tiler_view_t view = {0};
-		unsigned long tiler_width = width, tiler_height = height;
+		int bpp = color_mode_to_bpp(color_mode) / 8;
 		/* tiler needs 0-degree width & height */
 		if (rotation & 1)
 			swap(tiler_width, tiler_height);
@@ -1963,8 +2136,9 @@ int dispc_setup_plane(enum omap_plane plane,
 		paddr = view.tsptr;
 
 		/* we cannot do TB field interlaced in rotated view */
-		calc_tiler_row_rotation(&view, &row_inc,
-				       &offset1, ilace);
+		pix_inc = 1 + (x_decim - 1) * bpp * pixpg;
+		calc_tiler_row_rotation(&view, width * x_decim, bpp * pixpg,
+					y_decim, &row_inc, &offset1, ilace);
 
 		DSSDBG("w, h = %ld %ld\n", tiler_width, tiler_height);
 
@@ -1980,7 +2154,8 @@ int dispc_setup_plane(enum omap_plane plane,
 		calc_dma_rotation_offset(rotation, mirror,
 				screen_width, width, frame_height, color_mode,
 				fieldmode, field_offset,
-				&offset0, &offset1, &row_inc, &pix_inc);
+				&offset0, &offset1, &row_inc, &pix_inc,
+				x_decim, y_decim);
 	} else {
 		calc_vrfb_rotation_offset(rotation, mirror,
 				screen_width, width, frame_height, color_mode,
@@ -1988,6 +2163,11 @@ int dispc_setup_plane(enum omap_plane plane,
 				&offset0, &offset1, &row_inc, &pix_inc);
 	}
 
+	/* adjust back to pixels */
+	if (rotation & 1)
+		height *= pixpg;
+	else
+		width *= pixpg;
 	DSSDBG("offset0 %u, offset1 %u, row_inc %d, pix_inc %d\n",
 			offset0, offset1, row_inc, pix_inc);
 
@@ -2005,8 +2185,8 @@ int dispc_setup_plane(enum omap_plane plane,
 	_dispc_set_row_inc(plane, row_inc);
 	_dispc_set_pix_inc(plane, pix_inc);
 
-	DSSDBG("%d,%d %dx%d -> %dx%d\n", pos_x, pos_y, width, height,
-			out_width, out_height);
+	DSSDBG("%d,%d %d*%dx%d*%d -> %dx%d\n", pos_x, pos_y, width, x_decim,
+			height, y_decim, out_width, out_height);
 
 	_dispc_set_plane_pos(plane, pos_x, pos_y);
 
@@ -2021,7 +2201,8 @@ int dispc_setup_plane(enum omap_plane plane,
 		_dispc_set_vid_color_conv(plane, cconv);
 	}
 
-	_dispc_set_rotation_attrs(plane, rotation, mirror, color_mode);
+	_dispc_set_rotation_attrs(plane, rotation, mirror, color_mode,
+							rotation_type);
 
 	_dispc_set_pre_mult_alpha(plane, pre_mult_alpha);
 	_dispc_setup_global_alpha(plane, global_alpha);

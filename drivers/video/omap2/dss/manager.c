@@ -433,6 +433,7 @@ struct overlay_cache_data {
 	enum omap_channel channel;
 	bool replication;
 	bool ilace;
+	u16 min_x_decim, max_x_decim, min_y_decim, max_y_decim;
 
 	enum omap_burst_size burst_size;
 	u32 fifo_low;
@@ -801,6 +802,8 @@ static int configure_overlay(enum omap_plane plane)
 	u16 x, y, w, h;
 	u32 paddr;
 	int r;
+	u16 x_decim, y_decim;
+	bool five_taps;
 	u16 orig_w, orig_h, orig_outw, orig_outh;
 
 	DSSDBGF("%d", plane);
@@ -843,11 +846,17 @@ static int configure_overlay(enum omap_plane plane)
 		case OMAP_DSS_COLOR_NV12:
 			bpp = 8;
 			break;
+
+		case OMAP_DSS_COLOR_CLUT1:
+		case OMAP_DSS_COLOR_CLUT2:
+		case OMAP_DSS_COLOR_CLUT4:
+		case OMAP_DSS_COLOR_CLUT8:
 		case OMAP_DSS_COLOR_RGB16:
 		case OMAP_DSS_COLOR_ARGB16:
 		case OMAP_DSS_COLOR_YUV2:
 		case OMAP_DSS_COLOR_UYVY:
 		case OMAP_DSS_COLOR_RGBA16:
+		case OMAP_DSS_COLOR_RGB12U:
 		case OMAP_DSS_COLOR_RGBX16:
 		case OMAP_DSS_COLOR_ARGB16_1555:
 		case OMAP_DSS_COLOR_XRGB16_1555:
@@ -913,14 +922,19 @@ static int configure_overlay(enum omap_plane plane)
 		}
 	}
 
-	r = dispc_setup_plane(plane,
+	r = dispc_scaling_decision(w, h, outw, outh,
+			       plane, c->color_mode, c->channel,
+			       c->rotation, c->min_x_decim, c->max_x_decim,
+			       c->min_y_decim, c->max_y_decim,
+			       &x_decim, &y_decim, &five_taps);
+	r = r ? : dispc_setup_plane(plane,
 			paddr,
 			c->screen_width,
 			x, y,
 			w, h,
 			outw, outh,
 			c->color_mode,
-			c->ilace,
+			c->ilace, x_decim, y_decim, five_taps,
 			c->rotation_type,
 			c->rotation,
 			c->mirror,
@@ -1497,6 +1511,10 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 		oc->global_alpha = ovl->info.global_alpha;
 		oc->pre_mult_alpha = ovl->info.pre_mult_alpha;
 		oc->zorder = ovl->info.zorder;
+		oc->min_x_decim = ovl->info.min_x_decim;
+		oc->max_x_decim = ovl->info.max_x_decim;
+		oc->min_y_decim = ovl->info.min_y_decim;
+		oc->max_y_decim = ovl->info.max_y_decim;
 
 		oc->replication =
 			dss_use_replication(dssdev, ovl->info.color_mode);
