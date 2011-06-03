@@ -33,7 +33,7 @@
 
 /* C1 - CPU0 ON + + CPU1 ON + MPU ON + CORE ON */
 #define OMAP4_STATE_C1		0
-/* C2 - CPU0 ON + CPU1 OFF + MPU ON + CORE ON */
+/* C2 - CPU0 INA + CPU1 OFF + MPU INA + CORE INA */
 #define OMAP4_STATE_C2		1
 /* C3 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
 #define OMAP4_STATE_C3		2
@@ -70,7 +70,7 @@ static unsigned int state_flags = CPUIDLE_FLAG_IGNORE;
 static struct cpuidle_params cpuidle_params_table[] = {
 	/* C1 - CPU0 ON + CPU1 ON + MPU ON  + CORE ON */
 	{.exit_latency = 2 + 2,	.target_residency = 5, .valid = 1},
-	/* C2 - CPU0 ON + CPU1 OFF + MPU ON  + CORE ON */
+	/* C2 - CPU0 INA + CPU1 OFF + MPU INA  + CORE INA */
 	{.exit_latency = 140 + 160, .target_residency = 300, .valid = 1},
 	/* C3 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
 	{.exit_latency = 1516 + 3220, .target_residency = 15000, .valid = 1},
@@ -222,7 +222,7 @@ void omap4_init_power_states(void)
 	omap4_power_states[OMAP4_STATE_C1].desc = "MPU ON + CORE ON";
 
 	/*
-	 * C2 - CPU0 ON + CPU1 OFF + MPU ON + CORE ON
+	 * C2 - CPU0 INA + CPU1 OFF + MPU INA + CORE INA
 	 */
 	omap4_power_states[OMAP4_STATE_C2].valid =
 			cpuidle_params_table[OMAP4_STATE_C2].valid;
@@ -231,13 +231,13 @@ void omap4_init_power_states(void)
 			cpuidle_params_table[OMAP4_STATE_C2].exit_latency;
 	omap4_power_states[OMAP4_STATE_C2].target_residency =
 			cpuidle_params_table[OMAP4_STATE_C2].target_residency;
-	omap4_power_states[OMAP4_STATE_C2].cpu0_state = PWRDM_POWER_ON;
-	omap4_power_states[OMAP4_STATE_C2].mpu_state = PWRDM_POWER_ON;
+	omap4_power_states[OMAP4_STATE_C2].cpu0_state = PWRDM_POWER_INACTIVE;
+	omap4_power_states[OMAP4_STATE_C2].mpu_state = PWRDM_POWER_INACTIVE;
 	omap4_power_states[OMAP4_STATE_C2].mpu_logic_state = PWRDM_POWER_RET;
-	omap4_power_states[OMAP4_STATE_C2].core_state = PWRDM_POWER_ON;
+	omap4_power_states[OMAP4_STATE_C2].core_state = PWRDM_POWER_INACTIVE;
 	omap4_power_states[OMAP4_STATE_C2].core_logic_state = PWRDM_POWER_RET;
 	omap4_power_states[OMAP4_STATE_C2].flags = CPUIDLE_FLAG_TIME_VALID;
-	omap4_power_states[OMAP4_STATE_C2].desc = "MPU ON + CORE ON";
+	omap4_power_states[OMAP4_STATE_C2].desc = "MPU INA + CORE INA";
 
 	/*
 	 * C3 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR
