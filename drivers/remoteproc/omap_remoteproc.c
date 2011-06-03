@@ -87,9 +87,6 @@ static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 
 	rproc->priv = iommu;
 
-	/* temporary workaround */
-	clk_enable(iommu->clk);
-
 	for (i = 0; rproc->memory_maps[i].size; i++) {
 		const struct rproc_mem_entry *me = &rproc->memory_maps[i];
 
@@ -117,8 +114,6 @@ static inline int omap_rproc_stop(struct rproc *rproc)
 		dev_err(dev, "failed to shutdown: %d\n", ret);
 
 	iommu_put(iommu);
-
-	clk_disable(iommu->clk);
 
 	return ret;
 }
