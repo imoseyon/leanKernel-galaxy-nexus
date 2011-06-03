@@ -395,6 +395,10 @@ void __init omap_serial_init_port(struct omap_board_data *bdata,
 	if (bdata->id == omap_uart_con_id)
 		pdata->console_uart = true;
 
+	if (pdata->use_dma &&
+			cpu_is_omap44xx() && omap_rev() > OMAP4430_REV_ES1_0)
+		pdata->errata |= OMAP4_UART_ERRATA_i659_TX_THR;
+
 	od = omap_device_build(name, bdata->id, oh, pdata,
 				sizeof(*pdata), omap_uart_latency,
 				ARRAY_SIZE(omap_uart_latency), false);

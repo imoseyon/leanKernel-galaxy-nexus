@@ -821,6 +821,11 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 	serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B);
 
 	if (up->use_dma) {
+		if (up->errata & OMAP4_UART_ERRATA_i659_TX_THR) {
+			serial_out(up, UART_MDR3, SET_DMA_TX_THRESHOLD);
+			serial_out(up, UART_TX_DMA_THRESHOLD, TX_FIFO_THR_LVL);
+		}
+
 		serial_out(up, UART_TI752_TLR, 0);
 		serial_out(up, UART_OMAP_SCR,
 			(UART_FCR_TRIGGER_4 | UART_FCR_TRIGGER_8));
@@ -1540,6 +1545,17 @@ static void omap_uart_restore_context(struct uart_omap_port *up)
 	serial_out(up, UART_LCR, up->lcr);
 	/* Enable module level wake up */
 	serial_out(up, UART_OMAP_WER, up->wer);
+	if (up->use_dma) {
+		if (up->errata & OMAP4_UART_ERRATA_i659_TX_THR) {
+			serial_out(up, UART_MDR3, SET_DMA_TX_THRESHOLD);
+			serial_out(up, UART_TX_DMA_THRESHOLD, TX_FIFO_THR_LVL);
+		}
+
+		serial_out(up, UART_TI752_TLR, 0);
+		serial_out(up, UART_OMAP_SCR,
+			(UART_FCR_TRIGGER_4 | UART_FCR_TRIGGER_8));
+	}
+
 	/* UART 16x mode */
 	if (up->errata & UART_ERRATA_i202_MDR1_ACCESS)
 		omap_uart_mdr1_errataset(up, up->mdr1);
