@@ -583,10 +583,12 @@ static void gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
 		u32 enabled;
 
 		enabled = _get_gpio_irqbank_mask(bank);
-		isr_saved = isr = __raw_readl(isr_reg) & enabled;
 
-		if (cpu_is_omap15xx() && (bank->method == METHOD_MPUIO))
-			isr &= 0x0000ffff;
+		if (bank->width == 32)
+			isr = __raw_readl(isr_reg) & enabled;
+		else if (bank->width == 16)
+			isr = (__raw_readw(isr_reg) & enabled) & 0x0000ffff;
+		isr_saved = isr;
 
 		if (bank->regs->leveldetect0)
 			level_mask = bank->level_mask & enabled;
