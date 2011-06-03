@@ -439,6 +439,7 @@
 		#define FIX_HW_BRN_31542 
  		#define FIX_HW_BRN_31620
 		#define FIX_HW_BRN_31671 
+		#define FIX_HW_BRN_32044 
 		#define FIX_HW_BRN_32085 
 	#else	
 	#if SGX_CORE_REV == 105
@@ -449,6 +450,9 @@
 	#if SGX_CORE_REV == 106
 	#else
 	#if SGX_CORE_REV == 110
+ 		#if defined(SGX_FEATURE_MP)
+ 			#define FIX_HW_BRN_31425
+ 		#endif
 	#else
 	#if SGX_CORE_REV == SGX_CORE_REV_HEAD
 		
@@ -519,15 +523,6 @@
 		#define SGX_CORE_REV	SGX_CORE_REV_HEAD
 	#endif
 
-	#if SGX_CORE_REV == 123
-		
-	#else
-	#if SGX_CORE_REV == 124
-		
-	#else	
-	#if SGX_CORE_REV == 125
-		
-	#else	
 	#if SGX_CORE_REV == 1251
 		
 	#else	
@@ -535,9 +530,6 @@
 		
 	#else
 		#error "sgxerrata.h: SGX554 Core Revision unspecified"
-	#endif
-	#endif
-	#endif
 	#endif
 	#endif
 	

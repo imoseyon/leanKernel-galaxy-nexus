@@ -33,7 +33,6 @@
 #include "buffer_manager.h"
 #include "sgxinfo.h"
 #include "sysconfig.h"
-#include "regpaths.h"
 #include "pdump_km.h"
 #include "mmu.h"
 #include "pvr_bridge.h"
