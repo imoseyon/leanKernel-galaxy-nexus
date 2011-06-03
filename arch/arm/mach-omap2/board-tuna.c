@@ -482,7 +482,7 @@ static void tuna_wlan_init(void)
 	omap_mux_init_gpio(GPIO_WIFI_IRQ, OMAP_PIN_INPUT);
 	omap_mux_init_signal("sim_reset", OMAP_MUX_MODE3 | OMAP_PIN_INPUT);
 	/* WLAN PMENA - GPIO 104 */
-	omap_mux_init_gpio(GPIO_WIFI_PMENA, OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("gpmc_ncs7.gpio_104", OMAP_PIN_OUTPUT);
 }
 
 static void __init tuna_init(void)
