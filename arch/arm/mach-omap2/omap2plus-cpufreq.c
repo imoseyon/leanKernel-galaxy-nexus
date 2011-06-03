@@ -70,10 +70,6 @@ static int omap_target(struct cpufreq_policy *policy,
 	int ret = 0;
 	struct cpufreq_freqs freqs;
 
-	/* Changes not allowed until all CPUs are online */
-	if (is_smp() && (num_online_cpus() < NR_CPUS))
-		return ret;
-
 	if (!freq_table) {
 		dev_err(mpu_dev, "%s: cpu%d: no freq table!\n", __func__,
 				policy->cpu);
