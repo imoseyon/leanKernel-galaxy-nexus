@@ -31,7 +31,7 @@
 
 #define CPUIDLE_FLAG_CHECK_BM	0x10000	/* use omap4_enter_idle_bm() */
 
-/* C1 - CPU0 ON + + CPU1 ON + MPU ON + CORE ON */
+/* C1 - CPU0 WFI + CPU1 OFF + MPU ON + CORE ON */
 #define OMAP4_STATE_C1		0
 /* C2 - CPU0 INA + CPU1 OFF + MPU INA + CORE INA */
 #define OMAP4_STATE_C2		1
@@ -68,7 +68,7 @@ static unsigned int state_flags = CPUIDLE_FLAG_IGNORE;
  * passing it from board files.
  */
 static struct cpuidle_params cpuidle_params_table[] = {
-	/* C1 - CPU0 ON + CPU1 ON + MPU ON  + CORE ON */
+	/* C1 - CPU0 WFI + CPU1 OFF + MPU ON  + CORE ON */
 	{.exit_latency = 2 + 2,	.target_residency = 5, .valid = 1},
 	/* C2 - CPU0 INA + CPU1 OFF + MPU INA  + CORE INA */
 	{.exit_latency = 140 + 160, .target_residency = 300, .valid = 1},
@@ -204,7 +204,7 @@ DEFINE_PER_CPU(struct cpuidle_device, omap4_idle_dev);
 void omap4_init_power_states(void)
 {
 	/*
-	 * C1 - CPU0 ON + + CPU1 ON + MPU ON + CORE ON
+	 * C1 - CPU0 WFI + CPU1 OFF + MPU ON + CORE ON
 	 */
 	omap4_power_states[OMAP4_STATE_C1].valid =
 			cpuidle_params_table[OMAP4_STATE_C1].valid;
