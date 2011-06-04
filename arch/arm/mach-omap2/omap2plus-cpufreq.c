@@ -182,10 +182,10 @@ static int __cpuinit omap_cpu_init(struct cpufreq_policy *policy)
 	}
 
 	result = cpufreq_frequency_table_cpuinfo(policy, freq_table);
-	if (!result)
-		cpufreq_frequency_table_get_attr(freq_table, policy->cpu);
-	else
+	if (result)
 		goto fail_table;
+
+	cpufreq_frequency_table_get_attr(freq_table, policy->cpu);
 
 	policy->min = policy->cpuinfo.min_freq;
 	policy->max = policy->cpuinfo.max_freq;
