@@ -309,11 +309,21 @@ void __init omap_vc_init_channel(struct voltagedomain *voltdm)
 	vc->cmd_reg_addr = voltdm->pmic->cmd_reg_addr;
 	vc->setup_time = voltdm->pmic->volt_setup_time;
 
+	if ((vc->flags & OMAP_VC_CHANNEL_DEFAULT) &&
+		(vc->i2c_slave_addr == USE_DEFAULT_CHANNEL_I2C_PARAM)) {
+		pr_err("%s: voltdm %s: default channel "
+			"bad config-sa=%2x ?\n", __func__, voltdm->name,
+			vc->i2c_slave_addr);
+		return;
+	}
+
 	/* Configure the i2c slave address for this VC */
-	voltdm->rmw(vc->smps_sa_mask,
-		    vc->i2c_slave_addr << __ffs(vc->smps_sa_mask),
-		    vc->common->smps_sa_reg);
-	vc->cfg_channel |= vc_cfg_bits->sa;
+	if (vc->i2c_slave_addr != USE_DEFAULT_CHANNEL_I2C_PARAM) {
+		voltdm->rmw(vc->smps_sa_mask,
+			vc->i2c_slave_addr << __ffs(vc->smps_sa_mask),
+			vc->common->smps_sa_reg);
+		vc->cfg_channel |= vc_cfg_bits->sa;
+	}
 
 	/*
 	 * Configure the PMIC register addresses.
