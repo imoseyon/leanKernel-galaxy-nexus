@@ -311,10 +311,12 @@ void __init omap_vc_init_channel(struct voltagedomain *voltdm)
 
 	if ((vc->flags & OMAP_VC_CHANNEL_DEFAULT) &&
 		((vc->i2c_slave_addr == USE_DEFAULT_CHANNEL_I2C_PARAM) ||
+		(vc->cmd_reg_addr == USE_DEFAULT_CHANNEL_I2C_PARAM) ||
 		(vc->volt_reg_addr == USE_DEFAULT_CHANNEL_I2C_PARAM))) {
 		pr_err("%s: voltdm %s: default channel "
-			"bad config-sa=%2x vol=%2x?\n", __func__, voltdm->name,
-			vc->i2c_slave_addr, vc->volt_reg_addr);
+			"bad config-sa=%2x vol=%2x, cmd=%2x?\n", __func__,
+			voltdm->name, vc->i2c_slave_addr, vc->volt_reg_addr,
+			vc->cmd_reg_addr);
 		return;
 	}
 
@@ -336,7 +338,7 @@ void __init omap_vc_init_channel(struct voltagedomain *voltdm)
 		vc->cfg_channel |= vc_cfg_bits->rav;
 	}
 
-	if (vc->cmd_reg_addr) {
+	if (vc->cmd_reg_addr != USE_DEFAULT_CHANNEL_I2C_PARAM) {
 		voltdm->rmw(vc->smps_cmdra_mask,
 			    vc->cmd_reg_addr << __ffs(vc->smps_cmdra_mask),
 			    vc->common->smps_cmdra_reg);
