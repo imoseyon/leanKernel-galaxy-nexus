@@ -331,6 +331,15 @@ ENTRY(omap4_cpu_resume)
 	ldr	r12, =0x109			@ Setup L2 AUXCTRL value
 	dsb
 	smc	#0
+
+	ldr	r2, =OMAP44XX_L2CACHE_BASE
+	ldr	r4, =OMAP44XX_SAR_RAM_BASE
+	ldr	r9, [r4, #L2X0_LOCKDOWN_OFFSET0]
+	str	r9, [r2, #L2X0_LOCKDOWN_WAY_D0]
+	str	r9, [r2, #L2X0_LOCKDOWN_WAY_D1]
+	str	r9, [r2, #L2X0_LOCKDOWN_WAY_I0]
+	str	r9, [r2, #L2X0_LOCKDOWN_WAY_I1]
+
 	dsb
 	mov	r0, #0x1
 	ldr	r12, =0x102			@ Enable L2 Cache controller

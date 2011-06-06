@@ -48,6 +48,7 @@ struct power_state {
 	u32 next_state;
 #ifdef CONFIG_SUSPEND
 	u32 saved_state;
+	u32 saved_logic_state;
 #endif
 	struct list_head node;
 };
@@ -175,18 +176,18 @@ static int omap4_pm_suspend(void)
 	/* Save current powerdomain state */
 	list_for_each_entry(pwrst, &pwrst_list, node) {
 		pwrst->saved_state = pwrdm_read_next_pwrst(pwrst->pwrdm);
+		pwrst->saved_logic_state = pwrdm_read_logic_retst(pwrst->pwrdm);
 	}
 
 	/* Set targeted power domain states by suspend */
 	list_for_each_entry(pwrst, &pwrst_list, node) {
-#ifdef CONFIG_OMAP_ALLOW_OSWR
 		if ((!strcmp(pwrst->pwrdm->name, "cpu0_pwrdm")) ||
 			(!strcmp(pwrst->pwrdm->name, "cpu1_pwrdm")))
 				continue;
-
+#ifdef CONFIG_OMAP_ALLOW_OSWR
 		/*OSWR is supported on silicon > ES2.0 */
-		if ((pwrst->pwrdm->pwrsts_logic_ret == PWRSTS_OFF_RET)
-			 && (omap_rev() >= OMAP4430_REV_ES2_1))
+		if ((pwrst->pwrdm->pwrsts_logic_ret == PWRSTS_OFF_RET) &&
+			(!strcmp(pwrst->pwrdm->name, "mpu_pwrdm")))
 				pwrdm_set_logic_retst(pwrst->pwrdm,
 							PWRDM_POWER_OFF);
 #endif
@@ -217,6 +218,7 @@ static int omap4_pm_suspend(void)
 			ret = -1;
 		}
 		omap_set_pwrdm_state(pwrst->pwrdm, pwrst->saved_state);
+		pwrdm_set_logic_retst(pwrst->pwrdm, pwrst->saved_logic_state);
 	}
 	if (ret)
 		pr_err("Could not enter target state in pm_suspend\n");
