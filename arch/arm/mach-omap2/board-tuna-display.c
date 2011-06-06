@@ -20,9 +20,10 @@
 
 #include <linux/platform_data/panel-s6e8aa0.h>
 
-#include <plat/display.h>
-#include <plat/panel-generic-dpi.h>
 #include <plat/vram.h>
+
+#include <video/omapdss.h>
+#include <video/omap-panel-generic-dpi.h>
 
 #include "board-tuna.h"
 #include "control.h"

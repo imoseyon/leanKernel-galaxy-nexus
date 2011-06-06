@@ -33,7 +33,6 @@
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
-#include <plat/display.h>
 
 #include <plat/board.h>
 #include <plat/common.h>
