@@ -262,15 +262,19 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 	while (len >= sizeof(*rsc)) {
 		da = rsc->da;
 
-		ret = rproc_da_to_pa(rproc->memory_maps, da, &pa);
-		if (ret) {
-			dev_err(dev, "invalid device address\n");
-			return -EINVAL;
+		/* RSC_DEVMEM not currently handled */
+		if (rsc->type != RSC_DEVMEM)
+		{
+			ret = rproc_da_to_pa(rproc->memory_maps, da, &pa);
+			if (ret) {
+				dev_err(dev, "invalid device address\n");
+				return -EINVAL;
+			}
+			dev_dbg(dev, "resource: type %d, da 0x%llx, pa 0x%llx, "
+				"mapped pa: 0x%x, len 0x%x, reserved 0x%x, "
+				"name %s\n", rsc->type, rsc->da, rsc->pa, pa,
+				rsc->len, rsc->reserved, rsc->name);
 		}
-
-		dev_dbg(dev, "resource: type %d, da 0x%llx, pa 0x%x, len 0x%x"
-			", reserved %d, name %s\n", rsc->type, rsc->da, pa,
-			rsc->len, rsc->reserved, rsc->name);
 
 		if (rsc->reserved)
 			dev_warn(dev, "nonzero reserved\n");
@@ -306,6 +310,9 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 			break;
 		case RSC_BOOTADDR:
 			*bootaddr = da;
+			break;
+		case RSC_DEVMEM:
+			/* Not yet handled... */
 			break;
 		default:
 			/* we don't support much right now. so use dbg lvl */
@@ -417,6 +424,12 @@ static void rproc_loader_cont(const struct firmware *fw, void *context)
 	}
 
 	dev_info(dev, "BIOS image version is %d\n", image->version);
+	/* Ensure we recognize this BIOS version: */
+	if (image->version != RPROC_BIOS_VERSION) {
+		dev_err(dev, "Expected BIOS version: %d!\n",
+			RPROC_BIOS_VERSION);
+		goto out;
+	}
 
 	/* now process the image, section by section */
 	section = (struct fw_section *)(image->header + image->header_len);

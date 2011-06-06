@@ -39,6 +39,9 @@
 #include <linux/notifier.h>
 #include <linux/pm_qos_params.h>
 
+/* Must match the BIOS version embeded in the BIOS firmware image */
+#define RPROC_BIOS_VERSION	2
+
 /**
  * The following enums and structures define the binary format of the images
  * we load and run the remote processors with.
@@ -81,16 +84,17 @@ enum fw_section_type {
 struct fw_resource {
 	u32 type;
 	u64 da;
+	u64 pa;
 	u32 len;
 	u32 reserved;
 	u8 name[48];
 } __packed;
 
 enum fw_resource_type {
-	RSC_MEMORY	= 0,
-	RSC_DEVICE	= 1,
-	RSC_IRQ		= 2,
-	RSC_SERVICE	= 3,
+	RSC_CARVEOUT	= 0,
+	RSC_DEVMEM	= 1,
+	RSC_DEVICE	= 2,
+	RSC_IRQ		= 3,
 	RSC_TRACE	= 4,
 	RSC_BOOTADDR	= 5,
 	RSC_END		= 6,
