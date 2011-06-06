@@ -337,8 +337,12 @@ void __init omap_vc_init_channel(struct voltagedomain *voltdm)
 		voltdm->rmw(vc->smps_cmdra_mask,
 			    vc->cmd_reg_addr << __ffs(vc->smps_cmdra_mask),
 			    vc->common->smps_cmdra_reg);
-		vc->cfg_channel |= vc_cfg_bits->rac | vc_cfg_bits->racen;
+		vc->cfg_channel |= vc_cfg_bits->rac;
 	}
+
+	/* If voltage and cmd regs are same, we can use cmdra register */
+	if (vc->volt_reg_addr == vc->cmd_reg_addr)
+		vc->cfg_channel |= vc_cfg_bits->racen;
 
 	/* Set up the on, inactive, retention and off voltage */
 	on_vsel = voltdm->pmic->uv_to_vsel(voltdm->pmic->on_volt);
