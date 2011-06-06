@@ -32,7 +32,9 @@
 #include <linux/regulator/consumer.h>
 #include <linux/mutex.h>
 #include <linux/i2c.h>
-#include <plat/display.h>
+
+
+#include <video/omapdss.h>
 
 #include <linux/platform_data/panel-s6e8aa0.h>
 
@@ -211,7 +213,7 @@ const u8 s6e8aa0_init_post2[] = {
 
 static int s6e8aa0_write(struct omap_dss_device *dssdev, u8 val)
 {
-	return dsi_vc_dcs_write(1, &val, 1);
+	return dsi_vc_dcs_write(dssdev, 1, &val, 1);
 }
 
 static int s6e8aa0_write_reg(struct omap_dss_device *dssdev, u8 reg, u8 val)
@@ -220,7 +222,7 @@ static int s6e8aa0_write_reg(struct omap_dss_device *dssdev, u8 reg, u8 val)
 	buf[0] = reg;
 	buf[1] = val;
 
-	return dsi_vc_dcs_write(1, buf, 2);
+	return dsi_vc_dcs_write(dssdev, 1, buf, 2);
 }
 
 static int s6e8aa0_write_block(struct omap_dss_device *dssdev, const u8 *data, int len)
@@ -229,7 +231,7 @@ static int s6e8aa0_write_block(struct omap_dss_device *dssdev, const u8 *data, i
 	int ret;
 	msleep(10);  // XxX: why do we have to wait
 
-	ret = dsi_vc_dcs_write(1, (u8 *)data, len);
+	ret = dsi_vc_dcs_write(dssdev, 1, (u8 *)data, len);
 	msleep(10);  // XxX: why do we have to wait
 	return ret;
 }
@@ -458,11 +460,11 @@ static int s6e8aa0_start(struct omap_dss_device *dssdev)
 
 	mutex_lock(&s6->lock);
 
-	dsi_bus_lock();
+	dsi_bus_lock(dssdev);
 
 	r = s6e8aa0_power_on(dssdev);
 
-	dsi_bus_unlock();
+	dsi_bus_unlock(dssdev);
 
 	if (r) {
 		dev_dbg(&dssdev->dev, "enable failed\n");
@@ -485,11 +487,11 @@ static void s6e8aa0_stop(struct omap_dss_device *dssdev)
 
 	dssdev->manager->disable(dssdev->manager);
 
-	dsi_bus_lock();
+	dsi_bus_lock(dssdev);
 
 	s6e8aa0_power_off(dssdev);
 
-	dsi_bus_unlock();
+	dsi_bus_unlock(dssdev);
 
 	mutex_unlock(&s6->lock);
 }
@@ -518,7 +520,7 @@ static void s6e8aa0_framedone_cb(int err, void *data)
 {
 	struct omap_dss_device *dssdev = data;
 	dev_dbg(&dssdev->dev, "framedone, err %d\n", err);
-	dsi_bus_unlock();
+	dsi_bus_unlock(dssdev);
 }
 
 static int s6e8aa0_update(struct omap_dss_device *dssdev,
@@ -530,7 +532,7 @@ static int s6e8aa0_update(struct omap_dss_device *dssdev,
 
 	mutex_lock(&s6->lock);
 
-	dsi_bus_lock();
+	dsi_bus_lock(dssdev);
 
 	if (!s6->enabled) {
 		r = 0;
@@ -546,12 +548,12 @@ static int s6e8aa0_update(struct omap_dss_device *dssdev,
 	if (r)
 		goto err;
 
-	dsi_bus_unlock();
+	dsi_bus_unlock(dssdev);
 	/* note: no bus_unlock here. unlock is in framedone_cb */
 	mutex_unlock(&s6->lock);
 	return 0;
 err:
-	dsi_bus_unlock();
+	dsi_bus_unlock(dssdev);
 	mutex_unlock(&s6->lock);
 	return r;
 }
