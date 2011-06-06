@@ -53,7 +53,7 @@ static struct omap_vc_channel_cfg vc_mutant_channel_cfg = {
 	.cmd   = BIT(1),
 };
 
-static struct omap_vc_channel_cfg *vc_cfg_bits = &vc_default_channel_cfg;
+static struct omap_vc_channel_cfg *vc_cfg_bits;
 #define CFG_CHANNEL_MASK 0x1f
 
 /**
@@ -300,6 +300,8 @@ void __init omap_vc_init_channel(struct voltagedomain *voltdm)
 	vc->cfg_channel = 0;
 	if (vc->flags & OMAP_VC_CHANNEL_CFG_MUTANT)
 		vc_cfg_bits = &vc_mutant_channel_cfg;
+	else
+		vc_cfg_bits = &vc_default_channel_cfg;
 
 	/* get PMIC/board specific settings */
 	vc->i2c_slave_addr = voltdm->pmic->i2c_slave_addr;
