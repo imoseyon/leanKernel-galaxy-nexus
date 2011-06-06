@@ -78,7 +78,7 @@ struct omap_vc_channel {
 
 	/* channel state */
 	u16 i2c_slave_addr;
-	u8 volt_reg_addr;
+	u16 volt_reg_addr;
 	u8 cmd_reg_addr;
 	u8 cfg_channel;
 	u16 setup_time;
