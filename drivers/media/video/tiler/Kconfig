@@ -31,21 +31,6 @@ config TILER_GRANULARITY
            Supported values are: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024,
            2048, 4096.
 
-config TILER_ALIGNMENT
-        int "Allocation alignment (2^n)"
-        range 1 4096
-        default 4096
-        depends on TI_TILER
-        help
-           This option sets the default TILER allocation alignment.  It can
-           be overriden by the tiler.align boot argument.
-
-           Must be a 2^n in the range of 1 to 4096; however, it is naturally
-           aligned to the TILER granularity.
-
-           Supported values are: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024,
-           2048, 4096.
-
 config TILER_CACHE_LIMIT
         int "Memory limit to cache free pages in MBytes"
         range 0 128

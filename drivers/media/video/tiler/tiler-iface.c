@@ -166,42 +166,41 @@ u32 tiler_virt2phys(u32 usr)
 EXPORT_SYMBOL(tiler_virt2phys);
 
 void tiler_reservex(u32 n, enum tiler_fmt fmt, u32 width, u32 height,
-		   u32 align, u32 offs, u32 gid, pid_t pid)
+		   u32 gid, pid_t pid)
 {
 	struct process_info *pi = __get_pi(pid, true);
 
 	if (pi)
-		ops->reserve(n, fmt, width, height, align, offs, gid, pi);
+		ops->reserve(n, fmt, width, height, gid, pi);
 }
 EXPORT_SYMBOL(tiler_reservex);
 
-void tiler_reserve(u32 n, enum tiler_fmt fmt, u32 width, u32 height,
-		  u32 align, u32 offs)
+void tiler_reserve(u32 n, enum tiler_fmt fmt, u32 width, u32 height)
 {
-	tiler_reservex(n, fmt, width, height, align, offs, 0, current->tgid);
+	tiler_reservex(n, fmt, width, height, 0, current->tgid);
 }
 EXPORT_SYMBOL(tiler_reserve);
 
 #ifdef CONFIG_TILER_ENABLE_NV12
-void tiler_reservex_nv12(u32 n, u32 width, u32 height, u32 align, u32 offs,
+void tiler_reservex_nv12(u32 n, u32 width, u32 height,
 			u32 gid, pid_t pid)
 {
 	struct process_info *pi = __get_pi(pid, true);
 
 	if (pi)
-		ops->reserve_nv12(n, width, height, align, offs, gid, pi);
+		ops->reserve_nv12(n, width, height, gid, pi);
 }
 EXPORT_SYMBOL(tiler_reservex_nv12);
 
-void tiler_reserve_nv12(u32 n, u32 width, u32 height, u32 align, u32 offs)
+void tiler_reserve_nv12(u32 n, u32 width, u32 height)
 {
-	tiler_reservex_nv12(n, width, height, align, offs, 0, current->tgid);
+	tiler_reservex_nv12(n, width, height, 0, current->tgid);
 }
 EXPORT_SYMBOL(tiler_reserve_nv12);
 #endif
 
 s32 tiler_allocx(struct tiler_block_t *blk, enum tiler_fmt fmt,
-				u32 align, u32 offs, u32 gid, pid_t pid)
+				u32 gid, pid_t pid)
 {
 	struct mem_info *mi;
 	struct process_info *pi;
@@ -213,8 +212,7 @@ s32 tiler_allocx(struct tiler_block_t *blk, enum tiler_fmt fmt,
 	if (!pi)
 		return -ENOMEM;
 
-	res = ops->alloc(fmt, blk->width, blk->height, align, offs, blk->key,
-								gid, pi, &mi);
+	res = ops->alloc(fmt, blk->width, blk->height, blk->key, gid, pi, &mi);
 	if (mi) {
 		blk->phys = mi->blk.phys;
 		blk->id = mi->blk.id;
@@ -223,10 +221,9 @@ s32 tiler_allocx(struct tiler_block_t *blk, enum tiler_fmt fmt,
 }
 EXPORT_SYMBOL(tiler_allocx);
 
-s32 tiler_alloc(struct tiler_block_t *blk, enum tiler_fmt fmt,
-		u32 align, u32 offs)
+s32 tiler_alloc(struct tiler_block_t *blk, enum tiler_fmt fmt)
 {
-	return tiler_allocx(blk, fmt, align, offs, 0, current->tgid);
+	return tiler_allocx(blk, fmt, 0, current->tgid);
 }
 EXPORT_SYMBOL(tiler_alloc);
 

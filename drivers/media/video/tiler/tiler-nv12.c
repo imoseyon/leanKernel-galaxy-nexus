@@ -333,29 +333,23 @@ static u16 nv12_together(u16 o, u16 a, u16 w, u16 n, u16 *area, u8 *packing)
 }
 
 /* reserve nv12 blocks */
-static void reserve_nv12(u32 n, u32 width, u32 height, u32 align, u32 offs,
+static void reserve_nv12(u32 n, u32 width, u32 height,
 					u32 gid, struct process_info *pi)
 {
-	u16 w, h, band, a = align, o = offs;
+	u16 w, h, band, a, o = 0;
 	struct gid_info *gi;
 	int res = 0, res2, i;
 	u16 n_t, n_s, area_t, area_s;
 	u8 packing[2 * MAX_ANY];
 	struct list_head reserved = LIST_HEAD_INIT(reserved);
 
-	/* adjust alignment to the largest slot width (128 bytes) */
-	a = max_t(u16, PAGE_SIZE / min(band_8, band_16), a);
-
 	/* Check input parameters for correctness, and support */
 	if (!width || !height || !n ||
-	    offs >= align || offs & 1 ||
-	    align >= PAGE_SIZE ||
 	    n > ops->width * ops->height / 2)
 		return;
 
-	/* calculate dimensions, band, offs and alignment in slots */
-	if (ops->analize(TILFMT_8BIT, width, height, &w, &h, &band, &a, &o,
-									NULL))
+	/* calculate dimensions, band, and alignment in slots */
+	if (ops->analize(TILFMT_8BIT, width, height, &w, &h, &band, &a))
 		return;
 
 	/* get group context */
@@ -384,10 +378,10 @@ static void reserve_nv12(u32 n, u32 width, u32 height, u32 align, u32 offs,
 			 * able to reserve both 8- and 16-bit blocks as the
 			 * offsets of them must match.
 			 */
-			res = ops->lay_2d(TILFMT_8BIT, n_s, w, h, band_8, a, o,
+			res = ops->lay_2d(TILFMT_8BIT, n_s, w, h, band_8, a,
 						gi, &reserved);
 			res2 = ops->lay_2d(TILFMT_16BIT, n_s, (w + 1) >> 1, h,
-				band_16, a >> 1, o >> 1, gi, &reserved);
+				band_16, a >> 1, gi, &reserved);
 
 			if (res2 < 0 || res < 0 || res != res2) {
 				/* clean up */

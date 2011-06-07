@@ -245,7 +245,6 @@ static long tiler_ioctl(struct file *filp, u32 cmd, unsigned long arg)
 		switch (block_info.fmt) {
 		case TILFMT_PAGE:
 			r = ops->alloc(block_info.fmt, block_info.dim.len, 1,
-					block_info.align, block_info.offs,
 					block_info.key, block_info.group_id,
 					pi, &mi);
 			break;
@@ -255,7 +254,6 @@ static long tiler_ioctl(struct file *filp, u32 cmd, unsigned long arg)
 			r = ops->alloc(block_info.fmt,
 					block_info.dim.area.width,
 					block_info.dim.area.height,
-					block_info.align, block_info.offs,
 					block_info.key, block_info.group_id,
 					pi, &mi);
 			break;
@@ -410,8 +408,6 @@ static long tiler_ioctl(struct file *filp, u32 cmd, unsigned long arg)
 			ops->reserve_nv12(block_info.key,
 					  block_info.dim.area.width,
 					  block_info.dim.area.height,
-					  block_info.align,
-					  block_info.offs,
 					  block_info.group_id, pi);
 #else
 			return -EINVAL;
@@ -421,8 +417,6 @@ static long tiler_ioctl(struct file *filp, u32 cmd, unsigned long arg)
 				     block_info.fmt,
 				     block_info.dim.area.width,
 				     block_info.dim.area.height,
-				     block_info.align,
-				     block_info.offs,
 				     block_info.group_id, pi);
 		break;
 	/* unreserve blocks */
