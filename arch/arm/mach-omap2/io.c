@@ -44,6 +44,7 @@
 #include "clockdomain.h"
 #include <plat/omap_hwmod.h>
 #include <plat/multi.h>
+#include <mach/tf_mshield.h>
 
 /*
  * The machine specific code may provide the extra mapping besides the
@@ -251,6 +252,9 @@ static void __init _omap2_map_common_io(void)
 
 	omap2_check_revision();
 	omap_sram_init();
+#ifdef CONFIG_SECURITY_MIDDLEWARE_COMPONENT
+	tf_allocate_workspace();
+#endif
 }
 
 #ifdef CONFIG_SOC_OMAP2420
