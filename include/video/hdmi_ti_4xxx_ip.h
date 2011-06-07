@@ -33,6 +33,12 @@ enum hdmi_core_hdmi_dvi {
 	HDMI_HDMI = 1
 };
 
+enum hdmi_deep_color_mode {
+	HDMI_DEEP_COLOR_24BIT = 0,
+	HDMI_DEEP_COLOR_30BIT = 1,
+	HDMI_DEEP_COLOR_36BIT = 2
+};
+
 struct hdmi_ip_data {
 	void __iomem *base_wp;	/* HDMI wrapper */
 	unsigned long	hdmi_core_sys_offset;
@@ -70,6 +76,7 @@ struct hdmi_config {
 	struct hdmi_timings timings;
 	u16	interlace;
 	struct hdmi_cm cm;
+	enum hdmi_deep_color_mode	deep_color;
 };
 
 /* HDMI PLL structure */

@@ -408,17 +408,36 @@ int read_ti_4xxx_edid(struct hdmi_ip_data *ip_data, u8 *pedid, u16 max_length)
 }
 EXPORT_SYMBOL(read_ti_4xxx_edid);
 
-static void hdmi_core_init(struct hdmi_core_video_config *video_cfg,
+static void hdmi_core_init(enum hdmi_deep_color_mode deep_color,
+			struct hdmi_core_video_config *video_cfg,
 			struct hdmi_core_infoframe_avi *avi_cfg,
 			struct hdmi_core_packet_enable_repeat *repeat_cfg)
 {
 	pr_debug("Enter hdmi_core_init\n");
 
 	/* video core */
-	video_cfg->ip_bus_width = HDMI_INPUT_8BIT;
-	video_cfg->op_dither_truc = HDMI_OUTPUTTRUNCATION_8BIT;
-	video_cfg->deep_color_pkt = HDMI_DEEPCOLORPACKECTDISABLE;
-	video_cfg->pkt_mode = HDMI_PACKETMODERESERVEDVALUE;
+	switch (deep_color) {
+	case HDMI_DEEP_COLOR_30BIT:
+		video_cfg->ip_bus_width = HDMI_INPUT_10BIT;
+		video_cfg->op_dither_truc = HDMI_OUTPUTTRUNCATION_10BIT;
+		video_cfg->deep_color_pkt = HDMI_DEEPCOLORPACKECTENABLE;
+		video_cfg->pkt_mode = HDMI_PACKETMODE30BITPERPIXEL;
+		break;
+	case HDMI_DEEP_COLOR_36BIT:
+		video_cfg->ip_bus_width = HDMI_INPUT_12BIT;
+		video_cfg->op_dither_truc = HDMI_OUTPUTTRUNCATION_12BIT;
+		video_cfg->deep_color_pkt = HDMI_DEEPCOLORPACKECTENABLE;
+		video_cfg->pkt_mode = HDMI_PACKETMODE36BITPERPIXEL;
+		break;
+	case HDMI_DEEP_COLOR_24BIT:
+	default:
+		video_cfg->ip_bus_width = HDMI_INPUT_8BIT;
+		video_cfg->op_dither_truc = HDMI_OUTPUTTRUNCATION_8BIT;
+		video_cfg->deep_color_pkt = HDMI_DEEPCOLORPACKECTDISABLE;
+		video_cfg->pkt_mode = HDMI_PACKETMODERESERVEDVALUE;
+		break;
+	}
+
 	video_cfg->hdmi_dvi = HDMI_DVI;
 	video_cfg->tclk_sel_clkmult = HDMI_FPLL10IDCK;
 
@@ -713,7 +732,7 @@ void hdmi_ti_4xxx_basic_configure(struct hdmi_ip_data *ip_data,
 	hdmi_wp_init(&video_timing, &video_format,
 		&video_interface);
 
-	hdmi_core_init(&v_core_cfg,
+	hdmi_core_init(cfg->deep_color, &v_core_cfg,
 		&avi_cfg,
 		&repeat_cfg);
 
