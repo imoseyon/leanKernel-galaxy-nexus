@@ -390,12 +390,18 @@ extern u32 omap_ctrl_readl(u16 offset);
 extern u8 omap4_ctrl_pad_readb(u16 offset);
 extern u16 omap4_ctrl_pad_readw(u16 offset);
 extern u32 omap4_ctrl_pad_readl(u16 offset);
+extern u8 omap4_ctrl_wk_pad_readb(u16 offset);
+extern u16 omap4_ctrl_wk_pad_readw(u16 offset);
+extern u32 omap4_ctrl_wk_pad_readl(u16 offset);
 extern void omap_ctrl_writeb(u8 val, u16 offset);
 extern void omap_ctrl_writew(u16 val, u16 offset);
 extern void omap_ctrl_writel(u32 val, u16 offset);
 extern void omap4_ctrl_pad_writeb(u8 val, u16 offset);
 extern void omap4_ctrl_pad_writew(u16 val, u16 offset);
 extern void omap4_ctrl_pad_writel(u32 val, u16 offset);
+extern void omap4_ctrl_wk_pad_writeb(u8 val, u16 offset);
+extern void omap4_ctrl_wk_pad_writew(u16 val, u16 offset);
+extern void omap4_ctrl_wk_pad_writel(u32 val, u16 offset);
 
 extern void omap3_save_scratchpad_contents(void);
 extern void omap3_clear_scratchpad_contents(void);
@@ -413,11 +419,21 @@ extern int omap3_ctrl_save_padconf(void);
 #define omap_ctrl_readb(x)		0
 #define omap_ctrl_readw(x)		0
 #define omap_ctrl_readl(x)		0
-#define omap4_ctrl_pad_readl(x)		0
+#define omap4_ctrl_pad_readb(x)         0
+#define omap4_ctrl_pad_readw(x)         0
+#define omap4_ctrl_pad_readl(x)         0
+#define omap4_ctrl_wk_pad_readb(x)	0
+#define omap4_ctrl_wk_pad_readw(x)	0
+#define omap4_ctrl_wk_pad_readl(x)	0
 #define omap_ctrl_writeb(x, y)		WARN_ON(1)
 #define omap_ctrl_writew(x, y)		WARN_ON(1)
 #define omap_ctrl_writel(x, y)		WARN_ON(1)
+#define omap4_ctrl_pad_writeb(x, y)     WARN_ON(1)
+#define omap4_ctrl_pad_writew(x, y)     WARN_ON(1)
 #define omap4_ctrl_pad_writel(x, y)	WARN_ON(1)
+#define omap4_ctrl_wk_pad_writeb(x, y)     WARN_ON(1)
+#define omap4_ctrl_wk_pad_writew(x, y)     WARN_ON(1)
+#define omap4_ctrl_wk_pad_writel(x, y)     WARN_ON(1)
 #endif
 #endif	/* __ASSEMBLY__ */
 
