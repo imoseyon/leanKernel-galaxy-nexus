@@ -1110,9 +1110,15 @@ static struct omap_hwmod_class_sysconfig omap44xx_dss_sysc = {
 	.sysc_flags	= SYSS_HAS_RESET_STATUS,
 };
 
+int omap44xx_dss_reset(struct omap_hwmod *oh) {
+	omap_hwmod_write(0x0, oh, 0x40);
+	return 0;
+}
+
 static struct omap_hwmod_class omap44xx_dss_hwmod_class = {
 	.name	= "dss",
 	.sysc	= &omap44xx_dss_sysc,
+	.reset	= omap44xx_dss_reset,
 };
 
 /* dss */
