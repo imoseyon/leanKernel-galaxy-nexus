@@ -159,7 +159,6 @@ static inline void freq_table_free(void)
 static int __cpuinit omap_cpu_init(struct cpufreq_policy *policy)
 {
 	int result = 0;
-	static cpumask_var_t cpumask;
 
 	mpu_clk = clk_get(NULL, mpu_clk_name);
 	if (IS_ERR(mpu_clk))
@@ -200,8 +199,7 @@ static int __cpuinit omap_cpu_init(struct cpufreq_policy *policy)
 	 */
 	if (is_smp()) {
 		policy->shared_type = CPUFREQ_SHARED_TYPE_ANY;
-		cpumask_or(cpumask, cpumask_of(policy->cpu), cpumask);
-		cpumask_copy(policy->cpus, cpumask);
+		cpumask_setall(policy->cpus);
 	}
 
 	/* FIXME: what's the actual transition time? */
