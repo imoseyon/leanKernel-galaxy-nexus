@@ -29,5 +29,8 @@ void omap4_tuna_android_usb_init(void);
 void omap4_tuna_display_init(void);
 void omap4_tuna_input_init(void);
 void omap4_tuna_power_init(void);
+int tuna_wlan_init(void);
+
+extern struct mmc_platform_data tuna_wifi_data;
 
 #endif

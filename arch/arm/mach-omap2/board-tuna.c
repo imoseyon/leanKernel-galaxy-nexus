@@ -45,8 +45,6 @@
 #include "mux.h"
 #include "board-tuna.h"
 
-#define GPIO_WIFI_PMENA		104
-#define GPIO_WIFI_IRQ		16
 #define GPIO_AUD_PWRON		127
 
 static int tuna_hw_rev;
@@ -157,7 +155,8 @@ static struct omap2_hsmmc_info mmc[] = {
 		.gpio_wp	= -EINVAL,
 		.gpio_cd	= -EINVAL,
 		.ocr_mask	= MMC_VDD_165_195 | MMC_VDD_20_21,
-		.nonremovable	= true,
+		.nonremovable	= false,
+		.mmc_data	= &tuna_wifi_data,
 	},
 	{}	/* Terminator */
 };
@@ -171,43 +170,6 @@ static struct regulator_consumer_supply tuna_vmmc_supply[] = {
 		.supply = "vmmc",
 		.dev_name = "omap_hsmmc.1",
 	},
-};
-
-static struct regulator_consumer_supply tuna_vmmc5_supply = {
-	.supply = "vmmc",
-	.dev_name = "omap_hsmmc.4",
-};
-
-static struct regulator_init_data tuna_vmmc5 = {
-	.constraints = {
-		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
-	},
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &tuna_vmmc5_supply,
-};
-
-static struct fixed_voltage_config tuna_vwlan = {
-	.supply_name = "vwl1271",
-	.microvolts = 2000000, /* 2.0V */
-	.gpio = GPIO_WIFI_PMENA,
-	.startup_delay = 70000, /* 70msec */
-	.enable_high = 1,
-	.enabled_at_boot = 0,
-	.init_data = &tuna_vmmc5,
-};
-
-static struct platform_device omap_vwlan_device = {
-	.name		= "reg-fixed-voltage",
-	.id		= 1,
-	.dev = {
-		.platform_data = &tuna_vwlan,
-	},
-};
-
-struct wl12xx_platform_data tuna_wlan_data  __initdata = {
-	.irq = OMAP_GPIO_IRQ(GPIO_WIFI_IRQ),
-	/* PANDA ref clock is 38.4 MHz */
-	.board_ref_clock = 2,
 };
 
 static struct regulator_init_data tuna_vaux2 = {
@@ -488,25 +450,6 @@ static inline void board_serial_init(void)
 
 #define HSMMC2_MUX	(OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP)
 #define HSMMC1_MUX	OMAP_PIN_INPUT_PULLUP
-#define HSMMC5_MUX	OMAP_PIN_INPUT_PULLUP
-
-static void tuna_wlan_init(void)
-{
-	/* WLAN SDIO: MMC5 CMD */
-	omap_mux_init_signal("sdmmc5_cmd", HSMMC5_MUX);
-	/* WLAN SDIO: MMC5 CLK */
-	omap_mux_init_signal("sdmmc5_clk", HSMMC5_MUX);
-	/* WLAN SDIO: MMC5 DAT[0-3] */
-	omap_mux_init_signal("sdmmc5_dat0", HSMMC5_MUX);
-	omap_mux_init_signal("sdmmc5_dat1", HSMMC5_MUX);
-	omap_mux_init_signal("sdmmc5_dat2", HSMMC5_MUX);
-	omap_mux_init_signal("sdmmc5_dat3", HSMMC5_MUX);
-	/* WLAN OOB - BCM4330 - GPIO 16 or GPIO 2 */
-	omap_mux_init_gpio(GPIO_WIFI_IRQ, OMAP_PIN_INPUT);
-	omap_mux_init_signal("sim_reset", OMAP_MUX_MODE3 | OMAP_PIN_INPUT);
-	/* WLAN PMENA - GPIO 104 */
-	omap_mux_init_signal("gpmc_ncs7.gpio_104", OMAP_PIN_OUTPUT);
-}
 
 static void __init tuna_init(void)
 {
@@ -556,14 +499,10 @@ static void __init tuna_init(void)
 		omap_mux_init_gpio(158, OMAP_PIN_OUTPUT);
 	}
 
-	if (wl12xx_set_platform_data(&tuna_wlan_data))
-		pr_err("error setting wl12xx data\n");
-
 	tuna_wlan_init();
 	tuna_i2c_init();
 	omap4_audio_conf();
 	platform_add_devices(tuna_devices, ARRAY_SIZE(tuna_devices));
-	platform_device_register(&omap_vwlan_device);
 	board_serial_init();
 	omap2_hsmmc_init(mmc);
 	usb_musb_init(&musb_board_data);
