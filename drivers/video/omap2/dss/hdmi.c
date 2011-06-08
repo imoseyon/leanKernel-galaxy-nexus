@@ -69,6 +69,7 @@ static struct {
 	u8 edid[HDMI_EDID_MAX_LENGTH];
 	u8 edid_set;
 	bool custom_set;
+	enum hdmi_deep_color_mode deep_color;
 	struct hdmi_config cfg;
 
 	struct clk *sys_clk;
@@ -506,6 +507,27 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 
 	phy = p->pixel_clock;
 
+	switch (hdmi.deep_color) {
+	case HDMI_DEEP_COLOR_30BIT:
+		phy = (p->pixel_clock * 125) / 100 ;
+		hdmi.cfg.deep_color = HDMI_DEEP_COLOR_30BIT;
+		break;
+	case HDMI_DEEP_COLOR_36BIT:
+		if (p->pixel_clock == 148500) {
+			printk(KERN_ERR "36 bit deep color not supported");
+			goto err;
+		}
+
+		phy = (p->pixel_clock * 150) / 100;
+		hdmi.cfg.deep_color = HDMI_DEEP_COLOR_36BIT;
+		break;
+	case HDMI_DEEP_COLOR_24BIT:
+	default:
+		phy = p->pixel_clock;
+		hdmi.cfg.deep_color = HDMI_DEEP_COLOR_24BIT;
+		break;
+	}
+
 	hdmi_compute_pll(dssdev, phy, &pll_data);
 
 	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 0);
@@ -563,8 +585,18 @@ static void hdmi_power_off(struct omap_dss_device *dssdev)
 	hdmi_ti_4xxx_phy_off(&hdmi.hdmi_data);
 	hdmi_ti_4xxx_set_pll_pwr(&hdmi.hdmi_data, HDMI_PLLPWRCMD_ALLOFF);
 	hdmi_runtime_put();
-
+	hdmi.deep_color = HDMI_DEEP_COLOR_24BIT;
 	hdmi.edid_set = 0;
+}
+
+void omapdss_hdmi_set_deepcolor(int val)
+{
+	hdmi.deep_color = val;
+}
+
+int omapdss_hdmi_get_deepcolor(void)
+{
+	return hdmi.deep_color;
 }
 
 int omapdss_hdmi_display_check_timing(struct omap_dss_device *dssdev,

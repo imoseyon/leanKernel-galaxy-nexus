@@ -32,6 +32,28 @@ static struct {
 	struct mutex hdmi_lock;
 } hdmi;
 
+static ssize_t hdmi_deepcolor_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int r;
+	r = omapdss_hdmi_get_deepcolor();
+	return snprintf(buf, PAGE_SIZE, "%d\n", r);
+}
+
+static ssize_t hdmi_deepcolor_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t size)
+{
+	unsigned long deep_color;
+	int r = kstrtoul(buf, 0, &deep_color);
+	if (r || deep_color > 2)
+		return -EINVAL;
+	omapdss_hdmi_set_deepcolor(deep_color);
+	return size;
+}
+
+static DEVICE_ATTR(deepcolor, S_IRUGO | S_IWUSR, hdmi_deepcolor_show,
+							hdmi_deepcolor_store);
 
 static int hdmi_panel_probe(struct omap_dss_device *dssdev)
 {
@@ -48,6 +70,10 @@ static int hdmi_panel_probe(struct omap_dss_device *dssdev)
 	dssdev->panel.timings.x_res = 640;
 	dssdev->panel.timings.y_res = 480;
 
+	/* sysfs entry to provide user space control to set deepcolor mode */
+	if (device_create_file(&dssdev->dev, &dev_attr_deepcolor))
+		DSSERR("failed to create sysfs file\n");
+
 	DSSDBG("hdmi_panel_probe x_res= %d y_res = %d\n",
 		dssdev->panel.timings.x_res,
 		dssdev->panel.timings.y_res);
@@ -56,7 +82,7 @@ static int hdmi_panel_probe(struct omap_dss_device *dssdev)
 
 static void hdmi_panel_remove(struct omap_dss_device *dssdev)
 {
-
+	device_remove_file(&dssdev->dev, &dev_attr_deepcolor);
 }
 
 static int hdmi_panel_enable(struct omap_dss_device *dssdev)

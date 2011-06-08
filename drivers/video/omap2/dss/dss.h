@@ -512,6 +512,9 @@ void omapdss_hdmi_display_disable(struct omap_dss_device *dssdev);
 void omapdss_hdmi_display_set_timing(struct omap_dss_device *dssdev);
 int omapdss_hdmi_display_check_timing(struct omap_dss_device *dssdev,
 					struct omap_video_timings *timings);
+int omapdss_hdmi_get_deepcolor(void);
+void omapdss_hdmi_set_deepcolor(int val);
+
 int hdmi_panel_init(void);
 void hdmi_panel_exit(void);
 
