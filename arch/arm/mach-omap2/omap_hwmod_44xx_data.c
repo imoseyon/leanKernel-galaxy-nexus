@@ -67,6 +67,7 @@ static struct omap_hwmod omap44xx_mmc1_hwmod;
 static struct omap_hwmod omap44xx_mmc2_hwmod;
 static struct omap_hwmod omap44xx_mpu_hwmod;
 static struct omap_hwmod omap44xx_mpu_private_hwmod;
+static struct omap_hwmod omap44xx_sl2if_hwmod;
 static struct omap_hwmod omap44xx_usb_otg_hs_hwmod;
 
 /*
@@ -651,7 +652,6 @@ static struct omap_hwmod omap44xx_mpu_private_hwmod = {
  *  prcm_mpu
  *  prm
  *  scrm
- *  sl2if
  *  slimbus1
  *  slimbus2
  *  usb_host_fs
@@ -1337,11 +1337,19 @@ static struct omap_hwmod_ocp_if omap44xx_dsp__iva = {
 	.clk		= "dpll_iva_m5x2_ck",
 };
 
+/* dsp -> sl2if */
+static struct omap_hwmod_ocp_if omap44xx_dsp__sl2if = {
+	.master		= &omap44xx_dsp_hwmod,
+	.slave		= &omap44xx_sl2if_hwmod,
+	.clk		= "dpll_iva_m5x2_ck",
+};
+
 /* dsp master ports */
 static struct omap_hwmod_ocp_if *omap44xx_dsp_masters[] = {
 	&omap44xx_dsp__l3_main_1,
 	&omap44xx_dsp__l4_abe,
 	&omap44xx_dsp__iva,
+	&omap44xx_dsp__sl2if,
 };
 
 /* l4_cfg -> dsp */
@@ -2993,8 +3001,16 @@ static struct omap_hwmod_rst_info omap44xx_iva_seq1_resets[] = {
 	{ .name = "seq1", .rst_shift = 1 },
 };
 
+/* iva -> sl2if */
+static struct omap_hwmod_ocp_if omap44xx_iva__sl2if = {
+	.master		= &omap44xx_iva_hwmod,
+	.slave		= &omap44xx_sl2if_hwmod,
+	.clk		= "dpll_iva_m5x2_ck",
+};
+
 /* iva master ports */
 static struct omap_hwmod_ocp_if *omap44xx_iva_masters[] = {
+	&omap44xx_iva__sl2if,
 	&omap44xx_iva__l3_main_2,
 	&omap44xx_iva__l3_instr,
 };
@@ -3071,6 +3087,45 @@ static struct omap_hwmod omap44xx_iva_hwmod = {
 	.slaves_cnt	= ARRAY_SIZE(omap44xx_iva_slaves),
 	.masters	= omap44xx_iva_masters,
 	.masters_cnt	= ARRAY_SIZE(omap44xx_iva_masters),
+	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
+};
+
+/*
+ * 'sl2if' class
+ * shared level 2 memory interface
+ */
+
+static struct omap_hwmod_class omap44xx_sl2if_hwmod_class = {
+	.name = "sl2if",
+};
+
+/* sl2if */
+/* l3_main_2 -> sl2if */
+static struct omap_hwmod_ocp_if omap44xx_l3_main_2__sl2if = {
+	.master		= &omap44xx_l3_main_2_hwmod,
+	.slave		= &omap44xx_sl2if_hwmod,
+	.clk		= "l3_div_ck",
+	.user		= OCP_USER_MPU | OCP_USER_SDMA,
+};
+
+/* sl2if slave ports */
+static struct omap_hwmod_ocp_if *omap44xx_sl2if_slaves[] = {
+	&omap44xx_l3_main_2__sl2if,
+	&omap44xx_iva__sl2if,
+	&omap44xx_dsp__sl2if,
+};
+
+static struct omap_hwmod omap44xx_sl2if_hwmod = {
+	.name		= "sl2if",
+	.class		= &omap44xx_sl2if_hwmod_class,
+	.main_clk	= "sl2if_ick",
+	.prcm = {
+		.omap4 = {
+			.clkctrl_reg = OMAP4430_CM_IVAHD_SL2_CLKCTRL,
+		},
+	},
+	.slaves		= omap44xx_sl2if_slaves,
+	.slaves_cnt	= ARRAY_SIZE(omap44xx_sl2if_slaves),
 	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
 };
 
@@ -5352,6 +5407,9 @@ static __initdata struct omap_hwmod *omap44xx_hwmods[] = {
 	&omap44xx_iva_hwmod,
 	&omap44xx_iva_seq0_hwmod,
 	&omap44xx_iva_seq1_hwmod,
+
+	/* sl2if class */
+	&omap44xx_sl2if_hwmod,
 
 	/* kbd class */
 	&omap44xx_kbd_hwmod,
