@@ -1236,7 +1236,12 @@ static s32 __init tiler_init(void)
 	tiler.analize = __analize_area;
 	tiler_geom_init(&tiler);
 	tiler_reserve_init(&tiler);
+
+	mutex_init(&tiler.mtx);
 	tiler_iface_init(&tiler);
+#ifdef CONFIG_TILER_ENABLE_USERSPACE
+	tiler_ioctl_init(&tiler);
+#endif
 #ifdef CONFIG_TILER_ENABLE_NV12
 	tiler_nv12_init(&tiler);
 #endif

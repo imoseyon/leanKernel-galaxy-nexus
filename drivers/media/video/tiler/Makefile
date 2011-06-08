@@ -7,5 +7,9 @@ ifdef CONFIG_TILER_ENABLE_NV12
 tiler-objs += tiler-nv12.o
 endif
 
+ifdef CONFIG_TILER_ENABLE_USERSPACE
+tiler-objs += tiler-ioctl.o
+endif
+
 obj-$(CONFIG_TI_TILER) += tiler_dmm.o
 tiler_dmm-objs = dmm.o

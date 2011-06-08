@@ -134,3 +134,11 @@ config TILER_ENABLE_NV12
 
 	    If set, nv12 support will be compiled into the driver and APIs
 	    will be enabled.
+
+config TILER_ENABLE_USERSPACE
+	bool "Enable userspace API"
+	default y
+	depends on TI_TILER
+	help
+	    This option enabled the userspace API.  If set, an ioctl interface
+	    will be available to users.

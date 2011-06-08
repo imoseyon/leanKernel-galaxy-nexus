@@ -56,6 +56,12 @@ struct process_info {
 	bool kernel;			/* tracking kernel objects */
 };
 
+struct __buf_info {
+	struct list_head by_pid;		/* list of buffers per pid */
+	struct tiler_buf_info buf_info;
+	struct mem_info *mi[TILER_MAX_NUM_BLOCKS];	/* blocks */
+};
+
 /* per group info (within a process) */
 struct gid_info {
 	struct list_head by_pid;	/* other groups */
@@ -159,6 +165,8 @@ struct tiler_ops {
 	u32 page;		/* page size */
 	u32 width;		/* container width */
 	u32 height;		/* container height */
+
+	struct mutex mtx;	/* mutex for interfaces and ioctls */
 };
 
 void tiler_iface_init(struct tiler_ops *tiler);
@@ -166,6 +174,11 @@ void tiler_geom_init(struct tiler_ops *tiler);
 void tiler_reserve_init(struct tiler_ops *tiler);
 void tiler_nv12_init(struct tiler_ops *tiler);
 u32 tiler_best2pack(u16 o, u16 a, u16 b, u16 w, u16 *n, u16 *_area);
+void tiler_ioctl_init(struct tiler_ops *tiler);
+struct process_info *__get_pi(pid_t pid, bool kernel);
+void _m_unregister_buf(struct __buf_info *_b);
+s32 tiler_notify_event(int event, void *data);
+void _m_free_process_info(struct process_info *pi);
 
 struct process_info *__get_pi(pid_t pid, bool kernel);
 
