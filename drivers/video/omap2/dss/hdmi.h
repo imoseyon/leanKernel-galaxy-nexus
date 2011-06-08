@@ -24,18 +24,12 @@
 #include <linux/string.h>
 #include <video/omapdss.h>
 
-#define HDMI_WP		0x0
-#define HDMI_CORE_SYS		0x400
-#define HDMI_CORE_AV		0x900
-#define HDMI_PLLCTRL		0x200
-#define HDMI_PHY		0x300
-
 struct hdmi_reg { u16 idx; };
 
 #define HDMI_REG(idx)			((const struct hdmi_reg) { idx })
 
 /* HDMI Wrapper */
-#define HDMI_WP_REG(idx)			HDMI_REG(HDMI_WP + idx)
+#define HDMI_WP_REG(idx)			HDMI_REG(idx)
 
 #define HDMI_WP_REVISION			HDMI_WP_REG(0x0)
 #define HDMI_WP_SYSCONFIG			HDMI_WP_REG(0x10)
@@ -54,7 +48,7 @@ struct hdmi_reg { u16 idx; };
 #define HDMI_WP_AUDIO_DATA			HDMI_WP_REG(0x8C)
 
 /* HDMI IP Core System */
-#define HDMI_CORE_SYS_REG(idx)			HDMI_REG(HDMI_CORE_SYS + idx)
+#define HDMI_CORE_SYS_REG(idx)			HDMI_REG(idx)
 
 #define HDMI_CORE_SYS_VND_IDL			HDMI_CORE_SYS_REG(0x0)
 #define HDMI_CORE_SYS_DEV_IDL			HDMI_CORE_SYS_REG(0x8)
@@ -95,7 +89,7 @@ struct hdmi_reg { u16 idx; };
 #define HDMI_CORE_DDC_SEGM			HDMI_CORE_SYS_REG(0x3B8)
 
 /* HDMI IP Core Audio Video */
-#define HDMI_CORE_AV_REG(idx)			HDMI_REG(HDMI_CORE_AV + idx)
+#define HDMI_CORE_AV_REG(idx)			HDMI_REG(idx)
 
 #define HDMI_CORE_AV_HDMI_CTRL			HDMI_CORE_AV_REG(0xBC)
 #define HDMI_CORE_AV_DPD			HDMI_CORE_AV_REG(0xF4)
@@ -175,7 +169,7 @@ struct hdmi_reg { u16 idx; };
 #define HDMI_CORE_AV_GEN_DBYTE_ELSIZE		0x4
 
 /* PLL */
-#define HDMI_PLL_REG(idx)			HDMI_REG(HDMI_PLLCTRL + idx)
+#define HDMI_PLL_REG(idx)			HDMI_REG(idx)
 
 #define PLLCTRL_PLL_CONTROL			HDMI_PLL_REG(0x0)
 #define PLLCTRL_PLL_STATUS			HDMI_PLL_REG(0x4)
@@ -186,7 +180,7 @@ struct hdmi_reg { u16 idx; };
 #define PLLCTRL_CFG4				HDMI_PLL_REG(0x20)
 
 /* HDMI PHY */
-#define HDMI_PHY_REG(idx)			HDMI_REG(HDMI_PHY + idx)
+#define HDMI_PHY_REG(idx)			HDMI_REG(idx)
 
 #define HDMI_TXPHY_TX_CTRL			HDMI_PHY_REG(0x0)
 #define HDMI_TXPHY_DIGITAL_CTRL		HDMI_PHY_REG(0x4)
@@ -203,10 +197,11 @@ struct hdmi_reg { u16 idx; };
 
 #define OMAP_HDMI_TIMINGS_NB			34
 
-#define REG_FLD_MOD(idx, val, start, end) \
-	hdmi_write_reg(idx, FLD_MOD(hdmi_read_reg(idx), val, start, end))
-#define REG_GET(idx, start, end) \
-	FLD_GET(hdmi_read_reg(idx), start, end)
+#define REG_FLD_MOD(base, idx, val, start, end) \
+	hdmi_write_reg(base, idx, FLD_MOD(hdmi_read_reg(base, idx),\
+							val, start, end))
+#define REG_GET(base, idx, start, end) \
+	FLD_GET(hdmi_read_reg(base, idx), start, end)
 
 /* HDMI timing structure */
 struct hdmi_timings {
@@ -566,6 +561,14 @@ struct hdmi_video_interface {
 	int	hsp;	/* Hsync polarity */
 	int	interlacing;
 	int	tm;	/* Timing mode */
+};
+
+struct hdmi_ip_data {
+	void __iomem *base_wp;	/* HDMI wrapper */
+	unsigned long	hdmi_core_sys_offset;
+	unsigned long hdmi_core_av_offset;
+	unsigned long hdmi_pll_offset;
+	unsigned long hdmi_phy_offset;
 };
 
 struct hdmi_cm {
