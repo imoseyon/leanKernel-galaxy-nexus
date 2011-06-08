@@ -513,6 +513,7 @@ static s32 lay_2d(enum tiler_fmt fmt, u16 n, u16 w, u16 h, u16 band,
 	return n;
 }
 
+#ifdef CONFIG_TILER_ENABLE_NV12
 /* layout reserved nv12 blocks in a larger area */
 /* NOTE: area w(idth), w1 (8-bit block width), h(eight) are in slots */
 /* p is a pointer to a packing description, which is a list of offsets in
@@ -558,6 +559,7 @@ static s32 lay_nv12(int n, u16 w, u16 w1, u16 h, struct gid_info *gi, u8 *p)
 	mutex_unlock(&mtx);
 	return n;
 }
+#endif
 
 static void _m_unpin(struct mem_info *mi)
 {
@@ -1221,7 +1223,9 @@ static s32 __init tiler_init(void)
 	tiler.lock = find_n_lock;
 	tiler.unlock_free = unlock_n_free;
 	tiler.lay_2d = lay_2d;
+#ifdef CONFIG_TILER_ENABLE_NV12
 	tiler.lay_nv12 = lay_nv12;
+#endif
 	tiler.destroy_group = destroy_group;
 	tiler.lock_by_ssptr = find_block_by_ssptr;
 	tiler.describe = fill_block_info;
@@ -1233,6 +1237,9 @@ static s32 __init tiler_init(void)
 	tiler_geom_init(&tiler);
 	tiler_reserve_init(&tiler);
 	tiler_iface_init(&tiler);
+#ifdef CONFIG_TILER_ENABLE_NV12
+	tiler_nv12_init(&tiler);
+#endif
 
 	/* check module parameters for correctness */
 	if (default_align > PAGE_SIZE ||
@@ -1272,7 +1279,9 @@ static s32 __init tiler_init(void)
 	area.y1 = tiler.height - 1;
 	tmm_unpin(tmm_pat, area);
 
+#ifdef CONFIG_TILER_ENABLE_NV12
 	tiler.nv12_packed = tcm[TILFMT_8BIT] == tcm[TILFMT_16BIT];
+#endif
 
 	tiler_device = kmalloc(sizeof(*tiler_device), GFP_KERNEL);
 	if (!tiler_device || !sita || !tmm_pat) {

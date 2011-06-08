@@ -505,12 +505,16 @@ static long tiler_ioctl(struct file *filp, u32 cmd, unsigned long arg)
 			return -EFAULT;
 
 		if (block_info.fmt == TILFMT_8AND16)
+#ifdef CONFIG_TILER_ENABLE_NV12
 			ops->reserve_nv12(block_info.key,
 					  block_info.dim.area.width,
 					  block_info.dim.area.height,
 					  block_info.align,
 					  block_info.offs,
 					  block_info.group_id, pi);
+#else
+			return -EINVAL;
+#endif
 		else
 			ops->reserve(block_info.key,
 				     block_info.fmt,
@@ -672,6 +676,7 @@ void tiler_reserve(u32 n, enum tiler_fmt fmt, u32 width, u32 height,
 }
 EXPORT_SYMBOL(tiler_reserve);
 
+#ifdef CONFIG_TILER_ENABLE_NV12
 void tiler_reservex_nv12(u32 n, u32 width, u32 height, u32 align, u32 offs,
 			u32 gid, pid_t pid)
 {
@@ -687,6 +692,7 @@ void tiler_reserve_nv12(u32 n, u32 width, u32 height, u32 align, u32 offs)
 	tiler_reservex_nv12(n, width, height, align, offs, 0, current->tgid);
 }
 EXPORT_SYMBOL(tiler_reserve_nv12);
+#endif
 
 s32 tiler_allocx(struct tiler_block_t *blk, enum tiler_fmt fmt,
 				u32 align, u32 offs, u32 gid, pid_t pid)

@@ -125,8 +125,10 @@ struct tiler_ops {
 	s32 (*lay_2d) (enum tiler_fmt fmt, u16 n, u16 w, u16 h, u16 band,
 			u16 align, u16 offs, struct gid_info *gi,
 			struct list_head *pos);
+#ifdef CONFIG_TILER_ENABLE_NV12
 	s32 (*lay_nv12) (int n, u16 w, u16 w1, u16 h, struct gid_info *gi,
-									u8 *p);
+			 u8 *p);
+#endif
 	/* group operations */
 	struct gid_info * (*get_gi) (struct process_info *pi, u32 gid);
 	void (*release_gi) (struct gid_info *gi);
@@ -151,8 +153,9 @@ struct tiler_ops {
 
 	/* additional info */
 	const struct file_operations *fops;
-
+#ifdef CONFIG_TILER_ENABLE_NV12
 	bool nv12_packed;	/* whether NV12 is packed into same container */
+#endif
 	u32 page;		/* page size */
 	u32 width;		/* container width */
 	u32 height;		/* container height */
@@ -161,6 +164,8 @@ struct tiler_ops {
 void tiler_iface_init(struct tiler_ops *tiler);
 void tiler_geom_init(struct tiler_ops *tiler);
 void tiler_reserve_init(struct tiler_ops *tiler);
+void tiler_nv12_init(struct tiler_ops *tiler);
+u32 tiler_best2pack(u16 o, u16 a, u16 b, u16 w, u16 *n, u16 *_area);
 
 struct process_info *__get_pi(pid_t pid, bool kernel);
 

@@ -124,3 +124,13 @@ config TILER_EXPOSE_SSPTR
 
            You can use this flag to see if the userspace is relying on
            having access to the SSPtr.
+
+config TILER_ENABLE_NV12
+        bool "Enable NV12 support"
+        default y
+        depends on TI_TILER
+        help
+            This option enables NV12 functionality in the TILER driver.
+
+	    If set, nv12 support will be compiled into the driver and APIs
+	    will be enabled.
