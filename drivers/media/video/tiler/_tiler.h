@@ -77,15 +77,26 @@ struct area_info {
 	struct gid_info *gi;		/* link to parent, if still alive */
 };
 
+/* type of tiler memory */
+enum tiler_memtype {
+	TILER_MEM_ALLOCED,		/* tiler allocated the memory */
+	TILER_MEM_GOT_PAGES,		/* tiler used get_user_pages */
+	TILER_MEM_USING,		/* tiler is using the pages */
+};
+
+/* physical pages to pin */
+struct tiler_pa_info {
+	u32 num_pg;			/* number of pages in page-list */
+	u32 *mem;			/* list of phys page addresses */
+	enum tiler_memtype memtype;	/* how we got physical pages */
+};
+
 /* info for a block */
 struct mem_info {
 	struct list_head global;	/* reserved / global blocks */
 	struct tiler_block_t blk;	/* block info */
-	u32 num_pg;			/* number of pages in page-list */
-	u32 usr;			/* user space address */
-	u32 *pg_ptr;			/* list of mapped struct page ptrs */
+	struct tiler_pa_info pa;	/* pinned physical pages */
 	struct tcm_area area;
-	u32 *mem;			/* list of alloced phys addresses */
 	int refs;			/* number of times referenced */
 	bool alloced;			/* still alloced */
 

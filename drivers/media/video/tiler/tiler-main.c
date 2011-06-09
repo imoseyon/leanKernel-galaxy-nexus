@@ -94,6 +94,9 @@ static s32 refill_pat(struct tmm *tmm, struct tcm_area *area, u32 *ptr)
 	struct pat_area p_area = {0};
 	struct tcm_area slice, area_s;
 
+	/* Ensure the data reaches to main memory before PAT refill */
+	wmb();
+
 	tcm_for_each_slice(slice, *area, area_s) {
 		p_area.x0 = slice.p0.x;
 		p_area.y0 = slice.p0.y;
@@ -564,19 +567,24 @@ static s32 _m_free(struct mem_info *mi)
 	u32 i;
 
 	/* release memory */
-	if (mi->pg_ptr) {
-		for (i = 0; i < mi->num_pg; i++) {
-			page = (struct page *)mi->pg_ptr[i];
+	if (mi->pa.memtype == TILER_MEM_GOT_PAGES) {
+		for (i = 0; i < mi->pa.num_pg; i++) {
+			page = phys_to_page(mi->pa.mem[i]);
 			if (page) {
 				if (!PageReserved(page))
 					SetPageDirty(page);
 				page_cache_release(page);
 			}
 		}
-		kfree(mi->pg_ptr);
-	} else if (mi->mem) {
-		tmm_free(tmm[tiler_fmt(mi->blk.phys)], mi->mem);
+	} else if (mi->pa.memtype == TILER_MEM_ALLOCED && mi->pa.mem) {
+		tmm_free(tmm[tiler_fmt(mi->blk.phys)], mi->pa.mem);
+		/*
+		 * TRICKY: tmm module uses the same mi->pa.mem pointer which
+		 * it just freed.  We need to clear ours so we don't double free
+		 */
+		mi->pa.mem = NULL;
 	}
+	kfree(mi->pa.mem);
 	clear_pat(tmm[tiler_fmt(mi->blk.phys)], &mi->area);
 
 	/* safe deletion as list may not have been assigned */
@@ -851,7 +859,6 @@ static void fill_block_info(struct mem_info *i, struct tiler_block_info *blk)
  *  Block operations
  *  ==========================================================================
  */
-
 static struct mem_info *__get_area(enum tiler_fmt fmt, u32 width, u32 height,
 				   u16 align, u16 offs, struct gid_info *gi)
 {
@@ -899,18 +906,16 @@ static struct mem_info *__get_area(enum tiler_fmt fmt, u32 width, u32 height,
 	return mi;
 }
 
-static s32 alloc_block(enum tiler_fmt fmt, u32 width, u32 height,
-		u32 align, u32 offs, u32 key, u32 gid, struct process_info *pi,
-		struct mem_info **info)
+static struct mem_info *alloc_block_area(enum tiler_fmt fmt, u32 width,
+		u32 height, u32 align, u32 offs, u32 key, u32 gid,
+		struct process_info *pi)
 {
 	struct mem_info *mi = NULL;
 	struct gid_info *gi = NULL;
 
-	*info = NULL;
-
 	/* only support up to page alignment */
 	if (align > PAGE_SIZE || offs >= (align ? : default_align) || !pi)
-		return -EINVAL;
+		return ERR_PTR(-EINVAL);
 
 	/* get group context */
 	mutex_lock(&mtx);
@@ -918,7 +923,7 @@ static s32 alloc_block(enum tiler_fmt fmt, u32 width, u32 height,
 	mutex_unlock(&mtx);
 
 	if (!gi)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
 	/* reserve area in tiler container */
 	mi = __get_area(fmt, width, height, align, offs, gi);
@@ -927,7 +932,7 @@ static s32 alloc_block(enum tiler_fmt fmt, u32 width, u32 height,
 		gi->refs--;
 		_m_try_free_group(gi);
 		mutex_unlock(&mtx);
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 	}
 
 	mi->blk.width = width;
@@ -941,21 +946,83 @@ static s32 alloc_block(enum tiler_fmt fmt, u32 width, u32 height,
 		mutex_unlock(&mtx);
 	}
 
+	return mi;
+}
+
+static s32 pin_memory(struct mem_info *mi, struct tiler_pa_info *pa)
+{
+	enum tiler_fmt fmt = tiler_fmt(mi->blk.phys);
+
+	/* ensure we can pin */
+	if (!tmm_can_map(tmm[fmt]))
+		return -EINVAL;
+
+	/* ensure pages fit into area */
+	if (pa->num_pg > tcm_sizeof(mi->area))
+		return -ENOMEM;
+
+	/* save pages used */
+	mi->pa = *pa;
+	pa->mem = NULL;	/* transfered array */
+
+	return refill_pat(tmm[fmt], &mi->area, mi->pa.mem);
+}
+
+static void free_pa(struct tiler_pa_info *pa)
+{
+	if (pa)
+		kfree(pa->mem);
+	kfree(pa);
+}
+
+/* allocate physical pages for a block */
+static struct tiler_pa_info *get_new_pa(struct tmm *tmm, u32 num_pg)
+{
+	struct tiler_pa_info *pa = NULL;
+	pa = kzalloc(sizeof(*pa), GFP_KERNEL);
+	if (!pa)
+		return NULL;
+
+	pa->mem = tmm_get(tmm, num_pg);
+	if (pa->mem) {
+		pa->num_pg = num_pg;
+		pa->memtype = TILER_MEM_ALLOCED;
+		return pa;
+	} else {
+		kfree(pa);
+		return NULL;
+	}
+}
+
+static s32 alloc_block(enum tiler_fmt fmt, u32 width, u32 height,
+		u32 align, u32 offs, u32 key, u32 gid, struct process_info *pi,
+		struct mem_info **info)
+{
+	struct mem_info *mi;
+	struct tiler_pa_info *pa = NULL;
+	s32 res;
+
+	*info = NULL;
+
+	/* allocate tiler container area */
+	mi = alloc_block_area(fmt, width, height, align, offs, key, gid, pi);
+	if (IS_ERR_OR_NULL(mi))
+		return mi ? -ENOMEM : PTR_ERR(mi);
+
 	/* allocate and map if mapping is supported */
 	if (tmm_can_map(tmm[fmt])) {
-		mi->num_pg = tcm_sizeof(mi->area);
-
-		mi->mem = tmm_get(tmm[fmt], mi->num_pg);
-		if (!mi->mem)
+		/* allocate back memory */
+		pa = get_new_pa(tmm[fmt], tcm_sizeof(mi->area));
+		if (!pa)
 			goto cleanup;
 
-		/* Ensure the data reaches to main memory before PAT refill */
-		wmb();
-
-		/* program PAT */
-		if (refill_pat(tmm[fmt], &mi->area, mi->mem))
+		/* pin memory */
+		res = pin_memory(mi, pa);
+		free_pa(pa);
+		if (res)
 			goto cleanup;
 	}
+
 	*info = mi;
 	return 0;
 
@@ -964,76 +1031,27 @@ cleanup:
 	_m_free(mi);
 	mutex_unlock(&mtx);
 	return -ENOMEM;
-
 }
 
-static s32 map_block(enum tiler_fmt fmt, u32 width, u32 height,
-		     u32 key, u32 gid, struct process_info *pi,
-		     struct mem_info **info, u32 usr_addr)
+/* get physical pages of a user block */
+static struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg)
 {
-	u32 i = 0, tmp = -1, *mem = NULL, use_gp = 1;
-	u8 write = 0;
-	s32 res = -ENOMEM;
-	struct mem_info *mi = NULL;
-	struct page *page = NULL;
 	struct task_struct *curr_task = current;
 	struct mm_struct *mm = current->mm;
 	struct vm_area_struct *vma = NULL;
-	struct gid_info *gi = NULL;
+	struct tiler_pa_info *pa = NULL;
+	struct page *page = NULL;
+	u32 *mem = NULL, got_pg = 1, i = 0, write;
 
-	*info = NULL;
+	pa = kzalloc(sizeof(*pa), GFP_KERNEL);
+	if (!pa)
+		return NULL;
 
-	/* we only support mapping a user buffer in page mode */
-	if (fmt != TILFMT_PAGE)
-		return -EPERM;
-
-	/* check if mapping is supported by tmm */
-	if (!tmm_can_map(tmm[fmt]))
-		return -EPERM;
-
-	/* get group context */
-	mutex_lock(&mtx);
-	gi = _m_get_gi(pi, gid);
-	mutex_unlock(&mtx);
-
-	if (!gi)
-		return -ENOMEM;
-
-	/* reserve area in tiler container */
-	mi = __get_area(fmt, width, height, 0, 0, gi);
-	if (!mi) {
-		mutex_lock(&mtx);
-		gi->refs--;
-		_m_try_free_group(gi);
-		mutex_unlock(&mtx);
-		return -ENOMEM;
+	mem = kzalloc(num_pg * sizeof(*mem), GFP_KERNEL);
+	if (!mem) {
+		kfree(pa);
+		return NULL;
 	}
-
-	mi->blk.width = width;
-	mi->blk.height = height;
-	mi->blk.key = key;
-	if (ssptr_id) {
-		mi->blk.id = mi->blk.phys;
-	} else {
-		mutex_lock(&mtx);
-		mi->blk.id = _m_get_id();
-		mutex_unlock(&mtx);
-	}
-
-	mi->usr = usr_addr;
-
-	/* allocate pages */
-	mi->num_pg = tcm_sizeof(mi->area);
-
-	mem = kmalloc(mi->num_pg * sizeof(*mem), GFP_KERNEL);
-	if (!mem)
-		goto done;
-	memset(mem, 0x0, sizeof(*mem) * mi->num_pg);
-
-	mi->pg_ptr = kmalloc(mi->num_pg * sizeof(*mi->pg_ptr), GFP_KERNEL);
-	if (!mi->pg_ptr)
-		goto done;
-	memset(mi->pg_ptr, 0x0, sizeof(*mi->pg_ptr) * mi->num_pg);
 
 	/*
 	 * Important Note: usr_addr is mapped from user
@@ -1042,74 +1060,126 @@ static s32 map_block(enum tiler_fmt fmt, u32 width, u32 height,
 	 * space in order to be of use to us here.
 	 */
 	down_read(&mm->mmap_sem);
-	vma = find_vma(mm, mi->usr);
-	res = -EFAULT;
+	vma = find_vma(mm, usr_addr);
 
 	/*
 	 * It is observed that under some circumstances, the user
 	 * buffer is spread across several vmas, so loop through
 	 * and check if the entire user buffer is covered.
 	 */
-	while ((vma) && (mi->usr + width > vma->vm_end)) {
+	while ((vma) && (usr_addr + (num_pg << PAGE_SHIFT) > vma->vm_end)) {
 		/* jump to the next VMA region */
 		vma = find_vma(mm, vma->vm_end + 1);
 	}
 	if (!vma) {
 		printk(KERN_ERR "Failed to get the vma region for "
 			"user buffer.\n");
-		goto fault;
+		kfree(mem);
+		up_read(&mm->mmap_sem);
+		return ERR_PTR(-EFAULT);
 	}
 
 	if (vma->vm_flags & (VM_WRITE | VM_MAYWRITE))
 		write = 1;
 
-	tmp = mi->usr;
-	for (i = 0; i < mi->num_pg; i++) {
+	for (i = 0; i < num_pg; i++) {
 		/*
 		 * At first use get_user_pages which works best for
 		 * userspace buffers.  If it fails (e.g. for kernel
 		 * allocated buffers), fall back to using the page
 		 * table directly.
 		 */
-		if (use_gp && get_user_pages(curr_task, mm, tmp, 1, write, 1,
-							&page, NULL) && page) {
+		if (got_pg && get_user_pages(curr_task, mm, usr_addr, 1,
+					write, 1, &page, NULL) && page) {
 			if (page_count(page) < 1) {
 				printk(KERN_ERR "Bad page count from"
 							"get_user_pages()\n");
 			}
-			mi->pg_ptr[i] = (u32)page;
 			mem[i] = page_to_phys(page);
-		} else {
-			use_gp = mi->pg_ptr[i] = 0;
-			mem[i] = tiler_virt2phys(tmp);
+			BUG_ON(page != phys_to_page(mem[i]));
+		} else if (!got_pg || i == 0) {
+			got_pg = 0;
+			mem[i] = tiler_virt2phys(usr_addr);
 			if (!mem[i]) {
 				printk(KERN_ERR "get_user_pages() failed and virtual address is not in page table\n");
-				goto fault;
+				break;
 			}
+		} else {
+			/* we must get all or none of the pages */
+			/* release pages */
+			while (i--)
+				page_cache_release(phys_to_page(mem[i]));
+			break;
 		}
-		tmp += PAGE_SIZE;
+		usr_addr += PAGE_SIZE;
 	}
 	up_read(&mm->mmap_sem);
 
-	/* Ensure the data reaches to main memory before PAT refill */
-	wmb();
+	/* if failed to map all pages */
+	if (i < num_pg) {
+		kfree(mem);
+		kfree(pa);
+		return ERR_PTR(-EFAULT);
+	}
 
-	if (refill_pat(tmm[fmt], &mi->area, mem))
-		goto fault;
+	pa->mem = mem;
+	pa->memtype = got_pg ? TILER_MEM_GOT_PAGES : TILER_MEM_USING;
+	pa->num_pg = num_pg;
+	return pa;
+}
 
-	res = 0;
-	*info = mi;
-	goto done;
-fault:
-	up_read(&mm->mmap_sem);
-done:
-	if (res) {
+static s32 map_any_block(enum tiler_fmt fmt, u32 width, u32 height,
+		     u32 key, u32 gid, struct process_info *pi,
+		     struct mem_info **info, struct tiler_pa_info *pa)
+{
+	s32 res = -EPERM;
+	struct mem_info *mi = NULL;
+
+	*info = NULL;
+
+	/* we only support mapping a user buffer in page mode */
+	if (fmt != TILFMT_PAGE)
+		goto done;
+
+	/* check if mapping is supported by tmm */
+	if (!tmm_can_map(tmm[fmt]))
+		goto done;
+
+	/* get allocation area */
+	mi = alloc_block_area(fmt, width, height, 0, 0, key, gid, pi);
+	if (IS_ERR_OR_NULL(mi)) {
+		res = mi ? PTR_ERR(mi) : -ENOMEM;
+		goto done;
+	}
+
+	/* pin pages to tiler container */
+	res = pin_memory(mi, pa);
+
+	/* success */
+	if (!res) {
+		*info = mi;
+	} else {
 		mutex_lock(&mtx);
 		_m_free(mi);
 		mutex_unlock(&mtx);
 	}
-	kfree(mem);
+done:
+	free_pa(pa);
 	return res;
+}
+
+static s32 map_block(enum tiler_fmt fmt, u32 width, u32 height,
+		     u32 key, u32 gid, struct process_info *pi,
+		     struct mem_info **info, u32 usr_addr)
+{
+	struct tiler_pa_info *pa = NULL;
+
+	/* get user pages */
+	pa = user_block_to_pa(usr_addr, DIV_ROUND_UP(width, PAGE_SIZE));
+	if (IS_ERR_OR_NULL(pa))
+		return pa ? PTR_ERR(pa) : -ENOMEM;
+
+	return map_any_block(fmt, width, height, key, gid, pi, info, pa);
 }
 
 /*
