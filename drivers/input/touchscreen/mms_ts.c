@@ -197,6 +197,35 @@ static inline void hw_reboot_normal(struct mms_ts_info *info)
 	hw_reboot(info, false);
 }
 
+static inline void mms_pwr_on_reset(struct mms_ts_info *info)
+{
+	struct i2c_adapter *adapter = to_i2c_adapter(info->client->dev.parent);
+
+	if (!info->pdata->mux_fw_flash) {
+		dev_info(&info->client->dev,
+			 "missing platform data, can't do power-on-reset\n");
+		return;
+	}
+
+	i2c_lock_adapter(adapter);
+	info->pdata->mux_fw_flash(true);
+
+	gpio_direction_output(info->pdata->gpio_vdd_en, 0);
+	gpio_direction_output(info->pdata->gpio_sda, 1);
+	gpio_direction_output(info->pdata->gpio_scl, 1);
+	gpio_direction_output(info->pdata->gpio_resetb, 1);
+	msleep(50);
+	gpio_direction_output(info->pdata->gpio_vdd_en, 1);
+	msleep(50);
+
+	info->pdata->mux_fw_flash(false);
+	i2c_unlock_adapter(adapter);
+
+	/* TODO: Seems long enough for the firmware to boot.
+	 * Find the right value */
+	msleep(250);
+}
+
 static void isp_toggle_clk(struct mms_ts_info *info, int start_lvl, int end_lvl,
 			   int hold_us)
 {
@@ -574,6 +603,8 @@ static int __devinit mms_ts_config(struct mms_ts_info *info, bool nowait)
 	struct i2c_client *client = info->client;
 	int ret = 0;
 	int ver;
+
+	mms_pwr_on_reset(info);
 
 	ver = get_fw_version(info);
 	if (ver < 0) {
