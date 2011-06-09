@@ -308,6 +308,19 @@ static inline u16 __tcm_sizeof(struct tcm_area *area)
 #define tcm_aheight(area) __tcm_area_height(&(area))
 #define tcm_is_in(pt, area) __tcm_is_in(&(pt), &(area))
 
+/* limit a 1D area to the first N pages */
+static inline s32 tcm_1d_limit(struct tcm_area *a, u32 num_pg)
+{
+	if (__tcm_sizeof(a) < num_pg)
+		return -ENOMEM;
+	if (!num_pg)
+		return -EINVAL;
+
+	a->p1.x = (a->p0.x + num_pg - 1) % a->tcm->width;
+	a->p1.y = a->p0.y + ((a->p0.x + num_pg - 1) / a->tcm->width);
+	return 0;
+}
+
 /**
  * Iterate through 2D slices of a valid area. Behaves
  * syntactically as a for(;;) statement.

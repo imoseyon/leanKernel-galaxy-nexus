@@ -952,6 +952,7 @@ static struct mem_info *alloc_block_area(enum tiler_fmt fmt, u32 width,
 static s32 pin_memory(struct mem_info *mi, struct tiler_pa_info *pa)
 {
 	enum tiler_fmt fmt = tiler_fmt(mi->blk.phys);
+	struct tcm_area area = mi->area;
 
 	/* ensure we can pin */
 	if (!tmm_can_map(tmm[fmt]))
@@ -961,11 +962,21 @@ static s32 pin_memory(struct mem_info *mi, struct tiler_pa_info *pa)
 	if (pa->num_pg > tcm_sizeof(mi->area))
 		return -ENOMEM;
 
+	/* for 2D area, pages must fit exactly */
+	if (fmt != TILFMT_PAGE &&
+	    pa->num_pg != tcm_sizeof(mi->area))
+		return -EINVAL;
+
 	/* save pages used */
 	mi->pa = *pa;
 	pa->mem = NULL;	/* transfered array */
 
-	return refill_pat(tmm[fmt], &mi->area, mi->pa.mem);
+	/* only refill available pages for 1D */
+	if (fmt == TILFMT_PAGE)
+		tcm_1d_limit(&area, pa->num_pg);
+	if (mi->pa.num_pg)
+		return refill_pat(tmm[fmt], &area, mi->pa.mem);
+	return 0;
 }
 
 static void free_pa(struct tiler_pa_info *pa)
