@@ -29,6 +29,10 @@
 #define GPIO_TOUCH_EN		19
 #define GPIO_TOUCH_IRQ		46
 
+/* touch is on i2c3 */
+#define GPIO_TOUCH_SCL	130
+#define GPIO_TOUCH_SDA	131
+
 static const int tuna_keymap[] = {
 	KEY(1, 1, KEY_VOLUMEDOWN),
 	KEY(2, 1, KEY_VOLUMEUP),
@@ -119,21 +123,34 @@ static struct i2c_board_info __initdata tuna_i2c3_boardinfo_pre_lunchbox[] = {
 
 static int melfas_mux_fw_flash(bool to_gpios)
 {
+	/* TOUCH_EN is always an output */
 	if (to_gpios) {
-		/* EN is always an output */
-		gpio_direction_output(GPIO_TOUCH_EN, 0);
 		gpio_direction_output(GPIO_TOUCH_IRQ, 0);
-		omap_mux_init_gpio(GPIO_TOUCH_IRQ, OMAP_PIN_INPUT);
-		gpio_direction_output(130, 0);
-		omap_mux_init_signal("i2c3_scl.gpio_130", OMAP_PIN_INPUT);
-		gpio_direction_output(131, 0);
-		omap_mux_init_signal("i2c3_sda.gpio_131", OMAP_PIN_INPUT);
+		omap_mux_set_gpio(OMAP_PIN_INPUT | OMAP_MUX_MODE3,
+				  GPIO_TOUCH_IRQ);
+
+		gpio_direction_output(GPIO_TOUCH_SCL, 0);
+		omap_mux_set_gpio(OMAP_PIN_INPUT | OMAP_MUX_MODE3,
+				  GPIO_TOUCH_SCL);
+
+		gpio_direction_output(GPIO_TOUCH_SDA, 0);
+		omap_mux_set_gpio(OMAP_PIN_INPUT | OMAP_MUX_MODE3,
+				  GPIO_TOUCH_SDA);
 	} else {
+		gpio_direction_output(GPIO_TOUCH_IRQ, 1);
 		gpio_direction_input(GPIO_TOUCH_IRQ);
-		omap_mux_init_gpio(GPIO_TOUCH_IRQ, OMAP_PIN_INPUT_PULLUP);
-		omap_mux_init_signal("i2c3_scl.i2c3_scl", OMAP_PIN_INPUT);
-		omap_mux_init_signal("i2c3_sda.i2c3_sda", OMAP_PIN_INPUT);
-		gpio_direction_output(GPIO_TOUCH_EN, 1);
+		omap_mux_set_gpio(OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE3,
+				  GPIO_TOUCH_IRQ);
+
+		gpio_direction_output(GPIO_TOUCH_SCL, 1);
+		gpio_direction_input(GPIO_TOUCH_SCL);
+		omap_mux_set_gpio(OMAP_PIN_INPUT | OMAP_MUX_MODE0,
+				  GPIO_TOUCH_SCL);
+
+		gpio_direction_output(GPIO_TOUCH_SDA, 1);
+		gpio_direction_input(GPIO_TOUCH_SDA);
+		omap_mux_set_gpio(OMAP_PIN_INPUT | OMAP_MUX_MODE0,
+				  GPIO_TOUCH_SDA);
 	}
 
 	return 0;
@@ -143,6 +160,10 @@ static struct mms_ts_platform_data mms_ts_pdata = {
 	.max_x		= 720,
 	.max_y		= 1280,
 	.mux_fw_flash	= melfas_mux_fw_flash,
+	.gpio_resetb	= GPIO_TOUCH_IRQ,
+	.gpio_vdd_en	= GPIO_TOUCH_EN,
+	.gpio_scl	= GPIO_TOUCH_SCL,
+	.gpio_sda	= GPIO_TOUCH_SDA,
 };
 
 static struct i2c_board_info __initdata tuna_i2c3_boardinfo_final[] = {
@@ -164,8 +185,8 @@ void __init omap4_tuna_input_init(void)
 		gpio_request(GPIO_TOUCH_EN, "tsp_en");
 		gpio_direction_output(GPIO_TOUCH_EN, 1);
 		omap_mux_init_gpio(GPIO_TOUCH_EN, OMAP_PIN_OUTPUT);
-		gpio_request(130, "ap_i2c3_scl");
-		gpio_request(131, "ap_i2c3_sda");
+		gpio_request(GPIO_TOUCH_SCL, "ap_i2c3_scl");
+		gpio_request(GPIO_TOUCH_SDA, "ap_i2c3_sda");
 
 		i2c_register_board_info(3, tuna_i2c3_boardinfo_final,
 			ARRAY_SIZE(tuna_i2c3_boardinfo_final));
