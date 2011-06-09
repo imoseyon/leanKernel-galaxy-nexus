@@ -685,6 +685,8 @@ static s32 scan_r2l_b2t_one_dim(struct tcm *tcm, u32 num_slots,
 		} else {
 			/* count consecutive free slots */
 			found++;
+			if (found == num_slots)
+				break;
 		}
 
 		/* move to the left */
