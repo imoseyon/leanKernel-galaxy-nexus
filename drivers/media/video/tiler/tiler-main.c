@@ -558,18 +558,13 @@ static s32 lay_nv12(int n, u16 w, u16 w1, u16 h, struct gid_info *gi, u8 *p)
 	return n;
 }
 
-/* (must have mutex) free block and any freed areas */
-static s32 _m_free(struct mem_info *mi)
+static void _m_unpin(struct mem_info *mi)
 {
-	struct area_info *ai = NULL;
-	struct page *page = NULL;
-	s32 res = 0;
-	u32 i;
-
 	/* release memory */
 	if (mi->pa.memtype == TILER_MEM_GOT_PAGES) {
+		int i;
 		for (i = 0; i < mi->pa.num_pg; i++) {
-			page = phys_to_page(mi->pa.mem[i]);
+			struct page *page = phys_to_page(mi->pa.mem[i]);
 			if (page) {
 				if (!PageReserved(page))
 					SetPageDirty(page);
@@ -585,7 +580,18 @@ static s32 _m_free(struct mem_info *mi)
 		mi->pa.mem = NULL;
 	}
 	kfree(mi->pa.mem);
+	mi->pa.mem = NULL;
+	mi->pa.num_pg = 0;
 	clear_pat(tmm[tiler_fmt(mi->blk.phys)], &mi->area);
+}
+
+/* (must have mutex) free block and any freed areas */
+static s32 _m_free(struct mem_info *mi)
+{
+	struct area_info *ai = NULL;
+	s32 res = 0;
+
+	_m_unpin(mi);
 
 	/* safe deletion as list may not have been assigned */
 	if (mi->global.next)
@@ -1371,6 +1377,29 @@ void tiler_free_block(tiler_blk_handle block)
 	mutex_unlock(&mtx);
 }
 EXPORT_SYMBOL(tiler_free_block);
+
+tiler_blk_handle tiler_alloc_block_area(u32 size)
+{
+	return alloc_block_area(TILFMT_PAGE, size >> PAGE_SHIFT, 1, 0, 0, 0, 0,
+							__get_pi(0, true));
+}
+EXPORT_SYMBOL(tiler_alloc_block_area);
+
+void tiler_unpin_memory(tiler_blk_handle block)
+{
+	mutex_lock(&mtx);
+	_m_unpin(block);
+	mutex_unlock(&mtx);
+}
+EXPORT_SYMBOL(tiler_unpin_memory);
+
+s32 tiler_pin_memory(tiler_blk_handle block, struct tiler_pa_info *pa)
+{
+	struct tiler_pa_info *pa_tmp = kmemdup(pa, sizeof(*pa), GFP_KERNEL);
+	tiler_unpin_memory(block);
+	return pin_memory(block, pa_tmp);
+}
+EXPORT_SYMBOL(tiler_pin_memory);
 
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Lajos Molnar <molnar@ti.com>");
