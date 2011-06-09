@@ -65,6 +65,7 @@ struct modem_data {
 	char *name;
 
 	unsigned gpio_cp_on;
+	unsigned gpio_cp_off;
 	unsigned gpio_reset_req_n;
 	unsigned gpio_cp_reset;
 	unsigned gpio_pda_active;
@@ -73,12 +74,11 @@ struct modem_data {
 	unsigned gpio_flm_uart_sel;
 	unsigned gpio_cp_warm_reset;
 #ifdef CONFIG_LTE_MODEM_CMC221
-	unsigned gpio_cp_off;
 	unsigned gpio_slave_wakeup;
 	unsigned gpio_host_wakeup;
 	unsigned gpio_host_active;
-#endif /*CONFIG_LTE_MODEM_CMC221*/
-
+	int irq_host_wakeup;
+#endif
 	/* modem component */
 	enum modem_t modem_type;
 	enum modem_link link_type;
