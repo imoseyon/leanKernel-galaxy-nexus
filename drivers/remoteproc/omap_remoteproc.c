@@ -21,15 +21,60 @@
 #include <linux/slab.h>
 #include <linux/platform_device.h>
 #include <linux/remoteproc.h>
+#include <linux/sched.h>
 
 #include <plat/iommu.h>
 #include <plat/omap_device.h>
 #include <plat/remoteproc.h>
+#include <plat/mailbox.h>
+
+#define PM_SUSPEND_MBOX		0xffffff07
+#define PM_SUSPEND_TIMEOUT	300
 
 struct omap_rproc_priv {
 	struct iommu *iommu;
 	int (*iommu_cb)(struct rproc *, u64, u32);
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+	struct omap_mbox *mbox;
+	void __iomem *idle;
+	u32 idle_mask;
+	void __iomem *suspend;
+	u32 suspend_mask;
+#endif
 };
+
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+static bool _may_suspend(struct omap_rproc_priv *rpp)
+{
+	return readl(rpp->idle) & rpp->idle_mask;
+}
+
+static int _suspend(struct omap_rproc_priv *rpp)
+{
+	unsigned long timeout = msecs_to_jiffies(PM_SUSPEND_TIMEOUT) + jiffies;
+
+	omap_mbox_msg_send(rpp->mbox, PM_SUSPEND_MBOX);
+
+	while (time_after(timeout, jiffies)) {
+		if ((readl(rpp->suspend) & rpp->suspend_mask) &&
+				(readl(rpp->idle) & rpp->idle_mask))
+			return 0;
+		schedule();
+	}
+
+	return -EIO;
+}
+
+static int omap_suspend(struct rproc *rproc, bool force)
+{
+	struct omap_rproc_priv *rpp = rproc->priv;
+
+	if (rpp->idle && (force || _may_suspend(rpp)))
+		return _suspend(rpp);
+
+	return -EBUSY;
+}
+#endif
 
 static int
 omap_rproc_map(struct device *dev, struct iommu *obj, u32 da, u32 pa, u32 size)
@@ -90,6 +135,52 @@ static int omap_rproc_iommu_isr(struct iommu *iommu, u32 da, u32 errs, void *p)
 	return ret;
 }
 
+int omap_rproc_activate(struct omap_device *od)
+{
+	int i;
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+	struct rproc *rproc = platform_get_drvdata(&od->pdev);
+	struct device *dev = rproc->dev;
+	struct omap_rproc_pdata *pdata = dev->platform_data;
+	struct omap_rproc_priv *rpp = rproc->priv;
+	struct iommu *iommu;
+
+	if (!rpp->iommu) {
+		iommu = iommu_get(pdata->iommu_name);
+		if (IS_ERR(iommu)) {
+			dev_err(dev, "iommu_get error: %ld\n",
+				PTR_ERR(iommu));
+			return PTR_ERR(iommu);
+		}
+		rpp->iommu = iommu;
+	}
+#endif
+	for (i = 0; i < od->hwmods_cnt; i++)
+		omap_hwmod_enable(od->hwmods[i]);
+
+	return 0;
+}
+
+int omap_rproc_deactivate(struct omap_device *od)
+{
+	int i;
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+	struct rproc *rproc = platform_get_drvdata(&od->pdev);
+	struct omap_rproc_priv *rpp = rproc->priv;
+#endif
+
+	for (i = 0; i < od->hwmods_cnt; i++)
+		omap_hwmod_shutdown(od->hwmods[i]);
+
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+	if (rpp->iommu) {
+		iommu_put(rpp->iommu);
+		rpp->iommu = NULL;
+	}
+#endif
+	return 0;
+}
+
 static int omap_rproc_iommu_init(struct rproc *rproc,
 		 int (*callback)(struct rproc *rproc, u64 fa, u32 flags))
 {
@@ -99,15 +190,15 @@ static int omap_rproc_iommu_init(struct rproc *rproc,
 	struct iommu *iommu;
 	struct omap_rproc_priv *rpp;
 
-	rpp = kmalloc(sizeof(*rpp), GFP_KERNEL);
+	rpp = kzalloc(sizeof(*rpp), GFP_KERNEL);
 	if (!rpp)
 		return -ENOMEM;
 
 	iommu_set_isr(pdata->iommu_name, omap_rproc_iommu_isr, rproc);
 	iommu = iommu_get(pdata->iommu_name);
-	if (IS_ERR_OR_NULL(iommu)) {
-		dev_err(dev, "iommu_get error: %ld\n", PTR_ERR(iommu));
+	if (IS_ERR(iommu)) {
 		ret = PTR_ERR(iommu);
+		dev_err(dev, "iommu_get error: %d\n", ret);
 		goto err_mmu;
 	}
 
@@ -130,10 +221,71 @@ err_mmu:
 	return ret;
 }
 
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+static int _init_pm_flags(struct rproc *rproc)
+{
+	struct omap_rproc_pdata *pdata = rproc->dev->platform_data;
+	struct omap_rproc_priv *rpp = rproc->priv;
+	struct omap_mbox *mbox;
+
+	if (!rpp->mbox) {
+		mbox = omap_mbox_get(pdata->sus_mbox_name, NULL);
+		if (IS_ERR(mbox))
+			return PTR_ERR(mbox);
+		rpp->mbox = mbox;
+	}
+	if (!pdata->idle_addr)
+		goto err_idle;
+
+	rpp->idle = ioremap(pdata->idle_addr, sizeof(u32));
+	if (!rpp->idle)
+		goto err_idle;
+
+	if (!pdata->suspend_addr)
+		goto err_suspend;
+
+	rpp->suspend = ioremap(pdata->suspend_addr, sizeof(u32));
+	if (!rpp->suspend)
+		goto err_suspend;
+
+	rpp->idle_mask = pdata->idle_mask;
+	rpp->suspend_mask = pdata->suspend_mask;
+
+	return 0;
+err_suspend:
+	iounmap(rpp->idle);
+	rpp->idle = NULL;
+err_idle:
+	omap_mbox_put(rpp->mbox, NULL);
+	rpp->mbox = NULL;
+	return -EIO;
+}
+
+static void _destroy_pm_flags(struct rproc *rproc)
+{
+	struct omap_rproc_priv *rpp = rproc->priv;
+
+	if (rpp->mbox) {
+		omap_mbox_put(rpp->mbox, NULL);
+		rpp->mbox = NULL;
+	}
+	if (rpp->idle) {
+		iounmap(rpp->idle);
+		rpp->idle = NULL;
+	}
+	if (rpp->suspend) {
+		iounmap(rpp->suspend);
+		rpp->suspend = NULL;
+	}
+}
+#endif
+
 static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 {
 	struct platform_device *pdev = to_platform_device(rproc->dev);
-
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+	_init_pm_flags(rproc);
+#endif
 	return omap_device_enable(pdev);
 }
 
@@ -141,7 +293,8 @@ static int omap_rproc_iommu_exit(struct rproc *rproc)
 {
 	struct omap_rproc_priv *rpp = rproc->priv;
 
-	iommu_put(rpp->iommu);
+	if (rpp->iommu)
+		iommu_put(rpp->iommu);
 	kfree(rpp);
 
 	return 0;
@@ -150,13 +303,18 @@ static int omap_rproc_iommu_exit(struct rproc *rproc)
 static inline int omap_rproc_stop(struct rproc *rproc)
 {
 	struct platform_device *pdev = to_platform_device(rproc->dev);
-
-	return omap_device_shutdown(pdev);
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+	_destroy_pm_flags(rproc);
+#endif
+	return omap_device_idle(pdev);
 }
 
 static struct rproc_ops omap_rproc_ops = {
 	.start = omap_rproc_start,
 	.stop = omap_rproc_stop,
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+	.suspend = omap_suspend,
+#endif
 	.iommu_init = omap_rproc_iommu_init,
 	.iommu_exit = omap_rproc_iommu_exit,
 };
@@ -167,7 +325,7 @@ static int omap_rproc_probe(struct platform_device *pdev)
 
 	return rproc_register(&pdev->dev, pdata->name, &omap_rproc_ops,
 				pdata->firmware, pdata->memory_maps,
-				THIS_MODULE);
+				THIS_MODULE, pdata->sus_timeout);
 }
 
 static int __devexit omap_rproc_remove(struct platform_device *pdev)
@@ -183,6 +341,7 @@ static struct platform_driver omap_rproc_driver = {
 	.driver = {
 		.name = "omap-rproc",
 		.owner = THIS_MODULE,
+		.pm = GENERIC_RPROC_PM_OPS,
 	},
 };
 
