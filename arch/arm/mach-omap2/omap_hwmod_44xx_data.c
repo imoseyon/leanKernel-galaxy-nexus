@@ -776,7 +776,7 @@ static struct omap_hwmod omap443x_bandgap_hwmod = {
 	},
 	.opt_clks	= bandgap443x_opt_clks,
 	.opt_clks_cnt	= ARRAY_SIZE(bandgap443x_opt_clks),
-	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP4430),
+	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP443X),
 };
 
 static struct omap_hwmod_opt_clk bandgap446x_opt_clks[] = {
@@ -1778,7 +1778,7 @@ static struct omap_hwmod omap443x_gpio1_hwmod = {
 	.dev_attr	= &gpio_dev_attr,
 	.slaves		= omap44xx_gpio1_slaves,
 	.slaves_cnt	= ARRAY_SIZE(omap44xx_gpio1_slaves),
-	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP4430),
+	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP443X),
 };
 
 static struct omap_hwmod omap446x_gpio1_hwmod = {
