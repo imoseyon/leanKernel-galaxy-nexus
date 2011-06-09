@@ -3320,7 +3320,7 @@ int __init omap4xxx_clk_init(void)
 	u32 cpu_clkflg = 0;
 
 	if (cpu_is_omap443x()) {
-		cpu_mask = RATE_IN_4430;
+		cpu_mask = RATE_IN_443X;
 		cpu_clkflg = CK_443X;
 	} else if (cpu_is_omap446x()) {
 		cpu_mask = RATE_IN_446X;
