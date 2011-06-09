@@ -189,6 +189,30 @@ struct omap_hsmmc_host {
 	struct	omap_mmc_platform_data	*pdata;
 };
 
+static void omap_hsmmc_status_notify_cb(int card_present, void *dev_id)
+{
+	struct omap_hsmmc_host *host = (struct omap_hsmmc_host *)dev_id;
+	unsigned int status, oldstat;
+
+	pr_debug("%s: card_present %d\n", mmc_hostname(host->mmc),
+		card_present);
+
+	if (!mmc_slot(host).mmc_data.status) {
+		mmc_detect_change(host->mmc, 0);
+		return;
+	}
+
+	status = mmc_slot(host).mmc_data.status(mmc_dev(host->mmc));
+
+	oldstat = mmc_slot(host).mmc_data.card_present;
+	mmc_slot(host).mmc_data.card_present = status;
+	if (status ^ oldstat) {
+		pr_debug("%s: Slot status change detected (%d -> %d)\n",
+			mmc_hostname(host->mmc), oldstat, status);
+		mmc_detect_change(host->mmc, 0);
+	}
+}
+
 static int omap_hsmmc_card_detect(struct device *dev, int slot)
 {
 	struct omap_mmc_platform_data *mmc = dev->platform_data;
@@ -2241,7 +2265,12 @@ static int __init omap_hsmmc_probe(struct platform_device *pdev)
 		}
 		pdata->suspend = omap_hsmmc_suspend_cdirq;
 		pdata->resume = omap_hsmmc_resume_cdirq;
+	} else if (mmc_slot(host).mmc_data.register_status_notify) {
+		mmc_slot(host).mmc_data.register_status_notify(omap_hsmmc_status_notify_cb, host);
 	}
+	if (mmc_slot(host).mmc_data.status)
+		mmc_slot(host).mmc_data.card_present =
+			mmc_slot(host).mmc_data.status(mmc_dev(host->mmc));
 
 	omap_hsmmc_disable_irq(host);
 
