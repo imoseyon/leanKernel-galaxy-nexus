@@ -1212,6 +1212,7 @@ static s32 __init tiler_init(void)
 	struct tcm_pt div_pt;
 	struct tcm *sita = NULL;
 	struct tmm *tmm_pat = NULL;
+	struct pat_area area = {0};
 
 	tiler.alloc = alloc_block;
 	tiler.map = map_block;
@@ -1258,11 +1259,16 @@ static s32 __init tiler_init(void)
 	tcm[TILFMT_PAGE]  = sita;
 
 	/* Allocate tiler memory manager (must have 1 unique TMM per TCM ) */
-	tmm_pat = tmm_pat_init(0);
+	tmm_pat = tmm_pat_init(0, dmac_va, dmac_pa);
 	tmm[TILFMT_8BIT]  = tmm_pat;
 	tmm[TILFMT_16BIT] = tmm_pat;
 	tmm[TILFMT_32BIT] = tmm_pat;
 	tmm[TILFMT_PAGE]  = tmm_pat;
+
+	/* Clear out all PAT entries */
+	area.x1 = tiler.width - 1;
+	area.y1 = tiler.height - 1;
+	tmm_clear(tmm_pat, area);
 
 	tiler.nv12_packed = tcm[TILFMT_8BIT] == tcm[TILFMT_16BIT];
 

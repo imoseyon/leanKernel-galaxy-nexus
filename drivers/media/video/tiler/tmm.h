@@ -125,6 +125,6 @@ void tmm_deinit(struct tmm *tmm)
  *
  * Initialize TMM for PAT with given id.
  */
-struct tmm *tmm_pat_init(u32 pat_id);
+struct tmm *tmm_pat_init(u32 pat_id, u32 *dmac_va, u32 dmac_pa);
 
 #endif
