@@ -351,9 +351,12 @@ static int __init omap_hsmmc_pdata_init(struct omap2_hsmmc_info *c,
 			mmc->slots[0].features |= HSMMC_HAS_48MHZ_MASTER_CLK;
 	}
 
-	if (c->mmc_data)
+	if (c->mmc_data) {
 		memcpy(&mmc->slots[0].mmc_data, c->mmc_data,
 				sizeof(struct mmc_platform_data));
+		mmc->slots[0].card_detect =
+				(mmc_card_detect_func)c->mmc_data->status;
+	}
 
 	/*
 	 * NOTE:  MMC slots should have a Vcc regulator set up.

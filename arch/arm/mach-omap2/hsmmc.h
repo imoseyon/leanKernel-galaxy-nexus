@@ -10,6 +10,8 @@
 
 struct mmc_card;
 
+typedef int (*mmc_card_detect_func)(struct device *dev, int slot);
+
 struct omap2_hsmmc_info {
 	u8	mmc;		/* controller 1/2/3 */
 	u32	caps;		/* 4/8 wires and any additional host
