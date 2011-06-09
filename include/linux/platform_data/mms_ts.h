@@ -22,6 +22,11 @@ struct mms_ts_platform_data {
 	bool	invert_x;
 	bool	invert_y;
 
+	int	gpio_sda;
+	int	gpio_scl;
+	int	gpio_resetb;
+	int	gpio_vdd_en;
+
 	int	(*mux_fw_flash)(bool to_gpios);
 };
 
