@@ -183,7 +183,7 @@ static void _m_unregister_buf(struct __buf_info *_b)
  */
 
 /* get process info, and increment refs for device tracking */
-static struct process_info *__get_pi(pid_t pid, bool kernel)
+struct process_info *__get_pi(pid_t pid, bool kernel)
 {
 	struct process_info *pi;
 

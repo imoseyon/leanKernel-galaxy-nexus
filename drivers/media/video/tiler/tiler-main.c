@@ -1354,6 +1354,24 @@ static void __exit tiler_exit(void)
 	class_destroy(tilerdev_class);
 }
 
+tiler_blk_handle tiler_map_1d_block(struct tiler_pa_info *pa)
+{
+	struct mem_info *mi = NULL;
+	struct tiler_pa_info *pa_tmp = kmemdup(pa, sizeof(*pa), GFP_KERNEL);
+	s32 res = map_any_block(TILFMT_PAGE, pa->num_pg << PAGE_SHIFT, 1, 0, 0,
+						__get_pi(0, true), &mi, pa_tmp);
+	return res ? ERR_PTR(res) : mi;
+}
+EXPORT_SYMBOL(tiler_map_1d_block);
+
+void tiler_free_block(tiler_blk_handle block)
+{
+	mutex_lock(&mtx);
+	_m_try_free(block);
+	mutex_unlock(&mtx);
+}
+EXPORT_SYMBOL(tiler_free_block);
+
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Lajos Molnar <molnar@ti.com>");
 MODULE_AUTHOR("David Sin <davidsin@ti.com>");

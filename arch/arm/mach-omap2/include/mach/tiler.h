@@ -374,6 +374,30 @@ s32 tilview_rotate(struct tiler_view_t *view, s32 rotation);
 s32 tilview_flip(struct tiler_view_t *view, bool flip_x, bool flip_y);
 
 /*
+ * -------------------- TILER hooks for ION/HWC migration --------------------
+ */
+
+/* type of tiler memory */
+enum tiler_memtype {
+	TILER_MEM_ALLOCED,		/* tiler allocated the memory */
+	TILER_MEM_GOT_PAGES,		/* tiler used get_user_pages */
+	TILER_MEM_USING,		/* tiler is using the pages */
+};
+
+/* physical pages to pin - mem must be kmalloced */
+struct tiler_pa_info {
+	u32 num_pg;			/* number of pages in page-list */
+	u32 *mem;			/* list of phys page addresses */
+	enum tiler_memtype memtype;	/* how we got physical pages */
+};
+
+typedef struct mem_info *tiler_blk_handle;
+
+/* NOTE: this will take ownership pa->mem (will free it) */
+tiler_blk_handle tiler_map_1d_block(struct tiler_pa_info *pa);
+void tiler_free_block(tiler_blk_handle block);
+
+/*
  * ---------------------------- IOCTL Definitions ----------------------------
  */
 
