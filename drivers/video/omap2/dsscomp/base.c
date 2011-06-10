@@ -427,9 +427,9 @@ void dump_comp_info(struct dsscomp_dev *cdev, struct dsscomp_setup_mgr_data *d,
 	if (!(debug & DEBUG_COMPOSITIONS))
 		return;
 
-	dev_info(DEV(cdev), "[%08x] %s: %c%c%c"
+	dev_info(DEV(cdev), "[%p] %s: %c%c%c"
 		 "(dis%d(%s) alpha=%d col=%08x ilace=%d n=%d)\n",
-		 d->sync_id, phase,
+		 *phase == 'q' ? (void *) d->sync_id : d, phase,
 		 (d->mode & DSSCOMP_SETUP_MODE_APPLY) ? 'A' : '-',
 		 (d->mode & DSSCOMP_SETUP_MODE_DISPLAY) ? 'D' : '-',
 		 (d->mode & DSSCOMP_SETUP_MODE_CAPTURE) ? 'C' : '-',
