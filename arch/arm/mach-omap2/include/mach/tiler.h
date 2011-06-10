@@ -41,6 +41,7 @@
 #define TILER_H
 
 #include <linux/mm.h>
+#include <linux/scatterlist.h>
 
 /*
  * ----------------------------- API Definitions -----------------------------
@@ -378,9 +379,91 @@ struct tiler_pa_info {
 
 typedef struct mem_info *tiler_blk_handle;
 
-/* NOTE: this will take ownership pa->mem (will free it) */
+/**
+ * Allocate a 1D area of container space in the Tiler
+ *
+ * @param pa		ptr to tiler_pa_info structure
+ *
+ * @return handle	Handle to tiler block information.  NULL on error.
+ *
+ * NOTE: this will take ownership pa->mem (will free it)
+ *
+ */
 tiler_blk_handle tiler_map_1d_block(struct tiler_pa_info *pa);
-void tiler_free_block(tiler_blk_handle block);
+
+/**
+ * Allocate an area of container space in the Tiler
+ *
+ * @param fmt		Tiler bpp mode
+ * @param width		Width in pixels
+ * @param height	Height in pixels
+ * @param ssptr		Value of tiler physical address of allocation
+ *
+ * @return handle	Handle to tiler block information.  NULL on error.
+ *
+ * NOTE: For 1D allocations, specify the full size in the width field, and
+ *       specify a height of 1.
+ */
+tiler_blk_handle tiler_alloc_block_area(enum tiler_fmt fmt, u32 width,
+					u32 height, u32 *ssptr);
+
+/**
+ * Free a reserved area in the Tiler
+ *
+ * @param handle	Handle to tiler block information
+ *
+ */
+void tiler_free_block_area(tiler_blk_handle block);
+
+/**
+ * Pins a set of physical pages into the Tiler using the area defined in a
+ * handle
+ *
+ * @param handle	Handle to tiler block information
+ * @param sg		Scatterlist of physical pages
+ * @param nents		Number of entries in scatterlist
+ *
+ * @return error status.
+ */
+s32 tiler_pin_block(tiler_blk_handle handle, struct scatterlist *sg, u32 nents);
+
+/**
+ * Unpins a set of physical pages from the Tiler
+ *
+ * @param handle	Handle to tiler block information
+ *
+ */
+void tiler_unpin_block(tiler_blk_handle handle);
+
+
+/**
+ * Gives Tiler physical address for a given tiler_blk_handle
+ *
+ * @param handle	Handle to tiler block information
+ *
+ * @return phsyical address.  NULL on error.
+ */
+u32 tiler_handle_to_phys(tiler_blk_handle handle);
+
+/**
+ * Gives memory requirements for a given container allocation
+ *
+ * @param fmt		Tiler bpp mode
+ * @param width		Width in pixels
+ * @param height	Height in pixels
+ *
+ * @return Number of pages required.  On error, returns 0
+ */
+u32 tiler_memsize(enum tiler_fmt fmt, u32 width, u32 height);
+
+/**
+ * Returns virtual stride of a tiler block
+ *
+ * @param handle	Handle to tiler block allocation
+ *
+ * @return Size of virtual stride
+ */
+u32 tiler_block_vstride(tiler_blk_handle handle);
 
 /*
  * ---------------------------- IOCTL Definitions ----------------------------

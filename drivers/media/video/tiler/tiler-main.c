@@ -889,7 +889,7 @@ static struct mem_info *alloc_block_area(enum tiler_fmt fmt, u32 width,
 	struct mem_info *mi = NULL;
 	struct gid_info *gi = NULL;
 
-	/* only support up to page alignment */
+	/* validate parameters */
 	if (!pi)
 		return ERR_PTR(-EINVAL);
 
@@ -987,7 +987,7 @@ static s32 alloc_block(enum tiler_fmt fmt, u32 width, u32 height,
 {
 	struct mem_info *mi;
 	struct tiler_pa_info *pa = NULL;
-	s32 res;
+	int res;
 
 	*info = NULL;
 
@@ -996,19 +996,18 @@ static s32 alloc_block(enum tiler_fmt fmt, u32 width, u32 height,
 	if (IS_ERR_OR_NULL(mi))
 		return mi ? -ENOMEM : PTR_ERR(mi);
 
-	/* allocate and map if mapping is supported */
-	if (tmm_can_pin(tmm[fmt])) {
-		/* allocate back memory */
-		pa = get_new_pa(tmm[fmt], tcm_sizeof(mi->area));
-		if (!pa)
-			goto cleanup;
-
-		/* pin memory */
-		res = pin_memory(mi, pa);
-		free_pa(pa);
-		if (res)
-			goto cleanup;
+	/* allocate memory */
+	pa = get_new_pa(tmm[fmt], tcm_sizeof(mi->area));
+	if (IS_ERR_OR_NULL(pa)) {
+		res = -ENOMEM;
+		goto cleanup;
 	}
+
+	/* pin memory */
+	res = pin_memory(mi, pa);
+	free_pa(pa);
+	if (res)
+		goto cleanup;
 
 	*info = mi;
 	return 0;
@@ -1017,7 +1016,36 @@ cleanup:
 	mutex_lock(&mtx);
 	_m_free(mi);
 	mutex_unlock(&mtx);
-	return -ENOMEM;
+	return res;
+}
+
+/* gets physical pages from scatterlist */
+static struct tiler_pa_info *scatterlist_to_pa(struct scatterlist *sglist,
+						u32 nents)
+{
+	int i;
+	struct scatterlist *sg;
+	struct tiler_pa_info *pa = NULL;
+	u32 *mem = NULL;
+
+	pa = kzalloc(sizeof(*pa), GFP_KERNEL);
+	if (!pa)
+		return NULL;
+
+	mem = kzalloc(nents * sizeof(*mem), GFP_KERNEL);
+	if (!mem) {
+		kfree(pa);
+		return NULL;
+	}
+
+	/* iterate over scatterlist and build up mem information */
+	for_each_sg(sglist, sg, nents, i)
+		mem[i] = sg_phys(sg);
+
+	pa->mem = mem;
+	pa->memtype =  TILER_MEM_USING;
+	pa->num_pg = nents;
+	return pa;
 }
 
 /* get physical pages of a user block */
@@ -1116,6 +1144,7 @@ static struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg)
 	return pa;
 }
 
+/* allocate area from container and pin memory */
 static s32 pin_any_block(enum tiler_fmt fmt, u32 width, u32 height,
 		     u32 key, u32 gid, struct process_info *pi,
 		     struct mem_info **info, struct tiler_pa_info *pa)
@@ -1124,10 +1153,6 @@ static s32 pin_any_block(enum tiler_fmt fmt, u32 width, u32 height,
 	struct mem_info *mi = NULL;
 
 	*info = NULL;
-
-	/* we only support mapping a user buffer in page mode */
-	if (fmt != TILFMT_PAGE)
-		goto done;
 
 	/* check if mapping is supported by tmm */
 	if (!tmm_can_pin(tmm[fmt]))
@@ -1162,6 +1187,10 @@ static s32 pin_block(enum tiler_fmt fmt, u32 width, u32 height,
 {
 	struct tiler_pa_info *pa = NULL;
 
+	/* we only support mapping a user buffer in page mode */
+	if (fmt != TILFMT_PAGE)
+		return -ENOMEM;
+
 	/* get user pages */
 	pa = user_block_to_pa(usr_addr, DIV_ROUND_UP(width, PAGE_SIZE));
 	if (IS_ERR_OR_NULL(pa))
@@ -1169,6 +1198,23 @@ static s32 pin_block(enum tiler_fmt fmt, u32 width, u32 height,
 
 	return pin_any_block(fmt, width, height, key, gid, pi, info, pa);
 }
+
+s32 tiler_pin_block(tiler_blk_handle block, struct scatterlist *sg, u32 nents)
+{
+	struct tiler_pa_info *pa = NULL;
+	int res;
+
+	/* get user pages */
+	pa = scatterlist_to_pa(sg, nents);
+	if (IS_ERR_OR_NULL(pa))
+		return pa ? PTR_ERR(pa) : -ENOMEM;
+
+	res = pin_memory(block, pa);
+	free_pa(pa);
+
+	return res;
+}
+EXPORT_SYMBOL(tiler_pin_block);
 
 /*
  *  Driver code
@@ -1357,36 +1403,71 @@ tiler_blk_handle tiler_map_1d_block(struct tiler_pa_info *pa)
 }
 EXPORT_SYMBOL(tiler_map_1d_block);
 
-void tiler_free_block(tiler_blk_handle block)
+void tiler_free_block_area(tiler_blk_handle block)
 {
 	mutex_lock(&mtx);
 	_m_try_free(block);
 	mutex_unlock(&mtx);
 }
-EXPORT_SYMBOL(tiler_free_block);
+EXPORT_SYMBOL(tiler_free_block_area);
 
-tiler_blk_handle tiler_alloc_block_area(u32 size)
+tiler_blk_handle tiler_alloc_block_area(enum tiler_fmt fmt, u32 width,
+					u32 height, u32 *ssptr)
 {
-	return alloc_block_area(TILFMT_PAGE, size >> PAGE_SHIFT, 1, 0, 0,
-							__get_pi(0, true));
+	struct mem_info *mi;
+	*ssptr = 0;
+
+	mi = alloc_block_area(fmt, width, height, 0, 0, __get_pi(0, true));
+
+	if (IS_ERR_OR_NULL(mi))
+		goto done;
+
+	*ssptr = mi->blk.phys;
+
+done:
+	return mi;
 }
 EXPORT_SYMBOL(tiler_alloc_block_area);
 
-void tiler_unpin_memory(tiler_blk_handle block)
+tiler_blk_handle tiler_alloc_1d_block_area(u32 size)
+{
+	return alloc_block_area(TILFMT_PAGE, size >> PAGE_SHIFT, 1, 0, 0,
+				 __get_pi(0, true));
+}
+EXPORT_SYMBOL(tiler_alloc_1d_block_area);
+
+void tiler_unpin_block(tiler_blk_handle block)
 {
 	mutex_lock(&mtx);
 	_m_unpin(block);
 	mutex_unlock(&mtx);
 }
-EXPORT_SYMBOL(tiler_unpin_memory);
+EXPORT_SYMBOL(tiler_unpin_block);
 
 s32 tiler_pin_memory(tiler_blk_handle block, struct tiler_pa_info *pa)
 {
 	struct tiler_pa_info *pa_tmp = kmemdup(pa, sizeof(*pa), GFP_KERNEL);
-	tiler_unpin_memory(block);
+	tiler_unpin_block(block);
 	return pin_memory(block, pa_tmp);
 }
 EXPORT_SYMBOL(tiler_pin_memory);
+
+u32 tiler_memsize(enum tiler_fmt fmt, u32 width, u32 height)
+{
+	u16 x, y, band, align;
+
+	if (tiler.analize(fmt, width, height, &x, &y, &align, &band))
+		return 0;
+	else
+		return x*y;
+}
+EXPORT_SYMBOL(tiler_memsize);
+
+u32 tiler_block_vstride(tiler_blk_handle block)
+{
+	return tiler_vstride(&block->blk);
+}
+EXPORT_SYMBOL(tiler_block_vstride);
 
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Lajos Molnar <molnar@ti.com>");
