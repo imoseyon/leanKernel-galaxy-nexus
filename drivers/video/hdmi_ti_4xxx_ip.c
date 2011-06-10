@@ -29,7 +29,6 @@
 #include <linux/string.h>
 
 #include "hdmi_ti_4xxx_ip.h"
-#include "dss.h"
 
 static inline void hdmi_write_reg(void __iomem *base_addr,
 				const struct hdmi_reg idx, u32 val)
@@ -179,6 +178,7 @@ if (hdmi_wait_for_bit_change(hdmi_wp_base(ip_data), HDMI_WP_PWR_CTRL,
 
 	return 0;
 }
+EXPORT_SYMBOL(hdmi_ti_4xxx_set_pll_pwr);
 
 static int hdmi_pll_reset(struct hdmi_ip_data *ip_data)
 {
@@ -264,6 +264,8 @@ void hdmi_ti_4xxx_phy_off(struct hdmi_ip_data *ip_data)
 {
 	hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_OFF);
 }
+EXPORT_SYMBOL(hdmi_ti_4xxx_phy_init);
+EXPORT_SYMBOL(hdmi_ti_4xxx_phy_off);
 
 static int hdmi_core_ddc_edid(struct hdmi_ip_data *ip_data,
 						u8 *pedid, int ext)
@@ -404,6 +406,7 @@ int read_ti_4xxx_edid(struct hdmi_ip_data *ip_data, u8 *pedid, u16 max_length)
 	}
 	return 0;
 }
+EXPORT_SYMBOL(read_ti_4xxx_edid);
 
 static void hdmi_core_init(struct hdmi_core_video_config *video_cfg,
 			struct hdmi_core_infoframe_avi *avi_cfg,
@@ -631,6 +634,7 @@ void hdmi_ti_4xxx_wp_video_start(struct hdmi_ip_data *ip_data, bool start)
 {
 	REG_FLD_MOD(hdmi_wp_base(ip_data), HDMI_WP_VIDEO_CFG, start, 31, 31);
 }
+EXPORT_SYMBOL(hdmi_ti_4xxx_wp_video_start);
 
 static void hdmi_wp_video_init_format(struct hdmi_video_format *video_fmt,
 	struct omap_video_timings *timings, struct hdmi_config *param)
@@ -779,3 +783,21 @@ void hdmi_ti_4xxx_basic_configure(struct hdmi_ip_data *ip_data,
 	repeat_cfg.audio_pkt_repeat = HDMI_PACKETREPEATON;
 	hdmi_core_av_packet_config(ip_data, repeat_cfg);
 }
+EXPORT_SYMBOL(hdmi_ti_4xxx_basic_configure);
+
+static int __init hdmi_ti_4xxx_init(void)
+{
+	return 0;
+}
+
+static void __exit hdmi_ti_4xxx_exit(void)
+{
+
+}
+
+module_init(hdmi_ti_4xxx_init);
+module_exit(hdmi_ti_4xxx_exit);
+
+MODULE_AUTHOR("Texas Instruments");
+MODULE_DESCRIPTION("hdmi_ti_4xxx_ip module");
+MODULE_LICENSE("GPL");
