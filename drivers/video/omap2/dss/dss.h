@@ -156,16 +156,6 @@ struct dsi_clock_info {
 	bool use_sys_clk;
 };
 
-/* HDMI PLL structure */
-struct hdmi_pll_info {
-	u16 regn;
-	u16 regm;
-	u32 regmf;
-	u16 regm2;
-	u16 regsd;
-	u16 dcofreq;
-};
-
 struct seq_file;
 struct platform_device;
 

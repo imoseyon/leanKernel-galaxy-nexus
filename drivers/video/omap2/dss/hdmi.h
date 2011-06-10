@@ -193,37 +193,10 @@ struct hdmi_reg { u16 idx; };
 #define REG_GET(base, idx, start, end) \
 	FLD_GET(hdmi_read_reg(base, idx), start, end)
 
-struct hdmi_video_timings {
-	u16 x_res;
-	u16 y_res;
-	/* Unit: KHz */
-	u32 pixel_clock;
-	u16 hsw;
-	u16 hfp;
-	u16 hbp;
-	u16 vsw;
-	u16 vfp;
-	u16 vbp;
-};
-
-/* HDMI timing structure */
-struct hdmi_timings {
-	struct hdmi_video_timings timings;
-	int vsync_pol;
-	int hsync_pol;
-};
-
 enum hdmi_phy_pwr {
 	HDMI_PHYPWRCMD_OFF = 0,
 	HDMI_PHYPWRCMD_LDOON = 1,
 	HDMI_PHYPWRCMD_TXON = 2
-};
-
-enum hdmi_pll_pwr {
-	HDMI_PLLPWRCMD_ALLOFF = 0,
-	HDMI_PLLPWRCMD_PLLONLY = 1,
-	HDMI_PLLPWRCMD_BOTHON_ALLCLKS = 2,
-	HDMI_PLLPWRCMD_BOTHON_NOPHYCLK = 3
 };
 
 enum hdmi_clk_refsel {
@@ -259,11 +232,6 @@ enum hdmi_core_packet_mode {
 	HDMI_PACKETMODE30BITPERPIXEL = 5,
 	HDMI_PACKETMODE36BITPERPIXEL = 6,
 	HDMI_PACKETMODE48BITPERPIXEL = 7
-};
-
-enum hdmi_core_hdmi_dvi {
-	HDMI_DVI = 0,
-	HDMI_HDMI = 1
 };
 
 enum hdmi_core_tclkselclkmult {
@@ -564,25 +532,6 @@ struct hdmi_video_interface {
 	int	hsp;	/* Hsync polarity */
 	int	interlacing;
 	int	tm;	/* Timing mode */
-};
-
-struct hdmi_ip_data {
-	void __iomem *base_wp;	/* HDMI wrapper */
-	unsigned long	hdmi_core_sys_offset;
-	unsigned long hdmi_core_av_offset;
-	unsigned long hdmi_pll_offset;
-	unsigned long hdmi_phy_offset;
-};
-
-struct hdmi_cm {
-	int	code;
-	int	mode;
-};
-
-struct hdmi_config {
-	struct hdmi_timings timings;
-	u16	interlace;
-	struct hdmi_cm cm;
 };
 
 struct hdmi_audio_format {
