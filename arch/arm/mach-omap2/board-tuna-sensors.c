@@ -16,6 +16,8 @@
 #include <linux/gpio.h>
 #include <linux/i2c.h>
 #include <linux/mpu.h>
+#include <linux/gp2a.h>
+#include <linux/i2c/twl6030-madc.h>
 
 #include "mux.h"
 #include "board-tuna.h"
@@ -23,6 +25,36 @@
 #define GPIO_GYRO_INT		45
 #define GPIO_ACC_INT		122
 #define GPIO_MAG_INT		176
+#define GPIO_PS_ON		25
+#define GPIO_PS_VOUT		21
+#define GP2A_LIGHT_ADC_CHANNEL	4
+
+static int gp2a_light_adc_value(void)
+{
+	return twl6030_get_madc_conversion(GP2A_LIGHT_ADC_CHANNEL);
+}
+
+static void gp2a_power(bool on)
+{
+	/* this controls the power supply rail to the gp2a IC */
+	gpio_set_value(GPIO_PS_ON, on);
+}
+
+static void gp2a_gpio_init(void)
+{
+	int ret = gpio_request(GPIO_PS_ON, "gp2a_power_supply_on");
+	if (ret) {
+		pr_err("%s Failed to request gpio gp2a power supply\n",
+			__func__);
+		return;
+	}
+	/* set power pin to output, initially powered off*/
+	ret = gpio_direction_output(GPIO_PS_ON, 0);
+	if (ret) {
+		pr_err("%s Failed in gpio_direction_output, value 0 with error %d\n",
+			__func__, ret);
+	}
+}
 
 static s8 orientation_back_right_90[] = {
 	 0, -1,  0,
@@ -74,6 +106,12 @@ static struct mpu_platform_data mpu_data = {
 	},
 };
 
+static struct gp2a_platform_data gp2a_pdata = {
+	.power = gp2a_power,
+	.p_out = GPIO_PS_VOUT,
+	.light_adc_value = gp2a_light_adc_value,
+};
+
 static struct i2c_board_info __initdata tuna_sensors_i2c4_boardinfo[] = {
 	{
 		I2C_BOARD_INFO("mpu3050", 0x68),
@@ -90,14 +128,19 @@ static struct i2c_board_info __initdata tuna_sensors_i2c4_boardinfo[] = {
 		.irq = OMAP_GPIO_IRQ(GPIO_MAG_INT),
 		.platform_data = &mpu_data.compass,
 	},
+	{
+		I2C_BOARD_INFO("gp2a", 0x44),
+		.platform_data = &gp2a_pdata,
+	}
 };
-
 
 void __init omap4_tuna_sensors_init(void)
 {
 	omap_mux_init_gpio(GPIO_GYRO_INT, OMAP_PIN_INPUT);
 	omap_mux_init_gpio(GPIO_ACC_INT, OMAP_PIN_INPUT);
 	omap_mux_init_gpio(GPIO_MAG_INT, OMAP_PIN_INPUT);
+	omap_mux_init_gpio(GPIO_PS_ON, OMAP_PIN_OUTPUT);
+	omap_mux_init_gpio(GPIO_PS_VOUT, OMAP_PIN_INPUT);
 
 	gpio_request(GPIO_GYRO_INT, "GYRO_INT");
 	gpio_direction_input(GPIO_GYRO_INT);
@@ -105,6 +148,8 @@ void __init omap4_tuna_sensors_init(void)
 	gpio_direction_input(GPIO_ACC_INT);
 	gpio_request(GPIO_MAG_INT, "MAG_INT");
 	gpio_direction_input(GPIO_MAG_INT);
+	/* optical sensor */
+	gp2a_gpio_init();
 
 	if (omap4_tuna_get_type() == TUNA_TYPE_MAGURO &&
 	    omap4_tuna_get_revision() >= 2) {
