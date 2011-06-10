@@ -112,6 +112,5 @@ struct uart_omap_port {
 	char			name[20];
 	unsigned long		port_activity;
 };
-int omap_uart_active(int num, u32 timeout);
 
 #endif /* __OMAP_SERIAL_H__ */

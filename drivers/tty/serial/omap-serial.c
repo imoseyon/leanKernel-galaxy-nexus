@@ -1335,55 +1335,6 @@ static struct platform_driver serial_omap_driver = {
 	},
 };
 
-int omap_uart_active(int num, u32 timeout)
-{
-	struct uart_omap_port *up = ui[num];
-	struct circ_buf *xmit;
-	unsigned int status;
-
-	if(num >= OMAP_MAX_HSUART_PORTS)
-		return 0;
-
-	/* Though when UART's initialised this can never happen,
-	 * but during initialisation, it can happen the "ui"
-	 * structure is not initialized and the timer kicks
-	 * in. This would result in a NULL value, resulting
-	 * in crash.
-	 */
-	up = ui[num];
-	if (up == NULL)
-		return 0;
-
-	if (!up->port_activity)
-		return 1;
-
-	/* Check for recent driver activity. If time delta from now
-	 * to last activty < "uart idle timeout" second keep clocks on.
-	 */
-	if (((jiffies - up->port_activity) < timeout))
-		return 1;
-
-	xmit = &up->port.state->xmit;
-	if (!(uart_circ_empty(xmit) || uart_tx_stopped(&up->port)))
-		return 1;
-
-	status = serial_in(up, UART_LSR);
-	/* TX hardware not empty */
-	if (!(status & (UART_LSR_TEMT | UART_LSR_THRE)))
-		return 1;
-
-	/* Any rx activity? */
-	if (status & UART_LSR_DR)
-		return 1;
-
-	/* Check if DMA channels are active */
-	if (up->use_dma && (up->uart_dma.rx_dma_channel != OMAP_UART_DMA_CH_FREE ||
-		up->uart_dma.tx_dma_channel != OMAP_UART_DMA_CH_FREE))
-		return 1;
-	return 0;
-}
-EXPORT_SYMBOL(omap_uart_active);
-
 static int __init serial_omap_init(void)
 {
 	int ret;
