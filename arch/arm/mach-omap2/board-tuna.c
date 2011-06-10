@@ -47,6 +47,10 @@
 
 #define GPIO_AUD_PWRON		127
 
+#define GPIO_NFC_IRQ 17
+#define GPIO_NFC_FIRMWARE 172
+#define GPIO_NFC_EN 173
+
 static int tuna_hw_rev;
 
 static struct gpio tuna_hw_rev_gpios[] = {
@@ -448,6 +452,21 @@ static inline void board_serial_init(void)
 }
 #endif
 
+static void __init omap4_tuna_nfc_init(void)
+{
+	gpio_request(GPIO_NFC_FIRMWARE, "nfc_firmware");
+	gpio_direction_output(GPIO_NFC_FIRMWARE, 0);
+	omap_mux_init_gpio(GPIO_NFC_FIRMWARE, OMAP_PIN_OUTPUT);
+
+	gpio_request(GPIO_NFC_EN, "nfc_enable");
+	gpio_direction_output(GPIO_NFC_EN, 1);
+	omap_mux_init_gpio(GPIO_NFC_EN, OMAP_PIN_OUTPUT);
+
+	gpio_request(GPIO_NFC_IRQ, "nfc_irq");
+	gpio_direction_input(GPIO_NFC_IRQ);
+	omap_mux_init_gpio(GPIO_NFC_IRQ, OMAP_PIN_INPUT_PULLUP);
+}
+
 #define HSMMC2_MUX	(OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP)
 #define HSMMC1_MUX	OMAP_PIN_INPUT_PULLUP
 
@@ -510,6 +529,7 @@ static void __init tuna_init(void)
 	omap4_tuna_display_init();
 	omap4_tuna_input_init();
 	omap4_tuna_power_init();
+	omap4_tuna_nfc_init();
 }
 
 static void __init tuna_map_io(void)
