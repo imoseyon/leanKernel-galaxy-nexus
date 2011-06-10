@@ -350,7 +350,7 @@ static struct snd_soc_dai_driver hdmi_codec_dai_drv = {
 		.name = "hdmi-audio-codec",
 		.playback = {
 			.channels_min = 2,
-			.channels_max = 2,
+			.channels_max = 8,
 			.rates = SNDRV_PCM_RATE_32000 |
 				SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000,
 			.formats = SNDRV_PCM_FMTBIT_S16_LE |

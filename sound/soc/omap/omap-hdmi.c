@@ -91,7 +91,7 @@ static struct snd_soc_dai_ops omap_hdmi_dai_ops = {
 static struct snd_soc_dai_driver omap_hdmi_dai = {
 	.playback = {
 		.channels_min = 2,
-		.channels_max = 2,
+		.channels_max = 8,
 		.rates = OMAP_HDMI_RATES,
 		.formats = OMAP_HDMI_FORMATS,
 	},
