@@ -395,7 +395,7 @@ static void hdmi_read_edid(struct omap_video_timings *dp)
 	memset(hdmi.edid, 0, HDMI_EDID_MAX_LENGTH);
 
 	if (!hdmi.edid_set)
-		ret = read_edid(&hdmi.hdmi_data, hdmi.edid,
+		ret = read_ti_4xxx_edid(&hdmi.hdmi_data, hdmi.edid,
 						HDMI_EDID_MAX_LENGTH);
 	if (!ret) {
 		if (!memcmp(hdmi.edid, edid_header, sizeof(edid_header))) {
@@ -508,16 +508,16 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 
 	hdmi_compute_pll(dssdev, phy, &pll_data);
 
-	hdmi_wp_video_start(&hdmi.hdmi_data, 0);
+	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 0);
 
 	/* config the PLL and PHY hdmi_set_pll_pwrfirst */
-	r = hdmi_pll_program(&hdmi.hdmi_data, &pll_data);
+	r = hdmi_ti_4xxx_pll_program(&hdmi.hdmi_data, &pll_data);
 	if (r) {
 		DSSDBG("Failed to lock PLL\n");
 		goto err;
 	}
 
-	r = hdmi_phy_init(&hdmi.hdmi_data);
+	r = hdmi_ti_4xxx_phy_init(&hdmi.hdmi_data);
 	if (r) {
 		DSSDBG("Failed to start PHY\n");
 		goto err;
@@ -525,7 +525,7 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 
 	hdmi.cfg.cm.mode = hdmi.mode;
 	hdmi.cfg.cm.code = hdmi.code;
-	hdmi_basic_configure(&hdmi.hdmi_data, &hdmi.cfg);
+	hdmi_ti_4xxx_basic_configure(&hdmi.hdmi_data, &hdmi.cfg);
 
 	/* Make selection of HDMI in DSS */
 	dss_select_hdmi_venc_clk_source(DSS_HDMI_M_PCLK);
@@ -547,7 +547,7 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 
 	dispc_enable_channel(OMAP_DSS_CHANNEL_DIGIT, 1);
 
-	hdmi_wp_video_start(&hdmi.hdmi_data, 1);
+	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 1);
 
 	return 0;
 err:
@@ -559,9 +559,9 @@ static void hdmi_power_off(struct omap_dss_device *dssdev)
 {
 	dispc_enable_channel(OMAP_DSS_CHANNEL_DIGIT, 0);
 
-	hdmi_wp_video_start(&hdmi.hdmi_data, 0);
-	hdmi_phy_off(&hdmi.hdmi_data);
-	hdmi_set_pll_pwr(&hdmi.hdmi_data, HDMI_PLLPWRCMD_ALLOFF);
+	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 0);
+	hdmi_ti_4xxx_phy_off(&hdmi.hdmi_data);
+	hdmi_ti_4xxx_set_pll_pwr(&hdmi.hdmi_data, HDMI_PLLPWRCMD_ALLOFF);
 	hdmi_runtime_put();
 
 	hdmi.edid_set = 0;

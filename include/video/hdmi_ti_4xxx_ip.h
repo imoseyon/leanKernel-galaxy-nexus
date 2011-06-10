@@ -82,13 +82,13 @@ struct hdmi_pll_info {
 	u16 dcofreq;
 };
 
-int hdmi_phy_init(struct hdmi_ip_data *ip_data);
-void hdmi_phy_off(struct hdmi_ip_data *ip_data);
-int read_edid(struct hdmi_ip_data *ip_data, u8 *pedid, u16 max_length);
-void hdmi_wp_video_start(struct hdmi_ip_data *ip_data, bool start);
-int hdmi_pll_program(struct hdmi_ip_data *ip_data,
+int hdmi_ti_4xxx_phy_init(struct hdmi_ip_data *ip_data);
+void hdmi_ti_4xxx_phy_off(struct hdmi_ip_data *ip_data);
+int read_ti_4xxx_edid(struct hdmi_ip_data *ip_data, u8 *pedid, u16 max_length);
+void hdmi_ti_4xxx_wp_video_start(struct hdmi_ip_data *ip_data, bool start);
+int hdmi_ti_4xxx_pll_program(struct hdmi_ip_data *ip_data,
 			struct hdmi_pll_info *fmt);
-int hdmi_set_pll_pwr(struct hdmi_ip_data *ip_data, enum hdmi_pll_pwr val);
-void hdmi_basic_configure(struct hdmi_ip_data *ip_data,
+int hdmi_ti_4xxx_set_pll_pwr(struct hdmi_ip_data *ip_data, enum hdmi_pll_pwr val);
+void hdmi_ti_4xxx_basic_configure(struct hdmi_ip_data *ip_data,
 			struct hdmi_config *cfg);
 #endif
