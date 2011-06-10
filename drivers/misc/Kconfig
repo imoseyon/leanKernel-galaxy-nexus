@@ -494,6 +494,16 @@ config BMP085
 	  To compile this driver as a module, choose M here: the
 	  module will be called bmp085.
 
+config BMP180
+        tristate "BMP180 digital pressure sensor"
+        depends on I2C && SYSFS
+        help
+          If you say yes here you get support for the Bosch Sensortec
+          BMP180 digital pressure sensor.
+
+          To compile this driver as a module, choose M here: the
+          module will be called bmp180.
+
 config PCH_PHUB
 	tristate "Intel EG20T PCH / OKI SEMICONDUCTOR IOH(ML7213/ML7223) PHUB"
 	depends on PCI
