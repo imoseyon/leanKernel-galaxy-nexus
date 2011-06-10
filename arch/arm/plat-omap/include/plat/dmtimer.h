@@ -62,10 +62,9 @@ struct omap_secure_timer_dev_attr {
 };
 
 struct omap_dm_timer {
-	unsigned long phys_base;
 	int id;
 	int irq;
-	struct clk *iclk, *fclk;
+	struct clk *fclk;
 	void __iomem *io_base;
 	unsigned reserved:1;
 	unsigned enabled:1;
@@ -86,8 +85,6 @@ struct dmtimer_platform_data {
 	u32 is_early_init:1;
 	u32 needs_manual_reset:1;
 };
-
-int omap_dm_timer_init(void);
 
 struct omap_dm_timer *omap_dm_timer_request(void);
 struct omap_dm_timer *omap_dm_timer_request_specific(int timer_id);

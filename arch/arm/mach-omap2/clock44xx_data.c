@@ -3362,7 +3362,7 @@ static struct omap_clk omap44xx_clks[] = {
 	CLK(NULL,	"smartreflex_core_fck",		&smartreflex_core_fck,	CK_44XX),
 	CLK(NULL,	"smartreflex_iva_fck",		&smartreflex_iva_fck,	CK_44XX),
 	CLK(NULL,	"smartreflex_mpu_fck",		&smartreflex_mpu_fck,	CK_44XX),
-	CLK(NULL,	"gpt1_fck",			&timer1_fck,	CK_44XX),
+	CLK("omap_timer.1",	"fck",			&timer1_fck,	CK_44XX),
 	CLK("omap_timer.10",	"fck",			&timer10_fck,	CK_44XX),
 	CLK("omap_timer.11",	"fck",			&timer11_fck,	CK_44XX),
 	CLK("omap_timer.2",	"fck",			&timer2_fck,	CK_44XX),
