@@ -232,6 +232,16 @@ PVRSRV_ERROR PVRSRVSwapToDCBufferKM(IMG_HANDLE	hDeviceKM,
 									IMG_UINT32	ui32ClipRectCount,
 									IMG_RECT	*psClipRect);
 IMG_IMPORT
+PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
+									IMG_HANDLE	hBuffer,
+									IMG_UINT32	ui32SwapInterval,
+									IMG_HANDLE	hPrivateTag,
+									PVRSRV_KERNEL_MEM_INFO **ppsMemInfos,
+									PVRSRV_KERNEL_SYNC_INFO **ppsSyncInfos,
+									IMG_UINT32	ui32NumMemSyncInfos,
+									IMG_PVOID	pvPrivData,
+									IMG_UINT32	ui32PrivDataLength);
+IMG_IMPORT
 PVRSRV_ERROR PVRSRVSwapToDCSystemKM(IMG_HANDLE	hDeviceKM,
 									IMG_HANDLE	hSwapChain);
 

@@ -771,21 +771,20 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
                             IMG_UINT32  ui32DataSize,
                             IMG_VOID   *pvData)
 {
-	DISPLAYCLASS_FLIP_COMMAND *psFlipCmd;
+	DISPLAYCLASS_FLIP_COMMAND2 *psFlipCmd;
 	OMAPLFB_DEVINFO *psDevInfo;
 	OMAPLFB_BUFFER *psBuffer;
 	OMAPLFB_SWAPCHAIN *psSwapChain;
 
-	
 	if(!hCmdCookie || !pvData)
 	{
 		return IMG_FALSE;
 	}
 
 	
-	psFlipCmd = (DISPLAYCLASS_FLIP_COMMAND*)pvData;
+	psFlipCmd = (DISPLAYCLASS_FLIP_COMMAND2*)pvData;
 
-	if (psFlipCmd == IMG_NULL || sizeof(DISPLAYCLASS_FLIP_COMMAND) != ui32DataSize)
+	if (psFlipCmd == IMG_NULL || sizeof(DISPLAYCLASS_FLIP_COMMAND2) != ui32DataSize)
 	{
 		return IMG_FALSE;
 	}
