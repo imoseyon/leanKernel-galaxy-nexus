@@ -57,6 +57,10 @@
 #define OMAP_TIMER_IP_VERSION_1                        0x1
 #define OMAP_TIMER_IP_VERSION_2			0x2
 
+struct omap_secure_timer_dev_attr {
+	bool is_secure_timer;
+};
+
 struct omap_dm_timer {
 	unsigned long phys_base;
 	int irq;
