@@ -57,10 +57,27 @@
 #define OMAP_TIMER_IP_VERSION_1                        0x1
 #define OMAP_TIMER_IP_VERSION_2			0x2
 
-struct omap_dm_timer;
+struct omap_dm_timer {
+	unsigned long phys_base;
+	int irq;
+	struct clk *iclk, *fclk;
+	void __iomem *io_base;
+	unsigned reserved:1;
+	unsigned enabled:1;
+	unsigned posted:1;
+	struct platform_device *pdev;
+};
+
 extern struct omap_dm_timer *gptimer_wakeup;
 extern struct sys_timer omap_timer;
 struct clk;
+
+struct dmtimer_platform_data {
+	int (*set_timer_src)(struct platform_device *pdev, int source);
+	int timer_ip_type;
+	u32 is_early_init:1;
+	u32 needs_manual_reset:1;
+};
 
 int omap_dm_timer_init(void);
 
