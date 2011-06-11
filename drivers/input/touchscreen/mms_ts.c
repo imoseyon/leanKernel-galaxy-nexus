@@ -494,6 +494,21 @@ static int get_fw_version(struct mms_ts_info *info)
 	return ret;
 }
 
+static int mms_ts_enable(struct mms_ts_info *info)
+{
+	/* wake up the touch controller. */
+	i2c_smbus_write_byte_data(info->client, 0, 0);
+	enable_irq(info->irq);
+	return 0;
+}
+
+static int mms_ts_disable(struct mms_ts_info *info)
+{
+	disable_irq(info->irq);
+	i2c_smbus_write_byte_data(info->client, MMS_MODE_CONTROL, 0);
+	return 0;
+}
+
 static int mms_ts_input_open(struct input_dev *dev)
 {
 	struct mms_ts_info *info = input_get_drvdata(dev);
@@ -503,7 +518,7 @@ static int mms_ts_input_open(struct input_dev *dev)
 			msecs_to_jiffies(20 * MSEC_PER_SEC));
 
 	if (ret > 0) {
-		ret = 0;
+		ret = mms_ts_enable(info);
 	} else if (ret < 0) {
 		dev_err(&dev->dev,
 			"error while waiting for device to init (%d)\n", ret);
@@ -515,6 +530,12 @@ static int mms_ts_input_open(struct input_dev *dev)
 	}
 
 	return ret;
+}
+
+static void mms_ts_input_close(struct input_dev *dev)
+{
+	struct mms_ts_info *info = input_get_drvdata(dev);
+	mms_ts_disable(info);
 }
 
 static int mms_ts_finish_config(struct mms_ts_info *info)
@@ -529,6 +550,7 @@ static int mms_ts_finish_config(struct mms_ts_info *info)
 		dev_err(&client->dev, "Failed to register interrupt\n");
 		goto err_req_irq;
 	}
+	disable_irq(client->irq);
 
 	info->irq = client->irq;
 	barrier();
@@ -684,6 +706,7 @@ static int __devinit mms_ts_probe(struct i2c_client *client,
 	input_dev->id.bustype = BUS_I2C;
 	input_dev->dev.parent = &client->dev;
 	input_dev->open = mms_ts_input_open;
+	input_dev->close = mms_ts_input_close;
 
 	__set_bit(EV_ABS, input_dev->evbit);
 	__set_bit(INPUT_PROP_DIRECT, input_dev->propbit);
@@ -737,6 +760,54 @@ static int __devexit mms_ts_remove(struct i2c_client *client)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+static int mms_ts_suspend(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct mms_ts_info *info = i2c_get_clientdata(client);
+	int i;
+
+	/* TODO: turn off the power (set vdd_en to 0) to the touchscreen
+	 * on suspend
+	 */
+
+	mutex_lock(&info->input_dev->mutex);
+	if (!info->input_dev->users)
+		goto out;
+
+	mms_ts_disable(info);
+	for (i = 0; i < MAX_FINGERS; i++) {
+		input_mt_slot(info->input_dev, i);
+		input_mt_report_slot_state(info->input_dev, MT_TOOL_FINGER,
+					   false);
+	}
+	input_sync(info->input_dev);
+
+out:
+	mutex_unlock(&info->input_dev->mutex);
+	return 0;
+}
+
+static int mms_ts_resume(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct mms_ts_info *info = i2c_get_clientdata(client);
+	int ret = 0;
+
+	mutex_lock(&info->input_dev->mutex);
+	if (info->input_dev->users)
+		ret = mms_ts_enable(info);
+	mutex_unlock(&info->input_dev->mutex);
+
+	return ret;
+}
+
+static const struct dev_pm_ops mms_ts_pm_ops = {
+	.suspend	= mms_ts_suspend,
+	.resume		= mms_ts_resume,
+};
+#endif
+
 static const struct i2c_device_id mms_ts_id[] = {
 	{ "mms_ts", 0 },
 	{ }
@@ -748,6 +819,9 @@ static struct i2c_driver mms_ts_driver = {
 	.remove		= __devexit_p(mms_ts_remove),
 	.driver = {
 		.name = "mms_ts",
+#ifdef CONFIG_PM
+		.pm	= &mms_ts_pm_ops,
+#endif
 	},
 	.id_table	= mms_ts_id,
 };
