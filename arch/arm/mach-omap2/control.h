@@ -339,6 +339,14 @@
 #define AM35XX_HECC_SW_RST		BIT(3)
 #define AM35XX_VPFE_PCLK_SW_RST		BIT(4)
 
+/* CONTROL_PADCONF_X bits */
+#define OMAP44XX_PADCONF_WAKEUPEVENT0	(1 << 15)
+#define OMAP44XX_PADCONF_WAKEUPEVENT1	(1 << 30)
+#define OMAP44XX_PADCONF_WAKEUPENABLE0	(1 << 14)
+#define OMAP44XX_PADCONF_WAKEUPENABLE1	(1 << 31)
+#define OMAP44XX_PADCONF_OFFMODEENABLE0	(1 << 9)
+#define OMAP44XX_PADCONF_OFFMODEENABLE1	(1 << 25)
+
 /*
  * CONTROL OMAP STATUS register to identify OMAP3 features
  */
@@ -379,10 +387,14 @@ extern void __iomem *omap_ctrl_base_get(void);
 extern u8 omap_ctrl_readb(u16 offset);
 extern u16 omap_ctrl_readw(u16 offset);
 extern u32 omap_ctrl_readl(u16 offset);
+extern u8 omap4_ctrl_pad_readb(u16 offset);
+extern u16 omap4_ctrl_pad_readw(u16 offset);
 extern u32 omap4_ctrl_pad_readl(u16 offset);
 extern void omap_ctrl_writeb(u8 val, u16 offset);
 extern void omap_ctrl_writew(u16 val, u16 offset);
 extern void omap_ctrl_writel(u32 val, u16 offset);
+extern void omap4_ctrl_pad_writeb(u8 val, u16 offset);
+extern void omap4_ctrl_pad_writew(u16 val, u16 offset);
 extern void omap4_ctrl_pad_writel(u32 val, u16 offset);
 
 extern void omap3_save_scratchpad_contents(void);

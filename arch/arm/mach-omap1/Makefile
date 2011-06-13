@@ -10,6 +10,9 @@ obj-$(CONFIG_OMAP_MCBSP) += mcbsp.o
 
 obj-$(CONFIG_OMAP_32K_TIMER)	+= timer32k.o
 
+# CPUFREQ driver
+obj-$(CONFIG_CPU_FREQ) += omap1-cpufreq.o
+
 # Power Management
 obj-$(CONFIG_PM) += pm.o sleep.o
 
