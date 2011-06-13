@@ -51,9 +51,17 @@
 #define TUNA_RAMCONSOLE_START	(PLAT_PHYS_OFFSET + SZ_512M)
 #define TUNA_RAMCONSOLE_SIZE	SZ_2M
 
+struct class *sec_class;
+EXPORT_SYMBOL(sec_class);
+
 #define GPIO_AUD_PWRON		127
 #define GPIO_AUD_PWRON_TORO_V1	20
 #define GPIO_MICBIAS_EN	48
+
+/* GPS GPIO Setting */
+#define GPIO_AP_AGPS_TSYNC	18
+#define GPIO_GPS_nRST	136
+#define GPIO_GPS_PWR_EN	137
 
 #define REBOOT_FLAG_RECOVERY	0x52564352
 #define REBOOT_FLAG_FASTBOOT	0x54534146
@@ -173,6 +181,55 @@ static struct platform_device *tuna_devices[] __initdata = {
 	&bcm4330_bluetooth_device,
 	&twl6030_madc_device
 };
+
+static void tuna_gsd4t_gps_gpio(void)
+{
+	/* AP_AGPS_TSYNC - GPIO 18 */
+	omap_mux_init_signal("dpm_emu7.gpio_18", OMAP_PIN_OUTPUT);
+	/* GPS_nRST - GPIO 136 */
+	omap_mux_init_signal("mcspi1_simo.gpio_136", OMAP_PIN_OUTPUT);
+	/* GPS_PWR_EN - GPIO 137 */
+	omap_mux_init_signal("mcspi1_cs0.gpio_137", OMAP_PIN_OUTPUT);
+}
+
+static void tuna_gsd4t_gps_init(void)
+{
+	struct device *gps_dev;
+
+	gps_dev = device_create(sec_class, NULL, 0, NULL, "gps");
+	if (IS_ERR(gps_dev)) {
+		pr_err("Failed to create device(gps)!\n");
+		goto err;
+	}
+	tuna_gsd4t_gps_gpio();
+
+	gpio_request(GPIO_AP_AGPS_TSYNC, "AP_AGPS_TSYNC");
+	gpio_direction_output(GPIO_AP_AGPS_TSYNC, 0);
+
+	gpio_request(GPIO_GPS_nRST, "GPS_nRST");
+	gpio_direction_output(GPIO_GPS_nRST, 1);
+
+	gpio_request(GPIO_GPS_PWR_EN, "GPS_PWR_EN");
+	gpio_direction_output(GPIO_GPS_PWR_EN, 0);
+
+	gpio_export(GPIO_GPS_nRST, 1);
+	gpio_export(GPIO_GPS_PWR_EN, 1);
+
+	gpio_export_link(gps_dev, "GPS_nRST", GPIO_GPS_nRST);
+	gpio_export_link(gps_dev, "GPS_PWR_EN", GPIO_GPS_PWR_EN);
+
+err:
+	return;
+}
+
+static int __init sec_common_init(void)
+{
+	sec_class = class_create(THIS_MODULE, "sec");
+	if (IS_ERR(sec_class))
+		pr_err("Failed to create class(sec)!\n");
+
+	return 0;
+}
 
 static void __init tuna_init_early(void)
 {
@@ -609,10 +666,12 @@ static void __init tuna_init(void)
 		omap_mux_init_gpio(158, OMAP_PIN_INPUT_PULLUP);
 	}
 
+	sec_common_init();
 	tuna_wlan_init();
 	tuna_audio_init();
 	tuna_i2c_init();
 	tuna_bt_init();
+	tuna_gsd4t_gps_init();
 	platform_add_devices(tuna_devices, ARRAY_SIZE(tuna_devices));
 	board_serial_init();
 	omap2_hsmmc_init(mmc);
