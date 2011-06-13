@@ -4238,7 +4238,7 @@ static int dsi_display_init_dispc(struct omap_dss_device *dssdev)
 
 	if (dssdev->phy.dsi.type == OMAP_DSS_DSI_TYPE_CMD_MODE) {
 		r = omap_dispc_register_isr(dsi_framedone_irq_callback, (void *) dssdev,
-					    DISPC_IRQ_FRAMEDONE);
+					    irq);
 		if (r) {
 			DSSERR("can't get FRAMEDONE irq\n");
 			return r;
