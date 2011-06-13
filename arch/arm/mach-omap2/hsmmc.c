@@ -344,6 +344,13 @@ static int __init omap_hsmmc_pdata_init(struct omap2_hsmmc_info *c,
 	if (c->vcc_aux_disable_is_sleep)
 		mmc->slots[0].vcc_aux_disable_is_sleep = 1;
 
+	if (cpu_is_omap44xx()) {
+		if (omap_rev() > OMAP4430_REV_ES1_0)
+			mmc->slots[0].features |= HSMMC_HAS_UPDATED_RESET;
+		if (c->mmc >= 3 && c->mmc <= 5)
+			mmc->slots[0].features |= HSMMC_HAS_48MHZ_MASTER_CLK;
+	}
+
 	/*
 	 * NOTE:  MMC slots should have a Vcc regulator set up.
 	 * This may be from a TWL4030-family chip, another

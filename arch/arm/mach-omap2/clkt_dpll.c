@@ -292,12 +292,14 @@ long omap2_dpll_round_rate(struct clk *clk, unsigned long target_rate)
 
 	for (n = dd->min_divider; n <= dd->max_divider; n++) {
 
-		/* Is the (input clk, divider) pair valid for the DPLL? */
-		r = _dpll_test_fint(clk, n);
-		if (r == DPLL_FINT_UNDERFLOW)
-			break;
-		else if (r == DPLL_FINT_INVALID)
-			continue;
+		if (cpu_is_omap34xx()) {
+			/* Is the (input clk, divider)pair valid for the DPLL?*/
+			r = _dpll_test_fint(clk, n);
+			if (r == DPLL_FINT_UNDERFLOW)
+				break;
+			else if (r == DPLL_FINT_INVALID)
+				continue;
+		}
 
 		/* Compute the scaled DPLL multiplier, based on the divider */
 		m = scaled_rt_rp * n;

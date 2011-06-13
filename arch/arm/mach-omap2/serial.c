@@ -347,7 +347,7 @@ static void omap_uart_smart_idle_enable(struct omap_uart_state *uart,
 		if (uart->dma_enabled)
 			idlemode = HWMOD_IDLEMODE_FORCE;
 		else
-			idlemode = HWMOD_IDLEMODE_SMART;
+			idlemode = HWMOD_IDLEMODE_SMART_WKUP;
 	} else {
 		idlemode = HWMOD_IDLEMODE_NO;
 	}

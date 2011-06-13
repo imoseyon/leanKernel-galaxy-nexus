@@ -1,7 +1,7 @@
 /*
  * OMAP44xx Power Management register bits
  *
- * Copyright (C) 2009-2010 Texas Instruments, Inc.
+ * Copyright (C) 2009-2011 Texas Instruments, Inc.
  * Copyright (C) 2009-2010 Nokia Corporation
  *
  * Paul Walmsley (paul@pwsan.com)
@@ -282,6 +282,14 @@
 /* Used by PM_CORE_PWRSTST */
 #define OMAP4430_DUCATI_UNICACHE_STATEST_SHIFT				10
 #define OMAP4430_DUCATI_UNICACHE_STATEST_MASK				(0x3 << 10)
+
+/* Used by PRM_DEVICE_OFF_CTRL */
+#define OMAP4460_EMIF1_OFFWKUP_DISABLE_SHIFT				8
+#define OMAP4460_EMIF1_OFFWKUP_DISABLE_MASK				(1 << 8)
+
+/* Used by PRM_DEVICE_OFF_CTRL */
+#define OMAP4460_EMIF2_OFFWKUP_DISABLE_SHIFT				9
+#define OMAP4460_EMIF2_OFFWKUP_DISABLE_MASK				(1 << 9)
 
 /* Used by RM_MPU_RSTST */
 #define OMAP4430_EMULATION_RST_SHIFT					0
