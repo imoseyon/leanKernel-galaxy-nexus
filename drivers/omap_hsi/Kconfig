@@ -1,0 +1,70 @@
+#
+# OMAP HSI driver configuration
+#
+
+config OMAP_HSI
+	bool "OMAP HSI hardware driver"
+	depends on (ARCH_OMAP34XX || ARCH_OMAP4)
+	default n
+	---help---
+	  If you say Y here, you will enable the OMAP HSI hardware driver.
+
+	  Note: This module is a unified driver specific to OMAP. Efforts are
+	  underway to create a vendor independent implementation.
+
+	  The MIPI HSI is a High Speed Synchronous Serial Interface and is
+	  defined for communication between two Integrated Circuits (the
+	  typical scenario is an application IC and cellular modem IC
+	  communication). Data transaction model is peer-to-peer.
+
+	  Not all features required for a production device are implemented in
+	  this driver. See the documentation for more information.
+
+	  This physical layer provides logical channeling and several modes of
+	  operation.
+
+	  The OMAP HSI driver supports either:
+	    - the OMAP MIPI HSI device
+	    - the OMAP SSI device
+
+choice
+	prompt "Selected device support file"
+	depends on OMAP_HSI && y
+	default OMAP_HSI_DEVICE
+	---help---
+	  Adds the device support for one of the devices handled by the HSI
+	  driver.
+
+	  The OMAP HSI driver supports either:
+	    - the OMAP MIPI HSI device
+	    - the OMAP SSI device
+
+config OMAP_HSI_DEVICE
+	bool "HSI (OMAP MIPI HSI)"
+	depends on ARCH_OMAP4
+
+config OMAP_SSI_DEVICE
+	bool "SSI (OMAP SSI)"
+	depends on ARCH_OMAP34XX
+
+endchoice
+
+#
+# OMAP HSI char device kernel configuration
+#
+
+config OMAP_HSI_CHAR
+	tristate "OMAP HSI character driver"
+	depends on OMAP_HSI
+	---help---
+	  If you say Y here, you will enable the OMAP HSI character driver.
+
+	  This driver provides a simple character device interface for
+	  serial communication over the HSI bus.
+
+config OMAP_HSI_PROTOCOL
+	tristate "HSI Protocol driver for Infineon Modem"
+	depends on OMAP_HSI
+	---help---
+	  If you say Y here, you will enable the HSI Protocol driver.
+	  This driver supports HSI protocol for Infineon Modem.
