@@ -27,6 +27,7 @@
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
 #include <linux/wl12xx.h>
+#include <linux/reboot.h>
 
 #include <mach/hardware.h>
 #include <mach/omap4-common.h>
@@ -40,6 +41,7 @@
 #include <plat/mmc.h>
 #include "timer-gp.h"
 
+#include "omap4-sar-layout.h"
 #include "hsmmc.h"
 #include "control.h"
 #include "mux.h"
@@ -51,6 +53,10 @@
 #define GPIO_NFC_IRQ 17
 #define GPIO_NFC_FIRMWARE 172
 #define GPIO_NFC_EN 173
+
+#define REBOOT_FLAG_RECOVERY	0x52564352
+#define REBOOT_FLAG_FASTBOOT	0x54534146
+#define REBOOT_FLAG_NORMAL	0x4D524F4E
 
 static int tuna_hw_rev;
 
@@ -461,6 +467,38 @@ static inline void board_serial_init(void)
 }
 #endif
 
+static int tuna_notifier_call(struct notifier_block *this,
+					unsigned long code, void *_cmd)
+{
+	void __iomem *sar_base;
+	unsigned int flag = REBOOT_FLAG_NORMAL;
+
+	sar_base = omap4_get_sar_ram_base();
+
+	if (!sar_base)
+		return notifier_from_errno(-ENOMEM);
+
+	if (code == SYS_RESTART) {
+		if (_cmd) {
+			if (!strcmp(_cmd, "recovery"))
+				flag = REBOOT_FLAG_RECOVERY;
+			else if (!strcmp(_cmd, "bootloader"))
+				flag = REBOOT_FLAG_FASTBOOT;
+		}
+	}
+
+	/* The Samsung LOKE bootloader will look for the boot flag at a fixed
+	 * offset from the end of the 1st SAR bank.
+	 */
+	writel(flag, sar_base + SAR_BANK2_OFFSET - 0xC);
+
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block tuna_reboot_notifier = {
+	.notifier_call = tuna_notifier_call,
+};
+
 static void __init omap4_tuna_nfc_init(void)
 {
 	gpio_request(GPIO_NFC_FIRMWARE, "nfc_firmware");
@@ -488,6 +526,8 @@ static void __init tuna_init(void)
 	omap4_mux_init(board_mux, board_wkup_mux, package);
 
 	omap4_tuna_init_hw_rev();
+
+	register_reboot_notifier(&tuna_reboot_notifier);
 
 	if (omap4_tuna_final_gpios()) {
 		/* hsmmc d0-d7 */
