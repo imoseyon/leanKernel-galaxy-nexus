@@ -771,28 +771,71 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
                             IMG_UINT32  ui32DataSize,
                             IMG_VOID   *pvData)
 {
-	DISPLAYCLASS_FLIP_COMMAND2 *psFlipCmd;
-	OMAPLFB_DEVINFO *psDevInfo;
-	OMAPLFB_BUFFER *psBuffer;
+	DISPLAYCLASS_FLIP_COMMAND *psFlipCmd;
+	OMAPLFB_BUFFER *psBuffer = IMG_NULL;
 	OMAPLFB_SWAPCHAIN *psSwapChain;
+	OMAPLFB_DEVINFO *psDevInfo;
 
+	
 	if(!hCmdCookie || !pvData)
 	{
 		return IMG_FALSE;
 	}
 
 	
-	psFlipCmd = (DISPLAYCLASS_FLIP_COMMAND2*)pvData;
+	psFlipCmd = (DISPLAYCLASS_FLIP_COMMAND*)pvData;
 
-	if (psFlipCmd == IMG_NULL || sizeof(DISPLAYCLASS_FLIP_COMMAND2) != ui32DataSize)
+	if (psFlipCmd == IMG_NULL)
 	{
 		return IMG_FALSE;
 	}
 
 	
 	psDevInfo = (OMAPLFB_DEVINFO*)psFlipCmd->hExtDevice;
-	psBuffer = (OMAPLFB_BUFFER*)psFlipCmd->hExtBuffer;
-	psSwapChain = (OMAPLFB_SWAPCHAIN*) psFlipCmd->hExtSwapChain;
+	psSwapChain = (OMAPLFB_SWAPCHAIN*)psFlipCmd->hExtSwapChain;
+
+	if(psFlipCmd->hExtBuffer)
+	{
+		
+		psBuffer = (OMAPLFB_BUFFER*)psFlipCmd->hExtBuffer;
+	}
+	else
+	{
+		
+		typedef struct {
+			IMG_PVOID pvLinAddr;
+		} PVRSRV_KERNEL_MEM_INFO;
+
+		DISPLAYCLASS_FLIP_COMMAND2 *psFlipCmd2;
+		PVRSRV_KERNEL_MEM_INFO *psMemInfo;
+		unsigned long i;
+
+		
+		psFlipCmd2 = (DISPLAYCLASS_FLIP_COMMAND2 *)pvData;
+
+		
+		psMemInfo = (PVRSRV_KERNEL_MEM_INFO *)psFlipCmd2->ppvMemInfos[0];
+
+		
+		for(i = 0; i < psSwapChain->ulBufferCount; i++)
+		{
+			if(psMemInfo->pvLinAddr == psSwapChain->psBuffer[i].sCPUVAddr)
+			{
+				psBuffer = &psSwapChain->psBuffer[i];
+				break;
+			}
+		}
+
+		
+		if(!psBuffer)
+		{
+			printk(KERN_WARNING DRIVER_PREFIX
+				": %s: Device %u: Asked to post unknown buffer\n",
+				__FUNCTION__, psDevInfo->uiFBDevID);
+			psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete(hCmdCookie, IMG_TRUE);
+			return IMG_TRUE;
+		}
+	}
 
 	OMAPLFBCreateSwapChainLock(psDevInfo);
 

@@ -31,8 +31,6 @@
 extern "C" {
 #endif
 
-#include "servicesint.h"
-
 typedef PVRSRV_ERROR (*PFN_OPEN_DC_DEVICE)(IMG_UINT32, IMG_HANDLE*, PVRSRV_SYNC_DATA*);
 typedef PVRSRV_ERROR (*PFN_CLOSE_DC_DEVICE)(IMG_HANDLE);
 typedef PVRSRV_ERROR (*PFN_ENUM_DC_FORMATS)(IMG_HANDLE, IMG_UINT32*, DISPLAY_FORMAT*);
@@ -158,7 +156,7 @@ typedef struct DISPLAYCLASS_FLIP_COMMAND2_TAG
 	IMG_HANDLE hExtSwapChain;
 
 	
-	IMG_HANDLE hExtBuffer;
+	IMG_HANDLE hUnused;
 
 	
 	IMG_UINT32 ui32SwapInterval;
@@ -168,6 +166,12 @@ typedef struct DISPLAYCLASS_FLIP_COMMAND2_TAG
 
 	
 	IMG_UINT32 ui32PrivDataLength;
+
+	
+	IMG_VOID **ppvMemInfos;
+
+	
+	IMG_UINT32 ui32NumMemInfos;
 
 } DISPLAYCLASS_FLIP_COMMAND2;
 

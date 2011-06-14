@@ -1179,10 +1179,10 @@ typedef struct PVRSRV_BRIDGE_IN_SWAP_DISPCLASS_TO_BUFFER2_TAG
 	IMG_UINT32			ui32BridgeFlags; 
 #if defined (SUPPORT_SID_INTERFACE)
 	IMG_SID				hDeviceKM;
-	IMG_SID				hBuffer;
+	IMG_SID				hSwapChain;
 #else
 	IMG_HANDLE			hDeviceKM;
-	IMG_HANDLE			hBuffer;
+	IMG_HANDLE			hSwapChain;
 #endif
 	IMG_UINT32			ui32SwapInterval;
 
@@ -1194,26 +1194,6 @@ typedef struct PVRSRV_BRIDGE_IN_SWAP_DISPCLASS_TO_BUFFER2_TAG
 	IMG_PVOID			pvPrivData;
 
 } PVRSRV_BRIDGE_IN_SWAP_DISPCLASS_TO_BUFFER2;
-
-typedef struct PVRSRV_BRIDGE_IN_SWAP_DISPCLASS_TO_BUFFER2_TAG
-{
-	IMG_UINT32			ui32BridgeFlags; /* Must be first member of structure */
-	IMG_HANDLE			hDeviceKM;
-	IMG_HANDLE			hBuffer;
-	IMG_UINT32			ui32SwapInterval;
-	IMG_HANDLE			hPrivateTag;
-
-	/* FIXME: Don't limit this to 10 slots */
-	PVRSRV_KERNEL_MEM_INFO	*psKernelMemInfo[10];
-	PVRSRV_KERNEL_SYNC_INFO	*psKernelSyncInfo[10];
-	IMG_UINT32			ui32NumMemInfos;
-
-	/* FIXME: Don't fix this to 508 bytes! */
-	IMG_CHAR			acPrivData[508];
-	IMG_UINT32			ui32PrivDataLength;
-
-} PVRSRV_BRIDGE_IN_SWAP_DISPCLASS_TO_BUFFER2;
-
 
 typedef struct PVRSRV_BRIDGE_IN_SWAP_DISPCLASS_TO_SYSTEM_TAG
 {

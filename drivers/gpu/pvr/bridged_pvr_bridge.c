@@ -2949,7 +2949,7 @@ PVRSRVSwapToDCBuffer2BW(IMG_UINT32 ui32BridgeID,
 {
 	IMG_VOID *pvPrivData = IMG_NULL;
 	IMG_VOID *pvDispClassInfo;
-	IMG_VOID *pvSwapChainBuf;
+	IMG_VOID *pvSwapChain;
 	IMG_UINT32 i;
 
 	PVRSRV_BRIDGE_ASSERT_CMD(ui32BridgeID, PVRSRV_BRIDGE_SWAP_DISPCLASS_TO_BUFFER2);
@@ -2967,9 +2967,9 @@ PVRSRVSwapToDCBuffer2BW(IMG_UINT32 ui32BridgeID,
 
 	psRetOUT->eError =
 		PVRSRVLookupSubHandle(psPerProc->psHandleBase,
-							  &pvSwapChainBuf,
-							  psSwapDispClassBufferIN->hBuffer,
-							  PVRSRV_HANDLE_TYPE_DISP_BUFFER,
+							  &pvSwapChain,
+							  psSwapDispClassBufferIN->hSwapChain,
+							  PVRSRV_HANDLE_TYPE_DISP_SWAP_CHAIN,
 							  psSwapDispClassBufferIN->hDeviceKM);
 	if(psRetOUT->eError != PVRSRV_OK)
 	{
@@ -3053,7 +3053,7 @@ PVRSRVSwapToDCBuffer2BW(IMG_UINT32 ui32BridgeID,
 
 	psRetOUT->eError =
 		PVRSRVSwapToDCBuffer2KM(pvDispClassInfo,
-								pvSwapChainBuf,
+								pvSwapChain,
 								psSwapDispClassBufferIN->ui32SwapInterval,
 								psSwapDispClassBufferIN->ppsKernelMemInfos,
 								psSwapDispClassBufferIN->ppsKernelSyncInfos,
@@ -3072,83 +3072,6 @@ PVRSRVSwapToDCBuffer2BW(IMG_UINT32 ui32BridgeID,
 }
 
 
-
-static IMG_INT
-PVRSRVSwapToDCBuffer2BW(IMG_UINT32 ui32BridgeID,
-                       PVRSRV_BRIDGE_IN_SWAP_DISPCLASS_TO_BUFFER2 *psSwapDispClassBufferIN,
-                       PVRSRV_BRIDGE_RETURN *psRetOUT,
-                       PVRSRV_PER_PROCESS_DATA *psPerProc)
-{
-    IMG_VOID  *pvDispClassInfo;
-    IMG_VOID  *pvSwapChainBuf;
-
-	IMG_UINT32 i;
-
-    PVRSRV_BRIDGE_ASSERT_CMD(ui32BridgeID, PVRSRV_BRIDGE_SWAP_DISPCLASS_TO_BUFFER2);
-
-    psRetOUT->eError =
-        PVRSRVLookupHandle(psPerProc->psHandleBase,
-                           &pvDispClassInfo,
-                           psSwapDispClassBufferIN->hDeviceKM,
-                           PVRSRV_HANDLE_TYPE_DISP_INFO);
-    if(psRetOUT->eError != PVRSRV_OK)
-    {
-        return 0;
-    }
-
-    psRetOUT->eError =
-        PVRSRVLookupSubHandle(psPerProc->psHandleBase,
-                           &pvSwapChainBuf,
-                           psSwapDispClassBufferIN->hBuffer,
-                           PVRSRV_HANDLE_TYPE_DISP_BUFFER,
-                           psSwapDispClassBufferIN->hDeviceKM);
-    if(psRetOUT->eError != PVRSRV_OK)
-    {
-        return 0;
-    }
-
-	for (i = 0; i < psSwapDispClassBufferIN->ui32NumMemInfos; i++)
-	{
-		PVRSRV_KERNEL_SYNC_INFO *psKernelSyncInfo;
-		PVRSRV_KERNEL_MEM_INFO *psKernelMemInfo;
-
-        psRetOUT->eError =
-            PVRSRVLookupHandle(psPerProc->psHandleBase,
-                               (IMG_PVOID *)&psKernelMemInfo,
-                               psSwapDispClassBufferIN->psKernelMemInfo[i],
-                               PVRSRV_HANDLE_TYPE_MEM_INFO);
-        if(psRetOUT->eError != PVRSRV_OK)
-        {
-            return 0;
-        }
-
-        psRetOUT->eError =
-            PVRSRVLookupHandle(psPerProc->psHandleBase,
-                               (IMG_PVOID *)&psKernelSyncInfo,
-                               psSwapDispClassBufferIN->psKernelSyncInfo[i],
-                               PVRSRV_HANDLE_TYPE_SYNC_INFO);
-        if(psRetOUT->eError != PVRSRV_OK)
-        {
-            return 0;
-        }
-
-        psSwapDispClassBufferIN->psKernelMemInfo[i] = psKernelMemInfo;
-        psSwapDispClassBufferIN->psKernelSyncInfo[i] = psKernelSyncInfo;
-	}
-
-    psRetOUT->eError =
-        PVRSRVSwapToDCBuffer2KM(pvDispClassInfo,
-                               pvSwapChainBuf,
-                               psSwapDispClassBufferIN->ui32SwapInterval,
-                               psSwapDispClassBufferIN->hPrivateTag,
-							   psSwapDispClassBufferIN->psKernelMemInfo,
-							   psSwapDispClassBufferIN->psKernelSyncInfo,
-							   psSwapDispClassBufferIN->ui32NumMemInfos,
-							   psSwapDispClassBufferIN->acPrivData,
-							   psSwapDispClassBufferIN->ui32PrivDataLength);
-
-    return 0;
-}
 
 static IMG_INT
 PVRSRVSwapToDCSystemBW(IMG_UINT32 ui32BridgeID,
