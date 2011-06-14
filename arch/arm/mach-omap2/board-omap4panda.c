@@ -380,6 +380,24 @@ static struct regulator_init_data omap4_panda_clk32kg = {
 	},
 };
 
+static void omap4_audio_conf(void)
+{
+	/* twl6040 naudint */
+	omap_mux_init_signal("sys_nirq2.sys_nirq2", \
+		OMAP_PIN_INPUT_PULLUP);
+}
+
+static struct twl4030_codec_audio_data twl6040_audio = {
+	/* Add audio only data */
+};
+
+static struct twl4030_codec_data twl6040_codec = {
+	.audio		= &twl6040_audio,
+	.audpwron_gpio	= 127,
+	.naudint_irq	= OMAP44XX_IRQ_SYS_2N,
+	.irq_base	= TWL6040_CODEC_IRQ_BASE,
+};
+
 static struct twl4030_platform_data omap4_panda_twldata = {
 	.irq_base	= TWL6030_IRQ_BASE,
 	.irq_end	= TWL6030_IRQ_END,
@@ -395,6 +413,9 @@ static struct twl4030_platform_data omap4_panda_twldata = {
 	.vaux3		= &omap4_panda_vaux3,
 	.clk32kg	= &omap4_panda_clk32kg,
 	.usb		= &omap4_usbphy_data,
+
+	/* children */
+	.codec		= &twl6040_codec,
 };
 
 /*
@@ -693,6 +714,7 @@ static void __init omap4_panda_init(void)
 		pr_err("error setting wl12xx data\n");
 
 	omap4_panda_i2c_init();
+	omap4_audio_conf();
 	platform_add_devices(panda_devices, ARRAY_SIZE(panda_devices));
 /*
  * 	This is temporaray. With WLAN regsitering, we see that UART2 is not
