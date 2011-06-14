@@ -311,7 +311,7 @@ static void _add_optional_clock_clkdev(struct omap_device *od,
  * return the context loss counter for that hwmod, otherwise return
  * zero.
  */
-u32 omap_device_get_context_loss_count(struct platform_device *pdev)
+int omap_device_get_context_loss_count(struct platform_device *pdev)
 {
 	struct omap_device *od;
 	u32 ret = 0;

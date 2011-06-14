@@ -492,6 +492,12 @@ static int omap_dss_set_device(struct omap_overlay_manager *mgr,
 	mgr->device = dssdev;
 	mgr->device_changed = true;
 
+	if (dssdev->type == OMAP_DISPLAY_TYPE_DSI &&
+	    !(dssdev->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE))
+		omap_dispc_set_irq_type(mgr->id, OMAP_DISPC_IRQ_TYPE_VSYNC);
+	else
+		omap_dispc_set_irq_type(mgr->id, OMAP_DISPC_IRQ_TYPE_FRAMEDONE);
+
 	return 0;
 }
 
@@ -1236,6 +1242,10 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 
 	DSSDBG("omap_dss_mgr_apply(%s)\n", mgr->name);
 
+	r = dispc_runtime_get();
+	if (r)
+		return r;
+
 	spin_lock_irqsave(&dss_cache.lock, flags);
 
 	/* Configure overlays */
@@ -1409,7 +1419,6 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 	}
 
 	r = 0;
-	dss_clk_enable(DSS_CLK_ICK | DSS_CLK_FCK);
 	if (!dss_cache.irq_enabled) {
 		u32 mask;
 
@@ -1422,9 +1431,10 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 		dss_cache.irq_enabled = true;
 	}
 	configure_dispc();
-	dss_clk_disable(DSS_CLK_ICK | DSS_CLK_FCK);
 
 	spin_unlock_irqrestore(&dss_cache.lock, flags);
+
+	dispc_runtime_put();
 
 	return r;
 }

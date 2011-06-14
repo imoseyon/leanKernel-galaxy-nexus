@@ -622,8 +622,9 @@ void set_fb_fix(struct fb_info *fbi)
 
 		fix->smem_len = var->yres_virtual * fix->line_length;
 	} else {
-		fix->line_length =
-			(var->xres_virtual * var->bits_per_pixel) >> 3;
+		/* SGX requires stride to be a multiple of 32 pixels */
+		int xres_align = ALIGN(var->xres_virtual, 32);
+		fix->line_length = (xres_align * var->bits_per_pixel) >> 3;
 		fix->smem_len = rg->size;
 	}
 
