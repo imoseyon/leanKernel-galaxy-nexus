@@ -1599,6 +1599,111 @@ Exit:
 
 
 IMG_EXPORT
+PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
+									 IMG_HANDLE	hBuffer,
+									 IMG_UINT32	ui32SwapInterval,
+									 PVRSRV_KERNEL_MEM_INFO **ppsMemInfos,
+									 PVRSRV_KERNEL_SYNC_INFO **ppsSyncInfos,
+									 IMG_UINT32	ui32NumMemSyncInfos,
+									 IMG_PVOID	pvPrivData,
+									 IMG_UINT32	ui32PrivDataLength)
+{
+	DISPLAYCLASS_FLIP_COMMAND2 *psFlipCmd;
+	PVRSRV_DISPLAYCLASS_INFO *psDCInfo;
+	PVRSRV_DC_BUFFER *psBuffer;
+	PVRSRV_QUEUE_INFO *psQueue;
+	PVRSRV_COMMAND *psCommand;
+	PVRSRV_ERROR eError;
+	SYS_DATA *psSysData;
+
+	if(!hDeviceKM || !hBuffer || !ppsMemInfos || !ppsSyncInfos || ui32NumMemSyncInfos < 1)
+	{
+		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBuffer2KM: Invalid parameters"));
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	psBuffer = (PVRSRV_DC_BUFFER*)hBuffer;
+	psDCInfo = DCDeviceHandleToDCInfo(hDeviceKM);
+
+	
+	if(ui32SwapInterval < psBuffer->psSwapChain->ui32MinSwapInterval ||
+		ui32SwapInterval > psBuffer->psSwapChain->ui32MaxSwapInterval)
+	{
+		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBuffer2KM: Invalid swap interval. Requested %u, Allowed range %u-%u",
+				 ui32SwapInterval, psBuffer->psSwapChain->ui32MinSwapInterval, psBuffer->psSwapChain->ui32MaxSwapInterval));
+		return PVRSRV_ERROR_INVALID_SWAPINTERVAL;
+	}
+
+	
+	psQueue = psBuffer->psSwapChain->psQueue;
+
+	
+	eError = PVRSRVInsertCommandKM (psQueue,
+									&psCommand,
+									psDCInfo->ui32DeviceID,
+									DC_FLIP_COMMAND,
+									0,
+									IMG_NULL,
+									ui32NumMemSyncInfos,
+									ppsSyncInfos,
+									sizeof(DISPLAYCLASS_FLIP_COMMAND2));
+	if(eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBuffer2KM: Failed to get space in queue"));
+		goto Exit;
+	}
+
+	
+	psFlipCmd = (DISPLAYCLASS_FLIP_COMMAND2*)psCommand->pvData;
+
+	
+	psFlipCmd->hExtDevice = psDCInfo->hExtDevice;
+
+	
+	psFlipCmd->hExtSwapChain = psBuffer->psSwapChain->hExtSwapChain;
+
+	
+	psFlipCmd->hExtBuffer = psBuffer->sDeviceClassBuffer.hExtBuffer;
+
+	
+	psFlipCmd->ui32SwapInterval = ui32SwapInterval;
+
+	
+
+	
+	psFlipCmd->pvPrivData = pvPrivData;
+	psFlipCmd->ui32PrivDataLength = ui32PrivDataLength;
+
+	
+	eError = PVRSRVSubmitCommandKM (psQueue, psCommand);
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBuffer2KM: Failed to submit command"));
+		goto Exit;
+	}
+
+	
+
+	SysAcquireData(&psSysData);
+    eError = OSScheduleMISR(psSysData);
+
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBuffer2KM: Failed to schedule MISR"));
+		goto Exit;
+	}
+
+Exit:
+	if(eError == PVRSRV_ERROR_CANNOT_GET_QUEUE_SPACE)
+	{
+		eError = PVRSRV_ERROR_RETRY;
+	}
+
+	return eError;
+}
+
+
+IMG_EXPORT
 PVRSRV_ERROR PVRSRVSwapToDCSystemKM(IMG_HANDLE	hDeviceKM,
 									IMG_HANDLE	hSwapChainRef)
 {

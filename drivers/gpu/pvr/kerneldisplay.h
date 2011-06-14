@@ -148,24 +148,29 @@ typedef struct DISPLAYCLASS_FLIP_COMMAND_TAG
 
 } DISPLAYCLASS_FLIP_COMMAND;
 
+
 typedef struct DISPLAYCLASS_FLIP_COMMAND2_TAG
 {
+	
 	IMG_HANDLE hExtDevice;
+
+	
 	IMG_HANDLE hExtSwapChain;
+
+	
 	IMG_HANDLE hExtBuffer;
-	IMG_HANDLE hPrivateTag;
+
+	
 	IMG_UINT32 ui32SwapInterval;
 
-	PVRSRV_KERNEL_MEM_INFO *ppsKernelMemInfos[10];
-	PVRSRV_KERNEL_SYNC_INFO *ppsKernelSyncInfos[10];
-	IMG_UINT32 ui32NumMemInfos;
+	
+	IMG_PVOID  pvPrivData;
 
-	IMG_CHAR   acPrivData[508];
+	
 	IMG_UINT32 ui32PrivDataLength;
 
 } DISPLAYCLASS_FLIP_COMMAND2;
 
-#define DC_FLIP_COMMAND		0
 #define DC_FLIP_COMMAND		0
 
 #define DC_STATE_NO_FLUSH_COMMANDS		0

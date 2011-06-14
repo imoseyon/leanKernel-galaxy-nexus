@@ -819,6 +819,19 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVSwapToDCBuffer (IMG_HANDLE hDevice,
 #endif
 
 IMG_IMPORT
+PVRSRV_ERROR IMG_CALLCONV PVRSRVSwapToDCBuffer2 (IMG_HANDLE hDevice,
+#if defined (SUPPORT_SID_INTERFACE)
+										IMG_SID    hBuffer,
+#else
+										IMG_HANDLE hBuffer,
+#endif
+										IMG_UINT32 ui32SwapInterval,
+										PVRSRV_CLIENT_MEM_INFO **ppsMemInfos,
+										IMG_UINT32 ui32NumMemInfos,
+										IMG_PVOID  pvPrivData,
+										IMG_UINT32 ui32PrivDataLength);
+
+IMG_IMPORT
 PVRSRV_ERROR IMG_CALLCONV PVRSRVSwapToDCSystem (IMG_HANDLE hDevice,
 #if defined (SUPPORT_SID_INTERFACE)
 										IMG_SID hSwapChain);

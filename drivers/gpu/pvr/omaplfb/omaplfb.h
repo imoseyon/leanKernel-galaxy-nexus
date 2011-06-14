@@ -43,6 +43,14 @@
 #include <linux/earlysuspend.h>
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38))
+#define	OMAPLFB_CONSOLE_LOCK()		console_lock()
+#define	OMAPLFB_CONSOLE_UNLOCK()	console_unlock()
+#else
+#define	OMAPLFB_CONSOLE_LOCK()		acquire_console_sem()
+#define	OMAPLFB_CONSOLE_UNLOCK()	release_console_sem()
+#endif
+
 #define unref__ __attribute__ ((unused))
 
 typedef void *       OMAPLFB_HANDLE;

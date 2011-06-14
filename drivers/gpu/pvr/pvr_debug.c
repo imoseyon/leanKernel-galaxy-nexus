@@ -49,6 +49,10 @@
 #include "linkage.h"
 #include "pvr_uaccess.h"
 
+#if !defined(CONFIG_PREEMPT)
+#define	PVR_DEBUG_ALWAYS_USE_SPINLOCK
+#endif
+
 static IMG_BOOL VBAppend(IMG_CHAR *pszBuf, IMG_UINT32 ui32BufSiz,
 						 const IMG_CHAR* pszFormat, va_list VArgs)
 						 IMG_FORMAT_PRINTF(3, 0);
@@ -69,55 +73,77 @@ IMG_UINT32 gPVRDebugLevel =
 
 #define	PVR_MAX_MSG_LEN PVR_MAX_DEBUG_MESSAGE_LEN
 
+#if !defined(PVR_DEBUG_ALWAYS_USE_SPINLOCK)
 static IMG_CHAR gszBufferNonIRQ[PVR_MAX_MSG_LEN + 1];
+#endif
 
 static IMG_CHAR gszBufferIRQ[PVR_MAX_MSG_LEN + 1];
 
+#if !defined(PVR_DEBUG_ALWAYS_USE_SPINLOCK)
 static PVRSRV_LINUX_MUTEX gsDebugMutexNonIRQ;
+#endif
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,39))
  
 static spinlock_t gsDebugLockIRQ = SPIN_LOCK_UNLOCKED;
+#else
+static DEFINE_SPINLOCK(gsDebugLockIRQ);
+#endif
 
+#if !defined(PVR_DEBUG_ALWAYS_USE_SPINLOCK)
 #if !defined (USE_SPIN_LOCK)  
 #define	USE_SPIN_LOCK (in_interrupt() || !preemptible())
+#endif
 #endif
 
 static inline void GetBufferLock(unsigned long *pulLockFlags)
 {
+#if !defined(PVR_DEBUG_ALWAYS_USE_SPINLOCK)
 	if (USE_SPIN_LOCK)
+#endif
 	{
 		spin_lock_irqsave(&gsDebugLockIRQ, *pulLockFlags);
 	}
+#if !defined(PVR_DEBUG_ALWAYS_USE_SPINLOCK)
 	else
 	{
 		LinuxLockMutex(&gsDebugMutexNonIRQ);
 	}
+#endif
 }
 
 static inline void ReleaseBufferLock(unsigned long ulLockFlags)
 {
+#if !defined(PVR_DEBUG_ALWAYS_USE_SPINLOCK)
 	if (USE_SPIN_LOCK)
+#endif
 	{
 		spin_unlock_irqrestore(&gsDebugLockIRQ, ulLockFlags);
 	}
+#if !defined(PVR_DEBUG_ALWAYS_USE_SPINLOCK)
 	else
 	{
 		LinuxUnLockMutex(&gsDebugMutexNonIRQ);
 	}
+#endif
 }
 
 static inline void SelectBuffer(IMG_CHAR **ppszBuf, IMG_UINT32 *pui32BufSiz)
 {
+#if !defined(PVR_DEBUG_ALWAYS_USE_SPINLOCK)
 	if (USE_SPIN_LOCK)
+#endif
 	{
 		*ppszBuf = gszBufferIRQ;
 		*pui32BufSiz = sizeof(gszBufferIRQ);
 	}
+#if !defined(PVR_DEBUG_ALWAYS_USE_SPINLOCK)
 	else
 	{
 		*ppszBuf = gszBufferNonIRQ;
 		*pui32BufSiz = sizeof(gszBufferNonIRQ);
 	}
+#endif
 }
 
 static IMG_BOOL VBAppend(IMG_CHAR *pszBuf, IMG_UINT32 ui32BufSiz, const IMG_CHAR* pszFormat, va_list VArgs)
@@ -139,7 +165,9 @@ static IMG_BOOL VBAppend(IMG_CHAR *pszBuf, IMG_UINT32 ui32BufSiz, const IMG_CHAR
 
 IMG_VOID PVRDPFInit(IMG_VOID)
 {
+#if !defined(PVR_DEBUG_ALWAYS_USE_SPINLOCK)
     LinuxInitMutex(&gsDebugMutexNonIRQ);
+#endif
 }
 
 IMG_VOID PVRSRVReleasePrintf(const IMG_CHAR *pszFormat, ...)

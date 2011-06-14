@@ -39,6 +39,9 @@
 #include <linux/wrapper.h>
 #endif
 #include <linux/slab.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26))
+#include <linux/highmem.h>
+#endif
 #include <asm/io.h>
 #include <asm/page.h>
 #include <asm/shmparam.h>
@@ -672,11 +675,70 @@ MMapVClose(struct vm_area_struct* ps_vma)
     LinuxUnLockMutex(&g_sMMapMutex);
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26))
+static int MMapVAccess(struct vm_area_struct *ps_vma, unsigned long addr,
+					   void *buf, int len, int write)
+{
+    PKV_OFFSET_STRUCT psOffsetStruct;
+    LinuxMemArea *psLinuxMemArea;
+    unsigned long ulOffset;
+	int iRetVal = -EINVAL;
+	IMG_VOID *pvKernelAddr;
+
+	LinuxLockMutex(&g_sMMapMutex);
+
+	psOffsetStruct = (PKV_OFFSET_STRUCT)ps_vma->vm_private_data;
+	psLinuxMemArea = psOffsetStruct->psLinuxMemArea;
+	ulOffset = addr - ps_vma->vm_start;
+
+    if (ulOffset+len > psLinuxMemArea->ui32ByteSize)
+		
+		goto exit_unlock;
+
+	pvKernelAddr = LinuxMemAreaToCpuVAddr(psLinuxMemArea);
+
+	if (pvKernelAddr)
+	{
+		memcpy(buf, pvKernelAddr+ulOffset, len);
+		iRetVal = len;
+	}
+	else
+	{
+		IMG_UINT32 pfn, ui32OffsetInPage;
+		struct page *page;
+
+		pfn = LinuxMemAreaToCpuPFN(psLinuxMemArea, ulOffset);
+
+		if (!pfn_valid(pfn))
+			goto exit_unlock;
+
+		page = pfn_to_page(pfn);
+		ui32OffsetInPage = ADDR_TO_PAGE_OFFSET(ulOffset);
+
+		if (ui32OffsetInPage+len > PAGE_SIZE)
+			
+			goto exit_unlock;
+
+		pvKernelAddr = kmap(page);
+		memcpy(buf, pvKernelAddr+ui32OffsetInPage, len);
+		kunmap(page);
+
+		iRetVal = len;
+	}
+
+exit_unlock:
+	LinuxUnLockMutex(&g_sMMapMutex);
+    return iRetVal;
+}
+#endif 
 
 static struct vm_operations_struct MMapIOOps =
 {
 	.open=MMapVOpen,
-	.close=MMapVClose
+	.close=MMapVClose,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26))
+	.access=MMapVAccess,
+#endif
 };
 
 

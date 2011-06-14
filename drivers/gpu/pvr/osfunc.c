@@ -1796,8 +1796,12 @@ static TIMER_CALLBACK_DATA sTimers[OS_MAX_TIMERS];
 #if defined(PVR_LINUX_TIMERS_USING_WORKQUEUES) || defined(PVR_LINUX_TIMERS_USING_SHARED_WORKQUEUE)
 DEFINE_MUTEX(sTimerStructLock);
 #else
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,39))
  
 static spinlock_t sTimerStructLock = SPIN_LOCK_UNLOCKED;
+#else
+static DEFINE_SPINLOCK(sTimerStructLock);
+#endif
 #endif
 
 static void OSTimerCallbackBody(TIMER_CALLBACK_DATA *psTimerCBData)
@@ -2691,7 +2695,12 @@ error:
 }
 
 typedef void (*InnerCacheOp_t)(const void *pvStart, const void *pvEnd);
+
+#if defined(__arm__) && (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,39))
+typedef void (*OuterCacheOp_t)(phys_addr_t uStart, phys_addr_t uEnd);
+#else
 typedef void (*OuterCacheOp_t)(unsigned long ulStart, unsigned long ulEnd);
+#endif
 
 #if defined(CONFIG_OUTER_CACHE)
 
@@ -3018,10 +3027,12 @@ IMG_VOID OSFlushCPUCacheKM(IMG_VOID)
 #endif
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,34))
 static inline size_t pvr_dmac_range_len(const void *pvStart, const void *pvEnd)
 {
 	return (size_t)((char *)pvEnd - (char *)pvStart);
 }
+#endif
 
 static void pvr_dmac_inv_range(const void *pvStart, const void *pvEnd)
 {
