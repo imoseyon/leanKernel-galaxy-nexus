@@ -22,6 +22,7 @@ obj-$(CONFIG_ARM_AMBA)		+= amba/
 obj-$(CONFIG_DMA_ENGINE)	+= dma/
 
 obj-$(CONFIG_VIRTIO)		+= virtio/
+obj-$(CONFIG_RPMSG)		+= rpmsg/
 obj-$(CONFIG_XEN)		+= xen/
 
 # regulators early, since some subsystems rely on them to initialize
@@ -122,3 +123,7 @@ obj-y				+= ieee802154/
 obj-y				+= clk/
 
 obj-$(CONFIG_HWSPINLOCK)	+= hwspinlock/
+obj-$(CONFIG_REMOTE_PROC)	+= remoteproc/
+
+obj-$(CONFIG_DMM_OMAP)		+= media/
+obj-$(CONFIG_TILER_OMAP)	+= media/

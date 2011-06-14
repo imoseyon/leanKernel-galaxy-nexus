@@ -114,4 +114,6 @@ source "drivers/media/radio/Kconfig"
 
 source "drivers/media/dvb/Kconfig"
 
+source "drivers/media/video/tiler/Kconfig"
+
 endif # MEDIA_SUPPORT
