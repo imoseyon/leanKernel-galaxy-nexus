@@ -1,7 +1,7 @@
 /*
- * OMAP4 Clock data
+ * OMAP44xx Clock data
  *
- * Copyright (C) 2009-2010 Texas Instruments, Inc.
+ * Copyright (C) 2009-2011 Texas Instruments Incorporated
  * Copyright (C) 2009-2010 Nokia Corporation
  *
  * Paul Walmsley (paul@pwsan.com)
@@ -53,7 +53,7 @@ static struct clk extalt_clkin_ck = {
 static struct clk pad_clks_ck = {
 	.name		= "pad_clks_ck",
 	.rate		= 12000000,
-	.ops            = &clkops_omap2_dflt,
+	.ops            = &clkops_omap4_dflt_wait,
 	.enable_reg     = OMAP4430_CM_CLKSEL_ABE,
 	.enable_bit     = OMAP4430_PAD_CLKS_GATE_SHIFT,
 };
@@ -73,7 +73,7 @@ static struct clk secure_32k_clk_src_ck = {
 static struct clk slimbus_clk = {
 	.name		= "slimbus_clk",
 	.rate		= 12000000,
-	.ops            = &clkops_omap2_dflt,
+	.ops            = &clkops_omap4_dflt_wait,
 	.enable_reg     = OMAP4430_CM_CLKSEL_ABE,
 	.enable_bit     = OMAP4430_SLIMBUS_CLK_GATE_SHIFT,
 };
@@ -127,42 +127,42 @@ static struct clk virt_38400000_ck = {
 };
 
 static const struct clksel_rate div_1_0_rates[] = {
-	{ .div = 1, .val = 0, .flags = RATE_IN_4430 },
+	{ .div = 1, .val = 0, .flags = RATE_IN_44XX },
 	{ .div = 0 },
 };
 
 static const struct clksel_rate div_1_1_rates[] = {
-	{ .div = 1, .val = 1, .flags = RATE_IN_4430 },
+	{ .div = 1, .val = 1, .flags = RATE_IN_44XX },
 	{ .div = 0 },
 };
 
 static const struct clksel_rate div_1_2_rates[] = {
-	{ .div = 1, .val = 2, .flags = RATE_IN_4430 },
+	{ .div = 1, .val = 2, .flags = RATE_IN_44XX },
 	{ .div = 0 },
 };
 
 static const struct clksel_rate div_1_3_rates[] = {
-	{ .div = 1, .val = 3, .flags = RATE_IN_4430 },
+	{ .div = 1, .val = 3, .flags = RATE_IN_44XX },
 	{ .div = 0 },
 };
 
 static const struct clksel_rate div_1_4_rates[] = {
-	{ .div = 1, .val = 4, .flags = RATE_IN_4430 },
+	{ .div = 1, .val = 4, .flags = RATE_IN_44XX },
 	{ .div = 0 },
 };
 
 static const struct clksel_rate div_1_5_rates[] = {
-	{ .div = 1, .val = 5, .flags = RATE_IN_4430 },
+	{ .div = 1, .val = 5, .flags = RATE_IN_44XX },
 	{ .div = 0 },
 };
 
 static const struct clksel_rate div_1_6_rates[] = {
-	{ .div = 1, .val = 6, .flags = RATE_IN_4430 },
+	{ .div = 1, .val = 6, .flags = RATE_IN_44XX },
 	{ .div = 0 },
 };
 
 static const struct clksel_rate div_1_7_rates[] = {
-	{ .div = 1, .val = 7, .flags = RATE_IN_4430 },
+	{ .div = 1, .val = 7, .flags = RATE_IN_44XX },
 	{ .div = 0 },
 };
 
@@ -285,37 +285,37 @@ static struct clk dpll_abe_x2_ck = {
 };
 
 static const struct clksel_rate div31_1to31_rates[] = {
-	{ .div = 1, .val = 1, .flags = RATE_IN_4430 },
-	{ .div = 2, .val = 2, .flags = RATE_IN_4430 },
-	{ .div = 3, .val = 3, .flags = RATE_IN_4430 },
-	{ .div = 4, .val = 4, .flags = RATE_IN_4430 },
-	{ .div = 5, .val = 5, .flags = RATE_IN_4430 },
-	{ .div = 6, .val = 6, .flags = RATE_IN_4430 },
-	{ .div = 7, .val = 7, .flags = RATE_IN_4430 },
-	{ .div = 8, .val = 8, .flags = RATE_IN_4430 },
-	{ .div = 9, .val = 9, .flags = RATE_IN_4430 },
-	{ .div = 10, .val = 10, .flags = RATE_IN_4430 },
-	{ .div = 11, .val = 11, .flags = RATE_IN_4430 },
-	{ .div = 12, .val = 12, .flags = RATE_IN_4430 },
-	{ .div = 13, .val = 13, .flags = RATE_IN_4430 },
-	{ .div = 14, .val = 14, .flags = RATE_IN_4430 },
-	{ .div = 15, .val = 15, .flags = RATE_IN_4430 },
-	{ .div = 16, .val = 16, .flags = RATE_IN_4430 },
-	{ .div = 17, .val = 17, .flags = RATE_IN_4430 },
-	{ .div = 18, .val = 18, .flags = RATE_IN_4430 },
-	{ .div = 19, .val = 19, .flags = RATE_IN_4430 },
-	{ .div = 20, .val = 20, .flags = RATE_IN_4430 },
-	{ .div = 21, .val = 21, .flags = RATE_IN_4430 },
-	{ .div = 22, .val = 22, .flags = RATE_IN_4430 },
-	{ .div = 23, .val = 23, .flags = RATE_IN_4430 },
-	{ .div = 24, .val = 24, .flags = RATE_IN_4430 },
-	{ .div = 25, .val = 25, .flags = RATE_IN_4430 },
-	{ .div = 26, .val = 26, .flags = RATE_IN_4430 },
-	{ .div = 27, .val = 27, .flags = RATE_IN_4430 },
-	{ .div = 28, .val = 28, .flags = RATE_IN_4430 },
-	{ .div = 29, .val = 29, .flags = RATE_IN_4430 },
-	{ .div = 30, .val = 30, .flags = RATE_IN_4430 },
-	{ .div = 31, .val = 31, .flags = RATE_IN_4430 },
+	{ .div = 1, .val = 1, .flags = RATE_IN_44XX },
+	{ .div = 2, .val = 2, .flags = RATE_IN_44XX },
+	{ .div = 3, .val = 3, .flags = RATE_IN_44XX },
+	{ .div = 4, .val = 4, .flags = RATE_IN_44XX },
+	{ .div = 5, .val = 5, .flags = RATE_IN_44XX },
+	{ .div = 6, .val = 6, .flags = RATE_IN_44XX },
+	{ .div = 7, .val = 7, .flags = RATE_IN_44XX },
+	{ .div = 8, .val = 8, .flags = RATE_IN_44XX },
+	{ .div = 9, .val = 9, .flags = RATE_IN_44XX },
+	{ .div = 10, .val = 10, .flags = RATE_IN_44XX },
+	{ .div = 11, .val = 11, .flags = RATE_IN_44XX },
+	{ .div = 12, .val = 12, .flags = RATE_IN_44XX },
+	{ .div = 13, .val = 13, .flags = RATE_IN_44XX },
+	{ .div = 14, .val = 14, .flags = RATE_IN_44XX },
+	{ .div = 15, .val = 15, .flags = RATE_IN_44XX },
+	{ .div = 16, .val = 16, .flags = RATE_IN_44XX },
+	{ .div = 17, .val = 17, .flags = RATE_IN_44XX },
+	{ .div = 18, .val = 18, .flags = RATE_IN_44XX },
+	{ .div = 19, .val = 19, .flags = RATE_IN_44XX },
+	{ .div = 20, .val = 20, .flags = RATE_IN_44XX },
+	{ .div = 21, .val = 21, .flags = RATE_IN_44XX },
+	{ .div = 22, .val = 22, .flags = RATE_IN_44XX },
+	{ .div = 23, .val = 23, .flags = RATE_IN_44XX },
+	{ .div = 24, .val = 24, .flags = RATE_IN_44XX },
+	{ .div = 25, .val = 25, .flags = RATE_IN_44XX },
+	{ .div = 26, .val = 26, .flags = RATE_IN_44XX },
+	{ .div = 27, .val = 27, .flags = RATE_IN_44XX },
+	{ .div = 28, .val = 28, .flags = RATE_IN_44XX },
+	{ .div = 29, .val = 29, .flags = RATE_IN_44XX },
+	{ .div = 30, .val = 30, .flags = RATE_IN_44XX },
+	{ .div = 31, .val = 31, .flags = RATE_IN_44XX },
 	{ .div = 0 },
 };
 
@@ -345,9 +345,9 @@ static struct clk abe_24m_fclk = {
 };
 
 static const struct clksel_rate div3_1to4_rates[] = {
-	{ .div = 1, .val = 0, .flags = RATE_IN_4430 },
-	{ .div = 2, .val = 1, .flags = RATE_IN_4430 },
-	{ .div = 4, .val = 2, .flags = RATE_IN_4430 },
+	{ .div = 1, .val = 0, .flags = RATE_IN_44XX },
+	{ .div = 2, .val = 1, .flags = RATE_IN_44XX },
+	{ .div = 4, .val = 2, .flags = RATE_IN_44XX },
 	{ .div = 0 },
 };
 
@@ -369,8 +369,8 @@ static struct clk abe_clk = {
 };
 
 static const struct clksel_rate div2_1to2_rates[] = {
-	{ .div = 1, .val = 0, .flags = RATE_IN_4430 },
-	{ .div = 2, .val = 1, .flags = RATE_IN_4430 },
+	{ .div = 1, .val = 0, .flags = RATE_IN_44XX },
+	{ .div = 2, .val = 1, .flags = RATE_IN_44XX },
 	{ .div = 0 },
 };
 
@@ -542,10 +542,10 @@ static struct clk div_core_ck = {
 };
 
 static const struct clksel_rate div4_1to8_rates[] = {
-	{ .div = 1, .val = 0, .flags = RATE_IN_4430 },
-	{ .div = 2, .val = 1, .flags = RATE_IN_4430 },
-	{ .div = 4, .val = 2, .flags = RATE_IN_4430 },
-	{ .div = 8, .val = 3, .flags = RATE_IN_4430 },
+	{ .div = 1, .val = 0, .flags = RATE_IN_44XX },
+	{ .div = 2, .val = 1, .flags = RATE_IN_44XX },
+	{ .div = 4, .val = 2, .flags = RATE_IN_44XX },
+	{ .div = 8, .val = 3, .flags = RATE_IN_44XX },
 	{ .div = 0 },
 };
 
@@ -621,7 +621,7 @@ static struct clk dpll_core_m3x2_ck = {
 	.clksel		= dpll_core_m6x2_div,
 	.clksel_reg	= OMAP4430_CM_DIV_M3_DPLL_CORE,
 	.clksel_mask	= OMAP4430_DPLL_CLKOUTHIF_DIV_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_DIV_M3_DPLL_CORE,
 	.enable_bit	= OMAP4430_DPLL_CLKOUTHIF_GATE_CTRL_SHIFT,
 	.recalc		= &omap2_clksel_recalc,
@@ -774,6 +774,15 @@ static struct clk dpll_mpu_m2_ck = {
 	.set_rate	= &omap2_clksel_set_rate,
 };
 
+static struct clk virt_dpll_mpu_ck = {
+	.name		= "virt_dpll_mpu_ck",
+	.parent		= &dpll_mpu_ck,
+	.ops		= &clkops_null,
+	.recalc		= &omap4460_mpu_dpll_recalc,
+	.round_rate	= &omap4460_mpu_dpll_round_rate,
+	.set_rate	= &omap4460_mpu_dpll_set_rate,
+};
+
 static struct clk per_hs_clk_div_ck = {
 	.name		= "per_hs_clk_div_ck",
 	.parent		= &dpll_abe_m3x2_ck,
@@ -879,7 +888,7 @@ static struct clk dpll_per_m3x2_ck = {
 	.clksel		= dpll_per_m2x2_div,
 	.clksel_reg	= OMAP4430_CM_DIV_M3_DPLL_PER,
 	.clksel_mask	= OMAP4430_DPLL_CLKOUTHIF_DIV_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_DIV_M3_DPLL_PER,
 	.enable_bit	= OMAP4430_DPLL_CLKOUTHIF_GATE_CTRL_SHIFT,
 	.recalc		= &omap2_clksel_recalc,
@@ -1099,8 +1108,8 @@ static struct clk func_24mc_fclk = {
 };
 
 static const struct clksel_rate div2_4to8_rates[] = {
-	{ .div = 4, .val = 0, .flags = RATE_IN_4430 },
-	{ .div = 8, .val = 1, .flags = RATE_IN_4430 },
+	{ .div = 4, .val = 0, .flags = RATE_IN_44XX },
+	{ .div = 8, .val = 1, .flags = RATE_IN_44XX },
 	{ .div = 0 },
 };
 
@@ -1130,8 +1139,8 @@ static struct clk func_48mc_fclk = {
 };
 
 static const struct clksel_rate div2_2to4_rates[] = {
-	{ .div = 2, .val = 0, .flags = RATE_IN_4430 },
-	{ .div = 4, .val = 1, .flags = RATE_IN_4430 },
+	{ .div = 2, .val = 0, .flags = RATE_IN_44XX },
+	{ .div = 4, .val = 1, .flags = RATE_IN_44XX },
 	{ .div = 0 },
 };
 
@@ -1183,8 +1192,8 @@ static struct clk hsmmc6_fclk = {
 };
 
 static const struct clksel_rate div2_1to8_rates[] = {
-	{ .div = 1, .val = 0, .flags = RATE_IN_4430 },
-	{ .div = 8, .val = 1, .flags = RATE_IN_4430 },
+	{ .div = 1, .val = 0, .flags = RATE_IN_44XX },
+	{ .div = 8, .val = 1, .flags = RATE_IN_44XX },
 	{ .div = 0 },
 };
 
@@ -1262,6 +1271,13 @@ static struct clk l4_wkup_clk_mux_ck = {
 	.clksel_mask	= OMAP4430_CLKSEL_0_0_MASK,
 	.ops		= &clkops_null,
 	.recalc		= &omap2_clksel_recalc,
+};
+
+static struct clk div_ts_ck = {
+	.name		= "div_ts_ck",
+	.parent		= &l4_wkup_clk_mux_ck,
+	.ops		= &clkops_null,
+	.recalc		= &followparent_recalc,
 };
 
 static const struct clksel per_abe_nc_fclk_div[] = {
@@ -1358,7 +1374,7 @@ static struct clk syc_clk_div_ck = {
 
 static struct clk aes1_fck = {
 	.name		= "aes1_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4SEC_AES1_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_secure_clkdm",
@@ -1368,7 +1384,7 @@ static struct clk aes1_fck = {
 
 static struct clk aes2_fck = {
 	.name		= "aes2_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4SEC_AES2_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_secure_clkdm",
@@ -1378,7 +1394,7 @@ static struct clk aes2_fck = {
 
 static struct clk aess_fck = {
 	.name		= "aess_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM1_ABE_AESS_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "abe_clkdm",
@@ -1388,7 +1404,7 @@ static struct clk aess_fck = {
 
 static struct clk bandgap_fclk = {
 	.name		= "bandgap_fclk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_WKUP_BANDGAP_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_BGAP_32K_SHIFT,
 	.clkdm_name	= "l4_wkup_clkdm",
@@ -1396,9 +1412,19 @@ static struct clk bandgap_fclk = {
 	.recalc		= &followparent_recalc,
 };
 
+static struct clk bandgap_ts_fclk = {
+	.name		= "bandgap_ts_fclk",
+	.ops		= &clkops_omap2_dflt,
+	.enable_reg	= OMAP4430_CM_WKUP_BANDGAP_CLKCTRL,
+	.enable_bit	= OMAP4460_OPTFCLKEN_TS_FCLK_SHIFT,
+	.clkdm_name	= "l4_wkup_clkdm",
+	.parent		= &div_ts_ck,
+	.recalc		= &followparent_recalc,
+};
+
 static struct clk des3des_fck = {
 	.name		= "des3des_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4SEC_DES3DES_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_secure_clkdm",
@@ -1439,7 +1465,7 @@ static struct clk dmic_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM1_ABE_DMIC_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_SOURCE_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM1_ABE_DMIC_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -1448,7 +1474,7 @@ static struct clk dmic_fck = {
 
 static struct clk dsp_fck = {
 	.name		= "dsp_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_TESLA_TESLA_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "tesla_clkdm",
@@ -1458,7 +1484,7 @@ static struct clk dsp_fck = {
 
 static struct clk dss_sys_clk = {
 	.name		= "dss_sys_clk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_DSS_DSS_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_SYS_CLK_SHIFT,
 	.clkdm_name	= "l3_dss_clkdm",
@@ -1468,7 +1494,7 @@ static struct clk dss_sys_clk = {
 
 static struct clk dss_tv_clk = {
 	.name		= "dss_tv_clk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_DSS_DSS_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_TV_CLK_SHIFT,
 	.clkdm_name	= "l3_dss_clkdm",
@@ -1478,7 +1504,7 @@ static struct clk dss_tv_clk = {
 
 static struct clk dss_dss_clk = {
 	.name		= "dss_dss_clk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_DSS_DSS_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_DSSCLK_SHIFT,
 	.clkdm_name	= "l3_dss_clkdm",
@@ -1488,7 +1514,7 @@ static struct clk dss_dss_clk = {
 
 static struct clk dss_48mhz_clk = {
 	.name		= "dss_48mhz_clk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_DSS_DSS_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_48MHZ_CLK_SHIFT,
 	.clkdm_name	= "l3_dss_clkdm",
@@ -1498,7 +1524,7 @@ static struct clk dss_48mhz_clk = {
 
 static struct clk dss_fck = {
 	.name		= "dss_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_DSS_DSS_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l3_dss_clkdm",
@@ -1508,7 +1534,7 @@ static struct clk dss_fck = {
 
 static struct clk efuse_ctrl_cust_fck = {
 	.name		= "efuse_ctrl_cust_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_CEFUSE_CEFUSE_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_cefuse_clkdm",
@@ -1518,7 +1544,7 @@ static struct clk efuse_ctrl_cust_fck = {
 
 static struct clk emif1_fck = {
 	.name		= "emif1_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_MEMIF_EMIF_1_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.flags		= ENABLE_ON_INIT,
@@ -1529,7 +1555,7 @@ static struct clk emif1_fck = {
 
 static struct clk emif2_fck = {
 	.name		= "emif2_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_MEMIF_EMIF_2_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.flags		= ENABLE_ON_INIT,
@@ -1550,7 +1576,7 @@ static struct clk fdif_fck = {
 	.clksel		= fdif_fclk_div,
 	.clksel_reg	= OMAP4430_CM_CAM_FDIF_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_FCLK_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.round_rate	= &omap2_clksel_round_rate,
 	.set_rate	= &omap2_clksel_set_rate,
@@ -1561,7 +1587,7 @@ static struct clk fdif_fck = {
 
 static struct clk fpka_fck = {
 	.name		= "fpka_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4SEC_PKAEIP29_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_secure_clkdm",
@@ -1571,7 +1597,7 @@ static struct clk fpka_fck = {
 
 static struct clk gpio1_dbclk = {
 	.name		= "gpio1_dbclk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_WKUP_GPIO1_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_DBCLK_SHIFT,
 	.clkdm_name	= "l4_wkup_clkdm",
@@ -1581,7 +1607,7 @@ static struct clk gpio1_dbclk = {
 
 static struct clk gpio1_ick = {
 	.name		= "gpio1_ick",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_WKUP_GPIO1_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "l4_wkup_clkdm",
@@ -1591,7 +1617,7 @@ static struct clk gpio1_ick = {
 
 static struct clk gpio2_dbclk = {
 	.name		= "gpio2_dbclk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_GPIO2_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_DBCLK_SHIFT,
 	.clkdm_name	= "l4_per_clkdm",
@@ -1601,7 +1627,7 @@ static struct clk gpio2_dbclk = {
 
 static struct clk gpio2_ick = {
 	.name		= "gpio2_ick",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_GPIO2_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -1611,7 +1637,7 @@ static struct clk gpio2_ick = {
 
 static struct clk gpio3_dbclk = {
 	.name		= "gpio3_dbclk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_GPIO3_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_DBCLK_SHIFT,
 	.clkdm_name	= "l4_per_clkdm",
@@ -1621,7 +1647,7 @@ static struct clk gpio3_dbclk = {
 
 static struct clk gpio3_ick = {
 	.name		= "gpio3_ick",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_GPIO3_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -1631,7 +1657,7 @@ static struct clk gpio3_ick = {
 
 static struct clk gpio4_dbclk = {
 	.name		= "gpio4_dbclk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_GPIO4_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_DBCLK_SHIFT,
 	.clkdm_name	= "l4_per_clkdm",
@@ -1641,7 +1667,7 @@ static struct clk gpio4_dbclk = {
 
 static struct clk gpio4_ick = {
 	.name		= "gpio4_ick",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_GPIO4_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -1651,7 +1677,7 @@ static struct clk gpio4_ick = {
 
 static struct clk gpio5_dbclk = {
 	.name		= "gpio5_dbclk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_GPIO5_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_DBCLK_SHIFT,
 	.clkdm_name	= "l4_per_clkdm",
@@ -1661,7 +1687,7 @@ static struct clk gpio5_dbclk = {
 
 static struct clk gpio5_ick = {
 	.name		= "gpio5_ick",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_GPIO5_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -1671,7 +1697,7 @@ static struct clk gpio5_ick = {
 
 static struct clk gpio6_dbclk = {
 	.name		= "gpio6_dbclk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_GPIO6_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_DBCLK_SHIFT,
 	.clkdm_name	= "l4_per_clkdm",
@@ -1681,7 +1707,7 @@ static struct clk gpio6_dbclk = {
 
 static struct clk gpio6_ick = {
 	.name		= "gpio6_ick",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_GPIO6_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -1691,7 +1717,7 @@ static struct clk gpio6_ick = {
 
 static struct clk gpmc_ick = {
 	.name		= "gpmc_ick",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3_2_GPMC_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "l3_2_clkdm",
@@ -1713,7 +1739,7 @@ static struct clk gpu_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM_GFX_GFX_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_SGX_FCLK_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM_GFX_GFX_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -1722,7 +1748,7 @@ static struct clk gpu_fck = {
 
 static struct clk hdq1w_fck = {
 	.name		= "hdq1w_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_HDQ1W_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -1742,7 +1768,7 @@ static struct clk hsi_fck = {
 	.clksel		= hsi_fclk_div,
 	.clksel_reg	= OMAP4430_CM_L3INIT_HSI_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_24_25_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.round_rate	= &omap2_clksel_round_rate,
 	.set_rate	= &omap2_clksel_set_rate,
@@ -1753,7 +1779,7 @@ static struct clk hsi_fck = {
 
 static struct clk i2c1_fck = {
 	.name		= "i2c1_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_I2C1_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -1763,7 +1789,7 @@ static struct clk i2c1_fck = {
 
 static struct clk i2c2_fck = {
 	.name		= "i2c2_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_I2C2_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -1773,7 +1799,7 @@ static struct clk i2c2_fck = {
 
 static struct clk i2c3_fck = {
 	.name		= "i2c3_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_I2C3_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -1783,7 +1809,7 @@ static struct clk i2c3_fck = {
 
 static struct clk i2c4_fck = {
 	.name		= "i2c4_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_I2C4_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -1793,7 +1819,7 @@ static struct clk i2c4_fck = {
 
 static struct clk ipu_fck = {
 	.name		= "ipu_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_DUCATI_DUCATI_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "ducati_clkdm",
@@ -1803,7 +1829,7 @@ static struct clk ipu_fck = {
 
 static struct clk iss_ctrlclk = {
 	.name		= "iss_ctrlclk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_CAM_ISS_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_CTRLCLK_SHIFT,
 	.clkdm_name	= "iss_clkdm",
@@ -1813,7 +1839,7 @@ static struct clk iss_ctrlclk = {
 
 static struct clk iss_fck = {
 	.name		= "iss_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_CAM_ISS_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "iss_clkdm",
@@ -1823,7 +1849,7 @@ static struct clk iss_fck = {
 
 static struct clk iva_fck = {
 	.name		= "iva_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_IVAHD_IVAHD_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "ivahd_clkdm",
@@ -1833,7 +1859,7 @@ static struct clk iva_fck = {
 
 static struct clk kbd_fck = {
 	.name		= "kbd_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_WKUP_KEYBOARD_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_wkup_clkdm",
@@ -1843,7 +1869,7 @@ static struct clk kbd_fck = {
 
 static struct clk l3_instr_ick = {
 	.name		= "l3_instr_ick",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INSTR_L3_INSTR_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "l3_instr_clkdm",
@@ -1854,7 +1880,7 @@ static struct clk l3_instr_ick = {
 
 static struct clk l3_main_3_ick = {
 	.name		= "l3_main_3_ick",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INSTR_L3_3_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "l3_instr_clkdm",
@@ -1889,7 +1915,7 @@ static struct clk mcasp_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM1_ABE_MCASP_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_SOURCE_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM1_ABE_MCASP_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -1922,7 +1948,7 @@ static struct clk mcbsp1_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM1_ABE_MCBSP1_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_SOURCE_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM1_ABE_MCBSP1_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -1955,7 +1981,7 @@ static struct clk mcbsp2_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM1_ABE_MCBSP2_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_SOURCE_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM1_ABE_MCBSP2_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -1988,7 +2014,7 @@ static struct clk mcbsp3_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM1_ABE_MCBSP3_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_SOURCE_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM1_ABE_MCBSP3_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -2020,7 +2046,7 @@ static struct clk mcbsp4_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM_L4PER_MCBSP4_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_SOURCE_24_24_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM_L4PER_MCBSP4_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -2029,7 +2055,7 @@ static struct clk mcbsp4_fck = {
 
 static struct clk mcpdm_fck = {
 	.name		= "mcpdm_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM1_ABE_PDM_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "abe_clkdm",
@@ -2039,7 +2065,7 @@ static struct clk mcpdm_fck = {
 
 static struct clk mcspi1_fck = {
 	.name		= "mcspi1_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_MCSPI1_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -2049,7 +2075,7 @@ static struct clk mcspi1_fck = {
 
 static struct clk mcspi2_fck = {
 	.name		= "mcspi2_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_MCSPI2_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -2059,7 +2085,7 @@ static struct clk mcspi2_fck = {
 
 static struct clk mcspi3_fck = {
 	.name		= "mcspi3_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_MCSPI3_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -2069,7 +2095,7 @@ static struct clk mcspi3_fck = {
 
 static struct clk mcspi4_fck = {
 	.name		= "mcspi4_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_MCSPI4_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -2085,7 +2111,7 @@ static struct clk mmc1_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM_L3INIT_MMC1_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM_L3INIT_MMC1_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -2100,7 +2126,7 @@ static struct clk mmc2_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM_L3INIT_MMC2_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM_L3INIT_MMC2_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -2109,7 +2135,7 @@ static struct clk mmc2_fck = {
 
 static struct clk mmc3_fck = {
 	.name		= "mmc3_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_MMCSD3_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -2119,7 +2145,7 @@ static struct clk mmc3_fck = {
 
 static struct clk mmc4_fck = {
 	.name		= "mmc4_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_MMCSD4_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -2129,7 +2155,7 @@ static struct clk mmc4_fck = {
 
 static struct clk mmc5_fck = {
 	.name		= "mmc5_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_MMCSD5_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -2139,7 +2165,7 @@ static struct clk mmc5_fck = {
 
 static struct clk ocp2scp_usb_phy_phy_48m = {
 	.name		= "ocp2scp_usb_phy_phy_48m",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USBPHYOCP2SCP_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_PHY_48M_SHIFT,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2149,7 +2175,7 @@ static struct clk ocp2scp_usb_phy_phy_48m = {
 
 static struct clk ocp2scp_usb_phy_ick = {
 	.name		= "ocp2scp_usb_phy_ick",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USBPHYOCP2SCP_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2159,7 +2185,7 @@ static struct clk ocp2scp_usb_phy_ick = {
 
 static struct clk ocp_wp_noc_ick = {
 	.name		= "ocp_wp_noc_ick",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INSTR_OCP_WP1_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "l3_instr_clkdm",
@@ -2170,7 +2196,7 @@ static struct clk ocp_wp_noc_ick = {
 
 static struct clk rng_ick = {
 	.name		= "rng_ick",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4SEC_RNG_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "l4_secure_clkdm",
@@ -2180,7 +2206,7 @@ static struct clk rng_ick = {
 
 static struct clk sha2md5_fck = {
 	.name		= "sha2md5_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4SEC_SHA2MD51_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_secure_clkdm",
@@ -2190,7 +2216,7 @@ static struct clk sha2md5_fck = {
 
 static struct clk sl2if_ick = {
 	.name		= "sl2if_ick",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_IVAHD_SL2_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "ivahd_clkdm",
@@ -2200,7 +2226,7 @@ static struct clk sl2if_ick = {
 
 static struct clk slimbus1_fclk_1 = {
 	.name		= "slimbus1_fclk_1",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM1_ABE_SLIMBUS_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_FCLK1_SHIFT,
 	.clkdm_name	= "abe_clkdm",
@@ -2210,7 +2236,7 @@ static struct clk slimbus1_fclk_1 = {
 
 static struct clk slimbus1_fclk_0 = {
 	.name		= "slimbus1_fclk_0",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM1_ABE_SLIMBUS_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_FCLK0_SHIFT,
 	.clkdm_name	= "abe_clkdm",
@@ -2220,7 +2246,7 @@ static struct clk slimbus1_fclk_0 = {
 
 static struct clk slimbus1_fclk_2 = {
 	.name		= "slimbus1_fclk_2",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM1_ABE_SLIMBUS_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_FCLK2_SHIFT,
 	.clkdm_name	= "abe_clkdm",
@@ -2230,7 +2256,7 @@ static struct clk slimbus1_fclk_2 = {
 
 static struct clk slimbus1_slimbus_clk = {
 	.name		= "slimbus1_slimbus_clk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM1_ABE_SLIMBUS_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_SLIMBUS_CLK_11_11_SHIFT,
 	.clkdm_name	= "abe_clkdm",
@@ -2240,7 +2266,7 @@ static struct clk slimbus1_slimbus_clk = {
 
 static struct clk slimbus1_fck = {
 	.name		= "slimbus1_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM1_ABE_SLIMBUS_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "abe_clkdm",
@@ -2250,7 +2276,7 @@ static struct clk slimbus1_fck = {
 
 static struct clk slimbus2_fclk_1 = {
 	.name		= "slimbus2_fclk_1",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_SLIMBUS2_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_PERABE24M_GFCLK_SHIFT,
 	.clkdm_name	= "l4_per_clkdm",
@@ -2260,7 +2286,7 @@ static struct clk slimbus2_fclk_1 = {
 
 static struct clk slimbus2_fclk_0 = {
 	.name		= "slimbus2_fclk_0",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_SLIMBUS2_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_PER24MC_GFCLK_SHIFT,
 	.clkdm_name	= "l4_per_clkdm",
@@ -2270,7 +2296,7 @@ static struct clk slimbus2_fclk_0 = {
 
 static struct clk slimbus2_slimbus_clk = {
 	.name		= "slimbus2_slimbus_clk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_SLIMBUS2_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_SLIMBUS_CLK_SHIFT,
 	.clkdm_name	= "l4_per_clkdm",
@@ -2280,7 +2306,7 @@ static struct clk slimbus2_slimbus_clk = {
 
 static struct clk slimbus2_fck = {
 	.name		= "slimbus2_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_SLIMBUS2_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -2290,7 +2316,7 @@ static struct clk slimbus2_fck = {
 
 static struct clk smartreflex_core_fck = {
 	.name		= "smartreflex_core_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_ALWON_SR_CORE_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_ao_clkdm",
@@ -2300,7 +2326,7 @@ static struct clk smartreflex_core_fck = {
 
 static struct clk smartreflex_iva_fck = {
 	.name		= "smartreflex_iva_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_ALWON_SR_IVA_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_ao_clkdm",
@@ -2310,7 +2336,7 @@ static struct clk smartreflex_iva_fck = {
 
 static struct clk smartreflex_mpu_fck = {
 	.name		= "smartreflex_mpu_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_ALWON_SR_MPU_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_ao_clkdm",
@@ -2326,7 +2352,7 @@ static struct clk timer1_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM_WKUP_TIMER1_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM_WKUP_TIMER1_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -2341,7 +2367,7 @@ static struct clk timer10_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM_L4PER_DMTIMER10_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM_L4PER_DMTIMER10_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -2356,7 +2382,7 @@ static struct clk timer11_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM_L4PER_DMTIMER11_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM_L4PER_DMTIMER11_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -2371,7 +2397,7 @@ static struct clk timer2_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM_L4PER_DMTIMER2_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM_L4PER_DMTIMER2_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -2386,7 +2412,7 @@ static struct clk timer3_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM_L4PER_DMTIMER3_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM_L4PER_DMTIMER3_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -2401,7 +2427,7 @@ static struct clk timer4_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM_L4PER_DMTIMER4_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM_L4PER_DMTIMER4_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -2422,7 +2448,7 @@ static struct clk timer5_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM1_ABE_TIMER5_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM1_ABE_TIMER5_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -2437,7 +2463,7 @@ static struct clk timer6_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM1_ABE_TIMER6_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM1_ABE_TIMER6_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -2452,7 +2478,7 @@ static struct clk timer7_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM1_ABE_TIMER7_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM1_ABE_TIMER7_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -2467,7 +2493,7 @@ static struct clk timer8_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM1_ABE_TIMER8_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM1_ABE_TIMER8_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -2482,7 +2508,7 @@ static struct clk timer9_fck = {
 	.init		= &omap2_init_clksel_parent,
 	.clksel_reg	= OMAP4430_CM_L4PER_DMTIMER9_CLKCTRL,
 	.clksel_mask	= OMAP4430_CLKSEL_MASK,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.recalc		= &omap2_clksel_recalc,
 	.enable_reg	= OMAP4430_CM_L4PER_DMTIMER9_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
@@ -2491,7 +2517,7 @@ static struct clk timer9_fck = {
 
 static struct clk uart1_fck = {
 	.name		= "uart1_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_UART1_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -2501,7 +2527,7 @@ static struct clk uart1_fck = {
 
 static struct clk uart2_fck = {
 	.name		= "uart2_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_UART2_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -2511,7 +2537,7 @@ static struct clk uart2_fck = {
 
 static struct clk uart3_fck = {
 	.name		= "uart3_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_UART3_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -2521,7 +2547,7 @@ static struct clk uart3_fck = {
 
 static struct clk uart4_fck = {
 	.name		= "uart4_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L4PER_UART4_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_per_clkdm",
@@ -2531,7 +2557,7 @@ static struct clk uart4_fck = {
 
 static struct clk usb_host_fs_fck = {
 	.name		= "usb_host_fs_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USB_HOST_FS_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2558,7 +2584,7 @@ static struct clk utmi_p1_gfclk = {
 
 static struct clk usb_host_hs_utmi_p1_clk = {
 	.name		= "usb_host_hs_utmi_p1_clk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USB_HOST_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_UTMI_P1_CLK_SHIFT,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2585,7 +2611,7 @@ static struct clk utmi_p2_gfclk = {
 
 static struct clk usb_host_hs_utmi_p2_clk = {
 	.name		= "usb_host_hs_utmi_p2_clk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USB_HOST_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_UTMI_P2_CLK_SHIFT,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2595,7 +2621,7 @@ static struct clk usb_host_hs_utmi_p2_clk = {
 
 static struct clk usb_host_hs_utmi_p3_clk = {
 	.name		= "usb_host_hs_utmi_p3_clk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USB_HOST_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_UTMI_P3_CLK_SHIFT,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2605,7 +2631,7 @@ static struct clk usb_host_hs_utmi_p3_clk = {
 
 static struct clk usb_host_hs_hsic480m_p1_clk = {
 	.name		= "usb_host_hs_hsic480m_p1_clk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USB_HOST_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_HSIC480M_P1_CLK_SHIFT,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2615,7 +2641,7 @@ static struct clk usb_host_hs_hsic480m_p1_clk = {
 
 static struct clk usb_host_hs_hsic60m_p1_clk = {
 	.name		= "usb_host_hs_hsic60m_p1_clk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USB_HOST_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_HSIC60M_P1_CLK_SHIFT,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2625,7 +2651,7 @@ static struct clk usb_host_hs_hsic60m_p1_clk = {
 
 static struct clk usb_host_hs_hsic60m_p2_clk = {
 	.name		= "usb_host_hs_hsic60m_p2_clk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USB_HOST_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_HSIC60M_P2_CLK_SHIFT,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2635,7 +2661,7 @@ static struct clk usb_host_hs_hsic60m_p2_clk = {
 
 static struct clk usb_host_hs_hsic480m_p2_clk = {
 	.name		= "usb_host_hs_hsic480m_p2_clk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USB_HOST_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_HSIC480M_P2_CLK_SHIFT,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2645,7 +2671,7 @@ static struct clk usb_host_hs_hsic480m_p2_clk = {
 
 static struct clk usb_host_hs_func48mclk = {
 	.name		= "usb_host_hs_func48mclk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USB_HOST_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_FUNC48MCLK_SHIFT,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2655,7 +2681,7 @@ static struct clk usb_host_hs_func48mclk = {
 
 static struct clk usb_host_hs_fck = {
 	.name		= "usb_host_hs_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USB_HOST_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2682,7 +2708,7 @@ static struct clk otg_60m_gfclk = {
 
 static struct clk usb_otg_hs_xclk = {
 	.name		= "usb_otg_hs_xclk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USB_OTG_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_XCLK_SHIFT,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2692,7 +2718,7 @@ static struct clk usb_otg_hs_xclk = {
 
 static struct clk usb_otg_hs_ick = {
 	.name		= "usb_otg_hs_ick",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USB_OTG_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2702,7 +2728,7 @@ static struct clk usb_otg_hs_ick = {
 
 static struct clk usb_phy_cm_clk32k = {
 	.name		= "usb_phy_cm_clk32k",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_ALWON_USBPHY_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_CLK32K_SHIFT,
 	.clkdm_name	= "l4_ao_clkdm",
@@ -2712,7 +2738,7 @@ static struct clk usb_phy_cm_clk32k = {
 
 static struct clk usb_tll_hs_usb_ch2_clk = {
 	.name		= "usb_tll_hs_usb_ch2_clk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USB_TLL_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_USB_CH2_CLK_SHIFT,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2722,7 +2748,7 @@ static struct clk usb_tll_hs_usb_ch2_clk = {
 
 static struct clk usb_tll_hs_usb_ch0_clk = {
 	.name		= "usb_tll_hs_usb_ch0_clk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USB_TLL_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_USB_CH0_CLK_SHIFT,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2732,7 +2758,7 @@ static struct clk usb_tll_hs_usb_ch0_clk = {
 
 static struct clk usb_tll_hs_usb_ch1_clk = {
 	.name		= "usb_tll_hs_usb_ch1_clk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USB_TLL_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_USB_CH1_CLK_SHIFT,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2742,7 +2768,7 @@ static struct clk usb_tll_hs_usb_ch1_clk = {
 
 static struct clk usb_tll_hs_ick = {
 	.name		= "usb_tll_hs_ick",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_L3INIT_USB_TLL_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "l3_init_clkdm",
@@ -2751,8 +2777,8 @@ static struct clk usb_tll_hs_ick = {
 };
 
 static const struct clksel_rate div2_14to18_rates[] = {
-	{ .div = 14, .val = 0, .flags = RATE_IN_4430 },
-	{ .div = 18, .val = 1, .flags = RATE_IN_4430 },
+	{ .div = 14, .val = 0, .flags = RATE_IN_44XX },
+	{ .div = 18, .val = 1, .flags = RATE_IN_44XX },
 	{ .div = 0 },
 };
 
@@ -2775,7 +2801,7 @@ static struct clk usim_ck = {
 
 static struct clk usim_fclk = {
 	.name		= "usim_fclk",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_WKUP_USIM_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_FCLK_SHIFT,
 	.clkdm_name	= "l4_wkup_clkdm",
@@ -2785,7 +2811,7 @@ static struct clk usim_fclk = {
 
 static struct clk usim_fck = {
 	.name		= "usim_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_WKUP_USIM_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "l4_wkup_clkdm",
@@ -2795,7 +2821,7 @@ static struct clk usim_fck = {
 
 static struct clk wd_timer2_fck = {
 	.name		= "wd_timer2_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_WKUP_WDT2_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "l4_wkup_clkdm",
@@ -2805,7 +2831,7 @@ static struct clk wd_timer2_fck = {
 
 static struct clk wd_timer3_fck = {
 	.name		= "wd_timer3_fck",
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM1_ABE_WDT3_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_SWCTRL,
 	.clkdm_name	= "abe_clkdm",
@@ -2861,7 +2887,7 @@ static struct clk auxclk0_ck = {
 	.name		= "auxclk0_ck",
 	.parent		= &sys_clkin_ck,
 	.init		= &omap2_init_clksel_parent,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.clksel		= auxclk_sel,
 	.clksel_reg	= OMAP4_SCRM_AUXCLK0,
 	.clksel_mask	= OMAP4_SRCSELECT_MASK,
@@ -2874,7 +2900,7 @@ static struct clk auxclk1_ck = {
 	.name		= "auxclk1_ck",
 	.parent		= &sys_clkin_ck,
 	.init		= &omap2_init_clksel_parent,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.clksel		= auxclk_sel,
 	.clksel_reg	= OMAP4_SCRM_AUXCLK1,
 	.clksel_mask	= OMAP4_SRCSELECT_MASK,
@@ -2887,7 +2913,7 @@ static struct clk auxclk2_ck = {
 	.name		= "auxclk2_ck",
 	.parent		= &sys_clkin_ck,
 	.init		= &omap2_init_clksel_parent,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.clksel		= auxclk_sel,
 	.clksel_reg	= OMAP4_SCRM_AUXCLK2,
 	.clksel_mask	= OMAP4_SRCSELECT_MASK,
@@ -2899,7 +2925,7 @@ static struct clk auxclk3_ck = {
 	.name		= "auxclk3_ck",
 	.parent		= &sys_clkin_ck,
 	.init		= &omap2_init_clksel_parent,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.clksel		= auxclk_sel,
 	.clksel_reg	= OMAP4_SCRM_AUXCLK3,
 	.clksel_mask	= OMAP4_SRCSELECT_MASK,
@@ -2912,7 +2938,7 @@ static struct clk auxclk4_ck = {
 	.name		= "auxclk4_ck",
 	.parent		= &sys_clkin_ck,
 	.init		= &omap2_init_clksel_parent,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.clksel		= auxclk_sel,
 	.clksel_reg	= OMAP4_SCRM_AUXCLK4,
 	.clksel_mask	= OMAP4_SRCSELECT_MASK,
@@ -2925,7 +2951,7 @@ static struct clk auxclk5_ck = {
 	.name		= "auxclk5_ck",
 	.parent		= &sys_clkin_ck,
 	.init		= &omap2_init_clksel_parent,
-	.ops		= &clkops_omap2_dflt,
+	.ops		= &clkops_omap4_dflt_wait,
 	.clksel		= auxclk_sel,
 	.clksel_reg	= OMAP4_SCRM_AUXCLK5,
 	.clksel_mask	= OMAP4_SRCSELECT_MASK,
@@ -3010,289 +3036,304 @@ static struct clk auxclkreq5_ck = {
 	.recalc		= &omap2_clksel_recalc,
 };
 
+static struct clk smp_twd = {
+	.name		= "smp_twd",
+	.parent		= &dpll_mpu_ck,
+	.ops		= &clkops_null,
+	.fixed_div	= 2,
+	.recalc		= &omap_fixed_divisor_recalc,
+};
+
 /*
  * clkdev
  */
 
 static struct omap_clk omap44xx_clks[] = {
-	CLK(NULL,	"extalt_clkin_ck",		&extalt_clkin_ck,	CK_443X),
-	CLK(NULL,	"pad_clks_ck",			&pad_clks_ck,	CK_443X),
-	CLK(NULL,	"pad_slimbus_core_clks_ck",	&pad_slimbus_core_clks_ck,	CK_443X),
-	CLK(NULL,	"secure_32k_clk_src_ck",	&secure_32k_clk_src_ck,	CK_443X),
-	CLK(NULL,	"slimbus_clk",			&slimbus_clk,	CK_443X),
-	CLK(NULL,	"sys_32k_ck",			&sys_32k_ck,	CK_443X),
-	CLK(NULL,	"virt_12000000_ck",		&virt_12000000_ck,	CK_443X),
-	CLK(NULL,	"virt_13000000_ck",		&virt_13000000_ck,	CK_443X),
-	CLK(NULL,	"virt_16800000_ck",		&virt_16800000_ck,	CK_443X),
-	CLK(NULL,	"virt_19200000_ck",		&virt_19200000_ck,	CK_443X),
-	CLK(NULL,	"virt_26000000_ck",		&virt_26000000_ck,	CK_443X),
-	CLK(NULL,	"virt_27000000_ck",		&virt_27000000_ck,	CK_443X),
-	CLK(NULL,	"virt_38400000_ck",		&virt_38400000_ck,	CK_443X),
-	CLK(NULL,	"sys_clkin_ck",			&sys_clkin_ck,	CK_443X),
-	CLK(NULL,	"tie_low_clock_ck",		&tie_low_clock_ck,	CK_443X),
-	CLK(NULL,	"utmi_phy_clkout_ck",		&utmi_phy_clkout_ck,	CK_443X),
-	CLK(NULL,	"xclk60mhsp1_ck",		&xclk60mhsp1_ck,	CK_443X),
-	CLK(NULL,	"xclk60mhsp2_ck",		&xclk60mhsp2_ck,	CK_443X),
-	CLK(NULL,	"xclk60motg_ck",		&xclk60motg_ck,	CK_443X),
-	CLK(NULL,	"abe_dpll_bypass_clk_mux_ck",	&abe_dpll_bypass_clk_mux_ck,	CK_443X),
-	CLK(NULL,	"abe_dpll_refclk_mux_ck",	&abe_dpll_refclk_mux_ck,	CK_443X),
-	CLK(NULL,	"dpll_abe_ck",			&dpll_abe_ck,	CK_443X),
-	CLK(NULL,	"dpll_abe_x2_ck",		&dpll_abe_x2_ck,	CK_443X),
-	CLK(NULL,	"dpll_abe_m2x2_ck",		&dpll_abe_m2x2_ck,	CK_443X),
-	CLK(NULL,	"abe_24m_fclk",			&abe_24m_fclk,	CK_443X),
-	CLK(NULL,	"abe_clk",			&abe_clk,	CK_443X),
-	CLK(NULL,	"aess_fclk",			&aess_fclk,	CK_443X),
-	CLK(NULL,	"dpll_abe_m3x2_ck",		&dpll_abe_m3x2_ck,	CK_443X),
-	CLK(NULL,	"core_hsd_byp_clk_mux_ck",	&core_hsd_byp_clk_mux_ck,	CK_443X),
-	CLK(NULL,	"dpll_core_ck",			&dpll_core_ck,	CK_443X),
-	CLK(NULL,	"dpll_core_x2_ck",		&dpll_core_x2_ck,	CK_443X),
-	CLK(NULL,	"dpll_core_m6x2_ck",		&dpll_core_m6x2_ck,	CK_443X),
-	CLK(NULL,	"dbgclk_mux_ck",		&dbgclk_mux_ck,	CK_443X),
-	CLK(NULL,	"dpll_core_m2_ck",		&dpll_core_m2_ck,	CK_443X),
-	CLK(NULL,	"ddrphy_ck",			&ddrphy_ck,	CK_443X),
-	CLK(NULL,	"dpll_core_m5x2_ck",		&dpll_core_m5x2_ck,	CK_443X),
-	CLK(NULL,	"div_core_ck",			&div_core_ck,	CK_443X),
-	CLK(NULL,	"div_iva_hs_clk",		&div_iva_hs_clk,	CK_443X),
-	CLK(NULL,	"div_mpu_hs_clk",		&div_mpu_hs_clk,	CK_443X),
-	CLK(NULL,	"dpll_core_m4x2_ck",		&dpll_core_m4x2_ck,	CK_443X),
-	CLK(NULL,	"dll_clk_div_ck",		&dll_clk_div_ck,	CK_443X),
-	CLK(NULL,	"dpll_abe_m2_ck",		&dpll_abe_m2_ck,	CK_443X),
-	CLK(NULL,	"dpll_core_m3x2_ck",		&dpll_core_m3x2_ck,	CK_443X),
-	CLK(NULL,	"dpll_core_m7x2_ck",		&dpll_core_m7x2_ck,	CK_443X),
-	CLK(NULL,	"iva_hsd_byp_clk_mux_ck",	&iva_hsd_byp_clk_mux_ck,	CK_443X),
-	CLK(NULL,	"dpll_iva_ck",			&dpll_iva_ck,	CK_443X),
-	CLK(NULL,	"dpll_iva_x2_ck",		&dpll_iva_x2_ck,	CK_443X),
-	CLK(NULL,	"dpll_iva_m4x2_ck",		&dpll_iva_m4x2_ck,	CK_443X),
-	CLK(NULL,	"dpll_iva_m5x2_ck",		&dpll_iva_m5x2_ck,	CK_443X),
-	CLK(NULL,	"dpll_mpu_ck",			&dpll_mpu_ck,	CK_443X),
-	CLK(NULL,	"dpll_mpu_m2_ck",		&dpll_mpu_m2_ck,	CK_443X),
-	CLK(NULL,	"per_hs_clk_div_ck",		&per_hs_clk_div_ck,	CK_443X),
-	CLK(NULL,	"per_hsd_byp_clk_mux_ck",	&per_hsd_byp_clk_mux_ck,	CK_443X),
-	CLK(NULL,	"dpll_per_ck",			&dpll_per_ck,	CK_443X),
-	CLK(NULL,	"dpll_per_m2_ck",		&dpll_per_m2_ck,	CK_443X),
-	CLK(NULL,	"dpll_per_x2_ck",		&dpll_per_x2_ck,	CK_443X),
-	CLK(NULL,	"dpll_per_m2x2_ck",		&dpll_per_m2x2_ck,	CK_443X),
-	CLK(NULL,	"dpll_per_m3x2_ck",		&dpll_per_m3x2_ck,	CK_443X),
-	CLK(NULL,	"dpll_per_m4x2_ck",		&dpll_per_m4x2_ck,	CK_443X),
-	CLK(NULL,	"dpll_per_m5x2_ck",		&dpll_per_m5x2_ck,	CK_443X),
-	CLK(NULL,	"dpll_per_m6x2_ck",		&dpll_per_m6x2_ck,	CK_443X),
-	CLK(NULL,	"dpll_per_m7x2_ck",		&dpll_per_m7x2_ck,	CK_443X),
-	CLK(NULL,	"dpll_unipro_ck",		&dpll_unipro_ck,	CK_443X),
-	CLK(NULL,	"dpll_unipro_x2_ck",		&dpll_unipro_x2_ck,	CK_443X),
-	CLK(NULL,	"dpll_unipro_m2x2_ck",		&dpll_unipro_m2x2_ck,	CK_443X),
-	CLK(NULL,	"usb_hs_clk_div_ck",		&usb_hs_clk_div_ck,	CK_443X),
-	CLK(NULL,	"dpll_usb_ck",			&dpll_usb_ck,	CK_443X),
-	CLK(NULL,	"dpll_usb_clkdcoldo_ck",	&dpll_usb_clkdcoldo_ck,	CK_443X),
-	CLK(NULL,	"dpll_usb_m2_ck",		&dpll_usb_m2_ck,	CK_443X),
-	CLK(NULL,	"ducati_clk_mux_ck",		&ducati_clk_mux_ck,	CK_443X),
-	CLK(NULL,	"func_12m_fclk",		&func_12m_fclk,	CK_443X),
-	CLK(NULL,	"func_24m_clk",			&func_24m_clk,	CK_443X),
-	CLK(NULL,	"func_24mc_fclk",		&func_24mc_fclk,	CK_443X),
-	CLK(NULL,	"func_48m_fclk",		&func_48m_fclk,	CK_443X),
-	CLK(NULL,	"func_48mc_fclk",		&func_48mc_fclk,	CK_443X),
-	CLK(NULL,	"func_64m_fclk",		&func_64m_fclk,	CK_443X),
-	CLK(NULL,	"func_96m_fclk",		&func_96m_fclk,	CK_443X),
-	CLK(NULL,	"hsmmc6_fclk",			&hsmmc6_fclk,	CK_443X),
-	CLK(NULL,	"init_60m_fclk",		&init_60m_fclk,	CK_443X),
-	CLK(NULL,	"l3_div_ck",			&l3_div_ck,	CK_443X),
-	CLK(NULL,	"l4_div_ck",			&l4_div_ck,	CK_443X),
-	CLK(NULL,	"lp_clk_div_ck",		&lp_clk_div_ck,	CK_443X),
-	CLK(NULL,	"l4_wkup_clk_mux_ck",		&l4_wkup_clk_mux_ck,	CK_443X),
-	CLK(NULL,	"per_abe_nc_fclk",		&per_abe_nc_fclk,	CK_443X),
-	CLK(NULL,	"mcasp2_fclk",			&mcasp2_fclk,	CK_443X),
-	CLK(NULL,	"mcasp3_fclk",			&mcasp3_fclk,	CK_443X),
-	CLK(NULL,	"ocp_abe_iclk",			&ocp_abe_iclk,	CK_443X),
-	CLK(NULL,	"per_abe_24m_fclk",		&per_abe_24m_fclk,	CK_443X),
-	CLK(NULL,	"pmd_stm_clock_mux_ck",		&pmd_stm_clock_mux_ck,	CK_443X),
-	CLK(NULL,	"pmd_trace_clk_mux_ck",		&pmd_trace_clk_mux_ck,	CK_443X),
-	CLK(NULL,	"syc_clk_div_ck",		&syc_clk_div_ck,	CK_443X),
-	CLK(NULL,	"aes1_fck",			&aes1_fck,	CK_443X),
-	CLK(NULL,	"aes2_fck",			&aes2_fck,	CK_443X),
-	CLK(NULL,	"aess_fck",			&aess_fck,	CK_443X),
+	CLK(NULL,	"extalt_clkin_ck",		&extalt_clkin_ck,	CK_44XX),
+	CLK(NULL,	"pad_clks_ck",			&pad_clks_ck,	CK_44XX),
+	CLK(NULL,	"pad_slimbus_core_clks_ck",	&pad_slimbus_core_clks_ck,	CK_44XX),
+	CLK(NULL,	"secure_32k_clk_src_ck",	&secure_32k_clk_src_ck,	CK_44XX),
+	CLK(NULL,	"slimbus_clk",			&slimbus_clk,	CK_44XX),
+	CLK(NULL,	"sys_32k_ck",			&sys_32k_ck,	CK_44XX),
+	CLK(NULL,	"virt_12000000_ck",		&virt_12000000_ck,	CK_44XX),
+	CLK(NULL,	"virt_13000000_ck",		&virt_13000000_ck,	CK_44XX),
+	CLK(NULL,	"virt_16800000_ck",		&virt_16800000_ck,	CK_44XX),
+	CLK(NULL,	"virt_19200000_ck",		&virt_19200000_ck,	CK_44XX),
+	CLK(NULL,	"virt_26000000_ck",		&virt_26000000_ck,	CK_44XX),
+	CLK(NULL,	"virt_27000000_ck",		&virt_27000000_ck,	CK_44XX),
+	CLK(NULL,	"virt_38400000_ck",		&virt_38400000_ck,	CK_44XX),
+	CLK(NULL,	"sys_clkin_ck",			&sys_clkin_ck,	CK_44XX),
+	CLK(NULL,	"tie_low_clock_ck",		&tie_low_clock_ck,	CK_44XX),
+	CLK(NULL,	"utmi_phy_clkout_ck",		&utmi_phy_clkout_ck,	CK_44XX),
+	CLK(NULL,	"xclk60mhsp1_ck",		&xclk60mhsp1_ck,	CK_44XX),
+	CLK(NULL,	"xclk60mhsp2_ck",		&xclk60mhsp2_ck,	CK_44XX),
+	CLK(NULL,	"xclk60motg_ck",		&xclk60motg_ck,	CK_44XX),
+	CLK(NULL,	"abe_dpll_bypass_clk_mux_ck",	&abe_dpll_bypass_clk_mux_ck,	CK_44XX),
+	CLK(NULL,	"abe_dpll_refclk_mux_ck",	&abe_dpll_refclk_mux_ck,	CK_44XX),
+	CLK(NULL,	"dpll_abe_ck",			&dpll_abe_ck,	CK_44XX),
+	CLK(NULL,	"dpll_abe_x2_ck",		&dpll_abe_x2_ck,	CK_44XX),
+	CLK(NULL,	"dpll_abe_m2x2_ck",		&dpll_abe_m2x2_ck,	CK_44XX),
+	CLK(NULL,	"abe_24m_fclk",			&abe_24m_fclk,	CK_44XX),
+	CLK(NULL,	"abe_clk",			&abe_clk,	CK_44XX),
+	CLK(NULL,	"aess_fclk",			&aess_fclk,	CK_44XX),
+	CLK(NULL,	"dpll_abe_m3x2_ck",		&dpll_abe_m3x2_ck,	CK_44XX),
+	CLK(NULL,	"core_hsd_byp_clk_mux_ck",	&core_hsd_byp_clk_mux_ck,	CK_44XX),
+	CLK(NULL,	"dpll_core_ck",			&dpll_core_ck,	CK_44XX),
+	CLK(NULL,	"dpll_core_x2_ck",		&dpll_core_x2_ck,	CK_44XX),
+	CLK(NULL,	"dpll_core_m6x2_ck",		&dpll_core_m6x2_ck,	CK_44XX),
+	CLK(NULL,	"dbgclk_mux_ck",		&dbgclk_mux_ck,	CK_44XX),
+	CLK(NULL,	"dpll_core_m2_ck",		&dpll_core_m2_ck,	CK_44XX),
+	CLK(NULL,	"ddrphy_ck",			&ddrphy_ck,	CK_44XX),
+	CLK(NULL,	"dpll_core_m5x2_ck",		&dpll_core_m5x2_ck,	CK_44XX),
+	CLK(NULL,	"div_core_ck",			&div_core_ck,	CK_44XX),
+	CLK(NULL,	"div_iva_hs_clk",		&div_iva_hs_clk,	CK_44XX),
+	CLK(NULL,	"div_mpu_hs_clk",		&div_mpu_hs_clk,	CK_44XX),
+	CLK(NULL,	"dpll_core_m4x2_ck",		&dpll_core_m4x2_ck,	CK_44XX),
+	CLK(NULL,	"dll_clk_div_ck",		&dll_clk_div_ck,	CK_44XX),
+	CLK(NULL,	"dpll_abe_m2_ck",		&dpll_abe_m2_ck,	CK_44XX),
+	CLK(NULL,	"dpll_core_m3x2_ck",		&dpll_core_m3x2_ck,	CK_44XX),
+	CLK(NULL,	"dpll_core_m7x2_ck",		&dpll_core_m7x2_ck,	CK_44XX),
+	CLK(NULL,	"iva_hsd_byp_clk_mux_ck",	&iva_hsd_byp_clk_mux_ck,	CK_44XX),
+	CLK(NULL,	"dpll_iva_ck",			&dpll_iva_ck,	CK_44XX),
+	CLK(NULL,	"dpll_iva_x2_ck",		&dpll_iva_x2_ck,	CK_44XX),
+	CLK(NULL,	"dpll_iva_m4x2_ck",		&dpll_iva_m4x2_ck,	CK_44XX),
+	CLK(NULL,	"dpll_iva_m5x2_ck",		&dpll_iva_m5x2_ck,	CK_44XX),
+	CLK(NULL,	"dpll_mpu_ck",			&dpll_mpu_ck,	CK_44XX),
+	CLK(NULL,	"virt_dpll_mpu_ck",		&virt_dpll_mpu_ck,	CK_446X),
+	CLK(NULL,	"dpll_mpu_m2_ck",		&dpll_mpu_m2_ck,	CK_44XX),
+	CLK(NULL,	"per_hs_clk_div_ck",		&per_hs_clk_div_ck,	CK_44XX),
+	CLK(NULL,	"per_hsd_byp_clk_mux_ck",	&per_hsd_byp_clk_mux_ck,	CK_44XX),
+	CLK(NULL,	"dpll_per_ck",			&dpll_per_ck,	CK_44XX),
+	CLK(NULL,	"dpll_per_m2_ck",		&dpll_per_m2_ck,	CK_44XX),
+	CLK(NULL,	"dpll_per_x2_ck",		&dpll_per_x2_ck,	CK_44XX),
+	CLK(NULL,	"dpll_per_m2x2_ck",		&dpll_per_m2x2_ck,	CK_44XX),
+	CLK(NULL,	"dpll_per_m3x2_ck",		&dpll_per_m3x2_ck,	CK_44XX),
+	CLK(NULL,	"dpll_per_m4x2_ck",		&dpll_per_m4x2_ck,	CK_44XX),
+	CLK(NULL,	"dpll_per_m5x2_ck",		&dpll_per_m5x2_ck,	CK_44XX),
+	CLK(NULL,	"dpll_per_m6x2_ck",		&dpll_per_m6x2_ck,	CK_44XX),
+	CLK(NULL,	"dpll_per_m7x2_ck",		&dpll_per_m7x2_ck,	CK_44XX),
+	CLK(NULL,	"dpll_unipro_ck",		&dpll_unipro_ck,	CK_44XX),
+	CLK(NULL,	"dpll_unipro_x2_ck",		&dpll_unipro_x2_ck,	CK_44XX),
+	CLK(NULL,	"dpll_unipro_m2x2_ck",		&dpll_unipro_m2x2_ck,	CK_44XX),
+	CLK(NULL,	"usb_hs_clk_div_ck",		&usb_hs_clk_div_ck,	CK_44XX),
+	CLK(NULL,	"dpll_usb_ck",			&dpll_usb_ck,	CK_44XX),
+	CLK(NULL,	"dpll_usb_clkdcoldo_ck",	&dpll_usb_clkdcoldo_ck,	CK_44XX),
+	CLK(NULL,	"dpll_usb_m2_ck",		&dpll_usb_m2_ck,	CK_44XX),
+	CLK(NULL,	"ducati_clk_mux_ck",		&ducati_clk_mux_ck,	CK_44XX),
+	CLK(NULL,	"func_12m_fclk",		&func_12m_fclk,	CK_44XX),
+	CLK(NULL,	"func_24m_clk",			&func_24m_clk,	CK_44XX),
+	CLK(NULL,	"func_24mc_fclk",		&func_24mc_fclk,	CK_44XX),
+	CLK(NULL,	"func_48m_fclk",		&func_48m_fclk,	CK_44XX),
+	CLK(NULL,	"func_48mc_fclk",		&func_48mc_fclk,	CK_44XX),
+	CLK(NULL,	"func_64m_fclk",		&func_64m_fclk,	CK_44XX),
+	CLK(NULL,	"func_96m_fclk",		&func_96m_fclk,	CK_44XX),
+	CLK(NULL,	"hsmmc6_fclk",			&hsmmc6_fclk,	CK_44XX),
+	CLK(NULL,	"init_60m_fclk",		&init_60m_fclk,	CK_44XX),
+	CLK(NULL,	"l3_div_ck",			&l3_div_ck,	CK_44XX),
+	CLK(NULL,	"l4_div_ck",			&l4_div_ck,	CK_44XX),
+	CLK(NULL,	"lp_clk_div_ck",		&lp_clk_div_ck,	CK_44XX),
+	CLK(NULL,	"l4_wkup_clk_mux_ck",		&l4_wkup_clk_mux_ck,	CK_44XX),
+	CLK(NULL,	"div_ts_ck",			&div_ts_ck,	CK_446X),
+	CLK(NULL,	"per_abe_nc_fclk",		&per_abe_nc_fclk,	CK_44XX),
+	CLK(NULL,	"mcasp2_fclk",			&mcasp2_fclk,	CK_44XX),
+	CLK(NULL,	"mcasp3_fclk",			&mcasp3_fclk,	CK_44XX),
+	CLK(NULL,	"ocp_abe_iclk",			&ocp_abe_iclk,	CK_44XX),
+	CLK(NULL,	"per_abe_24m_fclk",		&per_abe_24m_fclk,	CK_44XX),
+	CLK(NULL,	"pmd_stm_clock_mux_ck",		&pmd_stm_clock_mux_ck,	CK_44XX),
+	CLK(NULL,	"pmd_trace_clk_mux_ck",		&pmd_trace_clk_mux_ck,	CK_44XX),
+	CLK(NULL,	"syc_clk_div_ck",		&syc_clk_div_ck,	CK_44XX),
+	CLK(NULL,	"aes1_fck",			&aes1_fck,	CK_44XX),
+	CLK(NULL,	"aes2_fck",			&aes2_fck,	CK_44XX),
+	CLK(NULL,	"aess_fck",			&aess_fck,	CK_44XX),
 	CLK(NULL,	"bandgap_fclk",			&bandgap_fclk,	CK_443X),
-	CLK(NULL,	"des3des_fck",			&des3des_fck,	CK_443X),
-	CLK(NULL,	"dmic_sync_mux_ck",		&dmic_sync_mux_ck,	CK_443X),
-	CLK(NULL,	"dmic_fck",			&dmic_fck,	CK_443X),
-	CLK(NULL,	"dsp_fck",			&dsp_fck,	CK_443X),
-	CLK("omapdss_dss",	"sys_clk",			&dss_sys_clk,	CK_443X),
-	CLK("omapdss_dss",	"tv_clk",			&dss_tv_clk,	CK_443X),
-	CLK("omapdss_dss",	"video_clk",			&dss_48mhz_clk,	CK_443X),
-	CLK("omapdss_dss",	"fck",				&dss_dss_clk,	CK_443X),
-	CLK("omapdss_dss",	"ick",				&dss_fck,	CK_443X),
-	CLK(NULL,	"efuse_ctrl_cust_fck",		&efuse_ctrl_cust_fck,	CK_443X),
-	CLK(NULL,	"emif1_fck",			&emif1_fck,	CK_443X),
-	CLK(NULL,	"emif2_fck",			&emif2_fck,	CK_443X),
-	CLK(NULL,	"fdif_fck",			&fdif_fck,	CK_443X),
-	CLK(NULL,	"fpka_fck",			&fpka_fck,	CK_443X),
-	CLK(NULL,	"gpio1_dbclk",			&gpio1_dbclk,	CK_443X),
-	CLK(NULL,	"gpio1_ick",			&gpio1_ick,	CK_443X),
-	CLK(NULL,	"gpio2_dbclk",			&gpio2_dbclk,	CK_443X),
-	CLK(NULL,	"gpio2_ick",			&gpio2_ick,	CK_443X),
-	CLK(NULL,	"gpio3_dbclk",			&gpio3_dbclk,	CK_443X),
-	CLK(NULL,	"gpio3_ick",			&gpio3_ick,	CK_443X),
-	CLK(NULL,	"gpio4_dbclk",			&gpio4_dbclk,	CK_443X),
-	CLK(NULL,	"gpio4_ick",			&gpio4_ick,	CK_443X),
-	CLK(NULL,	"gpio5_dbclk",			&gpio5_dbclk,	CK_443X),
-	CLK(NULL,	"gpio5_ick",			&gpio5_ick,	CK_443X),
-	CLK(NULL,	"gpio6_dbclk",			&gpio6_dbclk,	CK_443X),
-	CLK(NULL,	"gpio6_ick",			&gpio6_ick,	CK_443X),
-	CLK(NULL,	"gpmc_ick",			&gpmc_ick,	CK_443X),
-	CLK(NULL,	"gpu_fck",			&gpu_fck,	CK_443X),
-	CLK("omap2_hdq.0",	"fck",				&hdq1w_fck,	CK_443X),
-	CLK(NULL,	"hsi_fck",			&hsi_fck,	CK_443X),
-	CLK("omap_i2c.1",	"fck",				&i2c1_fck,	CK_443X),
-	CLK("omap_i2c.2",	"fck",				&i2c2_fck,	CK_443X),
-	CLK("omap_i2c.3",	"fck",				&i2c3_fck,	CK_443X),
-	CLK("omap_i2c.4",	"fck",				&i2c4_fck,	CK_443X),
-	CLK(NULL,	"ipu_fck",			&ipu_fck,	CK_443X),
-	CLK(NULL,	"iss_ctrlclk",			&iss_ctrlclk,	CK_443X),
-	CLK(NULL,	"iss_fck",			&iss_fck,	CK_443X),
-	CLK(NULL,	"iva_fck",			&iva_fck,	CK_443X),
-	CLK(NULL,	"kbd_fck",			&kbd_fck,	CK_443X),
-	CLK(NULL,	"l3_instr_ick",			&l3_instr_ick,	CK_443X),
-	CLK(NULL,	"l3_main_3_ick",		&l3_main_3_ick,	CK_443X),
-	CLK(NULL,	"mcasp_sync_mux_ck",		&mcasp_sync_mux_ck,	CK_443X),
-	CLK(NULL,	"mcasp_fck",			&mcasp_fck,	CK_443X),
-	CLK(NULL,	"mcbsp1_sync_mux_ck",		&mcbsp1_sync_mux_ck,	CK_443X),
-	CLK("omap-mcbsp.1",	"fck",				&mcbsp1_fck,	CK_443X),
-	CLK(NULL,	"mcbsp2_sync_mux_ck",		&mcbsp2_sync_mux_ck,	CK_443X),
-	CLK("omap-mcbsp.2",	"fck",				&mcbsp2_fck,	CK_443X),
-	CLK(NULL,	"mcbsp3_sync_mux_ck",		&mcbsp3_sync_mux_ck,	CK_443X),
-	CLK("omap-mcbsp.3",	"fck",				&mcbsp3_fck,	CK_443X),
-	CLK(NULL,	"mcbsp4_sync_mux_ck",		&mcbsp4_sync_mux_ck,	CK_443X),
-	CLK("omap-mcbsp.4",	"fck",				&mcbsp4_fck,	CK_443X),
-	CLK(NULL,	"mcpdm_fck",			&mcpdm_fck,	CK_443X),
-	CLK("omap2_mcspi.1",	"fck",				&mcspi1_fck,	CK_443X),
-	CLK("omap2_mcspi.2",	"fck",				&mcspi2_fck,	CK_443X),
-	CLK("omap2_mcspi.3",	"fck",				&mcspi3_fck,	CK_443X),
-	CLK("omap2_mcspi.4",	"fck",				&mcspi4_fck,	CK_443X),
-	CLK("omap_hsmmc.0",	"fck",				&mmc1_fck,	CK_443X),
-	CLK("omap_hsmmc.1",	"fck",				&mmc2_fck,	CK_443X),
-	CLK("omap_hsmmc.2",	"fck",				&mmc3_fck,	CK_443X),
-	CLK("omap_hsmmc.3",	"fck",				&mmc4_fck,	CK_443X),
-	CLK("omap_hsmmc.4",	"fck",				&mmc5_fck,	CK_443X),
-	CLK(NULL,	"ocp2scp_usb_phy_phy_48m",	&ocp2scp_usb_phy_phy_48m,	CK_443X),
-	CLK(NULL,	"ocp2scp_usb_phy_ick",		&ocp2scp_usb_phy_ick,	CK_443X),
-	CLK(NULL,	"ocp_wp_noc_ick",		&ocp_wp_noc_ick,	CK_443X),
-	CLK("omap_rng",	"ick",				&rng_ick,	CK_443X),
-	CLK(NULL,	"sha2md5_fck",			&sha2md5_fck,	CK_443X),
-	CLK(NULL,	"sl2if_ick",			&sl2if_ick,	CK_443X),
-	CLK(NULL,	"slimbus1_fclk_1",		&slimbus1_fclk_1,	CK_443X),
-	CLK(NULL,	"slimbus1_fclk_0",		&slimbus1_fclk_0,	CK_443X),
-	CLK(NULL,	"slimbus1_fclk_2",		&slimbus1_fclk_2,	CK_443X),
-	CLK(NULL,	"slimbus1_slimbus_clk",		&slimbus1_slimbus_clk,	CK_443X),
-	CLK(NULL,	"slimbus1_fck",			&slimbus1_fck,	CK_443X),
-	CLK(NULL,	"slimbus2_fclk_1",		&slimbus2_fclk_1,	CK_443X),
-	CLK(NULL,	"slimbus2_fclk_0",		&slimbus2_fclk_0,	CK_443X),
-	CLK(NULL,	"slimbus2_slimbus_clk",		&slimbus2_slimbus_clk,	CK_443X),
-	CLK(NULL,	"slimbus2_fck",			&slimbus2_fck,	CK_443X),
-	CLK(NULL,	"smartreflex_core_fck",		&smartreflex_core_fck,	CK_443X),
-	CLK(NULL,	"smartreflex_iva_fck",		&smartreflex_iva_fck,	CK_443X),
-	CLK(NULL,	"smartreflex_mpu_fck",		&smartreflex_mpu_fck,	CK_443X),
-	CLK(NULL,	"gpt1_fck",			&timer1_fck,	CK_443X),
-	CLK(NULL,	"gpt10_fck",			&timer10_fck,	CK_443X),
-	CLK(NULL,	"gpt11_fck",			&timer11_fck,	CK_443X),
-	CLK(NULL,	"gpt2_fck",			&timer2_fck,	CK_443X),
-	CLK(NULL,	"gpt3_fck",			&timer3_fck,	CK_443X),
-	CLK(NULL,	"gpt4_fck",			&timer4_fck,	CK_443X),
-	CLK(NULL,	"gpt5_fck",			&timer5_fck,	CK_443X),
-	CLK(NULL,	"gpt6_fck",			&timer6_fck,	CK_443X),
-	CLK(NULL,	"gpt7_fck",			&timer7_fck,	CK_443X),
-	CLK(NULL,	"gpt8_fck",			&timer8_fck,	CK_443X),
-	CLK(NULL,	"gpt9_fck",			&timer9_fck,	CK_443X),
-	CLK(NULL,	"uart1_fck",			&uart1_fck,	CK_443X),
-	CLK(NULL,	"uart2_fck",			&uart2_fck,	CK_443X),
-	CLK(NULL,	"uart3_fck",			&uart3_fck,	CK_443X),
-	CLK(NULL,	"uart4_fck",			&uart4_fck,	CK_443X),
-	CLK(NULL,	"usb_host_fs_fck",		&usb_host_fs_fck,	CK_443X),
-	CLK("usbhs-omap.0",	"fs_fck",		&usb_host_fs_fck,	CK_443X),
-	CLK(NULL,	"utmi_p1_gfclk",		&utmi_p1_gfclk,	CK_443X),
-	CLK(NULL,	"usb_host_hs_utmi_p1_clk",	&usb_host_hs_utmi_p1_clk,	CK_443X),
-	CLK(NULL,	"utmi_p2_gfclk",		&utmi_p2_gfclk,	CK_443X),
-	CLK(NULL,	"usb_host_hs_utmi_p2_clk",	&usb_host_hs_utmi_p2_clk,	CK_443X),
-	CLK(NULL,	"usb_host_hs_utmi_p3_clk",	&usb_host_hs_utmi_p3_clk,	CK_443X),
-	CLK(NULL,	"usb_host_hs_hsic480m_p1_clk",	&usb_host_hs_hsic480m_p1_clk,	CK_443X),
-	CLK(NULL,	"usb_host_hs_hsic60m_p1_clk",	&usb_host_hs_hsic60m_p1_clk,	CK_443X),
-	CLK(NULL,	"usb_host_hs_hsic60m_p2_clk",	&usb_host_hs_hsic60m_p2_clk,	CK_443X),
-	CLK(NULL,	"usb_host_hs_hsic480m_p2_clk",	&usb_host_hs_hsic480m_p2_clk,	CK_443X),
-	CLK(NULL,	"usb_host_hs_func48mclk",	&usb_host_hs_func48mclk,	CK_443X),
-	CLK(NULL,	"usb_host_hs_fck",		&usb_host_hs_fck,	CK_443X),
-	CLK("usbhs-omap.0",	"hs_fck",		&usb_host_hs_fck,	CK_443X),
-	CLK("usbhs-omap.0",	"usbhost_ick",		&dummy_ck,		CK_443X),
-	CLK(NULL,	"otg_60m_gfclk",		&otg_60m_gfclk,	CK_443X),
-	CLK(NULL,	"usb_otg_hs_xclk",		&usb_otg_hs_xclk,	CK_443X),
-	CLK("musb-omap2430",	"ick",				&usb_otg_hs_ick,	CK_443X),
-	CLK(NULL,	"usb_phy_cm_clk32k",		&usb_phy_cm_clk32k,	CK_443X),
-	CLK(NULL,	"usb_tll_hs_usb_ch2_clk",	&usb_tll_hs_usb_ch2_clk,	CK_443X),
-	CLK(NULL,	"usb_tll_hs_usb_ch0_clk",	&usb_tll_hs_usb_ch0_clk,	CK_443X),
-	CLK(NULL,	"usb_tll_hs_usb_ch1_clk",	&usb_tll_hs_usb_ch1_clk,	CK_443X),
-	CLK(NULL,	"usb_tll_hs_ick",		&usb_tll_hs_ick,	CK_443X),
-	CLK("usbhs-omap.0",	"usbtll_ick",		&usb_tll_hs_ick,	CK_443X),
-	CLK("usbhs-omap.0",	"usbtll_fck",		&dummy_ck,	CK_443X),
-	CLK(NULL,	"usim_ck",			&usim_ck,	CK_443X),
-	CLK(NULL,	"usim_fclk",			&usim_fclk,	CK_443X),
-	CLK(NULL,	"usim_fck",			&usim_fck,	CK_443X),
-	CLK("omap_wdt",	"fck",				&wd_timer2_fck,	CK_443X),
-	CLK(NULL,	"mailboxes_ick",		&dummy_ck,	CK_443X),
-	CLK(NULL,	"wd_timer3_fck",		&wd_timer3_fck,	CK_443X),
-	CLK(NULL,	"stm_clk_div_ck",		&stm_clk_div_ck,	CK_443X),
-	CLK(NULL,	"trace_clk_div_ck",		&trace_clk_div_ck,	CK_443X),
-	CLK(NULL,	"gpmc_ck",			&dummy_ck,	CK_443X),
-	CLK(NULL,	"gpt1_ick",			&dummy_ck,	CK_443X),
-	CLK(NULL,	"gpt2_ick",			&dummy_ck,	CK_443X),
-	CLK(NULL,	"gpt3_ick",			&dummy_ck,	CK_443X),
-	CLK(NULL,	"gpt4_ick",			&dummy_ck,	CK_443X),
-	CLK(NULL,	"gpt5_ick",			&dummy_ck,	CK_443X),
-	CLK(NULL,	"gpt6_ick",			&dummy_ck,	CK_443X),
-	CLK(NULL,	"gpt7_ick",			&dummy_ck,	CK_443X),
-	CLK(NULL,	"gpt8_ick",			&dummy_ck,	CK_443X),
-	CLK(NULL,	"gpt9_ick",			&dummy_ck,	CK_443X),
-	CLK(NULL,	"gpt10_ick",			&dummy_ck,	CK_443X),
-	CLK(NULL,	"gpt11_ick",			&dummy_ck,	CK_443X),
-	CLK("omap_i2c.1",	"ick",				&dummy_ck,	CK_443X),
-	CLK("omap_i2c.2",	"ick",				&dummy_ck,	CK_443X),
-	CLK("omap_i2c.3",	"ick",				&dummy_ck,	CK_443X),
-	CLK("omap_i2c.4",	"ick",				&dummy_ck,	CK_443X),
-	CLK("omap_hsmmc.0",	"ick",				&dummy_ck,	CK_443X),
-	CLK("omap_hsmmc.1",	"ick",				&dummy_ck,	CK_443X),
-	CLK("omap_hsmmc.2",	"ick",				&dummy_ck,	CK_443X),
-	CLK("omap_hsmmc.3",	"ick",				&dummy_ck,	CK_443X),
-	CLK("omap_hsmmc.4",	"ick",				&dummy_ck,	CK_443X),
-	CLK("omap-mcbsp.1",	"ick",				&dummy_ck,	CK_443X),
-	CLK("omap-mcbsp.2",	"ick",				&dummy_ck,	CK_443X),
-	CLK("omap-mcbsp.3",	"ick",				&dummy_ck,	CK_443X),
-	CLK("omap-mcbsp.4",	"ick",				&dummy_ck,	CK_443X),
-	CLK("omap2_mcspi.1",	"ick",				&dummy_ck,	CK_443X),
-	CLK("omap2_mcspi.2",	"ick",				&dummy_ck,	CK_443X),
-	CLK("omap2_mcspi.3",	"ick",				&dummy_ck,	CK_443X),
-	CLK("omap2_mcspi.4",	"ick",				&dummy_ck,	CK_443X),
-	CLK(NULL,	"uart1_ick",			&dummy_ck,	CK_443X),
-	CLK(NULL,	"uart2_ick",			&dummy_ck,	CK_443X),
-	CLK(NULL,	"uart3_ick",			&dummy_ck,	CK_443X),
-	CLK(NULL,	"uart4_ick",			&dummy_ck,	CK_443X),
-	CLK("omap_wdt",	"ick",				&dummy_ck,	CK_443X),
-	CLK(NULL,	"auxclk0_ck",			&auxclk0_ck,	CK_443X),
-	CLK(NULL,	"auxclk1_ck",			&auxclk1_ck,	CK_443X),
-	CLK(NULL,	"auxclk2_ck",			&auxclk2_ck,	CK_443X),
-	CLK(NULL,	"auxclk3_ck",			&auxclk3_ck,	CK_443X),
-	CLK(NULL,	"auxclk4_ck",			&auxclk4_ck,	CK_443X),
-	CLK(NULL,	"auxclk5_ck",			&auxclk5_ck,	CK_443X),
-	CLK(NULL,	"auxclkreq0_ck",		&auxclkreq0_ck,	CK_443X),
-	CLK(NULL,	"auxclkreq1_ck",		&auxclkreq1_ck,	CK_443X),
-	CLK(NULL,	"auxclkreq2_ck",		&auxclkreq2_ck,	CK_443X),
-	CLK(NULL,	"auxclkreq3_ck",		&auxclkreq3_ck,	CK_443X),
-	CLK(NULL,	"auxclkreq4_ck",		&auxclkreq4_ck,	CK_443X),
-	CLK(NULL,	"auxclkreq5_ck",		&auxclkreq5_ck,	CK_443X),
+	CLK(NULL,	"bandgap_ts_fclk",		&bandgap_ts_fclk,	CK_446X),
+	CLK(NULL,	"des3des_fck",			&des3des_fck,	CK_44XX),
+	CLK(NULL,	"dmic_sync_mux_ck",		&dmic_sync_mux_ck,	CK_44XX),
+	CLK(NULL,	"dmic_fck",			&dmic_fck,	CK_44XX),
+	CLK(NULL,	"dsp_fck",			&dsp_fck,	CK_44XX),
+	CLK("omapdss_dss",	"sys_clk",			&dss_sys_clk,	CK_44XX),
+	CLK("omapdss_dss",	"tv_clk",			&dss_tv_clk,	CK_44XX),
+	CLK("omapdss_dss",	"video_clk",			&dss_48mhz_clk,	CK_44XX),
+	CLK("omapdss_dss",	"fck",				&dss_dss_clk,	CK_44XX),
+	CLK("omapdss_dss",	"ick",				&dss_fck,	CK_44XX),
+	CLK(NULL,	"efuse_ctrl_cust_fck",		&efuse_ctrl_cust_fck,	CK_44XX),
+	CLK(NULL,	"emif1_fck",			&emif1_fck,	CK_44XX),
+	CLK(NULL,	"emif2_fck",			&emif2_fck,	CK_44XX),
+	CLK(NULL,	"fdif_fck",			&fdif_fck,	CK_44XX),
+	CLK(NULL,	"fpka_fck",			&fpka_fck,	CK_44XX),
+	CLK(NULL,	"gpio1_dbclk",			&gpio1_dbclk,	CK_44XX),
+	CLK(NULL,	"gpio1_ick",			&gpio1_ick,	CK_44XX),
+	CLK(NULL,	"gpio2_dbclk",			&gpio2_dbclk,	CK_44XX),
+	CLK(NULL,	"gpio2_ick",			&gpio2_ick,	CK_44XX),
+	CLK(NULL,	"gpio3_dbclk",			&gpio3_dbclk,	CK_44XX),
+	CLK(NULL,	"gpio3_ick",			&gpio3_ick,	CK_44XX),
+	CLK(NULL,	"gpio4_dbclk",			&gpio4_dbclk,	CK_44XX),
+	CLK(NULL,	"gpio4_ick",			&gpio4_ick,	CK_44XX),
+	CLK(NULL,	"gpio5_dbclk",			&gpio5_dbclk,	CK_44XX),
+	CLK(NULL,	"gpio5_ick",			&gpio5_ick,	CK_44XX),
+	CLK(NULL,	"gpio6_dbclk",			&gpio6_dbclk,	CK_44XX),
+	CLK(NULL,	"gpio6_ick",			&gpio6_ick,	CK_44XX),
+	CLK(NULL,	"gpmc_ick",			&gpmc_ick,	CK_44XX),
+	CLK(NULL,	"gpu_fck",			&gpu_fck,	CK_44XX),
+	CLK("omap2_hdq.0",	"fck",				&hdq1w_fck,	CK_44XX),
+	CLK(NULL,	"hsi_fck",			&hsi_fck,	CK_44XX),
+	CLK("omap_i2c.1",	"fck",				&i2c1_fck,	CK_44XX),
+	CLK("omap_i2c.2",	"fck",				&i2c2_fck,	CK_44XX),
+	CLK("omap_i2c.3",	"fck",				&i2c3_fck,	CK_44XX),
+	CLK("omap_i2c.4",	"fck",				&i2c4_fck,	CK_44XX),
+	CLK(NULL,	"ipu_fck",			&ipu_fck,	CK_44XX),
+	CLK(NULL,	"iss_ctrlclk",			&iss_ctrlclk,	CK_44XX),
+	CLK(NULL,	"iss_fck",			&iss_fck,	CK_44XX),
+	CLK(NULL,	"iva_fck",			&iva_fck,	CK_44XX),
+	CLK(NULL,	"kbd_fck",			&kbd_fck,	CK_44XX),
+	CLK(NULL,	"l3_instr_ick",			&l3_instr_ick,	CK_44XX),
+	CLK(NULL,	"l3_main_3_ick",		&l3_main_3_ick,	CK_44XX),
+	CLK(NULL,	"mcasp_sync_mux_ck",		&mcasp_sync_mux_ck,	CK_44XX),
+	CLK(NULL,	"mcasp_fck",			&mcasp_fck,	CK_44XX),
+	CLK(NULL,	"mcbsp1_sync_mux_ck",		&mcbsp1_sync_mux_ck,	CK_44XX),
+	CLK("omap-mcbsp.1",	"fck",				&mcbsp1_fck,	CK_44XX),
+	CLK(NULL,	"mcbsp2_sync_mux_ck",		&mcbsp2_sync_mux_ck,	CK_44XX),
+	CLK("omap-mcbsp.2",	"fck",				&mcbsp2_fck,	CK_44XX),
+	CLK(NULL,	"mcbsp3_sync_mux_ck",		&mcbsp3_sync_mux_ck,	CK_44XX),
+	CLK("omap-mcbsp.3",	"fck",				&mcbsp3_fck,	CK_44XX),
+	CLK(NULL,	"mcbsp4_sync_mux_ck",		&mcbsp4_sync_mux_ck,	CK_44XX),
+	CLK("omap-mcbsp.4",	"fck",				&mcbsp4_fck,	CK_44XX),
+	CLK(NULL,	"mcpdm_fck",			&mcpdm_fck,	CK_44XX),
+	CLK("omap2_mcspi.1",	"fck",				&mcspi1_fck,	CK_44XX),
+	CLK("omap2_mcspi.2",	"fck",				&mcspi2_fck,	CK_44XX),
+	CLK("omap2_mcspi.3",	"fck",				&mcspi3_fck,	CK_44XX),
+	CLK("omap2_mcspi.4",	"fck",				&mcspi4_fck,	CK_44XX),
+	CLK("omap_hsmmc.0",	"fck",				&mmc1_fck,	CK_44XX),
+	CLK("omap_hsmmc.1",	"fck",				&mmc2_fck,	CK_44XX),
+	CLK("omap_hsmmc.2",	"fck",				&mmc3_fck,	CK_44XX),
+	CLK("omap_hsmmc.3",	"fck",				&mmc4_fck,	CK_44XX),
+	CLK("omap_hsmmc.4",	"fck",				&mmc5_fck,	CK_44XX),
+	CLK(NULL,	"ocp2scp_usb_phy_phy_48m",	&ocp2scp_usb_phy_phy_48m,	CK_44XX),
+	CLK(NULL,	"ocp2scp_usb_phy_ick",		&ocp2scp_usb_phy_ick,	CK_44XX),
+	CLK(NULL,	"ocp_wp_noc_ick",		&ocp_wp_noc_ick,	CK_44XX),
+	CLK("omap_rng",	"ick",				&rng_ick,	CK_44XX),
+	CLK(NULL,	"sha2md5_fck",			&sha2md5_fck,	CK_44XX),
+	CLK(NULL,	"sl2if_ick",			&sl2if_ick,	CK_44XX),
+	CLK(NULL,	"slimbus1_fclk_1",		&slimbus1_fclk_1,	CK_44XX),
+	CLK(NULL,	"slimbus1_fclk_0",		&slimbus1_fclk_0,	CK_44XX),
+	CLK(NULL,	"slimbus1_fclk_2",		&slimbus1_fclk_2,	CK_44XX),
+	CLK(NULL,	"slimbus1_slimbus_clk",		&slimbus1_slimbus_clk,	CK_44XX),
+	CLK(NULL,	"slimbus1_fck",			&slimbus1_fck,	CK_44XX),
+	CLK(NULL,	"slimbus2_fclk_1",		&slimbus2_fclk_1,	CK_44XX),
+	CLK(NULL,	"slimbus2_fclk_0",		&slimbus2_fclk_0,	CK_44XX),
+	CLK(NULL,	"slimbus2_slimbus_clk",		&slimbus2_slimbus_clk,	CK_44XX),
+	CLK(NULL,	"slimbus2_fck",			&slimbus2_fck,	CK_44XX),
+	CLK(NULL,	"smartreflex_core_fck",		&smartreflex_core_fck,	CK_44XX),
+	CLK(NULL,	"smartreflex_iva_fck",		&smartreflex_iva_fck,	CK_44XX),
+	CLK(NULL,	"smartreflex_mpu_fck",		&smartreflex_mpu_fck,	CK_44XX),
+	CLK(NULL,	"gpt1_fck",			&timer1_fck,	CK_44XX),
+	CLK(NULL,	"gpt10_fck",			&timer10_fck,	CK_44XX),
+	CLK(NULL,	"gpt11_fck",			&timer11_fck,	CK_44XX),
+	CLK(NULL,	"gpt2_fck",			&timer2_fck,	CK_44XX),
+	CLK(NULL,	"gpt3_fck",			&timer3_fck,	CK_44XX),
+	CLK(NULL,	"gpt4_fck",			&timer4_fck,	CK_44XX),
+	CLK(NULL,	"gpt5_fck",			&timer5_fck,	CK_44XX),
+	CLK(NULL,	"gpt6_fck",			&timer6_fck,	CK_44XX),
+	CLK(NULL,	"gpt7_fck",			&timer7_fck,	CK_44XX),
+	CLK(NULL,	"gpt8_fck",			&timer8_fck,	CK_44XX),
+	CLK(NULL,	"gpt9_fck",			&timer9_fck,	CK_44XX),
+	CLK(NULL,	"uart1_fck",			&uart1_fck,	CK_44XX),
+	CLK(NULL,	"uart2_fck",			&uart2_fck,	CK_44XX),
+	CLK(NULL,	"uart3_fck",			&uart3_fck,	CK_44XX),
+	CLK(NULL,	"uart4_fck",			&uart4_fck,	CK_44XX),
+	CLK(NULL,	"usb_host_fs_fck",		&usb_host_fs_fck,	CK_44XX),
+	CLK("usbhs-omap.0",	"fs_fck",		&usb_host_fs_fck,	CK_44XX),
+	CLK(NULL,	"utmi_p1_gfclk",		&utmi_p1_gfclk,	CK_44XX),
+	CLK(NULL,	"usb_host_hs_utmi_p1_clk",	&usb_host_hs_utmi_p1_clk,	CK_44XX),
+	CLK(NULL,	"utmi_p2_gfclk",		&utmi_p2_gfclk,	CK_44XX),
+	CLK(NULL,	"usb_host_hs_utmi_p2_clk",	&usb_host_hs_utmi_p2_clk,	CK_44XX),
+	CLK(NULL,	"usb_host_hs_utmi_p3_clk",	&usb_host_hs_utmi_p3_clk,	CK_44XX),
+	CLK(NULL,	"usb_host_hs_hsic480m_p1_clk",	&usb_host_hs_hsic480m_p1_clk,	CK_44XX),
+	CLK(NULL,	"usb_host_hs_hsic60m_p1_clk",	&usb_host_hs_hsic60m_p1_clk,	CK_44XX),
+	CLK(NULL,	"usb_host_hs_hsic60m_p2_clk",	&usb_host_hs_hsic60m_p2_clk,	CK_44XX),
+	CLK(NULL,	"usb_host_hs_hsic480m_p2_clk",	&usb_host_hs_hsic480m_p2_clk,	CK_44XX),
+	CLK(NULL,	"usb_host_hs_func48mclk",	&usb_host_hs_func48mclk,	CK_44XX),
+	CLK(NULL,	"usb_host_hs_fck",		&usb_host_hs_fck,	CK_44XX),
+	CLK("usbhs-omap.0",	"hs_fck",		&usb_host_hs_fck,	CK_44XX),
+	CLK("usbhs-omap.0",	"usbhost_ick",		&dummy_ck,		CK_44XX),
+	CLK(NULL,	"otg_60m_gfclk",		&otg_60m_gfclk,	CK_44XX),
+	CLK(NULL,	"usb_otg_hs_xclk",		&usb_otg_hs_xclk,	CK_44XX),
+	CLK("musb-omap2430",	"ick",				&usb_otg_hs_ick,	CK_44XX),
+	CLK(NULL,	"usb_phy_cm_clk32k",		&usb_phy_cm_clk32k,	CK_44XX),
+	CLK(NULL,	"usb_tll_hs_usb_ch2_clk",	&usb_tll_hs_usb_ch2_clk,	CK_44XX),
+	CLK(NULL,	"usb_tll_hs_usb_ch0_clk",	&usb_tll_hs_usb_ch0_clk,	CK_44XX),
+	CLK(NULL,	"usb_tll_hs_usb_ch1_clk",	&usb_tll_hs_usb_ch1_clk,	CK_44XX),
+	CLK(NULL,	"usb_tll_hs_ick",		&usb_tll_hs_ick,	CK_44XX),
+	CLK("usbhs-omap.0",	"usbtll_ick",		&usb_tll_hs_ick,	CK_44XX),
+	CLK("usbhs-omap.0",	"usbtll_fck",		&dummy_ck,	CK_44XX),
+	CLK(NULL,	"usim_ck",			&usim_ck,	CK_44XX),
+	CLK(NULL,	"usim_fclk",			&usim_fclk,	CK_44XX),
+	CLK(NULL,	"usim_fck",			&usim_fck,	CK_44XX),
+	CLK("omap_wdt",	"fck",				&wd_timer2_fck,	CK_44XX),
+	CLK(NULL,	"mailboxes_ick",		&dummy_ck,	CK_44XX),
+	CLK(NULL,	"wd_timer3_fck",		&wd_timer3_fck,	CK_44XX),
+	CLK(NULL,	"stm_clk_div_ck",		&stm_clk_div_ck,	CK_44XX),
+	CLK(NULL,	"trace_clk_div_ck",		&trace_clk_div_ck,	CK_44XX),
+	CLK(NULL,	"gpmc_ck",			&dummy_ck,	CK_44XX),
+	CLK(NULL,	"gpt1_ick",			&dummy_ck,	CK_44XX),
+	CLK(NULL,	"gpt2_ick",			&dummy_ck,	CK_44XX),
+	CLK(NULL,	"gpt3_ick",			&dummy_ck,	CK_44XX),
+	CLK(NULL,	"gpt4_ick",			&dummy_ck,	CK_44XX),
+	CLK(NULL,	"gpt5_ick",			&dummy_ck,	CK_44XX),
+	CLK(NULL,	"gpt6_ick",			&dummy_ck,	CK_44XX),
+	CLK(NULL,	"gpt7_ick",			&dummy_ck,	CK_44XX),
+	CLK(NULL,	"gpt8_ick",			&dummy_ck,	CK_44XX),
+	CLK(NULL,	"gpt9_ick",			&dummy_ck,	CK_44XX),
+	CLK(NULL,	"gpt10_ick",			&dummy_ck,	CK_44XX),
+	CLK(NULL,	"gpt11_ick",			&dummy_ck,	CK_44XX),
+	CLK("omap_i2c.1",	"ick",				&dummy_ck,	CK_44XX),
+	CLK("omap_i2c.2",	"ick",				&dummy_ck,	CK_44XX),
+	CLK("omap_i2c.3",	"ick",				&dummy_ck,	CK_44XX),
+	CLK("omap_i2c.4",	"ick",				&dummy_ck,	CK_44XX),
+	CLK("omap_hsmmc.0",	"ick",				&dummy_ck,	CK_44XX),
+	CLK("omap_hsmmc.1",	"ick",				&dummy_ck,	CK_44XX),
+	CLK("omap_hsmmc.2",	"ick",				&dummy_ck,	CK_44XX),
+	CLK("omap_hsmmc.3",	"ick",				&dummy_ck,	CK_44XX),
+	CLK("omap_hsmmc.4",	"ick",				&dummy_ck,	CK_44XX),
+	CLK("omap-mcbsp.1",	"ick",				&dummy_ck,	CK_44XX),
+	CLK("omap-mcbsp.2",	"ick",				&dummy_ck,	CK_44XX),
+	CLK("omap-mcbsp.3",	"ick",				&dummy_ck,	CK_44XX),
+	CLK("omap-mcbsp.4",	"ick",				&dummy_ck,	CK_44XX),
+	CLK("omap2_mcspi.1",	"ick",				&dummy_ck,	CK_44XX),
+	CLK("omap2_mcspi.2",	"ick",				&dummy_ck,	CK_44XX),
+	CLK("omap2_mcspi.3",	"ick",				&dummy_ck,	CK_44XX),
+	CLK("omap2_mcspi.4",	"ick",				&dummy_ck,	CK_44XX),
+	CLK(NULL,	"uart1_ick",			&dummy_ck,	CK_44XX),
+	CLK(NULL,	"uart2_ick",			&dummy_ck,	CK_44XX),
+	CLK(NULL,	"uart3_ick",			&dummy_ck,	CK_44XX),
+	CLK(NULL,	"uart4_ick",			&dummy_ck,	CK_44XX),
+	CLK("omap_wdt",	"ick",				&dummy_ck,	CK_44XX),
+	CLK(NULL,	"auxclk0_ck",			&auxclk0_ck,	CK_44XX),
+	CLK(NULL,	"auxclk1_ck",			&auxclk1_ck,	CK_44XX),
+	CLK(NULL,	"auxclk2_ck",			&auxclk2_ck,	CK_44XX),
+	CLK(NULL,	"auxclk3_ck",			&auxclk3_ck,	CK_44XX),
+	CLK(NULL,	"auxclk4_ck",			&auxclk4_ck,	CK_44XX),
+	CLK(NULL,	"auxclk5_ck",			&auxclk5_ck,	CK_44XX),
+	CLK(NULL,	"auxclkreq0_ck",		&auxclkreq0_ck,	CK_44XX),
+	CLK(NULL,	"auxclkreq1_ck",		&auxclkreq1_ck,	CK_44XX),
+	CLK(NULL,	"auxclkreq2_ck",		&auxclkreq2_ck,	CK_44XX),
+	CLK(NULL,	"auxclkreq3_ck",		&auxclkreq3_ck,	CK_44XX),
+	CLK(NULL,	"auxclkreq4_ck",		&auxclkreq4_ck,	CK_44XX),
+	CLK(NULL,	"auxclkreq5_ck",		&auxclkreq5_ck,	CK_44XX),
+	CLK(NULL,	"smp_twd",		&smp_twd,	CK_44XX),
 };
 
 int __init omap4xxx_clk_init(void)
 {
 	struct omap_clk *c;
-	u32 cpu_clkflg;
+	u32 cpu_clkflg = 0;
 
-	if (cpu_is_omap44xx()) {
-		cpu_mask = RATE_IN_4430;
+	if (cpu_is_omap443x()) {
+		cpu_mask = RATE_IN_443X;
 		cpu_clkflg = CK_443X;
+	} else if (cpu_is_omap446x()) {
+		cpu_mask = RATE_IN_446X;
+		cpu_clkflg = CK_446X;
 	}
 
 	clk_init(&omap2_clk_functions);

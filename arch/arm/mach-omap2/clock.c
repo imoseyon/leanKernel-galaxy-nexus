@@ -32,6 +32,7 @@
 
 #include "clock.h"
 #include "cm2xxx_3xxx.h"
+#include "cm44xx.h"
 #include "cm-regbits-24xx.h"
 #include "cm-regbits-34xx.h"
 
@@ -42,6 +43,11 @@ u8 cpu_mask;
  */
 
 /* Private functions */
+
+static void _omap4_module_wait_ready(struct clk *clk)
+{
+	omap4_cm_wait_module_ready(clk->enable_reg);
+}
 
 /**
  * _omap2_module_wait_ready - wait for an OMAP module to leave IDLE
@@ -190,8 +196,12 @@ int omap2_dflt_clk_enable(struct clk *clk)
 	__raw_writel(v, clk->enable_reg);
 	v = __raw_readl(clk->enable_reg); /* OCP barrier */
 
-	if (clk->ops->find_idlest)
-		_omap2_module_wait_ready(clk);
+	if (clk->ops->find_idlest) {
+		if (cpu_is_omap44xx())
+			_omap4_module_wait_ready(clk);
+		else
+			_omap2_module_wait_ready(clk);
+	}
 
 	return 0;
 }
@@ -218,6 +228,12 @@ void omap2_dflt_clk_disable(struct clk *clk)
 	__raw_writel(v, clk->enable_reg);
 	/* No OCP barrier needed here since it is a disable operation */
 }
+
+const struct clkops clkops_omap4_dflt_wait = {
+	.enable		= omap2_dflt_clk_enable,
+	.disable	= omap2_dflt_clk_disable,
+	.find_idlest	= omap2_clk_dflt_find_idlest,
+};
 
 const struct clkops clkops_omap2_dflt_wait = {
 	.enable		= omap2_dflt_clk_enable,
@@ -326,6 +342,10 @@ int omap2_clk_enable(struct clk *clk)
 			goto oce_err3;
 		}
 	}
+
+	/* If clockdomain supports hardware control, enable it */
+	if (clk->clkdm)
+		clkdm_allow_idle(clk->clkdm);
 
 	return 0;
 

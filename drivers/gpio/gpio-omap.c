@@ -73,6 +73,8 @@ struct omap3_gpio_regs {
 static struct omap3_gpio_regs gpio_context[OMAP34XX_NR_GPIOS];
 #endif
 
+#include <plat/omap_device.h>
+
 /*
  * TODO: Cleanup gpio_bank usage as it is having information
  * related to all instances of the device
@@ -432,7 +434,6 @@ static inline void set_24xx_gpio_triggering(struct gpio_bank *bank, int gpio,
 {
 	void __iomem *base = bank->base;
 	u32 gpio_bit = 1 << gpio;
-	u32 val;
 
 	if (cpu_is_omap44xx()) {
 		MOD_REG_BIT(OMAP4_GPIO_LEVELDETECT0, gpio_bit,
@@ -455,15 +456,8 @@ static inline void set_24xx_gpio_triggering(struct gpio_bank *bank, int gpio,
 	}
 	if (likely(!(bank->non_wakeup_gpios & gpio_bit))) {
 		if (cpu_is_omap44xx()) {
-			if (trigger != 0)
-				__raw_writel(1 << gpio, bank->base+
-						OMAP4_GPIO_IRQWAKEN0);
-			else {
-				val = __raw_readl(bank->base +
-							OMAP4_GPIO_IRQWAKEN0);
-				__raw_writel(val & (~(1 << gpio)), bank->base +
-							 OMAP4_GPIO_IRQWAKEN0);
-			}
+			MOD_REG_BIT(OMAP4_GPIO_IRQWAKEN0, gpio_bit,
+				trigger != 0);
 		} else {
 			/*
 			 * GPIO wakeup request can only be generated on edge
@@ -1134,8 +1128,11 @@ static void gpio_irq_shutdown(struct irq_data *d)
 {
 	unsigned int gpio = d->irq - IH_GPIO_BASE;
 	struct gpio_bank *bank = irq_data_get_irq_chip_data(d);
+	unsigned long flags;
 
+	spin_lock_irqsave(&bank->lock, flags);
 	_reset_gpio(bank, gpio);
+	spin_unlock_irqrestore(&bank->lock, flags);
 }
 
 static void gpio_ack_irq(struct irq_data *d)
@@ -1150,9 +1147,12 @@ static void gpio_mask_irq(struct irq_data *d)
 {
 	unsigned int gpio = d->irq - IH_GPIO_BASE;
 	struct gpio_bank *bank = irq_data_get_irq_chip_data(d);
+	unsigned long flags;
 
+	spin_lock_irqsave(&bank->lock, flags);
 	_set_gpio_irqenable(bank, gpio, 0);
 	_set_gpio_triggering(bank, get_gpio_index(gpio), IRQ_TYPE_NONE);
+	spin_unlock_irqrestore(&bank->lock, flags);
 }
 
 static void gpio_unmask_irq(struct irq_data *d)
@@ -1161,7 +1161,9 @@ static void gpio_unmask_irq(struct irq_data *d)
 	struct gpio_bank *bank = irq_data_get_irq_chip_data(d);
 	unsigned int irq_mask = 1 << get_gpio_index(gpio);
 	u32 trigger = irqd_get_trigger_type(d);
+	unsigned long flags;
 
+	spin_lock_irqsave(&bank->lock, flags);
 	if (trigger)
 		_set_gpio_triggering(bank, get_gpio_index(gpio), trigger);
 
@@ -1173,6 +1175,7 @@ static void gpio_unmask_irq(struct irq_data *d)
 	}
 
 	_set_gpio_irqenable(bank, gpio, 1);
+	spin_unlock_irqrestore(&bank->lock, flags);
 }
 
 static struct irq_chip gpio_irq_chip = {
@@ -1524,7 +1527,7 @@ static void omap_gpio_mod_init(struct gpio_bank *bank, int id)
 	}
 }
 
-static void __init omap_gpio_chip_init(struct gpio_bank *bank)
+static void __devinit omap_gpio_chip_init(struct gpio_bank *bank)
 {
 	int j;
 	static int gpio;
@@ -1747,6 +1750,7 @@ void omap2_gpio_prepare_for_idle(int off_mode)
 {
 	int i, c = 0;
 	int min = 0;
+	struct platform_device *pdev;
 
 	if (cpu_is_omap34xx())
 		min = 1;
@@ -1758,6 +1762,9 @@ void omap2_gpio_prepare_for_idle(int off_mode)
 
 		for (j = 0; j < hweight_long(bank->dbck_enable_mask); j++)
 			clk_disable(bank->dbck);
+
+		 pdev = to_platform_device(bank->dev);
+		 omap_device_idle(pdev);
 
 		if (!off_mode)
 			continue;
@@ -1816,6 +1823,7 @@ void omap2_gpio_resume_after_idle(void)
 {
 	int i;
 	int min = 0;
+	struct platform_device *pdev;
 
 	if (cpu_is_omap34xx())
 		min = 1;
@@ -1823,6 +1831,9 @@ void omap2_gpio_resume_after_idle(void)
 		struct gpio_bank *bank = &gpio_bank[i];
 		u32 l = 0, gen, gen0, gen1;
 		int j;
+
+		pdev = to_platform_device(bank->dev);
+		omap_device_enable(pdev);
 
 		for (j = 0; j < hweight_long(bank->dbck_enable_mask); j++)
 			clk_enable(bank->dbck);

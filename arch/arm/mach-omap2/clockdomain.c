@@ -795,6 +795,27 @@ void clkdm_deny_idle(struct clockdomain *clkdm)
 	arch_clkdm->clkdm_deny_idle(clkdm);
 }
 
+/**
+ * clkdm_is_idle - Check if the clkdm hwsup/autoidle is enabled
+ * @clkdm: struct clockdomain *
+ *
+ * Returns true if the clockdomain is in hardware-supervised
+ * idle mode, or 0 otherwise.
+ *
+ */
+int clkdm_is_idle(struct clockdomain *clkdm)
+{
+	if (!clkdm)
+		return -EINVAL;
+
+	if (!arch_clkdm || !arch_clkdm->clkdm_is_idle)
+		return -EINVAL;
+
+	pr_debug("clockdomain: reading idle state for %s\n", clkdm->name);
+
+	return arch_clkdm->clkdm_is_idle(clkdm);
+}
+
 
 /* Clockdomain-to-clock framework interface code */
 
@@ -825,7 +846,12 @@ int clkdm_clk_enable(struct clockdomain *clkdm, struct clk *clk)
 	if (!arch_clkdm || !arch_clkdm->clkdm_clk_enable)
 		return -EINVAL;
 
-	if (atomic_inc_return(&clkdm->usecount) > 1)
+	/*
+	 * For arch's with no autodeps, clkcm_clk_enable
+	 * should be called for every clock instance that is
+	 * enabled, so the clkdm can be force woken up.
+	 */
+	if ((atomic_inc_return(&clkdm->usecount) > 1) && autodeps)
 		return 0;
 
 	/* Clockdomain now has one enabled downstream clock */

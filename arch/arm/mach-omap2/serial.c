@@ -57,9 +57,9 @@
  * NOTE: By default the serial timeout is disabled as it causes lost characters
  * over the serial ports. This means that the UART clocks will stay on until
  * disabled via sysfs. This also causes that any deeper omap sleep states are
- * blocked. 
+ * blocked.
  */
-#define DEFAULT_TIMEOUT 0
+#define DEFAULT_TIMEOUT 1000
 
 #define MAX_UART_HWMOD_NAME_LEN		16
 
@@ -315,6 +315,12 @@ static void omap_uart_enable_wakeup(struct omap_uart_state *uart)
 		v |= OMAP3_PADCONF_WAKEUPENABLE0;
 		omap_ctrl_writew(v, uart->padconf);
 	}
+
+	if (cpu_is_omap44xx() && uart->padconf) {
+		u16 v = omap4_ctrl_pad_readw(uart->padconf);
+		v |= OMAP44XX_PADCONF_WAKEUPENABLE0;
+		omap4_ctrl_pad_writew(v, uart->padconf);
+	}
 }
 
 static void omap_uart_disable_wakeup(struct omap_uart_state *uart)
@@ -347,7 +353,7 @@ static void omap_uart_smart_idle_enable(struct omap_uart_state *uart,
 		if (uart->dma_enabled)
 			idlemode = HWMOD_IDLEMODE_FORCE;
 		else
-			idlemode = HWMOD_IDLEMODE_SMART;
+			idlemode = HWMOD_IDLEMODE_SMART_WKUP;
 	} else {
 		idlemode = HWMOD_IDLEMODE_NO;
 	}
@@ -418,8 +424,9 @@ void omap_uart_resume_idle(int num)
 			}
 
 			/* Check for normal UART wakeup */
-			if (__raw_readl(uart->wk_st) & uart->wk_mask)
-				omap_uart_block_sleep(uart);
+			if (uart->wk_st && uart->wk_mask)
+				if (__raw_readl(uart->wk_st) & uart->wk_mask)
+					omap_uart_block_sleep(uart);
 			return;
 		}
 	}
@@ -444,6 +451,10 @@ int omap_uart_can_sleep(void)
 			continue;
 
 		if (!uart->can_sleep) {
+			can_sleep = 0;
+			continue;
+		}
+		if(omap_uart_active(uart->num, uart->timeout)) {
 			can_sleep = 0;
 			continue;
 		}
@@ -543,7 +554,20 @@ static void omap_uart_idle_init(struct omap_uart_state *uart)
 		uart->wk_en = NULL;
 		uart->wk_st = NULL;
 		uart->wk_mask = 0;
-		uart->padconf = 0;
+		switch (uart->num) {
+		case 0:
+			uart->padconf = 0x0E4;
+			break;
+		case 1:
+			uart->padconf = 0x11C;
+			break;
+		case 2:
+			uart->padconf = 0x144;
+			break;
+		case 3:
+			uart->padconf = 0x15C;
+			break;
+		}
 	}
 
 	uart->irqflags |= IRQF_SHARED;
@@ -843,7 +867,8 @@ void __init omap_serial_init_port(struct omap_board_data *bdata)
 
 	console_unlock();
 
-	if ((cpu_is_omap34xx() && uart->padconf) ||
+	if (((cpu_is_omap34xx() || cpu_is_omap44xx())
+		 && uart->padconf) ||
 	    (uart->wk_en && uart->wk_mask)) {
 		device_init_wakeup(&od->pdev.dev, true);
 		DEV_CREATE_FILE(&od->pdev.dev, &dev_attr_sleep_timeout);

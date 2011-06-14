@@ -101,12 +101,16 @@ struct omap_mmc_platform_data {
 		/* If using power_saving and the MMC power is not to go off */
 		unsigned no_off:1;
 
+		/* eMMC does not handle power off when not in sleep state */
+		unsigned no_regulator_off_init:1;
+
 		/* Regulator off remapped to sleep */
 		unsigned vcc_aux_disable_is_sleep:1;
 
 		/* we can put the features above into this variable */
-#define HSMMC_HAS_PBIAS		(1 << 0)
-#define HSMMC_HAS_UPDATED_RESET	(1 << 1)
+#define HSMMC_HAS_PBIAS			(1 << 0)
+#define HSMMC_HAS_UPDATED_RESET		(1 << 1)
+#define HSMMC_HAS_48MHZ_MASTER_CLK	(1 << 2)
 		unsigned features;
 
 		int switch_pin;			/* gpio (card detect) */
