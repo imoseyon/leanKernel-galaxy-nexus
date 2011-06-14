@@ -986,12 +986,13 @@ static s32 pin_memory(struct mem_info *mi, struct tiler_pa_info *pa)
 	return 0;
 }
 
-static void free_pa(struct tiler_pa_info *pa)
+void tiler_pa_free(struct tiler_pa_info *pa)
 {
 	if (pa)
 		kfree(pa->mem);
 	kfree(pa);
 }
+EXPORT_SYMBOL(tiler_pa_free);
 
 /* allocate physical pages for a block */
 static struct tiler_pa_info *get_new_pa(struct tmm *tmm, u32 num_pg)
@@ -1036,7 +1037,7 @@ static s32 alloc_block(enum tiler_fmt fmt, u32 width, u32 height,
 
 	/* pin memory */
 	res = pin_memory(mi, pa);
-	free_pa(pa);
+	tiler_pa_free(pa);
 	if (res)
 		goto cleanup;
 
@@ -1052,7 +1053,7 @@ cleanup:
 
 
 /* get physical pages of a user block */
-static struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg)
+struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg)
 {
 	struct task_struct *curr_task = current;
 	struct mm_struct *mm = current->mm;
@@ -1128,6 +1129,7 @@ static struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg)
 			/* release pages */
 			while (i--)
 				page_cache_release(phys_to_page(mem[i]));
+			i = 0;
 			break;
 		}
 		usr_addr += PAGE_SIZE;
@@ -1180,7 +1182,7 @@ static s32 pin_any_block(enum tiler_fmt fmt, u32 width, u32 height,
 		mutex_unlock(&mtx);
 	}
 done:
-	free_pa(pa);
+	tiler_pa_free(pa);
 	return res;
 }
 
@@ -1223,7 +1225,7 @@ s32 tiler_pin_block(tiler_blk_handle block, u32 *addr_array, u32 nents)
 	pa->num_pg = nents;
 
 	res = pin_memory(block, pa);
-	free_pa(pa);
+	tiler_pa_free(pa);
 
 	return res;
 }
@@ -1443,13 +1445,6 @@ done:
 }
 EXPORT_SYMBOL(tiler_alloc_block_area);
 
-tiler_blk_handle tiler_alloc_1d_block_area(u32 size)
-{
-	return alloc_block_area(TILFMT_PAGE, size >> PAGE_SHIFT, 1, 0, 0,
-				 __get_pi(0, true));
-}
-EXPORT_SYMBOL(tiler_alloc_1d_block_area);
-
 void tiler_unpin_block(tiler_blk_handle block)
 {
 	mutex_lock(&mtx);
@@ -1457,14 +1452,6 @@ void tiler_unpin_block(tiler_blk_handle block)
 	mutex_unlock(&mtx);
 }
 EXPORT_SYMBOL(tiler_unpin_block);
-
-s32 tiler_pin_memory(tiler_blk_handle block, struct tiler_pa_info *pa)
-{
-	struct tiler_pa_info *pa_tmp = kmemdup(pa, sizeof(*pa), GFP_KERNEL);
-	tiler_unpin_block(block);
-	return pin_memory(block, pa_tmp);
-}
-EXPORT_SYMBOL(tiler_pin_memory);
 
 s32 tiler_memsize(enum tiler_fmt fmt, u32 width, u32 height, u32 *alloc_pages,
 		  u32 *virt_pages)

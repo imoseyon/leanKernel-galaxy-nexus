@@ -460,6 +460,9 @@ s32 tiler_memsize(enum tiler_fmt fmt, u32 width, u32 height, u32 *alloc_pages,
  */
 u32 tiler_block_vstride(tiler_blk_handle handle);
 
+struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg);
+void tiler_pa_free(struct tiler_pa_info *pa);
+
 /*
  * ---------------------------- IOCTL Definitions ----------------------------
  */
