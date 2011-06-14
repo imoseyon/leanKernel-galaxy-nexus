@@ -1,5 +1,5 @@
 /*
- *  linux/arch/arm/plat-omap/cpu-omap.c
+ *  OMAP1 cpufreq driver
  *
  *  CPU frequency scaling for OMAP
  *
@@ -7,6 +7,9 @@
  *  Written by Tony Lindgren <tony@atomide.com>
  *
  *  Based on cpu-sa1110.c, Copyright (C) 2001 Russell King
+ *
+ * Copyright (C) 2007-2008 Texas Instruments, Inc.
+ * Rajendra Nayak <rnayak@ti.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -21,24 +24,19 @@
 #include <linux/err.h>
 #include <linux/clk.h>
 #include <linux/io.h>
+#include <linux/opp.h>
+
+#include <asm/system.h>
+
+#include <plat/clock.h>
+#include <plat/omap-pm.h>
 
 #include <mach/hardware.h>
-#include <plat/clock.h>
-#include <asm/system.h>
 
 #define VERY_HI_RATE	900000000
 
 static struct cpufreq_frequency_table *freq_table;
-
-#ifdef CONFIG_ARCH_OMAP1
-#define MPU_CLK		"mpu"
-#else
-#define MPU_CLK		"virt_prcm_set"
-#endif
-
 static struct clk *mpu_clk;
-
-/* TODO: Add support for SDRAM timing changes */
 
 static int omap_verify_speed(struct cpufreq_policy *policy)
 {
@@ -91,21 +89,22 @@ static int omap_target(struct cpufreq_policy *policy,
 		return ret;
 
 	cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
+
 #ifdef CONFIG_CPU_FREQ_DEBUG
-	printk(KERN_DEBUG "cpufreq-omap: transition: %u --> %u\n",
-	       freqs.old, freqs.new);
+	pr_info("cpufreq-omap: transition: %u --> %u\n", freqs.old, freqs.new);
 #endif
 	ret = clk_set_rate(mpu_clk, freqs.new * 1000);
+
 	cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
 
 	return ret;
 }
 
-static int __cpuinit omap_cpu_init(struct cpufreq_policy *policy)
+static int __init omap_cpu_init(struct cpufreq_policy *policy)
 {
 	int result = 0;
 
-	mpu_clk = clk_get(NULL, MPU_CLK);
+	mpu_clk = clk_get(NULL, "mpu");
 	if (IS_ERR(mpu_clk))
 		return PTR_ERR(mpu_clk);
 
@@ -115,6 +114,7 @@ static int __cpuinit omap_cpu_init(struct cpufreq_policy *policy)
 	policy->cur = policy->min = policy->max = omap_getspeed(0);
 
 	clk_init_cpufreq_table(&freq_table);
+
 	if (freq_table) {
 		result = cpufreq_frequency_table_cpuinfo(policy, freq_table);
 		if (!result)
@@ -125,6 +125,10 @@ static int __cpuinit omap_cpu_init(struct cpufreq_policy *policy)
 		policy->cpuinfo.max_freq = clk_round_rate(mpu_clk,
 							VERY_HI_RATE) / 1000;
 	}
+
+	policy->min = policy->cpuinfo.min_freq;
+	policy->max = policy->cpuinfo.max_freq;
+	policy->cur = omap_getspeed(0);
 
 	/* FIXME: what's the actual transition time? */
 	policy->cpuinfo.transition_latency = 300 * 1000;
@@ -151,7 +155,7 @@ static struct cpufreq_driver omap_driver = {
 	.get		= omap_getspeed,
 	.init		= omap_cpu_init,
 	.exit		= omap_cpu_exit,
-	.name		= "omap",
+	.name		= "omap1",
 	.attr		= omap_cpufreq_attr,
 };
 
@@ -160,12 +164,12 @@ static int __init omap_cpufreq_init(void)
 	return cpufreq_register_driver(&omap_driver);
 }
 
-arch_initcall(omap_cpufreq_init);
+static void __exit omap_cpufreq_exit(void)
+{
+	cpufreq_unregister_driver(&omap_driver);
+}
 
-/*
- * if ever we want to remove this, upon cleanup call:
- *
- * cpufreq_unregister_driver()
- * cpufreq_frequency_table_put_attr()
- */
-
+MODULE_DESCRIPTION("cpufreq driver for OMAP1 SOCs");
+MODULE_LICENSE("GPL");
+module_init(omap_cpufreq_init);
+module_exit(omap_cpufreq_exit);

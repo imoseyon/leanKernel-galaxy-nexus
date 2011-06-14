@@ -36,18 +36,21 @@ struct device *omap2_get_mpuss_device(void)
 	WARN_ON_ONCE(!mpu_dev);
 	return mpu_dev;
 }
+EXPORT_SYMBOL(omap2_get_mpuss_device);
 
 struct device *omap2_get_iva_device(void)
 {
 	WARN_ON_ONCE(!iva_dev);
 	return iva_dev;
 }
+EXPORT_SYMBOL(omap2_get_iva_device);
 
 struct device *omap2_get_l3_device(void)
 {
 	WARN_ON_ONCE(!l3_dev);
 	return l3_dev;
 }
+EXPORT_SYMBOL(omap2_get_l3_device);
 
 struct device *omap4_get_dsp_device(void)
 {
@@ -106,8 +109,9 @@ static void omap2_init_processor_devices(void)
 int omap_set_pwrdm_state(struct powerdomain *pwrdm, u32 state)
 {
 	u32 cur_state;
-	int sleep_switch = 0;
+	int sleep_switch = -1;
 	int ret = 0;
+	int hwsup = 0;
 
 	if (pwrdm == NULL || IS_ERR(pwrdm))
 		return -EINVAL;
@@ -127,6 +131,7 @@ int omap_set_pwrdm_state(struct powerdomain *pwrdm, u32 state)
 			(pwrdm->flags & PWRDM_HAS_LOWPOWERSTATECHANGE)) {
 			sleep_switch = LOWPOWERSTATE_SWITCH;
 		} else {
+			hwsup = clkdm_is_idle(pwrdm->pwrdm_clkdms[0]);
 			clkdm_wakeup(pwrdm->pwrdm_clkdms[0]);
 			pwrdm_wait_transition(pwrdm);
 			sleep_switch = FORCEWAKEUP_SWITCH;
@@ -142,7 +147,7 @@ int omap_set_pwrdm_state(struct powerdomain *pwrdm, u32 state)
 
 	switch (sleep_switch) {
 	case FORCEWAKEUP_SWITCH:
-		if (pwrdm->pwrdm_clkdms[0]->flags & CLKDM_CAN_ENABLE_AUTO)
+		if (hwsup)
 			clkdm_allow_idle(pwrdm->pwrdm_clkdms[0]);
 		else
 			clkdm_sleep(pwrdm->pwrdm_clkdms[0]);
@@ -174,14 +179,15 @@ static int __init omap2_set_init_voltage(char *vdd_name, char *clk_name,
 	struct voltagedomain *voltdm;
 	struct clk *clk;
 	struct opp *opp;
-	unsigned long freq, bootup_volt;
+	unsigned long freq_cur, freq_valid, bootup_volt;
+	int ret = -EINVAL;
 
 	if (!vdd_name || !clk_name || !dev) {
 		printk(KERN_ERR "%s: Invalid parameters!\n", __func__);
 		goto exit;
 	}
 
-	voltdm = omap_voltage_domain_lookup(vdd_name);
+	voltdm = voltdm_lookup(vdd_name);
 	if (IS_ERR(voltdm)) {
 		printk(KERN_ERR "%s: Unable to get vdd pointer for vdd_%s\n",
 			__func__, vdd_name);
@@ -195,25 +201,78 @@ static int __init omap2_set_init_voltage(char *vdd_name, char *clk_name,
 		goto exit;
 	}
 
-	freq = clk->rate;
-	clk_put(clk);
+	freq_cur = clk->rate;
+	freq_valid = freq_cur;
 
-	opp = opp_find_freq_ceil(dev, &freq);
+	rcu_read_lock();
+	opp = opp_find_freq_ceil(dev, &freq_valid);
 	if (IS_ERR(opp)) {
-		printk(KERN_ERR "%s: unable to find boot up OPP for vdd_%s\n",
-			__func__, vdd_name);
-		goto exit;
+		opp = opp_find_freq_floor(dev, &freq_valid);
+		if (IS_ERR(opp)) {
+			rcu_read_unlock();
+			pr_err("%s: no boot OPP match for %ld on vdd_%s\n",
+				__func__, freq_cur, vdd_name);
+			ret = -ENOENT;
+			goto exit_ck;
+		}
 	}
 
 	bootup_volt = opp_get_voltage(opp);
+	rcu_read_unlock();
 	if (!bootup_volt) {
 		printk(KERN_ERR "%s: unable to find voltage corresponding"
 			"to the bootup OPP for vdd_%s\n", __func__, vdd_name);
-		goto exit;
+		ret = -ENOENT;
+		goto exit_ck;
 	}
 
-	omap_voltage_scale_vdd(voltdm, bootup_volt);
-	return 0;
+	/*
+	 * Frequency and Voltage have to be sequenced: if we move from
+	 * a lower frequency to higher frequency, raise voltage, followed by
+	 * frequency, and vice versa. we assume that the voltage at boot
+	 * is the required voltage for the frequency it was set for.
+	 * NOTE:
+	 * we can check the frequency, but there is numerous ways to set
+	 * voltage. We play the safe path and just set the voltage.
+	 */
+
+	if (freq_cur < freq_valid) {
+		ret = voltdm_scale(voltdm, bootup_volt);
+		if (ret) {
+			pr_err("%s: Fail set voltage-%s(f=%ld v=%ld)on vdd%s\n",
+				__func__, vdd_name, freq_valid,
+				bootup_volt, vdd_name);
+			goto exit_ck;
+		}
+	}
+
+	/* Set freq only if there is a difference in freq */
+	if (freq_valid != freq_cur) {
+		ret = clk_set_rate(clk, freq_valid);
+		if (ret) {
+			pr_err("%s: Fail set clk-%s(f=%ld v=%ld)on vdd%s\n",
+				__func__, clk_name, freq_valid,
+				bootup_volt, vdd_name);
+			goto exit_ck;
+		}
+	}
+
+	if (freq_cur >= freq_valid) {
+		ret = voltdm_scale(voltdm, bootup_volt);
+		if (ret) {
+			pr_err("%s: Fail set voltage-%s(f=%ld v=%ld)on vdd%s\n",
+				__func__, clk_name, freq_valid,
+				bootup_volt, vdd_name);
+			goto exit_ck;
+		}
+	}
+
+	ret = 0;
+exit_ck:
+	clk_put(clk);
+
+	if (!ret)
+		return 0;
 
 exit:
 	printk(KERN_ERR "%s: Unable to put vdd_%s to its init voltage\n\n",
@@ -226,7 +285,7 @@ static void __init omap3_init_voltages(void)
 	if (!cpu_is_omap34xx())
 		return;
 
-	omap2_set_init_voltage("mpu", "dpll1_ck", mpu_dev);
+	omap2_set_init_voltage("mpu_iva", "dpll1_ck", mpu_dev);
 	omap2_set_init_voltage("core", "l3_ick", l3_dev);
 }
 
@@ -235,7 +294,10 @@ static void __init omap4_init_voltages(void)
 	if (!cpu_is_omap44xx())
 		return;
 
-	omap2_set_init_voltage("mpu", "dpll_mpu_ck", mpu_dev);
+	if (cpu_is_omap446x())
+		omap2_set_init_voltage("mpu", "virt_dpll_mpu_ck", mpu_dev);
+	else
+		omap2_set_init_voltage("mpu", "dpll_mpu_ck", mpu_dev);
 	omap2_set_init_voltage("core", "l3_div_ck", l3_dev);
 	omap2_set_init_voltage("iva", "dpll_iva_m5x2_ck", iva_dev);
 }
@@ -251,9 +313,8 @@ postcore_initcall(omap2_common_pm_init);
 
 static int __init omap2_common_pm_late_init(void)
 {
-	/* Init the OMAP TWL parameters */
-	omap3_twl_init();
-	omap4_twl_init();
+	/* Init the OMAP PMIC parameters */
+	omap_pmic_data_init();
 
 	/* Init the voltage layer */
 	omap_voltage_late_init();

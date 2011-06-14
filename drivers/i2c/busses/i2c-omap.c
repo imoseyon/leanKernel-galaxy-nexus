@@ -1142,18 +1142,16 @@ omap_i2c_remove(struct platform_device *pdev)
 #ifdef CONFIG_SUSPEND
 static int omap_i2c_suspend(struct device *dev)
 {
-	if (!pm_runtime_suspended(dev))
-		if (dev->bus && dev->bus->pm && dev->bus->pm->runtime_suspend)
-			dev->bus->pm->runtime_suspend(dev);
+	if (dev->power.runtime_auto == false)
+		pm_runtime_put_sync(dev);
 
 	return 0;
 }
 
 static int omap_i2c_resume(struct device *dev)
 {
-	if (!pm_runtime_suspended(dev))
-		if (dev->bus && dev->bus->pm && dev->bus->pm->runtime_resume)
-			dev->bus->pm->runtime_resume(dev);
+	if (dev->power.runtime_auto == false)
+		pm_runtime_get_sync(dev);
 
 	return 0;
 }

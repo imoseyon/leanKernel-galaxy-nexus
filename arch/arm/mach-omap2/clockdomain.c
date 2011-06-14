@@ -795,6 +795,27 @@ void clkdm_deny_idle(struct clockdomain *clkdm)
 	arch_clkdm->clkdm_deny_idle(clkdm);
 }
 
+/**
+ * clkdm_is_idle - Check if the clkdm hwsup/autoidle is enabled
+ * @clkdm: struct clockdomain *
+ *
+ * Returns true if the clockdomain is in hardware-supervised
+ * idle mode, or 0 otherwise.
+ *
+ */
+int clkdm_is_idle(struct clockdomain *clkdm)
+{
+	if (!clkdm)
+		return -EINVAL;
+
+	if (!arch_clkdm || !arch_clkdm->clkdm_is_idle)
+		return -EINVAL;
+
+	pr_debug("clockdomain: reading idle state for %s\n", clkdm->name);
+
+	return arch_clkdm->clkdm_is_idle(clkdm);
+}
+
 
 /* Clockdomain-to-clock framework interface code */
 

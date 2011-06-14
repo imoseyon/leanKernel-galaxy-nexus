@@ -133,6 +133,30 @@ int clockevents_program_event(struct clock_event_device *dev, ktime_t expires,
 }
 
 /**
+ * clockevents_reconfigure - Reconfigure and reprogram a clock event device.
+ * @dev:	device to modify
+ * @freq:	new device frequency
+ * @secr:	guaranteed runtime conversion range in seconds
+ *
+ * Reconfigure and reprogram a clock event device in oneshot
+ * mode. Must only be called from low level idle code where
+ * interaction with hrtimers/nohz code etc. is not possible and
+ * guaranteed not to conflict. Must be called with interrupts
+ * disabled!
+ * Returns 0 on success, -ETIME when the event is in the past or
+ * -EINVAL when called with invalid parameters.
+ */
+int clockevents_reconfigure(struct clock_event_device *dev, u32 freq, u32 secr)
+{
+	if (dev->mode != CLOCK_EVT_MODE_ONESHOT)
+		return -EINVAL;
+
+	clockevents_calc_mult_shift(dev, freq, secr ? secr : 1);
+
+	return clockevents_program_event(dev, dev->next_event, ktime_get());
+}
+
+/**
  * clockevents_register_notifier - register a clock events change listener
  */
 int clockevents_register_notifier(struct notifier_block *nb)

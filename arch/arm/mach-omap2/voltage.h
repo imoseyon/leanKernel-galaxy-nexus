@@ -19,6 +19,8 @@
 #include "vc.h"
 #include "vp.h"
 
+struct powerdomain;
+
 /* XXX document */
 #define VOLTSCALE_VPFORCEUPDATE		1
 #define VOLTSCALE_VCBYPASS		2
@@ -31,8 +33,10 @@
 #define OMAP3_VOLTOFFSET	0xff
 #define OMAP3_VOLTSETUP2	0xff
 
+struct omap_vdd_info;
+
 /**
- * struct omap_vfsm_instance_data - per-voltage manager FSM register/bitfield
+ * struct omap_vfsm_instance - per-voltage manager FSM register/bitfield
  * data
  * @voltsetup_mask: SETUP_TIME* bitmask in the PRM_VOLTSETUP* register
  * @voltsetup_reg: register offset of PRM_VOLTSETUP from PRM base
@@ -42,7 +46,7 @@
  * XXX It is not necessary to have both a _mask and a _shift for the same
  *     bitfield - remove one!
  */
-struct omap_vfsm_instance_data {
+struct omap_vfsm_instance {
 	u32 voltsetup_mask;
 	u8 voltsetup_reg;
 	u8 voltsetup_shift;
@@ -50,11 +54,41 @@ struct omap_vfsm_instance_data {
 
 /**
  * struct voltagedomain - omap voltage domain global structure.
- * @name:	Name of the voltage domain which can be used as a unique
- *		identifier.
+ * @name: Name of the voltage domain which can be used as a unique identifier.
+ * @scalable: Whether or not this voltage domain is scalable
+ * @node: list_head linking all voltage domains
+ * @pwrdm_node: list_head linking all powerdomains in this voltagedomain
+ * @vdd: to be removed
+ * @pwrdms: powerdomains in this voltagedomain
+ * @scale: function used to scale the voltage of the voltagedomain
+ * @curr_volt: current nominal voltage for this voltage domain
  */
 struct voltagedomain {
 	char *name;
+	bool scalable;
+	struct list_head node;
+	struct list_head pwrdm_list;
+	struct omap_vc_channel *vc;
+	const struct omap_vfsm_instance *vfsm;
+	struct omap_vp_instance *vp;
+	struct omap_voltdm_pmic *pmic;
+
+	/* VC/VP register access functions: SoC specific */
+	u32 (*read) (u8 offset);
+	void (*write) (u32 val, u8 offset);
+	u32 (*rmw)(u32 mask, u32 bits, u8 offset);
+
+	union {
+		const char *name;
+		u32 rate;
+	} sys_clk;
+
+	int (*scale) (struct voltagedomain *voltdm,
+		      unsigned long target_volt);
+	u32 curr_volt;
+
+	struct omap_vdd_info *vdd;
+	struct dentry *debug_dir;
 };
 
 /**
@@ -76,14 +110,52 @@ struct omap_volt_data {
 	u8	vp_errgain;
 };
 
+/*
+ * Introduced in OMAP4, is a concept of a default channel - in OMAP4, this
+ * channel is MPU, all other domains such as IVA/CORE, could optionally
+ * link their i2c reg configuration to use MPU channel's configuration if
+ * required. To do this, mark in the PMIC structure's
+ * i2c_slave_addr, volt_reg_addr,cmd_reg_addr with this macro.
+ */
+#define USE_DEFAULT_CHANNEL_I2C_PARAM  0x8000
+
+/* Min and max voltages from OMAP perspective */
+#define OMAP3430_VP1_VLIMITTO_VDDMIN	850000
+#define OMAP3430_VP1_VLIMITTO_VDDMAX	1425000
+#define OMAP3430_VP2_VLIMITTO_VDDMIN	900000
+#define OMAP3430_VP2_VLIMITTO_VDDMAX	1150000
+
+#define OMAP3630_VP1_VLIMITTO_VDDMIN	900000
+#define OMAP3630_VP1_VLIMITTO_VDDMAX	1350000
+#define OMAP3630_VP2_VLIMITTO_VDDMIN	900000
+#define OMAP3630_VP2_VLIMITTO_VDDMAX	1200000
+
+#define OMAP4_VP_MPU_VLIMITTO_VDDMIN	830000
+#define OMAP4_VP_MPU_VLIMITTO_VDDMAX	1410000
+#define OMAP4_VP_IVA_VLIMITTO_VDDMIN	830000
+#define OMAP4_VP_IVA_VLIMITTO_VDDMAX	1260000
+#define OMAP4_VP_CORE_VLIMITTO_VDDMIN	830000
+#define OMAP4_VP_CORE_VLIMITTO_VDDMAX	1200000
+
+#define OMAP4_VP_CONFIG_ERROROFFSET	0x00
+#define OMAP4_VP_VSTEPMIN_VSTEPMIN	0x01
+#define OMAP4_VP_VSTEPMAX_VSTEPMAX	0x04
+#define OMAP4_VP_VLIMITTO_TIMEOUT_US	200
+
 /**
- * struct omap_volt_pmic_info - PMIC specific data required by voltage driver.
+ * struct omap_voltdm_pmic - PMIC specific data required by voltage driver.
  * @slew_rate:	PMIC slew rate (in uv/us)
  * @step_size:	PMIC voltage step size (in uv)
+ * @i2c_high_speed: whether VC uses I2C high-speed mode to PMIC
+ * @i2c_mcode: master code value for I2C high-speed preamble transmission
  * @vsel_to_uv:	PMIC API to convert vsel value to actual voltage in uV.
  * @uv_to_vsel:	PMIC API to convert voltage in uV to vsel value.
+ * @i2c_hscll_low: PMIC interface speed config for highspeed mode (T low)
+ * @i2c_hscll_high: PMIC interface speed config for highspeed mode (T high)
+ * @i2c_scll_low: PMIC interface speed config for fullspeed mode (T low)
+ * @i2c_scll_high: PMIC interface speed config for fullspeed mode (T high)
  */
-struct omap_volt_pmic_info {
+struct omap_voltdm_pmic {
 	int slew_rate;
 	int step_size;
 	u32 on_volt;
@@ -94,13 +166,49 @@ struct omap_volt_pmic_info {
 	u8 vp_erroroffset;
 	u8 vp_vstepmin;
 	u8 vp_vstepmax;
-	u8 vp_vddmin;
-	u8 vp_vddmax;
+	u32 vp_vddmin;
+	u32 vp_vddmax;
 	u8 vp_timeout_us;
-	u8 i2c_slave_addr;
-	u8 pmic_reg;
+	u16 i2c_slave_addr;
+	u16 volt_reg_addr;
+	u16 cmd_reg_addr;
+	bool i2c_high_speed;
+	u8 i2c_hscll_low;
+	u8 i2c_hscll_high;
+	u8 i2c_scll_low;
+	u8 i2c_scll_high;
+	u8 i2c_mcode;
 	unsigned long (*vsel_to_uv) (const u8 vsel);
 	u8 (*uv_to_vsel) (unsigned long uV);
+};
+
+/**
+ * struct omap_vdd_dep_volt - Map table for voltage dependencies
+ * @main_vdd_volt	: The main vdd voltage
+ * @dep_vdd_volt	: The voltage at which the dependent vdd should be
+ *			  when the main vdd is at <main_vdd_volt> voltage
+ *
+ * Table containing the parent vdd voltage and the dependent vdd voltage
+ * corresponding to it.
+ */
+struct omap_vdd_dep_volt {
+	u32 main_vdd_volt;
+	u32 dep_vdd_volt;
+};
+
+/**
+ * struct omap_vdd_dep_info -  Dependent vdd info
+ * @name		: Dependent vdd name
+ * @_dep_voltdm		: internal structure meant to prevent multiple lookups
+ * @dep_table		: Table containing the dependent vdd voltage
+ *			  corresponding to every main vdd voltage.
+ * @nr_dep_entries	: number of dependency voltage entries
+ */
+struct omap_vdd_dep_info {
+	char *name;
+	struct voltagedomain *_dep_voltdm;
+	struct omap_vdd_dep_volt *dep_table;
+	int nr_dep_entries;
 };
 
 /**
@@ -108,64 +216,28 @@ struct omap_volt_pmic_info {
  *
  * @volt_data		: voltage table having the distinct voltages supported
  *			  by the domain and other associated per voltage data.
- * @pmic_info		: pmic specific parameters which should be populted by
- *			  the pmic drivers.
- * @vp_data		: the register values, shifts, masks for various
- *			  vp registers
- * @vp_rt_data          : VP data derived at runtime, not predefined
- * @vc_data		: structure containing various various vc registers,
- *			  shifts, masks etc.
- * @vfsm                : voltage manager FSM data
- * @voltdm		: pointer to the voltage domain structure
- * @debug_dir		: debug directory for this voltage domain.
- * @curr_volt		: current voltage for this vdd.
- * @vp_enabled		: flag to keep track of whether vp is enabled or not
- * @volt_scale		: API to scale the voltage of the vdd.
+ * @dep_vdd_info	: Array ending with a 0 terminator for dependency
+ *			  voltage information.
  */
 struct omap_vdd_info {
 	struct omap_volt_data *volt_data;
-	struct omap_volt_pmic_info *pmic_info;
-	struct omap_vp_instance_data *vp_data;
-	struct omap_vp_runtime_data vp_rt_data;
-	struct omap_vc_instance_data *vc_data;
-	const struct omap_vfsm_instance_data *vfsm;
-	struct voltagedomain voltdm;
-	struct dentry *debug_dir;
-	u32 curr_volt;
-	bool vp_enabled;
-	u32 (*read_reg) (u16 mod, u8 offset);
-	void (*write_reg) (u32 val, u16 mod, u8 offset);
-	int (*volt_scale) (struct omap_vdd_info *vdd,
-		unsigned long target_volt);
+	struct omap_vdd_dep_info *dep_vdd_info;
 };
 
-unsigned long omap_vp_get_curr_volt(struct voltagedomain *voltdm);
-void omap_vp_enable(struct voltagedomain *voltdm);
-void omap_vp_disable(struct voltagedomain *voltdm);
-int omap_voltage_scale_vdd(struct voltagedomain *voltdm,
-		unsigned long target_volt);
-void omap_voltage_reset(struct voltagedomain *voltdm);
 void omap_voltage_get_volttable(struct voltagedomain *voltdm,
 		struct omap_volt_data **volt_data);
 struct omap_volt_data *omap_voltage_get_voltdata(struct voltagedomain *voltdm,
 		unsigned long volt);
 unsigned long omap_voltage_get_nom_volt(struct voltagedomain *voltdm);
-struct dentry *omap_voltage_get_dbgdir(struct voltagedomain *voltdm);
-int __init omap_voltage_early_init(s16 prm_mod, s16 prm_irqst_mod,
-				   struct omap_vdd_info *omap_vdd_array[],
-				   u8 omap_vdd_count);
 #ifdef CONFIG_PM
 int omap_voltage_register_pmic(struct voltagedomain *voltdm,
-		struct omap_volt_pmic_info *pmic_info);
+			       struct omap_voltdm_pmic *pmic);
 void omap_change_voltscale_method(struct voltagedomain *voltdm,
 		int voltscale_method);
-/* API to get the voltagedomain pointer */
-struct voltagedomain *omap_voltage_domain_lookup(char *name);
-
 int omap_voltage_late_init(void);
 #else
 static inline int omap_voltage_register_pmic(struct voltagedomain *voltdm,
-		struct omap_volt_pmic_info *pmic_info)
+					     struct omap_voltdm_pmic *pmic)
 {
 	return -EINVAL;
 }
@@ -175,10 +247,20 @@ static inline int omap_voltage_late_init(void)
 {
 	return -EINVAL;
 }
-static inline struct voltagedomain *omap_voltage_domain_lookup(char *name)
-{
-	return ERR_PTR(-EINVAL);
-}
 #endif
 
+extern void omap2xxx_voltagedomains_init(void);
+extern void omap3xxx_voltagedomains_init(void);
+extern void omap44xx_voltagedomains_init(void);
+
+struct voltagedomain *voltdm_lookup(const char *name);
+void voltdm_init(struct voltagedomain **voltdm_list);
+int voltdm_add_pwrdm(struct voltagedomain *voltdm, struct powerdomain *pwrdm);
+int voltdm_for_each(int (*fn)(struct voltagedomain *voltdm, void *user),
+		    void *user);
+int voltdm_for_each_pwrdm(struct voltagedomain *voltdm,
+			  int (*fn)(struct voltagedomain *voltdm,
+				    struct powerdomain *pwrdm));
+int voltdm_scale(struct voltagedomain *voltdm, unsigned long target_volt);
+void voltdm_reset(struct voltagedomain *voltdm);
 #endif

@@ -144,6 +144,8 @@ extern int clockevents_program_event(struct clock_event_device *dev,
 
 extern void clockevents_handle_noop(struct clock_event_device *dev);
 
+extern int clockevents_reconfigure(struct clock_event_device *ce, u32 freq, u32 minsec);
+
 static inline void
 clockevents_calc_mult_shift(struct clock_event_device *ce, u32 freq, u32 minsec)
 {

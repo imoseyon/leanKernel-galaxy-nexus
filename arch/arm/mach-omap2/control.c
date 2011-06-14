@@ -32,6 +32,7 @@
 
 static void __iomem *omap2_ctrl_base;
 static void __iomem *omap4_ctrl_pad_base;
+static void __iomem *omap4_ctrl_wk_pad_base;
 
 #if defined(CONFIG_ARCH_OMAP3) && defined(CONFIG_PM)
 struct omap3_scratchpad {
@@ -146,6 +147,7 @@ static struct omap3_control_regs control_context;
 
 #define OMAP_CTRL_REGADDR(reg)		(omap2_ctrl_base + (reg))
 #define OMAP4_CTRL_PAD_REGADDR(reg)	(omap4_ctrl_pad_base + (reg))
+#define OMAP4_CTRL_WK_PAD_REGADDR(reg)	(omap4_ctrl_wk_pad_base + (reg))
 
 void __init omap2_set_globals_control(struct omap_globals *omap2_globals)
 {
@@ -160,6 +162,17 @@ void __init omap2_set_globals_control(struct omap_globals *omap2_globals)
 		omap4_ctrl_pad_base = ioremap(omap2_globals->ctrl_pad, SZ_4K);
 		WARN_ON(!omap4_ctrl_pad_base);
 	}
+
+	/*
+	 * static mapping, never released. omap4 Wakeup pad is seperate
+	 * from the core, hence need to be mapped individually.
+	 */
+	if (omap2_globals->ctrl_wk_pad) {
+		omap4_ctrl_wk_pad_base = ioremap(omap2_globals->ctrl_wk_pad,
+								SZ_4K);
+		WARN_ON(!omap4_ctrl_wk_pad_base);
+	}
+
 }
 
 void __iomem *omap_ctrl_base_get(void)
@@ -204,14 +217,64 @@ void omap_ctrl_writel(u32 val, u16 offset)
  * registers. This APIs will work only for OMAP4
  */
 
+u8 omap4_ctrl_pad_readb(u16 offset)
+{
+	return __raw_readb(OMAP4_CTRL_PAD_REGADDR(offset));
+}
+
+u16 omap4_ctrl_pad_readw(u16 offset)
+{
+	return __raw_readw(OMAP4_CTRL_PAD_REGADDR(offset));
+}
+
 u32 omap4_ctrl_pad_readl(u16 offset)
 {
 	return __raw_readl(OMAP4_CTRL_PAD_REGADDR(offset));
 }
 
+void omap4_ctrl_pad_writeb(u8 val, u16 offset)
+{
+	__raw_writeb(val, OMAP4_CTRL_PAD_REGADDR(offset));
+}
+
+void omap4_ctrl_pad_writew(u16 val, u16 offset)
+{
+	__raw_writew(val, OMAP4_CTRL_PAD_REGADDR(offset));
+}
+
 void omap4_ctrl_pad_writel(u32 val, u16 offset)
 {
 	__raw_writel(val, OMAP4_CTRL_PAD_REGADDR(offset));
+}
+
+u8 omap4_ctrl_wk_pad_readb(u16 offset)
+{
+	return __raw_readb(OMAP4_CTRL_WK_PAD_REGADDR(offset));
+}
+
+u16 omap4_ctrl_wk_pad_readw(u16 offset)
+{
+	return __raw_readw(OMAP4_CTRL_WK_PAD_REGADDR(offset));
+}
+
+u32 omap4_ctrl_wk_pad_readl(u16 offset)
+{
+	return __raw_readl(OMAP4_CTRL_WK_PAD_REGADDR(offset));
+}
+
+void omap4_ctrl_wk_pad_writeb(u8 val, u16 offset)
+{
+	__raw_writeb(val, OMAP4_CTRL_WK_PAD_REGADDR(offset));
+}
+
+void omap4_ctrl_wk_pad_writew(u16 val, u16 offset)
+{
+	__raw_writew(val, OMAP4_CTRL_WK_PAD_REGADDR(offset));
+}
+
+void omap4_ctrl_wk_pad_writel(u32 val, u16 offset)
+{
+	__raw_writel(val, OMAP4_CTRL_WK_PAD_REGADDR(offset));
 }
 
 #ifdef CONFIG_ARCH_OMAP3

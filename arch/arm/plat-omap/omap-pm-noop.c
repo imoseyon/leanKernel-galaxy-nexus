@@ -33,19 +33,19 @@ static u32 dummy_context_loss_counter;
  * Device-driver-originated constraints (via board-*.c files)
  */
 
-int omap_pm_set_max_mpu_wakeup_lat(struct device *dev, long t)
+int omap_pm_set_max_mpu_wakeup_lat(struct pm_qos_request_list **pmqos_req,
+			long t)
 {
-	if (!dev || t < -1) {
+	if (!pmqos_req || t < -1) {
 		WARN(1, "OMAP PM: %s: invalid parameter(s)", __func__);
 		return -EINVAL;
 	};
 
 	if (t == -1)
-		pr_debug("OMAP PM: remove max MPU wakeup latency constraint: "
-			 "dev %s\n", dev_name(dev));
+		pr_debug("OMAP PM: remove max MPU wakeup latency constraint\n");
 	else
-		pr_debug("OMAP PM: add max MPU wakeup latency constraint: "
-			 "dev %s, t = %ld usec\n", dev_name(dev), t);
+		pr_debug("OMAP PM: add max MPU wakeup latency constraint:"
+			"t = %ld usec\n", t);
 
 	/*
 	 * For current Linux, this needs to map the MPU to a
@@ -61,7 +61,7 @@ int omap_pm_set_max_mpu_wakeup_lat(struct device *dev, long t)
 	return 0;
 }
 
-int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, unsigned long r)
+int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, long r)
 {
 	if (!dev || (agent_id != OCP_INITIATOR_AGENT &&
 	    agent_id != OCP_TARGET_AGENT)) {
@@ -119,19 +119,18 @@ int omap_pm_set_max_dev_wakeup_lat(struct device *req_dev, struct device *dev,
 	return 0;
 }
 
-int omap_pm_set_max_sdma_lat(struct device *dev, long t)
+int omap_pm_set_max_sdma_lat(struct pm_qos_request_list **qos_request, long t)
 {
-	if (!dev || t < -1) {
+	if (!qos_request || t < -1) {
 		WARN(1, "OMAP PM: %s: invalid parameter(s)", __func__);
 		return -EINVAL;
 	};
 
 	if (t == -1)
-		pr_debug("OMAP PM: remove max DMA latency constraint: "
-			 "dev %s\n", dev_name(dev));
+		pr_debug("OMAP PM: remove max DMA latency constraint:\n");
 	else
-		pr_debug("OMAP PM: add max DMA latency constraint: "
-			 "dev %s, t = %ld usec\n", dev_name(dev), t);
+		pr_debug("OMAP PM: add max DMA latency constraint:"
+			"t = %ld usec\n", t);
 
 	/*
 	 * For current Linux PM QOS params, this code should scan the
@@ -311,7 +310,7 @@ void omap_pm_disable_off_mode(void)
 
 #ifdef CONFIG_ARCH_OMAP2PLUS
 
-u32 omap_pm_get_dev_context_loss_count(struct device *dev)
+int omap_pm_get_dev_context_loss_count(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	u32 count;
