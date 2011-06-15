@@ -68,6 +68,8 @@ typedef struct PVRSRV_DC_SWAPCHAIN_TAG
 	PVRSRV_DC_BUFFER					*psLastFlipBuffer;
 	IMG_UINT32							ui32MinSwapInterval;
 	IMG_UINT32							ui32MaxSwapInterval;
+	PVRSRV_KERNEL_SYNC_INFO				**ppsLastSyncInfos;
+	IMG_UINT32							ui32LastNumSyncInfos;
 	struct PVRSRV_DISPLAYCLASS_INFO_TAG *psDCInfo;
 	struct PVRSRV_DC_SWAPCHAIN_TAG		*psNext;
 } PVRSRV_DC_SWAPCHAIN;
@@ -1489,9 +1491,12 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 	PVRSRV_DC_SWAPCHAIN *psSwapChain;
 	PVRSRV_QUEUE_INFO *psQueue;
 	PVRSRV_COMMAND *psCommand;
-	PVRSRV_ERROR eError;
+	PVRSRV_ERROR eError = PVRSRV_OK;
 	SYS_DATA *psSysData;
 	IMG_UINT32 i;
+
+	PVRSRV_KERNEL_SYNC_INFO **ppsCompiledSyncInfos;
+	IMG_UINT32 ui32NumCompiledSyncInfos;
 
 	if(!hDeviceKM || !hSwapChain || !ppsMemInfos || !ppsSyncInfos || ui32NumMemSyncInfos < 1)
 	{
@@ -1514,15 +1519,61 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 	
 	psQueue = psSwapChain->psQueue;
 
-	
+	if(psSwapChain->ppsLastSyncInfos)
+	{
+		IMG_UINT32 ui32NumUniqueSyncInfos = psSwapChain->ui32LastNumSyncInfos;
+		IMG_UINT32 j;
+
+		for(j = 0; j < psSwapChain->ui32LastNumSyncInfos; j++)
+		{
+			for(i = 0; i < ui32NumMemSyncInfos; i++)
+			{
+				if(psSwapChain->ppsLastSyncInfos[j] == ppsSyncInfos[i])
+				{
+					psSwapChain->ppsLastSyncInfos[j] = NULL;
+					BUG_ON(ui32NumUniqueSyncInfos == 0);
+					ui32NumUniqueSyncInfos--;
+				}
+			}
+		}
+
+		ui32NumCompiledSyncInfos = ui32NumMemSyncInfos + ui32NumUniqueSyncInfos;
+
+		/* FIXME: This leaks */
+		if(OSAllocMem(PVRSRV_OS_PAGEABLE_HEAP,
+					  sizeof(PVRSRV_KERNEL_SYNC_INFO *) * ui32NumCompiledSyncInfos,
+					  (IMG_VOID **)&ppsCompiledSyncInfos, IMG_NULL,
+					  "Compiled syncinfos") != PVRSRV_OK)
+		{
+			PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBuffer2KM: Failed to allocate space for meminfo list"));
+			goto Exit;
+		}
+
+		memcpy(ppsCompiledSyncInfos, ppsSyncInfos, sizeof(PVRSRV_KERNEL_SYNC_INFO *) * ui32NumMemSyncInfos);
+		for(j = 0, i = ui32NumMemSyncInfos; j < psSwapChain->ui32LastNumSyncInfos; j++)
+		{
+			if(psSwapChain->ppsLastSyncInfos[j])
+			{
+				ppsCompiledSyncInfos[i] = psSwapChain->ppsLastSyncInfos[j];
+				i++;
+			}
+			BUG_ON(i > ui32NumCompiledSyncInfos);
+		}
+	}
+	else
+	{
+		ppsCompiledSyncInfos = ppsSyncInfos;
+		ui32NumCompiledSyncInfos = ui32NumMemSyncInfos;
+	}
+
 	eError = PVRSRVInsertCommandKM (psQueue,
 									&psCommand,
 									psDCInfo->ui32DeviceID,
 									DC_FLIP_COMMAND,
 									0,
 									IMG_NULL,
-									ui32NumMemSyncInfos,
-									ppsSyncInfos,
+									ui32NumCompiledSyncInfos,
+									ppsCompiledSyncInfos,
 									sizeof(DISPLAYCLASS_FLIP_COMMAND2));
 	if(eError != PVRSRV_OK)
 	{
@@ -1582,6 +1633,20 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBuffer2KM: Failed to schedule MISR"));
 		goto Exit;
 	}
+
+	/* FIXME: We don't free this properly yet */
+	if(OSAllocMem(PVRSRV_OS_PAGEABLE_HEAP,
+				  sizeof(PVRSRV_KERNEL_SYNC_INFO *) * ui32NumMemSyncInfos,
+				  (IMG_VOID **)&psSwapChain->ppsLastSyncInfos, IMG_NULL,
+				  "Last syncinfos") != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBuffer2KM: Failed to allocate space for meminfo list"));
+		goto Exit;
+	}
+
+	psSwapChain->ui32LastNumSyncInfos = ui32NumMemSyncInfos;
+	for(i = 0; i < ui32NumMemSyncInfos; i++)
+		psSwapChain->ppsLastSyncInfos[i] = ppsSyncInfos[i];
 
 Exit:
 	if(eError == PVRSRV_ERROR_CANNOT_GET_QUEUE_SPACE)

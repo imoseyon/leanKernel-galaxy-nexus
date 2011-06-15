@@ -767,81 +767,23 @@ void OMAPLFBSwapHandler(OMAPLFB_BUFFER *psBuffer)
 	psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete((IMG_HANDLE)psBuffer->hCmdComplete, IMG_TRUE);
 }
 
-static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
-                            IMG_UINT32  ui32DataSize,
-                            IMG_VOID   *pvData)
+#include <mach/tiler.h>
+#include <video/dsscomp.h>
+#include <plat/dsscomp.h>
+#include "../pvr/servicesint.h"
+#include "../pvr/services.h"
+#include "../pvr/mm.h"
+
+static IMG_BOOL ProcessFlipV1(IMG_HANDLE hCmdCookie,
+							  OMAPLFB_DEVINFO *psDevInfo,
+							  OMAPLFB_SWAPCHAIN *psSwapChain,
+							  OMAPLFB_BUFFER *psBuffer,
+							  unsigned long ulSwapInterval)
 {
-	DISPLAYCLASS_FLIP_COMMAND *psFlipCmd;
-	OMAPLFB_BUFFER *psBuffer = IMG_NULL;
-	OMAPLFB_SWAPCHAIN *psSwapChain;
-	OMAPLFB_DEVINFO *psDevInfo;
-
-	
-	if(!hCmdCookie || !pvData)
-	{
-		return IMG_FALSE;
-	}
-
-	
-	psFlipCmd = (DISPLAYCLASS_FLIP_COMMAND*)pvData;
-
-	if (psFlipCmd == IMG_NULL)
-	{
-		return IMG_FALSE;
-	}
-
-	
-	psDevInfo = (OMAPLFB_DEVINFO*)psFlipCmd->hExtDevice;
-	psSwapChain = (OMAPLFB_SWAPCHAIN*)psFlipCmd->hExtSwapChain;
-
-	if(psFlipCmd->hExtBuffer)
-	{
-		
-		psBuffer = (OMAPLFB_BUFFER*)psFlipCmd->hExtBuffer;
-	}
-	else
-	{
-		
-		typedef struct {
-			IMG_PVOID pvLinAddr;
-		} PVRSRV_KERNEL_MEM_INFO;
-
-		DISPLAYCLASS_FLIP_COMMAND2 *psFlipCmd2;
-		PVRSRV_KERNEL_MEM_INFO *psMemInfo;
-		unsigned long i;
-
-		
-		psFlipCmd2 = (DISPLAYCLASS_FLIP_COMMAND2 *)pvData;
-
-		
-		psMemInfo = (PVRSRV_KERNEL_MEM_INFO *)psFlipCmd2->ppvMemInfos[0];
-
-		
-		for(i = 0; i < psSwapChain->ulBufferCount; i++)
-		{
-			if(psMemInfo->pvLinAddr == psSwapChain->psBuffer[i].sCPUVAddr)
-			{
-				psBuffer = &psSwapChain->psBuffer[i];
-				break;
-			}
-		}
-
-		
-		if(!psBuffer)
-		{
-			printk(KERN_WARNING DRIVER_PREFIX
-				": %s: Device %u: Asked to post unknown buffer\n",
-				__FUNCTION__, psDevInfo->uiFBDevID);
-			psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete(hCmdCookie, IMG_TRUE);
-			return IMG_TRUE;
-		}
-	}
-
 	OMAPLFBCreateSwapChainLock(psDevInfo);
 
 	if (SwapChainHasChanged(psDevInfo, psSwapChain))
 	{
-		
 		DEBUG_PRINTK((KERN_WARNING DRIVER_PREFIX
 			": %s: Device %u (PVR Device ID %u): The swap chain has been destroyed\n",
 			__FUNCTION__, psDevInfo->uiFBDevID, psDevInfo->uiPVRDevID));
@@ -849,7 +791,7 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
 	else
 	{
 		psBuffer->hCmdComplete = (OMAPLFB_HANDLE)hCmdCookie;
-		psBuffer->ulSwapInterval = (unsigned long)psFlipCmd->ui32SwapInterval;
+		psBuffer->ulSwapInterval = ulSwapInterval;
 #if defined(NO_HARDWARE)
 		psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete((IMG_HANDLE)psBuffer->hCmdComplete, IMG_FALSE);
 #else
@@ -862,6 +804,89 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
 	return IMG_TRUE;
 }
 
+static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
+                            IMG_UINT32  ui32DataSize,
+                            IMG_VOID   *pvData)
+{
+	DISPLAYCLASS_FLIP_COMMAND2 *psFlipCmd2;
+	DISPLAYCLASS_FLIP_COMMAND *psFlipCmd;
+	OMAPLFB_DEVINFO *psDevInfo;
+
+	struct dsscomp_setup_mgr_data *dss_data;
+	struct tiler_pa_info *tiler_pas[5];
+	unsigned long i;
+
+	if(!hCmdCookie || !pvData)
+	{
+		return IMG_FALSE;
+	}
+
+	psFlipCmd = (DISPLAYCLASS_FLIP_COMMAND*)pvData;
+
+	if (psFlipCmd == IMG_NULL)
+	{
+		return IMG_FALSE;
+	}
+
+	psDevInfo = (OMAPLFB_DEVINFO*)psFlipCmd->hExtDevice;
+
+	if(psFlipCmd->hExtBuffer)
+	{
+		return ProcessFlipV1(hCmdCookie,
+							 psDevInfo,
+							 psFlipCmd->hExtSwapChain,
+							 psFlipCmd->hExtBuffer,
+							 psFlipCmd->ui32SwapInterval);
+	}
+
+	psFlipCmd2 = (DISPLAYCLASS_FLIP_COMMAND2 *)pvData;
+	dss_data = psFlipCmd2->pvPrivData;
+
+	for(i = 0; i < psFlipCmd2->ui32NumMemInfos && i < ARRAY_SIZE(tiler_pas); i++)
+	{
+		PVRSRV_KERNEL_MEM_INFO *psMemInfo;
+		struct tiler_pa_info *tiler_info;
+		LinuxMemArea *psLinuxMemArea;
+		IMG_UINT32 num_pages;
+		int j;
+
+		psMemInfo = (PVRSRV_KERNEL_MEM_INFO *)psFlipCmd2->ppvMemInfos[i];
+		psLinuxMemArea = psMemInfo->sMemBlk.hOSMemHandle;
+		num_pages = (psLinuxMemArea->ui32ByteSize + PAGE_SIZE - 1) >> PAGE_SHIFT;
+
+		tiler_info = kzalloc(sizeof(*tiler_info), GFP_KERNEL);
+		tiler_pas[i] = NULL;
+		if (!tiler_info) {
+			continue;
+		}
+		tiler_info->mem = kzalloc(sizeof(*tiler_info->mem) * num_pages, GFP_KERNEL);
+		if (!tiler_info->mem) {
+			kfree(tiler_info);
+			continue;
+		}
+
+		tiler_info->num_pg = num_pages;
+		tiler_info->memtype = TILER_MEM_USING;
+		for (j = 0; j < num_pages; j++)
+			tiler_info->mem[j] = (u32) LinuxMemAreaToCpuPAddr(psLinuxMemArea, j << PAGE_SHIFT).uiAddr;
+		/* need base address for in-page offset */
+		dss_data->ovls[i].ba = (u32) psMemInfo->pvLinAddrKM;
+		tiler_pas[i] = tiler_info;
+	}
+
+	BUG_ON(dss_data->num_ovls == 0);
+
+	dsscomp_gralloc_queue(dss_data, tiler_pas,
+						  psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete,
+						  (void *) hCmdCookie);
+
+	for(i = 0; i < psFlipCmd2->ui32NumMemInfos && i < ARRAY_SIZE(tiler_pas); i++)
+	{
+		tiler_pa_free(tiler_pas[i]);
+	}
+
+	return IMG_TRUE;
+}
 
 static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 {
