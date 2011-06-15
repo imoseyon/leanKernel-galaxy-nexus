@@ -536,7 +536,7 @@ static int mms_ts_finish_config(struct mms_ts_info *info)
 	dev_info(&client->dev,
 		 "Melfas MMS-series touch controller initialized\n");
 
-	complete(&info->init_done);
+	complete_all(&info->init_done);
 	return 0;
 
 err_req_irq:
