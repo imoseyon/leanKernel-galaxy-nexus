@@ -1432,6 +1432,10 @@ tiler_blk_handle tiler_alloc_block_area(enum tiler_fmt fmt, u32 width,
 	struct mem_info *mi;
 	*ssptr = 0;
 
+	/* if tiler is not initialized fail gracefully */
+	if (!tilerdev_class)
+		return NULL;
+
 	mi = alloc_block_area(fmt, width, height, 0, 0, __get_pi(0, true));
 
 	if (IS_ERR_OR_NULL(mi))
