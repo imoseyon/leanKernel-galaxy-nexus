@@ -144,7 +144,6 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 		input_mt_report_slot_state(info->input_dev,
 					   MT_TOOL_FINGER, true);
 		input_report_abs(info->input_dev, ABS_MT_TOUCH_MAJOR, tmp[4]);
-		input_report_abs(info->input_dev, ABS_MT_WIDTH_MAJOR, tmp[4]);
 		input_report_abs(info->input_dev, ABS_MT_PRESSURE, tmp[5]);
 		input_report_abs(info->input_dev, ABS_MT_POSITION_X, x);
 		input_report_abs(info->input_dev, ABS_MT_POSITION_Y, y);
@@ -689,7 +688,6 @@ static int __devinit mms_ts_probe(struct i2c_client *client,
 	__set_bit(EV_ABS, input_dev->evbit);
 	__set_bit(INPUT_PROP_DIRECT, input_dev->propbit);
 	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, 0, MAX_WIDTH, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_WIDTH_MAJOR, 0, MAX_WIDTH, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_PRESSURE, 0, MAX_PRESSURE, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_X,
 			     0, info->max_x, 0, 0);
