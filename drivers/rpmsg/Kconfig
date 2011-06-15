@@ -19,6 +19,7 @@ config RPMSG_OMX
 	tristate "rpmsg OMX driver"
 	default y
 	depends on RPMSG
+	depends on TI_TILER
 	---help---
 	  An rpmsg driver that exposes OMX API to user space, in order to
 	  allow multimedia applications to offload OMX processing to
