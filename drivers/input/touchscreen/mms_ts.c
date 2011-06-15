@@ -34,6 +34,8 @@
 #include <asm/unaligned.h>
 
 #define MAX_FINGERS		10
+#define MAX_WIDTH		30
+#define MAX_PRESSURE		255
 
 /* Registers */
 #define MMS_MODE_CONTROL	0x01
@@ -45,14 +47,12 @@
 #define MMS_INPUT_EVENT0	0x10
 #define 	FINGER_EVENT_SZ	6
 
-#define MMS_VERSION		0xF0
-#define 	MMS_VERSION_SZ	4
-#define MMS_TSP_REVISION	0x0
-#define MMS_HW_REVISION		0x1
-#define MMS_COMPAT_GROUP	0x2
-#define MMS_FW_VERSION		0x3
+#define MMS_TSP_REVISION	0xF0
+#define MMS_HW_REVISION		0xF1
+#define MMS_COMPAT_GROUP	0xF2
+#define MMS_FW_VERSION		0xF3
 
-#define REQUIRED_FW_VERSION	0x08
+#define REQUIRED_FW_VERSION	0x10
 
 enum {
 	ISP_MODE_FLASH_ERASE	= 0x59F3,
@@ -97,34 +97,29 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 	u8 buf[MAX_FINGERS*FINGER_EVENT_SZ] = { 0 };
 	int ret;
 	int i;
-	int num_fingers;
-	int x = 0;
-	int y = 0;
 	int sz;
 
-	num_fingers = i2c_smbus_read_byte_data(client, MMS_INPUT_EVENT_PKT_SZ);
-	if (num_fingers < 0) {
-		dev_err(&client->dev, "%s fingers=%d\n", __func__, num_fingers);
+	sz = i2c_smbus_read_byte_data(client, MMS_INPUT_EVENT_PKT_SZ);
+	if (sz < 0) {
+		dev_err(&client->dev, "%s bytes=%d\n", __func__, sz);
 		goto out;
 	}
-	dev_dbg(&client->dev, "fingers: %d\n", num_fingers);
-	WARN_ON(num_fingers > MAX_FINGERS);
-	if (num_fingers == 0)
+	dev_dbg(&client->dev, "bytes available: %d\n", sz);
+	BUG_ON(sz > MAX_FINGERS*FINGER_EVENT_SZ);
+	if (sz == 0)
 		goto out;
 
-	sz = num_fingers * FINGER_EVENT_SZ;
 	ret = i2c_smbus_read_i2c_block_data(client, MMS_INPUT_EVENT0, sz, buf);
 
 #if defined(VERBOSE_DEBUG)
 	print_hex_dump(KERN_DEBUG, "mms_ts raw: ",
 		       DUMP_PREFIX_OFFSET, 32, 1, buf, sz, false);
 #endif
-	for (i = 0; i < num_fingers; i++) {
-		u8 *tmp = &buf[i*6];
+	for (i = 0; i < sz; i += FINGER_EVENT_SZ) {
+		u8 *tmp = &buf[i];
 		int id = tmp[0] & 0xf;
-
-		x = tmp[2] | ((tmp[1] & 0xf) << 8);
-		y = tmp[3] | (((tmp[1] >> 4) & 0xf) << 8);
+		int x = tmp[2] | ((tmp[1] & 0xf) << 8);
+		int y = tmp[3] | (((tmp[1] >> 4) & 0xf) << 8);
 
 		if (info->invert_x) {
 			x = info->max_x - x;
@@ -454,7 +449,7 @@ static int fw_download(struct mms_ts_info *info, const u8 *data, size_t len)
 	hw_reboot_bootloader(info);
 
 	val = flash_readl(info, ISP_IC_INFO_ADDR);
-	dev_info(&client->dev, "IC info: 0x%02x (%x)\n", val >> 24, val);
+	dev_info(&client->dev, "IC info: 0x%02x (%x)\n", val & 0xff, val);
 
 	dev_info(&client->dev, "fw erase...\n");
 	flash_erase(info);
@@ -465,7 +460,7 @@ static int fw_download(struct mms_ts_info *info, const u8 *data, size_t len)
 
 	dev_info(&client->dev, "fw write...\n");
 	/* XXX: what does this do?! */
-	flash_writel(info, ISP_IC_INFO_ADDR, 0xffffff00 | ((val >> 24) & 0xff));
+	flash_writel(info, ISP_IC_INFO_ADDR, 0xffffff00 | (val & 0xff));
 	usleep_range(1000, 1500);
 	fw_write_image(info, data, len);
 	usleep_range(1000, 1500);
@@ -489,21 +484,15 @@ err:
 
 static int get_fw_version(struct mms_ts_info *info)
 {
-	u8 buf[MMS_VERSION_SZ];
 	int ret;
 	int retries = 3;
 
-	memset(buf, 0, sizeof(buf));
-
 	/* this seems to fail sometimes after a reset.. retry a few times */
 	do {
-		ret = i2c_smbus_read_i2c_block_data(info->client, MMS_VERSION,
-						    MMS_VERSION_SZ, buf);
+		ret = i2c_smbus_read_byte_data(info->client, MMS_FW_VERSION);
 	} while (ret < 0 && retries-- > 0);
 
-	if (ret < 0)
-		return ret;
-	return buf[MMS_FW_VERSION];
+	return ret;
 }
 
 static int mms_ts_input_open(struct input_dev *dev)
@@ -699,9 +688,9 @@ static int __devinit mms_ts_probe(struct i2c_client *client,
 
 	__set_bit(EV_ABS, input_dev->evbit);
 	__set_bit(INPUT_PROP_DIRECT, input_dev->propbit);
-	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, 0, 30, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_WIDTH_MAJOR, 0, 30, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_PRESSURE, 0, 0xff, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, 0, MAX_WIDTH, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_WIDTH_MAJOR, 0, MAX_WIDTH, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_PRESSURE, 0, MAX_PRESSURE, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_X,
 			     0, info->max_x, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_Y,
