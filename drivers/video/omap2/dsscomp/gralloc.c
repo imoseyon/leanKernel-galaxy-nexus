@@ -20,6 +20,8 @@ static DEFINE_MUTEX(mtx);
 static struct semaphore free_slots_sem =
 				__SEMAPHORE_INITIALIZER(free_slots_sem, 0);
 
+static u32 ovl_set_mask;
+
 struct gralloc_cb_work {
 	struct work_struct work;
 	struct list_head slots;
@@ -119,6 +121,7 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 	struct omap_dss_device *dev;
 	struct omap_overlay_manager *mgr;
 	dsscomp_t comp;
+	u32 ovl_new_set_mask = 0;
 
 	/* reserve tiler areas if not already done so */
 	dsscomp_gralloc_init(cdev);
@@ -172,6 +175,9 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 			mutex_unlock(&mtx);
 		}
 
+		if (oi->cfg.enabled)
+			ovl_new_set_mask |= 1 << oi->cfg.ix;
+
 		r = dsscomp_set_ovl(comp, oi);
 		if (r)
 			dev_err(DEV(cdev), "failed to set ovl%d (%d)\n",
@@ -191,12 +197,25 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 	if (r) {
 		dsscomp_drop(comp);
 	} else {
+		/* disable all overlays not specifically set from prior frame */
+		u32 mask = ovl_set_mask & ~ovl_new_set_mask;
+		while (mask) {
+			struct dss2_ovl_info oi = {
+				.cfg.zonly = true,
+				.cfg.enabled = false,
+				.cfg.ix = fls(mask) - 1,
+			};
+			dsscomp_set_ovl(comp, &oi);
+			mask &= ~(1 << oi.cfg.ix);
+		}
 		comp->extra_cb = dsscomp_gralloc_cb;
 		comp->gralloc_cb_fn = cb_fn;
 		comp->gralloc_cb_arg = cb_arg;
 		r = dsscomp_delayed_apply(comp);
 		if (r)
 			dev_err(DEV(cdev), "failed to apply comp (%d)\n", r);
+		else
+			ovl_set_mask = ovl_new_set_mask;
 	}
 
 	/* complete composition if failed to queue */
