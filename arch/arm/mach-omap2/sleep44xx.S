@@ -17,7 +17,6 @@
 
 #include <plat/omap44xx.h>
 #include <mach/omap4-common.h>
-#include <asm/hardware/cache-l2x0.h>
 
 #include "omap4-sar-layout.h"
 
@@ -30,7 +29,8 @@
 #define CACHE_DISABLE_MASK			0xffffe7fb
 #define TABLE_ADDRESS_OFFSET			0x04
 #define CR_VALUE_OFFSET				0x08
-#define SCU_CLEAR_STATE				0xFCFC
+#define SCU_POWER_SECURE_INDEX			0x108
+
 /*
  * =============================
  * == CPU suspend entry point ==
@@ -135,12 +135,30 @@ ENTRY(omap4_cpu_suspend)
 	 */
 	bl	omap4_get_sar_ram_base
 	mov	r8, r0
+	ldr	r9, [r8, #OMAP_TYPE_OFFSET]
+	cmp	r9, #0x1			@ Check for HS device
+	bne	scu_gp_set
+	mrc	p15, 0, r0, c0, c0, 5		@ Read MPIDR
+	ands	r0, r0, #0x0f
+	ldreq	r0, [r8, #SCU_OFFSET0]
+	ldreq	r1, [r8, #L1_OFFSET0]
+	ldrne	r0, [r8, #SCU_OFFSET1]
+	ldrne	r1, [r8, #L1_OFFSET0]
+	stmfd   r13!, {r4-r12, r14}
+	ldr	r12, =SCU_POWER_SECURE_INDEX
+	dsb
+	smc	#0
+	dsb
+	ldmfd   r13!, {r4-r12, r14}
+	b	skip_scu_gp_set
+scu_gp_set:
 	mrc	p15, 0, r0, c0, c0, 5		@ Read MPIDR
 	ands	r0, r0, #0x0f
 	ldreq	r1, [r8, #SCU_OFFSET0]
 	ldrne	r1, [r8, #SCU_OFFSET1]
 	bl	omap4_get_scu_base
 	bl     scu_power_mode
+skip_scu_gp_set:
 	isb
 	dsb
 
@@ -161,6 +179,13 @@ l2x_clean_inv:
 	ldr	r0, [r8, #L2X0_OFFSET]
 	cmp	r0, #3
 	bne	do_WFI
+#ifdef CONFIG_PL310_ERRATA_727915
+	mov	r0, #0x03
+	mov	r12, #0x100
+	dsb
+	smc	#0
+	dsb
+#endif
 	bl	omap4_get_l2cache_base
 	mov	r2, r0
 	mov	r0, #0xff
@@ -169,7 +194,21 @@ wait:
 	ldr	r0, [r2, #L2X0_CLEAN_WAY]
 	ands	r0, r0, #0xff
 	bne	wait
+#ifdef CONFIG_PL310_ERRATA_727915
+	mov	r0, #0x00
+	mov	r12, #0x100
+	dsb
+	smc	#0
+	dsb
+#endif
+#endif
+
+do_WFI:
+#ifdef CONFIG_CACHE_L2X0
+	/* Issue cache sync before WFI to drain L2X0 buffer */
 l2x_sync:
+	bl	omap4_get_l2cache_base
+	mov	r2, r0
 	mov	r0, #0x0
 	str	r0, [r2, #L2X0_CACHE_SYNC]
 sync:
@@ -177,27 +216,6 @@ sync:
 	ands	r0, r0, #0x1
 	bne	sync
 #endif
-
-do_WFI:
-	bl	omap4_get_sar_ram_base
-	mov	r4, r0
-	ldr     r9, [r4, #OMAP_TYPE_OFFSET]
-	cmp	r9, #0x1		@ Check for HS device
-	bne	scu_gp_set
-	orr	r4, r4, #SCU_OFFSET0
-	ldr     r0, [r4, #0x04]
-	ldr     r1, [r4, #0x08]
-	stmfd   r13!, {r4-r12, r14}
-	ldr	r12, =0x108		@ SCU power state secure API
-	smc	#0
-	ldmfd   r13!, {r4-r12, r14}
-	b	skip_gp_set
-scu_gp_set:
-	ldr     r3, [r4, #SCU_OFFSET0]
-	bl	omap4_get_sar_ram_base		@ Take CPUx out of coherency
-	mov	r2, r0
-	str	r3, [r2, #0x08]
-skip_gp_set:
 	/*
 	 * Execute an ISB instruction to ensure that all of the
 	 * CP15 register changes have been committed.
@@ -215,25 +233,27 @@ skip_gp_set:
 	/*
 	 * Execute a WFI instruction and wait until the
 	 * STANDBYWFI output is asserted to indicate that the
-	 * CPU is in idle and low power state.
+	 * CPU is in idle and low power state. CPU can specualatively
+	 * prefetch the instructions so add NOPs after WFI. Sixteen
+	 * NOPs as per Cortex-A9 pipeline.
 	 */
 	wfi					@ Wait For Interrupt
-
-	cmp	r9, #0x1
-	bne	scu_gp_clear
-	mov     r0, #0x00
-	mov     r1, #0xff
-	stmfd   r13!, {r4-r12, r14}
-	ldr	r12, =0x108		@ SCU power state secure API
-	smc	#0
-	ldmfd   r13!, {r4-r12, r14}
-	b	skip_gp
-scu_gp_clear:
-	ldr	r3, =SCU_CLEAR_STATE
-	str	r3, [r2, #0x08]
-skip_gp:
-	dsb				@ Issue a write memory barrier
-
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
 
 	/*
 	 * CPU is here when it failed to enter OFF/DORMANT or
@@ -251,9 +271,25 @@ skip_gp:
 	 * In non-coherent mode CPU can lock-up and lead to
 	 * system deadlock.
 	 */
+	bl	omap4_get_sar_ram_base
+	mov	r8, r0
+	ldr	r9, [r8, #OMAP_TYPE_OFFSET]
+	cmp	r9, #0x1			@ Check for HS device
+	bne	scu_gp_clear
+	mov	r0, #SCU_PM_NORMAL
+	mov	r1, #0x00
+	stmfd   r13!, {r4-r12, r14}
+	ldr	r12, =SCU_POWER_SECURE_INDEX
+	dsb
+	smc	#0
+	dsb
+	ldmfd   r13!, {r4-r12, r14}
+	b	skip_scu_gp_clear
+scu_gp_clear:
 	bl	omap4_get_scu_base
 	mov	r1, #SCU_PM_NORMAL
 	bl     scu_power_mode
+skip_scu_gp_clear:
 	isb
 	dsb
 
@@ -292,10 +328,12 @@ ENTRY(omap4_cpu_resume)
 	ldr	r12, =0x109			@ Setup L2 AUXCTRL value
 	dsb
 	smc	#0
+	dsb
 	mov	r0, #0x1
 	ldr	r12, =0x102			@ Enable L2 Cache controller
 	dsb
 	smc	#0
+	dsb
 skip_l2en:
 #endif
 
@@ -334,7 +372,7 @@ skip_l2en:
 	ldmia	r3!,{r4-r7}
 	mcr	p15, 0, r4, c13, c0, 1		@ Context ID
 	mcr	p15, 0, r5, c13, c0, 2		@ User r/w thread ID
-	mrc	p15, 0, r6, c12, c0, 0		@ Secure or NS VBAR
+	mcr	p15, 0, r6, c12, c0, 0		@ Secure or NS VBAR
 	msr	cpsr, r7			@ store cpsr
 
 	/*
@@ -373,7 +411,10 @@ wait_l2:
 	/* Storing previous entry of location being modified */
 	ldr     r5, =OMAP44XX_SAR_RAM_BASE
 	ldr	r4, [r2]
-	str	r4, [r5, #MMU_OFFSET]		@ Modify the table entry
+	mrc	p15, 0, r0, c0, c0, 5		@ Read MPIDR
+	ands	r0, r0, #0x0f
+	streq	r4, [r5, #MMU_OFFSET0]		@ Modify the table entry
+	strne	r4, [r5, #MMU_OFFSET1]
 	str	r1, [r2]
 
 	/*
@@ -381,7 +422,10 @@ wait_l2:
 	 * It will be restored after enabling MMU
 	 */
 	ldr     r5, =OMAP44XX_SAR_RAM_BASE
-	orr	r5, r5, #MMU_OFFSET
+	mrc	p15, 0, r0, c0, c0, 5		@ Read MPIDR
+	ands	r0, r0, #0x0f
+	orreq	r5, r5, #MMU_OFFSET0
+	orrne	r5, r5, #MMU_OFFSET1
 	str	r2, [r5, #TABLE_ADDRESS_OFFSET]
 	mov	r0, #0
 	mcr	p15, 0, r0, c7, c5, 4		@ Flush prefetch buffer
@@ -412,8 +456,11 @@ mmu_on_label:
 	 */
 	bl	omap4_get_sar_ram_base
 	mov	r8, r0
-	orr	r8, r8, #MMU_OFFSET		@ Get address of entry that..
-	ldr	r2, [r8, #TABLE_ADDRESS_OFFSET]	@ was modified
+	mrc	p15, 0, r0, c0, c0, 5		@ Read MPIDR
+	ands	r0, r0, #0x0f
+	orreq	r8, r8, #MMU_OFFSET0		@ Get address of entry that..
+	orrne	r8, r8, #MMU_OFFSET1		@ was modified
+	ldr	r2, [r8, #TABLE_ADDRESS_OFFSET]
 	ldr	r3, =local_va2pa_offet
 	add	r2, r2, r3
 	ldr	r0, [r8]			@ Get the previous value..
