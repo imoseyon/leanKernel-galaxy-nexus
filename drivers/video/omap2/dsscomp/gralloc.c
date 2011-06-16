@@ -194,7 +194,7 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 		comp->extra_cb = dsscomp_gralloc_cb;
 		comp->gralloc_cb_fn = cb_fn;
 		comp->gralloc_cb_arg = cb_arg;
-		r = dsscomp_apply(comp);
+		r = dsscomp_delayed_apply(comp);
 		if (r)
 			dev_err(DEV(cdev), "failed to apply comp (%d)\n", r);
 	}

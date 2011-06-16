@@ -57,6 +57,7 @@ static struct {
 	u32 ovl_qmask;		/* overlays queued to this display */
 } mgrq[MAX_MANAGERS];
 
+static struct workqueue_struct *wkq;	/* work queue */
 static struct dsscomp_dev *cdev;
 
 /*
@@ -91,6 +92,11 @@ int dsscomp_queue_init(struct dsscomp_dev *cdev_)
 				mgrq[i].ovl_mask |= 1 << j;
 		}
 	}
+
+	wkq = create_workqueue("dsscomp");
+	if (!wkq)
+		return -EFAULT;
+
 	return 0;
 }
 
@@ -606,6 +612,8 @@ int dsscomp_apply(dsscomp_t comp)
 	r = r ? : set_dss_mgr_info(&d->mgr);
 	if (r) {
 		dev_err(DEV(cdev), "[%p] set failed %d\n", comp, r);
+		/* FIXME: this only needs to be called for delayed apply */
+		dsscomp_mgr_callback(comp, -1, DSS_COMPLETION_ECLIPSED_SET);
 		dsscomp_drop(comp);
 		change = true;
 		goto done;
@@ -669,6 +677,32 @@ done:
 	return r;
 }
 EXPORT_SYMBOL(dsscomp_apply);
+
+struct dsscomp_apply_work {
+	struct work_struct work;
+	dsscomp_t comp;
+};
+
+static void dsscomp_do_apply(struct work_struct *work)
+{
+	struct dsscomp_apply_work *wk = container_of(work, typeof(*wk), work);
+	/* complete compositions that failed to apply */
+	if (dsscomp_apply(wk->comp))
+		dsscomp_mgr_callback(wk->comp, -1, DSS_COMPLETION_ECLIPSED_SET);
+	kfree(wk);
+}
+
+int dsscomp_delayed_apply(dsscomp_t comp)
+{
+	/* don't block in case we are called from interrupt context */
+	struct dsscomp_apply_work *wk = kzalloc(sizeof(*wk), GFP_NOWAIT);
+	if (!wk)
+		return -ENOMEM;
+	wk->comp = comp;
+	INIT_WORK(&wk->work, dsscomp_do_apply);
+	return queue_work(wkq, &wk->work) ? 0 : -EBUSY;
+}
+EXPORT_SYMBOL(dsscomp_delayed_apply);
 
 /*
  * ===========================================================================
@@ -745,6 +779,7 @@ void dsscomp_queue_exit(void)
 			list_for_each_entry_safe(c, c2, &mgrq[i].q_ci, q)
 				dsscomp_drop(c);
 		}
+		destroy_workqueue(wkq);
 		cdev = NULL;
 	}
 }

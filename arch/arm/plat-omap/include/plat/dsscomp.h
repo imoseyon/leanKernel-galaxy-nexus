@@ -15,6 +15,7 @@ int dsscomp_get_mgr(dsscomp_t comp, struct dss2_mgr_info *mgr);
 int dsscomp_setup(dsscomp_t comp, enum dsscomp_setup_mode mode,
 			struct dss2_rect_t win);
 int dsscomp_apply(dsscomp_t comp);
+int dsscomp_delayed_apply(dsscomp_t comp);
 int dsscomp_wait(dsscomp_t comp, enum dsscomp_wait_phase phase, int timeout);
 void dsscomp_drop(dsscomp_t c);
 
