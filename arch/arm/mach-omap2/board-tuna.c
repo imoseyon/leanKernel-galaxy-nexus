@@ -46,6 +46,7 @@
 #include "board-tuna.h"
 
 #define GPIO_AUD_PWRON		127
+#define GPIO_AUD_PWRON_TORO_V1	20
 
 #define GPIO_NFC_IRQ 17
 #define GPIO_NFC_FIRMWARE 172
@@ -297,22 +298,12 @@ static struct regulator_init_data tuna_clk32kg = {
 	},
 };
 
-static void omap4_audio_conf(void)
-{
-	/* twl6040 naudint */
-	omap_mux_init_signal("sys_nirq2.sys_nirq2", \
-		OMAP_PIN_INPUT_PULLUP);
-	/* aud_pwron */
-	omap_mux_init_gpio(GPIO_AUD_PWRON, OMAP_PIN_OUTPUT);
-}
-
 static struct twl4030_codec_audio_data twl6040_audio = {
 	/* Add audio only data */
 };
 
 static struct twl4030_codec_data twl6040_codec = {
 	.audio		= &twl6040_audio,
-	.audpwron_gpio	= GPIO_AUD_PWRON,
 	.naudint_irq	= OMAP44XX_IRQ_SYS_2N,
 	.irq_base	= TWL6040_CODEC_IRQ_BASE,
 };
@@ -336,6 +327,24 @@ static struct twl4030_platform_data tuna_twldata = {
 	/* children */
 	.codec		= &twl6040_codec,
 };
+
+static void tuna_audio_init(void)
+{
+	unsigned int aud_pwron;
+
+	/* twl6040 naudint */
+	omap_mux_init_signal("sys_nirq2.sys_nirq2", \
+		OMAP_PIN_INPUT_PULLUP);
+
+	/* aud_pwron */
+	if (omap4_tuna_get_type() == TUNA_TYPE_TORO &&
+	    omap4_tuna_get_revision() >= 1)
+		aud_pwron = GPIO_AUD_PWRON_TORO_V1;
+	else
+		aud_pwron = GPIO_AUD_PWRON;
+	omap_mux_init_gpio(aud_pwron, OMAP_PIN_OUTPUT);
+	twl6040_codec.audpwron_gpio = aud_pwron;
+}
 
 static struct i2c_board_info __initdata tuna_i2c1_boardinfo[] = {
 	{
@@ -519,8 +528,8 @@ static void __init tuna_init(void)
 	}
 
 	tuna_wlan_init();
+	tuna_audio_init();
 	tuna_i2c_init();
-	omap4_audio_conf();
 	platform_add_devices(tuna_devices, ARRAY_SIZE(tuna_devices));
 	board_serial_init();
 	omap2_hsmmc_init(mmc);
