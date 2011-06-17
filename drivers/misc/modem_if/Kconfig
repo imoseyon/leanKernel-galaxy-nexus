@@ -1,0 +1,40 @@
+menuconfig SEC_MODEM
+	bool "Modem Interface Driver"
+        default n
+	---help---
+	  Samsung Modem Interface Driver.
+
+config UMTS_LINK_MIPI
+	bool "modem driver link device MIPI-HSI"
+	depends on SEC_MODEM
+	default n
+
+config UMTS_LINK_HSIC
+	bool "modem driver link device HSIC"
+	depends on SEC_MODEM
+	default n
+
+config UMTS_MODEM_XMM6260
+	bool "modem chip : IMC xmm6260"
+	depends on SEC_MODEM
+	default n
+
+config CDMA_LINK_DPRAM
+	bool "modem driver link device DPRAM"
+	depends on SEC_MODEM
+	default n
+
+config CDMA_MODEM_CBP71
+	bool "modem chip : cbp71"
+	depends on SEC_MODEM
+	default n
+
+config LTE_LINK_USB
+	bool "modem driver link device US"
+	depends on SEC_MODEM
+	default n
+
+config LTE_MODEM_CMC221
+	bool "modem chip : cmc221"
+	depends on SEC_MODEM
+	default n
