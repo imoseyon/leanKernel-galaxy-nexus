@@ -602,7 +602,7 @@ int dsscomp_apply(dsscomp_t comp)
 		if (!oi->cfg.enabled)
 			dmask |= 1 << oi->cfg.ix;
 
-		if (r)
+		if (r && !comp->must_apply)
 			continue;
 
 		dump_ovl_info(cdev, oi);
@@ -616,7 +616,7 @@ int dsscomp_apply(dsscomp_t comp)
 		/* set overlays' manager & info */
 		if (ovl->info.enabled && ovl->manager != mgr) {
 			r = -EBUSY;
-			continue;
+			goto skip_ovl_set;
 		}
 		if (ovl->manager != mgr) {
 			/*
@@ -628,10 +628,18 @@ int dsscomp_apply(dsscomp_t comp)
 			ovl->manager = NULL;
 			r = ovl->set_manager(ovl, mgr);
 			if (r)
-				continue;
+				goto skip_ovl_set;
 		}
 
 		r = set_dss_ovl_info(oi);
+skip_ovl_set:
+		if (r && comp->must_apply) {
+			dev_err(DEV(cdev), "[%p] set ovl%d failed %d", comp,
+								oi->cfg.ix, r);
+			oi->cfg.enabled = false;
+			dmask |= 1 << oi->cfg.ix;
+			set_dss_ovl_info(oi);
+		}
 	}
 
 	/*
@@ -639,8 +647,10 @@ int dsscomp_apply(dsscomp_t comp)
 	 * so if it succeeds, we will use the callback to complete the
 	 * composition.  Otherwise, we can skip the composition now.
 	 */
-	r = r ? : set_dss_mgr_info(&d->mgr);
-	if (r) {
+	if (!r || comp->must_apply)
+		r = set_dss_mgr_info(&d->mgr);
+
+	if (r && !comp->must_apply) {
 		dev_err(DEV(cdev), "[%p] set failed %d\n", comp, r);
 		/* extra callbacks in case of delayed apply */
 		if (comp->extra_cb)
@@ -651,6 +661,9 @@ int dsscomp_apply(dsscomp_t comp)
 		change = true;
 		goto done;
 	} else {
+		if (r)
+			dev_warn(DEV(cdev), "[%p] ignoring set failure %d\n",
+								comp, r);
 		/* override manager's callback to avoid eclipsed cb */
 		comp->blank = dmask == comp->ovl_mask;
 		comp->ovl_dmask = dmask;
@@ -683,6 +696,8 @@ int dsscomp_apply(dsscomp_t comp)
 
 		/* sync to prevent frame loss */
 		r = drv->sync(dssdev) ? : mgr->apply(mgr);
+		if (r)
+			dev_err(DEV(cdev), "failed to apply %d", r);
 
 		if (!r && (d->mode & DSSCOMP_SETUP_MODE_DISPLAY)) {
 #if 0
@@ -700,7 +715,12 @@ int dsscomp_apply(dsscomp_t comp)
 	} else {
 		/* wait for sync to avoid tear */
 		r = mgr->wait_for_vsync(mgr) ? : mgr->apply(mgr);
+
+		if (r)
+			dev_err(DEV(cdev), "failed to apply %d", r);
+
 	}
+
 done:
 	if (change)
 		refresh_masks(display_ix);

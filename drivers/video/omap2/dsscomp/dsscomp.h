@@ -87,6 +87,7 @@ struct dsscomp_data {
 	void (*extra_cb)(dsscomp_t comp, int status);
 	void (*gralloc_cb_fn)(void *, int);
 	void *gralloc_cb_arg;
+	bool must_apply;	/* whether composition must be applied */
 };
 
 /*

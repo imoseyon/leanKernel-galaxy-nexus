@@ -128,11 +128,13 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 	INIT_LIST_HEAD(&comp->slots);
 
 	comp->frm.mode = DSSCOMP_SETUP_DISPLAY;
+	comp->must_apply = true;
 
+	/* NOTE: none of the dsscomp sets should fail as composition is new */
 	r = dsscomp_set_mgr(comp, &d->mgr);
 	if (r)
 		dev_err(DEV(cdev), "failed to set mgr (%d)\n", r);
-	for (i = 0; i < d->num_ovls && !r; i++) {
+	for (i = 0; i < d->num_ovls; i++) {
 		struct dss2_ovl_info *oi = d->ovls + i;
 
 		/* map non-TILER buffers to 1D */
@@ -149,6 +151,8 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 					TILER1D_SLOT_SIZE >> PAGE_SHIFT, r);
 				mutex_unlock(&mtx);
 				up(&free_slots_sem);
+				/* disable unpinned layers */
+				oi->cfg.enabled = true;
 				break;
 			}
 			list_move(&slot->q, &comp->slots);
@@ -165,15 +169,9 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 								oi->cfg.ix, r);
 	}
 
-	/* unpin tiler blocks if failed */
+	r = dsscomp_setup(comp, d->mode, d->win);
 	if (r)
-		unpin_tiler_blocks(&comp->slots);
-
-	if (!r) {
-		r = dsscomp_setup(comp, d->mode, d->win);
-		if (r)
-			dev_err(DEV(cdev), "failed to setup comp (%d)\n", r);
-	}
+		dev_err(DEV(cdev), "failed to setup comp (%d)\n", r);
 
 	if (r) {
 		dsscomp_drop(comp);
