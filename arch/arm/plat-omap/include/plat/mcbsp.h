@@ -403,6 +403,8 @@ struct omap_mcbsp_platform_data {
 #endif
 	u16 buffer_size;
 	unsigned int mcbsp_config_type;
+	char clks_pad_src[30];
+	char clks_prcm_src[30];
 };
 
 struct omap_mcbsp_st_data {
