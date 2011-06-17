@@ -1911,13 +1911,6 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 	musb->xceiv->state = OTG_STATE_B_IDLE;
 	musb->is_active = 1;
 
-	/*
-	 * FIXME this ignores the softconnect flag.  Drivers are
-	 * allowed hold the peripheral inactive until for example
-	 * userspace hooks up printer hardware or DSP codecs, so
-	 * hosts only see fully functional devices.
-	 */
-
 	if (!is_otg_enabled(musb))
 		musb_start(musb);
 
