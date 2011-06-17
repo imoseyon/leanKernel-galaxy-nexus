@@ -38,6 +38,8 @@
 #include <linux/i2c/twl6030-madc.h>
 #include <linux/module.h>
 #include <linux/stddef.h>
+#include <linux/debugfs.h>
+#include <linux/seq_file.h>
 #include <linux/mutex.h>
 #include <linux/bitops.h>
 #include <linux/jiffies.h>
@@ -48,6 +50,9 @@
 #define GPADCS		(1 << 1)
 #define REG_TOGGLE1	0x90
 
+#define DRIVER_NAME	(twl6030_madc_driver.driver.name)
+static struct platform_driver twl6030_madc_driver;
+
 /*
  * struct twl6030_madc_data - a container for madc info
  * @dev - pointer to device structure for madc
@@ -56,6 +61,7 @@
 struct twl6030_madc_data {
 	struct device *dev;
 	struct mutex lock;
+	struct dentry		*file;
 };
 
 static struct twl6030_madc_data *twl6030_madc;
@@ -197,6 +203,37 @@ int twl6030_get_madc_conversion(int channel_no)
 }
 EXPORT_SYMBOL_GPL(twl6030_get_madc_conversion);
 
+#ifdef CONFIG_DEBUG_FS
+
+static int debug_twl6030_madc_show(struct seq_file *s, void *_)
+{
+	int i, result;
+	for (i = 0; i < TWL6030_MADC_MAX_CHANNELS; i++) {
+		result = twl6030_get_madc_conversion(i);
+		seq_printf(s, "channel %3d returns result %d\n",
+			i, result);
+	}
+	return 0;
+}
+
+static int debug_twl6030_madc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, debug_twl6030_madc_show, inode->i_private);
+}
+
+static const struct file_operations debug_fops = {
+	.open		= debug_twl6030_madc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+#define DEBUG_FOPS	(&debug_fops)
+
+#else
+#define DEBUG_FOPS	NULL
+#endif
+
 /*
  * Initialize MADC
  */
@@ -215,6 +252,8 @@ static int __devinit twl6030_madc_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, madc);
 	mutex_init(&madc->lock);
+	madc->file = debugfs_create_file(DRIVER_NAME, S_IRUGO, NULL,
+					madc, DEBUG_FOPS);
 	twl6030_madc = madc;
 	return 0;
 }
@@ -227,6 +266,7 @@ static int __devexit twl6030_madc_remove(struct platform_device *pdev)
 	free_irq(platform_get_irq(pdev, 0), madc);
 	platform_set_drvdata(pdev, NULL);
 	twl6030_madc = NULL;
+	debugfs_remove(madc->file);
 	kfree(madc);
 
 	return 0;
