@@ -25,7 +25,6 @@
 int omap4_tuna_get_revision(void);
 int omap4_tuna_get_type(void);
 bool omap4_tuna_final_gpios(void);
-void omap4_tuna_android_usb_init(void);
 void omap4_tuna_display_init(void);
 void omap4_tuna_input_init(void);
 void omap4_tuna_power_init(void);
