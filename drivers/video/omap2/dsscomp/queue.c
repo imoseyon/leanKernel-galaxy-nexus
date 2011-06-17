@@ -29,8 +29,8 @@
 #include <plat/dsscomp.h>
 
 #include "dsscomp.h"
-
 /* queue state */
+
 static DEFINE_MUTEX(mtx);
 
 /* free overlay structs */
@@ -57,7 +57,8 @@ static struct {
 	u32 ovl_qmask;		/* overlays queued to this display */
 } mgrq[MAX_MANAGERS];
 
-static struct workqueue_struct *wkq;	/* work queue */
+static struct workqueue_struct *apply_wkq;	/* apply work queue */
+static struct workqueue_struct *cb_wkq;		/* callback work queue */
 static struct dsscomp_dev *cdev;
 
 /*
@@ -93,9 +94,15 @@ int dsscomp_queue_init(struct dsscomp_dev *cdev_)
 		}
 	}
 
-	wkq = create_workqueue("dsscomp");
-	if (!wkq)
+	apply_wkq = create_workqueue("dsscomp_apply");
+	if (!apply_wkq)
 		return -EFAULT;
+
+	cb_wkq = create_workqueue("dsscomp_cb");
+	if (!cb_wkq) {
+		destroy_workqueue(apply_wkq);
+		return -EFAULT;
+	}
 
 	return 0;
 }
@@ -162,7 +169,6 @@ static u32 get_display_ix(struct omap_overlay_manager *mgr)
 dsscomp_t dsscomp_new(struct omap_overlay_manager *mgr)
 {
 	struct dsscomp_data *comp = NULL;
-	int r;
 	u32 display_ix = get_display_ix(mgr);
 
 	/* check manager */
@@ -170,16 +176,12 @@ dsscomp_t dsscomp_new(struct omap_overlay_manager *mgr)
 	if (ix >= cdev->num_mgrs || display_ix >= cdev->num_displays)
 		return ERR_PTR(-EINVAL);
 
-	mutex_lock(&mtx);
-
 	/* allocate composition */
 	comp = kzalloc(sizeof(*comp), GFP_KERNEL);
 	if (!comp)
-		goto done;
+		return NULL;
 
 	/* initialize new composition */
-	list_add_tail(&comp->q, &mgrq[ix].q_ci);
-
 	comp->ix = ix;	/* save where this composition came from */
 	comp->ovl_mask = comp->ovl_dmask = 0;
 	comp->frm.sync_id = 0;
@@ -188,10 +190,12 @@ dsscomp_t dsscomp_new(struct omap_overlay_manager *mgr)
 	/* :TODO: retrieve last manager configuration */
 
 	comp->magic = MAGIC_ACTIVE;
-	r = 0;
- done:
+
+	mutex_lock(&mtx);
+	list_add_tail(&comp->q, &mgrq[ix].q_ci);
 	mutex_unlock(&mtx);
-	return r ? ERR_PTR(r) : comp;
+
+	return comp;
 }
 EXPORT_SYMBOL(dsscomp_new);
 
@@ -444,32 +448,40 @@ void dsscomp_drop(dsscomp_t c)
 }
 EXPORT_SYMBOL(dsscomp_drop);
 
-static void dsscomp_mgr_callback(void *data, int id, int status)
+struct dsscomp_cb_work {
+	struct work_struct work;
+	struct dsscomp_data *comp;
+	int status;
+};
+
+static void dsscomp_mgr_delayed_cb(struct work_struct *work)
 {
-	struct dsscomp_data *comp = data;
+	struct dsscomp_cb_work *wk = container_of(work, typeof(*wk), work);
+	struct dsscomp_data *comp = wk->comp;
+	int status = wk->status;
 	u32 ix;
 
-	/* do any other callbacks */
-	if (comp->cb.fn)
-		comp->cb.fn(comp->cb.data, id, status);
+	kfree(work);
+
+	/* call extra callbacks if requested */
+	if (comp->extra_cb)
+		comp->extra_cb(comp, status);
+
+	mutex_lock(&mtx);
 
 	/* verify validity */
 	comp = validate(comp);
 	if (IS_ERR(comp))
-		return;
+		goto done;
 
 	ix = comp->frm.mgr.ix;
 	if (ix >= cdev->num_displays ||
 	    !cdev->displays[ix] ||
 	    !cdev->displays[ix]->manager)
-		return;
+		goto done;
 	ix = cdev->displays[ix]->manager->id;
 	if (ix >= cdev->num_mgrs)
-		return;
-
-	/* call extra callbacks if requested */
-	if (comp->extra_cb)
-		comp->extra_cb(comp, status);
+		goto done;
 
 	/* handle programming & release */
 	if (status == DSS_COMPLETION_PROGRAMMED) {
@@ -480,10 +492,6 @@ static void dsscomp_mgr_callback(void *data, int id, int status)
 
 		/* update used overlay mask */
 		mgrq[ix].ovl_mask = comp->ovl_mask & ~comp->ovl_dmask;
-
-		/* if all overlays were disabled, the composition is complete */
-		if (comp->blank)
-			dsscomp_drop(comp);
 		refresh_masks(ix);
 	} else if ((status & DSS_COMPLETION_DISPLAYED) &&
 		   comp->magic == MAGIC_PROGRAMMED) {
@@ -497,6 +505,28 @@ static void dsscomp_mgr_callback(void *data, int id, int status)
 		/* composition is no longer displayed */
 		dsscomp_drop(comp);
 		refresh_masks(ix);
+	}
+done:
+	mutex_unlock(&mtx);
+}
+
+static void dsscomp_mgr_callback(void *data, int id, int status)
+{
+	struct dsscomp_data *comp = data;
+
+	/* do any other callbacks */
+	if (comp->cb.fn)
+		comp->cb.fn(comp->cb.data, id, status);
+
+	if (status == DSS_COMPLETION_PROGRAMMED ||
+	    (status == DSS_COMPLETION_DISPLAYED &&
+	     comp->magic != MAGIC_DISPLAYED) ||
+	    (status & DSS_COMPLETION_RELEASED)) {
+		struct dsscomp_cb_work *wk = kzalloc(sizeof(*wk), GFP_ATOMIC);
+		wk->comp = comp;
+		wk->status = status;
+		INIT_WORK(&wk->work, dsscomp_mgr_delayed_cb);
+		queue_work(cb_wkq, &wk->work);
 	}
 }
 
@@ -612,9 +642,12 @@ int dsscomp_apply(dsscomp_t comp)
 	r = r ? : set_dss_mgr_info(&d->mgr);
 	if (r) {
 		dev_err(DEV(cdev), "[%p] set failed %d\n", comp, r);
-		/* FIXME: this only needs to be called for delayed apply */
-		dsscomp_mgr_callback(comp, -1, DSS_COMPLETION_ECLIPSED_SET);
+		/* extra callbacks in case of delayed apply */
+		if (comp->extra_cb)
+			comp->extra_cb(comp, DSS_COMPLETION_ECLIPSED_SET);
+
 		dsscomp_drop(comp);
+		refresh_masks(mgr->id);
 		change = true;
 		goto done;
 	} else {
@@ -700,7 +733,7 @@ int dsscomp_delayed_apply(dsscomp_t comp)
 		return -ENOMEM;
 	wk->comp = comp;
 	INIT_WORK(&wk->work, dsscomp_do_apply);
-	return queue_work(wkq, &wk->work) ? 0 : -EBUSY;
+	return queue_work(apply_wkq, &wk->work) ? 0 : -EBUSY;
 }
 EXPORT_SYMBOL(dsscomp_delayed_apply);
 
@@ -779,7 +812,8 @@ void dsscomp_queue_exit(void)
 			list_for_each_entry_safe(c, c2, &mgrq[i].q_ci, q)
 				dsscomp_drop(c);
 		}
-		destroy_workqueue(wkq);
+		destroy_workqueue(apply_wkq);
+		destroy_workqueue(cb_wkq);
 		cdev = NULL;
 	}
 }

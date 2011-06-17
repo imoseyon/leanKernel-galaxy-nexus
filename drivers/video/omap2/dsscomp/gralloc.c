@@ -15,17 +15,11 @@ static struct tiler1d_slot {
 } slots[NUM_TILER1D_SLOTS];
 static struct list_head free_slots;
 static struct dsscomp_dev *cdev;
-static struct workqueue_struct *cb_workqueue;
 static DEFINE_MUTEX(mtx);
 static struct semaphore free_slots_sem =
 				__SEMAPHORE_INITIALIZER(free_slots_sem, 0);
 
 static u32 ovl_set_mask;
-
-struct gralloc_cb_work {
-	struct work_struct work;
-	struct list_head slots;
-};
 
 static void unpin_tiler_blocks(struct list_head *slots)
 {
@@ -43,22 +37,10 @@ static void unpin_tiler_blocks(struct list_head *slots)
 	mutex_unlock(&mtx);
 }
 
-static void dsscomp_gralloc_delayed_cb(struct work_struct *work)
-{
-	struct gralloc_cb_work *wk = container_of(work, typeof(*wk), work);
-	unpin_tiler_blocks(&wk->slots);
-	kfree(wk);
-}
-
 static void dsscomp_gralloc_cb(dsscomp_t comp, int status)
 {
 	if (status & DSS_COMPLETION_RELEASED) {
-		struct gralloc_cb_work *wk = kzalloc(sizeof(*wk), GFP_ATOMIC);
-		/* move over slot list to work */
-		INIT_LIST_HEAD(&wk->slots);
-		list_splice_init(&comp->slots, &wk->slots);
-		INIT_WORK(&wk->work, dsscomp_gralloc_delayed_cb);
-		queue_work(cb_workqueue, &wk->work);
+		unpin_tiler_blocks(&comp->slots);
 	}
 	if ((status == DSS_COMPLETION_DISPLAYED) ||
 	    (status & DSS_COMPLETION_RELEASED)) {
@@ -156,7 +138,6 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 		/* map non-TILER buffers to 1D */
 		if (pas[i] && oi->cfg.enabled) {
 			struct tiler1d_slot *slot = NULL;
-
 			down(&free_slots_sem);
 			mutex_lock(&mtx);
 			slot = list_first_entry(&free_slots, typeof(*slot), q);
@@ -230,10 +211,8 @@ void dsscomp_gralloc_init(struct dsscomp_dev *cdev_)
 	int i;
 
 	/* save at least cdev pointer */
-	if (!cdev && cdev_) {
+	if (!cdev && cdev_)
 		cdev = cdev_;
-		cb_workqueue = create_workqueue("dsscomp_gr_cb");
-	}
 
 	if (!free_slots.next) {
 		INIT_LIST_HEAD(&free_slots);
@@ -261,5 +240,4 @@ void dsscomp_gralloc_exit(void)
 	list_for_each_entry(slot, &free_slots, q)
 		tiler_free_block_area(slot->slot);
 	INIT_LIST_HEAD(&free_slots);
-	destroy_workqueue(cb_workqueue);
 }
