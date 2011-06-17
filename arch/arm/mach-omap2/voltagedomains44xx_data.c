@@ -127,7 +127,7 @@ void __init omap44xx_voltagedomains_init(void)
 		omap4_vdd_iva_info.volt_data = omap446x_vdd_iva_volt_data;
 		omap4_vdd_core_info.volt_data = omap446x_vdd_core_volt_data;
 	} else {
-		return -ENODATA;
+		return;
 	}
 
 	for (i = 0; voltdm = voltagedomains_omap4[i], voltdm; i++)
