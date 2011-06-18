@@ -118,7 +118,7 @@ static struct users *get_user(void)
  * Returns 0 on sucess, else returns EINVAL if memory
  * allocation fails.
  */
-int omap_bus_tput_init(void)
+static int __init omap_bus_tput_init(void)
 {
 	bus_tput = kmalloc(sizeof(struct interconnect_tput), GFP_KERNEL);
 	if (!bus_tput) {
