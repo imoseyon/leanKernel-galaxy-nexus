@@ -24,6 +24,29 @@
 #define GPIO_ACC_INT		122
 #define GPIO_MAG_INT		176
 
+static s8 orientation_back_right_90[] = {
+	 0, -1,  0,
+	-1,  0,  0,
+	 0,  0, -1,
+};
+
+static s8 orientation_back_left_90[] = {
+	 0,  1,  0,
+	 1,  0,  0,
+	 0,  0, -1,
+};
+
+static s8 orientation_back_180[] = {
+	 1,  0,  0,
+	 0, -1,  0,
+	 0,  0, -1,
+};
+
+static void rotcpy(s8 dst[3 * 3], const s8 src[3 * 3])
+{
+	memcpy(dst, src, 3 * 3);
+}
+
 static struct mpu_platform_data mpu_data = {
 	.int_config  = 0x10,
 	.orientation = {  1,  0,  0,
@@ -82,6 +105,18 @@ void __init omap4_tuna_sensors_init(void)
 	gpio_direction_input(GPIO_ACC_INT);
 	gpio_request(GPIO_MAG_INT, "MAG_INT");
 	gpio_direction_input(GPIO_MAG_INT);
+
+	if (omap4_tuna_get_type() == TUNA_TYPE_MAGURO &&
+	    omap4_tuna_get_revision() >= 2) {
+		rotcpy(mpu_data.orientation, orientation_back_right_90);
+		rotcpy(mpu_data.accel.orientation, orientation_back_180);
+	}
+	if (omap4_tuna_get_type() == TUNA_TYPE_TORO &&
+	    omap4_tuna_get_revision() >= 1) {
+		rotcpy(mpu_data.orientation, orientation_back_left_90);
+		rotcpy(mpu_data.accel.orientation, orientation_back_180);
+		rotcpy(mpu_data.compass.orientation, orientation_back_left_90);
+	}
 
 	i2c_register_board_info(4, tuna_sensors_i2c4_boardinfo,
 				ARRAY_SIZE(tuna_sensors_i2c4_boardinfo));
