@@ -24,6 +24,8 @@
 #include <plat/omap-pm.h>
 #include <plat/omap_device.h>
 
+#include "omap-pm-helper.h"
+
 static bool off_mode_enabled;
 
 /*
@@ -41,13 +43,14 @@ int omap_pm_set_max_mpu_wakeup_lat(struct pm_qos_request_list **pmqos_req,
 
 int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, long r)
 {
+	int ret;
 	if (!dev || (agent_id != OCP_INITIATOR_AGENT &&
 	    agent_id != OCP_TARGET_AGENT)) {
 		WARN(1, "OMAP PM: %s: invalid parameter(s)", __func__);
 		return -EINVAL;
 	};
 
-	if (r == 0)
+	if (r == -1)
 		pr_debug("OMAP PM: remove min bus tput constraint: "
 			 "dev %s for agent_id %d\n", dev_name(dev), agent_id);
 	else
@@ -55,20 +58,15 @@ int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, long r)
 			 "dev %s for agent_id %d: rate %ld KiB\n",
 			 dev_name(dev), agent_id, r);
 
-	/*
-	 * This code should model the interconnect and compute the
-	 * required clock frequency, convert that to a VDD2 OPP ID, then
-	 * set the VDD2 OPP appropriately.
-	 *
-	 * TI CDP code can call constraint_set here on the VDD2 OPP.
-	 */
+	ret = omap_pm_set_min_bus_tput_helper(dev, agent_id, r);
 
-	return 0;
+	return ret;
 }
 
 int omap_pm_set_max_dev_wakeup_lat(struct device *req_dev, struct device *dev,
 				   long t)
 {
+	int ret;
 	if (!req_dev || !dev || t < -1) {
 		WARN(1, "OMAP PM: %s: invalid parameter(s)", __func__);
 		return -EINVAL;
@@ -81,20 +79,9 @@ int omap_pm_set_max_dev_wakeup_lat(struct device *req_dev, struct device *dev,
 		pr_debug("OMAP PM: add max device latency constraint: "
 			 "dev %s, t = %ld usec\n", dev_name(dev), t);
 
-	/*
-	 * For current Linux, this needs to map the device to a
-	 * powerdomain, then go through the list of current max lat
-	 * constraints on that powerdomain and find the smallest.  If
-	 * the latency constraint has changed, the code should
-	 * recompute the state to enter for the next powerdomain
-	 * state.  Conceivably, this code should also determine
-	 * whether to actually disable the device clocks or not,
-	 * depending on how long it takes to re-enable the clocks.
-	 *
-	 * TI CDP code can call constraint_set here.
-	 */
+	ret = omap_pm_set_max_dev_wakeup_lat_helper(req_dev, dev, t);
 
-	return 0;
+	return ret;
 }
 
 /* WARNING: Device drivers need to now use pm_qos directly. */
@@ -134,6 +121,15 @@ void omap_pm_dsp_set_min_opp(u8 opp_id)
 	return;
 }
 
+int omap_pm_set_min_mpu_freq(struct device *dev, unsigned long f)
+{
+	WARN(1, "Deprecated %s: Driver should NOT use this function\n",
+		__func__);
+
+	return -EINVAL;
+
+}
+EXPORT_SYMBOL(omap_pm_set_min_mpu_freq);
 
 u8 omap_pm_dsp_get_opp(void)
 {
@@ -233,7 +229,7 @@ int __init omap_pm_if_early_init(void)
 /* Must be called after clock framework is initialized */
 int __init omap_pm_if_init(void)
 {
-	return 0;
+	return omap_pm_if_init_helper();
 }
 
 void omap_pm_if_exit(void)
