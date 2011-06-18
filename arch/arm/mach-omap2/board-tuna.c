@@ -524,7 +524,7 @@ static void __init tuna_init(void)
 	if (omap4_tuna_get_revision() != TUNA_REV_PRE_LUNCHBOX) {
 		gpio_request(158, "emmc_en");
 		gpio_direction_output(158, 1);
-		omap_mux_init_gpio(158, OMAP_PIN_OUTPUT);
+		omap_mux_init_gpio(158, OMAP_PIN_INPUT_PULLUP);
 	}
 
 	tuna_wlan_init();
