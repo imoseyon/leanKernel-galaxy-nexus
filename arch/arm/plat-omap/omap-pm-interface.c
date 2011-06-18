@@ -1,12 +1,10 @@
 /*
- * omap-pm-noop.c - OMAP power management interface - dummy version
+ * omap-pm-interface.c - OMAP power management interface
  *
  * This code implements the OMAP power management interface to
- * drivers, CPUIdle, CPUFreq, and DSP Bridge.  It is strictly for
- * debug/demonstration use, as it does nothing but printk() whenever a
- * function is called (when DEBUG is defined, below)
+ * drivers, CPUIdle, CPUFreq, and DSP Bridge.
  *
- * Copyright (C) 2008-2009 Texas Instruments, Inc.
+ * Copyright (C) 2008-2011 Texas Instruments, Inc.
  * Copyright (C) 2008-2009 Nokia Corporation
  * Paul Walmsley
  *
