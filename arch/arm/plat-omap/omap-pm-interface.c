@@ -108,84 +108,37 @@ int omap_pm_set_max_sdma_lat(struct pm_qos_request_list **qos_request, long t)
 
 int omap_pm_set_min_clk_rate(struct device *dev, struct clk *c, long r)
 {
-	if (!dev || !c || r < 0) {
-		WARN(1, "OMAP PM: %s: invalid parameter(s)", __func__);
-		return -EINVAL;
-	}
+	WARN(1, "Deprecated %s: Driver should use omap_device_scale/opp\n",
+		__func__);
 
-	if (r == 0)
-		pr_debug("OMAP PM: remove min clk rate constraint: "
-			 "dev %s\n", dev_name(dev));
-	else
-		pr_debug("OMAP PM: add min clk rate constraint: "
-			 "dev %s, rate = %ld Hz\n", dev_name(dev), r);
-
-	/*
-	 * Code in a real implementation should keep track of these
-	 * constraints on the clock, and determine the highest minimum
-	 * clock rate.  It should iterate over each OPP and determine
-	 * whether the OPP will result in a clock rate that would
-	 * satisfy this constraint (and any other PM constraint in effect
-	 * at that time).  Once it finds the lowest-voltage OPP that
-	 * meets those conditions, it should switch to it, or return
-	 * an error if the code is not capable of doing so.
-	 */
-
-	return 0;
+	return -EINVAL;
 }
 
 /*
  * DSP Bridge-specific constraints
+ * WARNING: Device drivers need to now use opp layer/omap_device_scale directly.
  */
-
 const struct omap_opp *omap_pm_dsp_get_opp_table(void)
 {
-	pr_debug("OMAP PM: DSP request for OPP table\n");
+	WARN(1, "Deprecated %s: Driver should use omap_device_scale/opp\n",
+		__func__);
 
-	/*
-	 * Return DSP frequency table here:  The final item in the
-	 * array should have .rate = .opp_id = 0.
-	 */
-
-	return NULL;
+	return ERR_PTR(-EINVAL);
 }
 
 void omap_pm_dsp_set_min_opp(u8 opp_id)
 {
-	if (opp_id == 0) {
-		WARN_ON(1);
-		return;
-	}
+	WARN(1, "Deprecated %s: Driver should use omap_device_scale/opp\n",
+		__func__);
 
-	pr_debug("OMAP PM: DSP requests minimum VDD1 OPP to be %d\n", opp_id);
-
-	/*
-	 *
-	 * For l-o dev tree, our VDD1 clk is keyed on OPP ID, so we
-	 * can just test to see which is higher, the CPU's desired OPP
-	 * ID or the DSP's desired OPP ID, and use whichever is
-	 * highest.
-	 *
-	 * In CDP12.14+, the VDD1 OPP custom clock that controls the DSP
-	 * rate is keyed on MPU speed, not the OPP ID.  So we need to
-	 * map the OPP ID to the MPU speed for use with clk_set_rate()
-	 * if it is higher than the current OPP clock rate.
-	 *
-	 */
+	return;
 }
 
 
 u8 omap_pm_dsp_get_opp(void)
 {
-	pr_debug("OMAP PM: DSP requests current DSP OPP ID\n");
-
-	/*
-	 * For l-o dev tree, call clk_get_rate() on VDD1 OPP clock
-	 *
-	 * CDP12.14+:
-	 * Call clk_get_rate() on the OPP custom clock, map that to an
-	 * OPP ID using the tables defined in board-*.c/chip-*.c files.
-	 */
+	WARN(1, "Deprecated %s: Driver should use omap_device_scale/opp\n",
+		__func__);
 
 	return 0;
 }
@@ -199,44 +152,24 @@ u8 omap_pm_dsp_get_opp(void)
 
 struct cpufreq_frequency_table **omap_pm_cpu_get_freq_table(void)
 {
-	pr_debug("OMAP PM: CPUFreq request for frequency table\n");
+	WARN(1, "Deprecated %s: Driver should use omap_device_scale/opp\n",
+		__func__);
 
-	/*
-	 * Return CPUFreq frequency table here: loop over
-	 * all VDD1 clkrates, pull out the mpu_ck frequencies, build
-	 * table
-	 */
-
-	return NULL;
+	return ERR_PTR(-EINVAL);
 }
 
 void omap_pm_cpu_set_freq(unsigned long f)
 {
-	if (f == 0) {
-		WARN_ON(1);
-		return;
-	}
+	WARN(1, "Deprecated %s: Driver should use omap_device_scale/opp\n",
+		__func__);
 
-	pr_debug("OMAP PM: CPUFreq requests CPU frequency to be set to %lu\n",
-		 f);
-
-	/*
-	 * For l-o dev tree, determine whether MPU freq or DSP OPP id
-	 * freq is higher.  Find the OPP ID corresponding to the
-	 * higher frequency.  Call clk_round_rate() and clk_set_rate()
-	 * on the OPP custom clock.
-	 *
-	 * CDP should just be able to set the VDD1 OPP clock rate here.
-	 */
+	return;
 }
 
 unsigned long omap_pm_cpu_get_freq(void)
 {
-	pr_debug("OMAP PM: CPUFreq requests current CPU frequency\n");
-
-	/*
-	 * Call clk_get_rate() on the mpu_ck.
-	 */
+	WARN(1, "Deprecated %s: Driver should use omap_device_scale/opp\n",
+		__func__);
 
 	return 0;
 }
