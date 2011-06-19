@@ -33,10 +33,10 @@ static bool off_mode_enabled;
  * WARNING: Device drivers need to now use pm_qos directly.
  */
 int omap_pm_set_max_mpu_wakeup_lat(struct pm_qos_request_list **pmqos_req,
-			long t)
+				   long t)
 {
 	WARN(1, "Deprecated %s: Driver should use pm_qos to add request\n",
-		__func__);
+	     __func__);
 
 	return -EINVAL;
 }
@@ -45,7 +45,7 @@ int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, long r)
 {
 	int ret;
 	if (!dev || (agent_id != OCP_INITIATOR_AGENT &&
-	    agent_id != OCP_TARGET_AGENT)) {
+		     agent_id != OCP_TARGET_AGENT)) {
 		WARN(1, "OMAP PM: %s: invalid parameter(s)", __func__);
 		return -EINVAL;
 	};
@@ -88,7 +88,7 @@ int omap_pm_set_max_dev_wakeup_lat(struct device *req_dev, struct device *dev,
 int omap_pm_set_max_sdma_lat(struct pm_qos_request_list **qos_request, long t)
 {
 	WARN(1, "Deprecated %s: Driver should use pm_qos to add request\n",
-		__func__);
+	     __func__);
 
 	return -EINVAL;
 }
@@ -96,7 +96,7 @@ int omap_pm_set_max_sdma_lat(struct pm_qos_request_list **qos_request, long t)
 int omap_pm_set_min_clk_rate(struct device *dev, struct clk *c, long r)
 {
 	WARN(1, "Deprecated %s: Driver should use omap_device_scale/opp\n",
-		__func__);
+	     __func__);
 
 	return -EINVAL;
 }
@@ -108,7 +108,7 @@ int omap_pm_set_min_clk_rate(struct device *dev, struct clk *c, long r)
 const struct omap_opp *omap_pm_dsp_get_opp_table(void)
 {
 	WARN(1, "Deprecated %s: Driver should use omap_device_scale/opp\n",
-		__func__);
+	     __func__);
 
 	return ERR_PTR(-EINVAL);
 }
@@ -116,7 +116,7 @@ const struct omap_opp *omap_pm_dsp_get_opp_table(void)
 void omap_pm_dsp_set_min_opp(u8 opp_id)
 {
 	WARN(1, "Deprecated %s: Driver should use omap_device_scale/opp\n",
-		__func__);
+	     __func__);
 
 	return;
 }
@@ -124,17 +124,18 @@ void omap_pm_dsp_set_min_opp(u8 opp_id)
 int omap_pm_set_min_mpu_freq(struct device *dev, unsigned long f)
 {
 	WARN(1, "Deprecated %s: Driver should NOT use this function\n",
-		__func__);
+	     __func__);
 
 	return -EINVAL;
 
 }
+
 EXPORT_SYMBOL(omap_pm_set_min_mpu_freq);
 
 u8 omap_pm_dsp_get_opp(void)
 {
 	WARN(1, "Deprecated %s: Driver should use omap_device_scale/opp\n",
-		__func__);
+	     __func__);
 
 	return 0;
 }
@@ -149,7 +150,7 @@ u8 omap_pm_dsp_get_opp(void)
 struct cpufreq_frequency_table **omap_pm_cpu_get_freq_table(void)
 {
 	WARN(1, "Deprecated %s: Driver should use omap_device_scale/opp\n",
-		__func__);
+	     __func__);
 
 	return ERR_PTR(-EINVAL);
 }
@@ -157,7 +158,7 @@ struct cpufreq_frequency_table **omap_pm_cpu_get_freq_table(void)
 void omap_pm_cpu_set_freq(unsigned long f)
 {
 	WARN(1, "Deprecated %s: Driver should use omap_device_scale/opp\n",
-		__func__);
+	     __func__);
 
 	return;
 }
@@ -165,7 +166,7 @@ void omap_pm_cpu_set_freq(unsigned long f)
 unsigned long omap_pm_cpu_get_freq(void)
 {
 	WARN(1, "Deprecated %s: Driver should use omap_device_scale/opp\n",
-		__func__);
+	     __func__);
 
 	return 0;
 }
@@ -236,4 +237,3 @@ void omap_pm_if_exit(void)
 {
 	/* Deallocate CPUFreq frequency table here */
 }
-

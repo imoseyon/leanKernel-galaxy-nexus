@@ -69,8 +69,7 @@ struct users {
  * Looks for a interconnect user by its device pointer. Returns a
  * pointer to
  * the struct users if found, else returns NULL.
- **/
-
+ */
 static struct users *user_lookup(struct device *dev)
 {
 	struct users *usr, *tmp_usr;
@@ -93,21 +92,18 @@ static struct users *user_lookup(struct device *dev)
  * Returns a pointer to users struct on success. On dynamic allocation
  * failure
  * returns a ERR_PTR(-ENOMEM).
- **/
-
+ */
 static struct users *get_user(void)
 {
 	struct users *user;
 
-	user = kmalloc(sizeof(struct  users), GFP_KERNEL);
+	user = kmalloc(sizeof(struct users), GFP_KERNEL);
 	if (!user) {
-		pr_err("%s FATAL ERROR: kmalloc "
-			"failed\n",  __func__);
+		pr_err("%s FATAL ERROR: kmalloc failed\n", __func__);
 		return ERR_PTR(-ENOMEM);
 	}
 	return user;
 }
-
 
 /**
  * omap_bus_tput_init - Initializes the interconnect throughput
@@ -123,14 +119,13 @@ static int __init omap_bus_tput_init(void)
 	if (!bus_tput) {
 		pr_err("%s FATAL ERROR: kmalloc failed\n", __func__);
 		return -EINVAL;
-       }
+	}
 	INIT_LIST_HEAD(&bus_tput->users_list);
 	mutex_init(&bus_tput->throughput_mutex);
 	bus_tput->no_of_users = 0;
 	bus_tput->target_level = 0;
 	return 0;
 }
-
 
 /**
  * add_req_tput  - Request for a required level by a device
@@ -148,7 +143,7 @@ static int __init omap_bus_tput_init(void)
 static unsigned long add_req_tput(struct device *dev, unsigned long level)
 {
 	int ret;
-	struct  users *user;
+	struct users *user;
 
 	if (!dev) {
 		pr_err("Invalid dev pointer\n");
@@ -160,7 +155,7 @@ static unsigned long add_req_tput(struct device *dev, unsigned long level)
 		user = get_user();
 		if (IS_ERR(user)) {
 			pr_err("Couldn't get user from the list to"
-				"add new throughput constraint");
+			       "add new throughput constraint");
 			ret = 0;
 			goto unlock;
 		}
@@ -174,12 +169,11 @@ static unsigned long add_req_tput(struct device *dev, unsigned long level)
 		bus_tput->target_level += level;
 		user->level = level;
 	}
-		ret = bus_tput->target_level;
+	ret = bus_tput->target_level;
 unlock:
 	mutex_unlock(&bus_tput->throughput_mutex);
 	return ret;
 }
-
 
 /**
  * remove_req_tput - Release a previously requested level of
@@ -244,22 +238,22 @@ int omap_pm_set_min_bus_tput_helper(struct device *dev, u8 agent_id, long r)
 		target_level = add_req_tput(dev, r);
 
 	/* Convert the throughput(in KiB/s) into Hz. */
-	target_level = (target_level * 1000)/4;
+	target_level = (target_level * 1000) / 4;
 
 	WARN(1, "OMAP PM: %s: constraint not called, needs DVFS", __func__);
 #if 0
 	ret = omap_device_scale(&dummy_l3_dev, l3_dev, target_level);
 #endif
 	if (ret)
-		pr_err("Unable to change level for interconnect bandwidth to %ld\n",
-			target_level);
+		pr_err("Failed: change interconnect bandwidth to %ld\n",
+		     target_level);
 unlock:
 	mutex_unlock(&bus_tput_mutex);
 	return ret;
 }
 
 int omap_pm_set_max_dev_wakeup_lat_helper(struct device *req_dev,
-						struct device *dev, long t)
+					  struct device *dev, long t)
 {
 	struct omap_device *odev;
 	struct powerdomain *pwrdm_dev;
@@ -284,15 +278,15 @@ int omap_pm_set_max_dev_wakeup_lat_helper(struct device *req_dev,
 	if (odev) {
 		pwrdm_dev = omap_device_get_pwrdm(odev);
 	} else {
-		pr_err("OMAP-PM: Error: Could not find omap_device "
-			"for %s\n", pdev->name);
+		pr_err("OMAP-PM: Error: Could not find omap_device for %s\n",
+		       pdev->name);
 		return -EINVAL;
 	}
 
 	/* Catch devices with undefined powerdomains. */
 	if (!pwrdm_dev) {
-		pr_err("OMAP-PM: Error: could not find parent "
-			"powerdomain for %s\n", pdev->name);
+		pr_err("OMAP-PM: Error: could not find parent pwrdm for %s\n",
+		       pdev->name);
 		return -EINVAL;
 	}
 
@@ -310,7 +304,6 @@ int __init omap_pm_if_init_helper(void)
 	int ret;
 	ret = omap_bus_tput_init();
 	if (ret)
-		pr_err("Failed to initialize interconnect"
-			" bandwidth users list\n");
+		pr_err("Failed: init of interconnect bandwidth users list\n");
 	return ret;
 }
