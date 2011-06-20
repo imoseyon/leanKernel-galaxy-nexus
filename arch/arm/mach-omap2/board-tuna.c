@@ -20,8 +20,11 @@
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/io.h>
+#include <linux/ion.h>
 #include <linux/leds.h>
 #include <linux/gpio.h>
+#include <linux/memblock.h>
+#include <linux/omap_ion.h>
 #include <linux/usb/otg.h>
 #include <linux/i2c/twl.h>
 #include <linux/regulator/machine.h>
@@ -178,11 +181,48 @@ static struct platform_device twl6030_madc_device = {
 	},
 };
 
+#define PHYS_ADDR_DUCATI_MEM (0x80000000 + SZ_1G - (SZ_1M * 104))
+
+static struct ion_platform_data tuna_ion_data = {
+	.nr = 3,
+	.heaps = {
+		{
+			.type = ION_HEAP_TYPE_CARVEOUT,
+			.id = OMAP_ION_HEAP_SECURE_INPUT,
+			.name = "secure_input",
+			.base = PHYS_ADDR_DUCATI_MEM - SZ_256M - SZ_64M,
+			.size = SZ_64M,
+		},
+		{	.type = OMAP_ION_HEAP_TYPE_TILER,
+			.id = OMAP_ION_HEAP_TILER,
+			.name = "tiler",
+			.base = PHYS_ADDR_DUCATI_MEM - SZ_256M,
+			.size = SZ_256M,
+		},
+		{
+			.type = ION_HEAP_TYPE_CARVEOUT,
+			.id = OMAP_ION_HEAP_LARGE_SURFACES,
+			.name = "large_surfaces",
+			.base = 0x80000000 + SZ_512M + SZ_2M,
+			.size = SZ_32M,
+		},
+	},
+};
+
+static struct platform_device tuna_ion_device = {
+	.name = "ion-omap4",
+	.id = -1,
+	.dev = {
+		.platform_data = &tuna_ion_data,
+	},
+};
+
 static struct platform_device *tuna_devices[] __initdata = {
 	&ramconsole_device,
 	&wl1271_device,
 	&bcm4330_bluetooth_device,
-	&twl6030_madc_device
+	&twl6030_madc_device,
+	&tuna_ion_device,
 };
 
 static void tuna_gsd4t_gps_gpio(void)
@@ -778,8 +818,22 @@ static void __init tuna_map_io(void)
 
 static void __init tuna_reserve(void)
 {
+	int i;
+	int ret;
+
 	omap_reserve();
 	memblock_remove(TUNA_RAMCONSOLE_START, TUNA_RAMCONSOLE_SIZE);
+
+	for (i = 0; i < tuna_ion_data.nr; i++)
+		if (tuna_ion_data.heaps[i].type == ION_HEAP_TYPE_CARVEOUT ||
+		    tuna_ion_data.heaps[i].type == OMAP_ION_HEAP_TYPE_TILER) {
+			ret = memblock_remove(tuna_ion_data.heaps[i].base,
+					      tuna_ion_data.heaps[i].size);
+			if (ret)
+				pr_err("memblock remove of %x@%lx failed\n",
+				       tuna_ion_data.heaps[i].size,
+				       tuna_ion_data.heaps[i].base);
+		}
 }
 
 MACHINE_START(TUNA, "Tuna")
