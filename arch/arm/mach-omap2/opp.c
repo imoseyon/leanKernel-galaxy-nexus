@@ -59,16 +59,16 @@ int __init omap_init_opp_table(struct omap_opp_def *opp_def,
 		struct device *dev;
 
 		if (!opp_def->hwmod_name) {
-			pr_err("%s: NULL name of omap_hwmod, failing [%d].\n",
-				__func__, i);
-			return -EINVAL;
+			WARN(1, "%s: NULL name of omap_hwmod, failing"
+				" [%d].\n", __func__, i);
+			goto next;
 		}
 		oh = omap_hwmod_lookup(opp_def->hwmod_name);
 		if (!oh || !oh->od) {
-			pr_warn("%s: no hwmod or odev for %s, [%d] "
+			WARN(1, "%s: no hwmod or odev for %s, [%d] "
 				"cannot add OPPs.\n", __func__,
 				opp_def->hwmod_name, i);
-			return -EINVAL;
+			goto next;
 		}
 		dev = &oh->od->pdev.dev;
 
@@ -93,6 +93,7 @@ int __init omap_init_opp_table(struct omap_opp_def *opp_def,
 				dev_err(dev, "%s:%s:err dvfs register %d %d\n",
 					__func__, opp_def->hwmod_name, r, i);
 		}
+next:
 		opp_def++;
 	}
 
