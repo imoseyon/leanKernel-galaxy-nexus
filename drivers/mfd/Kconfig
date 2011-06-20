@@ -233,6 +233,10 @@ config TWL6030_PWM
 	  Say yes here if you want support for TWL6030 PWM.
 	  This is used to control charging LED brightness.
 
+config TWL6030_POWEROFF
+	bool "TWL6030 device poweroff"
+	depends on TWL4030_CORE
+
 config TWL6040_CODEC
 	bool
 	depends on TWL4030_CORE

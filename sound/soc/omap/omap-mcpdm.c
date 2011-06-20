@@ -41,7 +41,6 @@
 #include <sound/initval.h>
 #include <sound/soc.h>
 
-#include <plat/control.h>
 #include <plat/dma.h>
 #include <plat/omap_hwmod.h>
 #include "omap-mcpdm.h"
@@ -663,8 +662,8 @@ static struct snd_soc_dai_driver omap_mcpdm_dai[] = {
 	.id	= MCPDM_LEGACY_DAI_DL1,
 	.probe = omap_mcpdm_probe,
 	.remove = omap_mcpdm_remove,
-	.late_probe = 1,
-	.early_remove = 1,
+	.probe_order = SND_SOC_COMP_ORDER_LATE,
+	.remove_order = SND_SOC_COMP_ORDER_EARLY,
 	.playback = {
 		.channels_min = 1,
 		.channels_max = 4,
@@ -676,8 +675,8 @@ static struct snd_soc_dai_driver omap_mcpdm_dai[] = {
 {
 	.name = "mcpdm-ul",
 	.id	= MCPDM_LEGACY_DAI_UL1,
-	.late_probe = 1,
-	.early_remove = 1,
+	.probe_order = SND_SOC_COMP_ORDER_LATE,
+	.remove_order = SND_SOC_COMP_ORDER_EARLY,
 	.capture = {
 		.channels_min = 1,
 		.channels_max = 2,
@@ -691,8 +690,8 @@ static struct snd_soc_dai_driver omap_mcpdm_dai[] = {
 {
 	.name = "mcpdm-dl1",
 	.id	= MCPDM_ABE_DAI_DL1,
-	.late_probe = 1,
-	.early_remove = 1,
+	.probe_order = SND_SOC_COMP_ORDER_LATE,
+	.remove_order = SND_SOC_COMP_ORDER_EARLY,
 	.playback = {
 		.channels_min = 1,
 		.channels_max = 2,
@@ -704,8 +703,8 @@ static struct snd_soc_dai_driver omap_mcpdm_dai[] = {
 {
 	.name = "mcpdm-dl2",
 	.id	= MCPDM_ABE_DAI_DL2,
-	.late_probe = 1,
-	.early_remove = 1,
+	.probe_order = SND_SOC_COMP_ORDER_LATE,
+	.remove_order = SND_SOC_COMP_ORDER_EARLY,
 	.playback = {
 		.channels_min = 1,
 		.channels_max = 2,
@@ -717,8 +716,8 @@ static struct snd_soc_dai_driver omap_mcpdm_dai[] = {
 {
 	.name = "mcpdm-vib",
 	.id	= MCPDM_ABE_DAI_VIB,
-	.late_probe = 1,
-	.early_remove = 1,
+	.probe_order = SND_SOC_COMP_ORDER_LATE,
+	.remove_order = SND_SOC_COMP_ORDER_EARLY,
 	.playback = {
 		.channels_min = 1,
 		.channels_max = 2,
@@ -730,8 +729,8 @@ static struct snd_soc_dai_driver omap_mcpdm_dai[] = {
 {
 	.name = "mcpdm-ul1",
 	.id	= MCPDM_ABE_DAI_UL1,
-	.late_probe = 1,
-	.early_remove = 1,
+	.probe_order = SND_SOC_COMP_ORDER_LATE,
+	.remove_order = SND_SOC_COMP_ORDER_EARLY,
 	.capture = {
 		.channels_min = 1,
 		.channels_max = 2,

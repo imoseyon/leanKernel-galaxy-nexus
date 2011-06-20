@@ -245,13 +245,13 @@ static int __init omap4_twl_tps62361_enable(struct voltagedomain *voltdm)
 
 	/* if we have to work with TWL */
 #ifdef CONFIG_TWL4030_CORE
-	ret = twl_i2c_read_u8(TWL4030_MODULE_PM_RECEIVER, &val,
+	ret = twl_i2c_read_u8(TWL6030_MODULE_ID0, &val,
 			TWL6030_REG_SYSEN_CFG_GRP);
 	if (ret)
 		goto out;
 
 	val |= TWL6030_BIT_APE_GRP;
-	ret = twl_i2c_write_u8(TWL4030_MODULE_PM_RECEIVER, val,
+	ret = twl_i2c_write_u8(TWL6030_MODULE_ID0, val,
 			TWL6030_REG_SYSEN_CFG_GRP);
 #endif
 
