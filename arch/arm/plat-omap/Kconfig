@@ -220,6 +220,16 @@ config OMAP_SERIAL_WAKE
 	  to data on the serial RX line. This allows you to wake the
 	  system from serial console.
 
+config OMAP_TEMP_SENSOR
+	bool "OMAP Temp Sensor Support"
+	depends on ARCH_OMAP4
+	default n
+	help
+		Say Y here if you want support for the temp sensor on OMAP4460.
+		This provides the temperature of the MPU
+		subsystem. Only one instance of on die temperature
+		sensor is present.
+
 # this carveout should probably become generic and not omap specific
 config OMAP_REMOTEPROC_MEMPOOL_SIZE
 	hex "Physical carveout memory pool size (Byte)"
