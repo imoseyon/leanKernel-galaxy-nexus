@@ -37,7 +37,6 @@
 #include <sound/soc-dapm.h>
 #include <sound/soc-dsp.h>
 
-#include <plat/control.h>
 #include <plat/dma-44xx.h>
 #include <plat/dma.h>
 #include "omap-pcm.h"
@@ -46,7 +45,7 @@
 #include "abe/abe_main.h"
 #include "abe/port_mgr.h"
 
-#define OMAP_ABE_FORMATS	SNDRV_PCM_FMTBIT_S32_LE
+#define OMAP_ABE_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S32_LE)
 
 struct omap_abe_data {
 	/* MODEM FE*/
@@ -1182,14 +1181,14 @@ static struct snd_soc_dai_driver omap_abe_dai[] = {
 			.channels_min = 1,
 			.channels_max = 1,
 			.rates = SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000,
-			.formats = OMAP_ABE_FORMATS | SNDRV_PCM_FMTBIT_S16_LE,
+			.formats = OMAP_ABE_FORMATS,
 		},
 		.capture = {
 			.stream_name = "Voice Capture",
 			.channels_min = 1,
 			.channels_max = 1,
 			.rates = SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000,
-			.formats = OMAP_ABE_FORMATS | SNDRV_PCM_FMTBIT_S16_LE,
+			.formats = OMAP_ABE_FORMATS,
 		},
 		.ops = &omap_abe_dai_ops,
 	},
@@ -1200,7 +1199,7 @@ static struct snd_soc_dai_driver omap_abe_dai[] = {
 			.channels_min = 2,
 			.channels_max = 2,
 			.rates = SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000,
-			.formats = OMAP_ABE_FORMATS | SNDRV_PCM_FMTBIT_S16_LE,
+			.formats = OMAP_ABE_FORMATS,
 		},
 		.ops = &omap_abe_dai_ops,
 	},

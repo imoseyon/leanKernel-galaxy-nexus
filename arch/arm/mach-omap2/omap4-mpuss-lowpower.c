@@ -144,12 +144,11 @@ static inline void clear_cpu_prev_pwrst(unsigned int cpu_id)
 static void scu_pwrst_prepare(unsigned int cpu_id, unsigned int cpu_state)
 {
 	struct omap4_cpu_pm_info *pm_info = &per_cpu(omap4_pm_info, cpu_id);
-	u32 scu_pwr_st, l1_state;
+	u32 scu_pwr_st, l1_state = 0x00;
 
 	switch (cpu_state) {
 	case PWRDM_POWER_RET:
 		scu_pwr_st = SCU_PM_DORMANT;
-		l1_state = 0x00;
 		break;
 	case PWRDM_POWER_OFF:
 		scu_pwr_st = SCU_PM_POWEROFF;
