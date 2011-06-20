@@ -736,7 +736,6 @@ static void __init omap4_panda_init(void)
 
 	omap4_panda_display_init();
 
-	omap4_panda_android_init();
 }
 
 static void __init omap4_panda_map_io(void)
