@@ -101,8 +101,6 @@ static int omap4_clkdm_is_idle(struct clockdomain *clkdm)
 
 static int omap4_clkdm_clk_enable(struct clockdomain *clkdm)
 {
-	bool hwsup = false;
-
 	/* For every clock enable, force wakeup the clkdm */
 	clkdm_wakeup(clkdm);
 
