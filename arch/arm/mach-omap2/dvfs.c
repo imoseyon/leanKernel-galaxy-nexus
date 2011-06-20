@@ -907,6 +907,7 @@ int __init omap_dvfs_register_device(struct device *dev, char *voltdm_name,
 	struct omap_vdd_dev_list *temp_dev;
 	struct omap_vdd_dvfs_info *dvfs_info;
 	struct clk *clk = NULL;
+	struct voltagedomain *voltdm;
 	int ret = 0;
 
 	if (!voltdm_name) {
@@ -921,7 +922,14 @@ int __init omap_dvfs_register_device(struct device *dev, char *voltdm_name,
 	/* Lock me to secure structure changes */
 	mutex_lock(&omap_dvfs_lock);
 
-	dvfs_info = _dev_to_dvfs_info(dev);
+	voltdm = voltdm_lookup(voltdm_name);
+	if (!voltdm) {
+		dev_warn(dev, "%s: unable to find voltdm %s!\n",
+			__func__, voltdm_name);
+		ret = -EINVAL;
+		goto out;
+	}
+	dvfs_info = _voltdm_to_dvfs_info(voltdm);
 	if (!dvfs_info) {
 		dvfs_info = kzalloc(sizeof(struct omap_vdd_dvfs_info),
 				GFP_KERNEL);
@@ -931,14 +939,7 @@ int __init omap_dvfs_register_device(struct device *dev, char *voltdm_name,
 			ret = -ENOMEM;
 			goto out;
 		}
-		dvfs_info->voltdm = voltdm_lookup(voltdm_name);
-		if (!dvfs_info->voltdm) {
-			dev_warn(dev, "%s: unable to find voltdm %s!\n",
-				__func__, voltdm_name);
-			kfree(dvfs_info);
-			ret = -EINVAL;
-			goto out;
-		}
+		dvfs_info->voltdm = voltdm;
 
 		/* Init the plist */
 		spin_lock_init(&dvfs_info->user_lock);
