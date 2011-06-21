@@ -22,12 +22,15 @@
 /* Scratch pad memory offsets from SAR_BANK1 */
 #define CPU0_SAVE_OFFSET			0xb00
 #define CPU1_SAVE_OFFSET			0xc00
-#define MMU_OFFSET				0xd00
+#define MMU_OFFSET0				0xd00
+#define MMU_OFFSET1				0xd10
 #define SCU_OFFSET0				0xd20
 #define SCU_OFFSET1				0xd24
 #define L2X0_OFFSET				0xd28
 #define L2X0_AUXCTRL_OFFSET			0xd2c
-#define OMAP_TYPE_OFFSET		0xd48
+#define L1_OFFSET0				0xd30
+#define L1_OFFSET1				0xd34
+#define OMAP_TYPE_OFFSET			0xd38
 
 /* CPUx Wakeup Non-Secure Physical Address offsets in SAR_BANK3 */
 #define CPU0_WAKEUP_NS_PA_ADDR_OFFSET		0xa04
