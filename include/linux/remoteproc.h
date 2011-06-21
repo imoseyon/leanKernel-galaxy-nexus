@@ -35,6 +35,8 @@
 
 #include <linux/mutex.h>
 #include <linux/completion.h>
+#include <linux/workqueue.h>
+#include <linux/notifier.h>
 
 /**
  * The following enums and structures define the binary format of the images
@@ -111,6 +113,8 @@ struct rproc;
 struct rproc_ops {
 	int (*start)(struct rproc *rproc, u64 bootaddr);
 	int (*stop)(struct rproc *rproc);
+	int (*iommu_init)(struct rproc *, int (*)(struct rproc *, u64, u32));
+	int (*iommu_exit)(struct rproc *);
 };
 
 /*
@@ -133,6 +137,15 @@ enum rproc_state {
 	RPROC_RUNNING,
 	RPROC_LOADING,
 	RPROC_CRASHED,
+};
+
+/*
+ * enum rproc_event - remote processor events
+ *
+ * @RPROC_ERROR: Fatal error has happened on the remote processor.
+ */
+enum rproc_event {
+	RPROC_ERROR,
 };
 
 #define RPROC_MAX_NAME	100
@@ -158,6 +171,8 @@ enum rproc_state {
  * @trace_len0: length of main trace buffer of the remote processor
  * @trace_len1: length of the second (and optional) trace buffer
  * @firmware_loading_complete: flags e/o asynchronous firmware loading
+ * @mmufault_work: work in charge of notifing mmufault
+ * @nb_error: notify block for fatal errors
  */
 struct rproc {
 	struct list_head next;
@@ -175,10 +190,14 @@ struct rproc {
 	char *trace_buf0, *trace_buf1;
 	int trace_len0, trace_len1;
 	struct completion firmware_loading_complete;
+	struct work_struct mmufault_work;
+	struct blocking_notifier_head nb_error;
 };
 
 struct rproc *rproc_get(const char *);
 void rproc_put(struct rproc *);
+int rproc_event_register(struct rproc *, struct notifier_block *, int);
+int rproc_event_unregister(struct rproc *, struct notifier_block *, int);
 int rproc_register(struct device *, const char *, const struct rproc_ops *,
 		const char *, const struct rproc_mem_entry *, struct module *);
 int rproc_unregister(const char *);

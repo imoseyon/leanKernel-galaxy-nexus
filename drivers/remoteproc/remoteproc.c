@@ -160,6 +160,31 @@ rproc_da_to_pa(const struct rproc_mem_entry *maps, u64 da, phys_addr_t *pa)
 	return -EINVAL;
 }
 
+static int rproc_mmu_fault_isr(struct rproc *rproc, u64 da, u32 flags)
+{
+	dev_err(rproc->dev, "Enter %s\n", __func__);
+	rproc->state = RPROC_CRASHED;
+	schedule_work(&rproc->mmufault_work);
+
+	return -EFAULT;
+}
+
+static int _event_notify(struct rproc *rproc, int type, void *data)
+{
+	struct blocking_notifier_head *nh;
+
+	switch (type) {
+	case RPROC_ERROR:
+		nh = &rproc->nb_error;
+		rproc->state = RPROC_CRASHED;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return blocking_notifier_call_chain(nh, type, data);
+}
+
 /**
  * rproc_start - power on the remote processor and let it start running
  * @rproc: the remote processor
@@ -176,6 +201,14 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 	if (err) {
 		dev_err(dev, "can't lock remote processor %d\n", err);
 		return;
+	}
+
+	if (rproc->ops->iommu_init) {
+		err = rproc->ops->iommu_init(rproc, rproc_mmu_fault_isr);
+		if (err) {
+			dev_err(dev, "can't configure iommu %d\n", err);
+			goto unlock_mutext;
+		}
 	}
 
 	err = rproc->ops->start(rproc, bootaddr);
@@ -497,13 +530,22 @@ void rproc_put(struct rproc *rproc)
 	 * make sure rproc is really running before powering it off.
 	 * this is important, because the fw loading might have failed.
 	 */
-	if (rproc->state == RPROC_RUNNING) {
+	if (rproc->state == RPROC_RUNNING || rproc->state == RPROC_CRASHED) {
 		ret = rproc->ops->stop(rproc);
 		if (ret) {
 			dev_err(dev, "can't stop rproc %s: %d\n", rproc->name,
 									ret);
 			goto out;
 		}
+		if (rproc->ops->iommu_exit) {
+			ret = rproc->ops->iommu_exit(rproc);
+			if (ret) {
+				dev_err(rproc->dev, "error iommu_exit %d\n",
+					ret);
+				goto out;
+			}
+		}
+
 	}
 
 	rproc->state = RPROC_OFFLINE;
@@ -516,6 +558,45 @@ out:
 		module_put(rproc->owner);
 }
 EXPORT_SYMBOL_GPL(rproc_put);
+
+static void rproc_mmufault_work(struct work_struct *work)
+{
+	struct rproc *rproc = container_of(work, struct rproc, mmufault_work);
+
+	dev_dbg(rproc->dev, "Enter %s\n", __func__);
+	_event_notify(rproc, RPROC_ERROR, NULL);
+}
+
+static int _register(struct rproc *rproc,
+			struct notifier_block *nb, int type, bool reg)
+{
+	struct blocking_notifier_head *nh;
+
+	switch (type) {
+	case RPROC_ERROR:
+		nh = &rproc->nb_error;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return (reg) ? blocking_notifier_chain_register(nh, nb) :
+		blocking_notifier_chain_unregister(nh, nb);
+}
+
+int rproc_event_register(struct rproc *rproc,
+				struct notifier_block *nb, int type)
+{
+	return _register(rproc, nb, type, true);
+}
+EXPORT_SYMBOL_GPL(rproc_event_register);
+
+int rproc_event_unregister(struct rproc *rproc,
+				struct notifier_block *nb, int type)
+{
+	return _register(rproc, nb, type, false);
+}
+EXPORT_SYMBOL_GPL(rproc_event_unregister);
 
 int rproc_register(struct device *dev, const char *name,
 				const struct rproc_ops *ops,
@@ -542,6 +623,8 @@ int rproc_register(struct device *dev, const char *name,
 	rproc->memory_maps = memory_maps;
 
 	mutex_init(&rproc->lock);
+	INIT_WORK(&rproc->mmufault_work, rproc_mmufault_work);
+	BLOCKING_INIT_NOTIFIER_HEAD(&rproc->nb_error);
 
 	rproc->state = RPROC_OFFLINE;
 
