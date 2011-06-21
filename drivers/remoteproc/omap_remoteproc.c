@@ -18,12 +18,18 @@
 #include <linux/kernel.h>
 #include <linux/clk.h>
 #include <linux/err.h>
+#include <linux/slab.h>
 #include <linux/platform_device.h>
 #include <linux/remoteproc.h>
 
 #include <plat/iommu.h>
 #include <plat/omap_device.h>
 #include <plat/remoteproc.h>
+
+struct omap_rproc_priv {
+	struct iommu *iommu;
+	int (*iommu_cb)(struct rproc *, u64, u32);
+};
 
 static int
 omap_rproc_map(struct device *dev, struct iommu *obj, u32 da, u32 pa, u32 size)
@@ -71,56 +77,88 @@ omap_rproc_map(struct device *dev, struct iommu *obj, u32 da, u32 pa, u32 size)
 	return 0;
 }
 
-static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
+
+static int omap_rproc_iommu_isr(struct iommu *iommu, u32 da, u32 errs, void *p)
+{
+	struct rproc *rproc = p;
+	struct omap_rproc_priv *rpp = rproc->priv;
+	int ret = -EIO;
+
+	if (rpp && rpp->iommu_cb)
+		ret = rpp->iommu_cb(rproc, (u64)da, errs);
+
+	return ret;
+}
+
+static int omap_rproc_iommu_init(struct rproc *rproc,
+		 int (*callback)(struct rproc *rproc, u64 fa, u32 flags))
 {
 	struct device *dev = rproc->dev;
-	struct platform_device *pdev = to_platform_device(dev);
 	struct omap_rproc_pdata *pdata = dev->platform_data;
-	struct iommu *iommu;
 	int ret, i;
+	struct iommu *iommu;
+	struct omap_rproc_priv *rpp;
 
+	rpp = kmalloc(sizeof(*rpp), GFP_KERNEL);
+	if (!rpp)
+		return -ENOMEM;
+
+	iommu_set_isr(pdata->iommu_name, omap_rproc_iommu_isr, rproc);
 	iommu = iommu_get(pdata->iommu_name);
 	if (IS_ERR_OR_NULL(iommu)) {
 		dev_err(dev, "iommu_get error: %ld\n", PTR_ERR(iommu));
-		return PTR_ERR(iommu);
+		ret = PTR_ERR(iommu);
+		goto err_mmu;
 	}
 
-	rproc->priv = iommu;
+	rpp->iommu = iommu;
+	rpp->iommu_cb = callback;
+	rproc->priv = rpp;
 
 	for (i = 0; rproc->memory_maps[i].size; i++) {
 		const struct rproc_mem_entry *me = &rproc->memory_maps[i];
 
 		ret = omap_rproc_map(dev, iommu, me->da, me->pa, me->size);
 		if (ret)
-			return ret;
+			goto err_map;
 	}
+	return 0;
+err_map:
+	iommu_put(iommu);
+err_mmu:
+	kfree(rpp);
+	return ret;
+}
 
-	ret = omap_device_enable(pdev);
-	if (ret)
-		return ret;
+static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
+{
+	struct platform_device *pdev = to_platform_device(rproc->dev);
+
+	return omap_device_enable(pdev);
+}
+
+static int omap_rproc_iommu_exit(struct rproc *rproc)
+{
+	struct omap_rproc_priv *rpp = rproc->priv;
+
+	iommu_put(rpp->iommu);
+	kfree(rpp);
 
 	return 0;
 }
 
 static inline int omap_rproc_stop(struct rproc *rproc)
 {
-	struct device *dev = rproc->dev;
-	struct platform_device *pdev = to_platform_device(dev);
-	struct iommu *iommu = rproc->priv;
-	int ret;
+	struct platform_device *pdev = to_platform_device(rproc->dev);
 
-	ret = omap_device_shutdown(pdev);
-	if (ret)
-		dev_err(dev, "failed to shutdown: %d\n", ret);
-
-	iommu_put(iommu);
-
-	return ret;
+	return omap_device_shutdown(pdev);
 }
 
 static struct rproc_ops omap_rproc_ops = {
 	.start = omap_rproc_start,
 	.stop = omap_rproc_stop,
+	.iommu_init = omap_rproc_iommu_init,
+	.iommu_exit = omap_rproc_iommu_exit,
 };
 
 static int omap_rproc_probe(struct platform_device *pdev)
