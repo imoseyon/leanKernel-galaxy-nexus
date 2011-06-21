@@ -28,34 +28,15 @@ static bool off_mode_enabled;
 
 /*
  * Device-driver-originated constraints (via board-*.c files)
+ * WARNING: Device drivers need to now use pm_qos directly.
  */
-
 int omap_pm_set_max_mpu_wakeup_lat(struct pm_qos_request_list **pmqos_req,
 			long t)
 {
-	if (!pmqos_req || t < -1) {
-		WARN(1, "OMAP PM: %s: invalid parameter(s)", __func__);
-		return -EINVAL;
-	};
+	WARN(1, "Deprecated %s: Driver should use pm_qos to add request\n",
+		__func__);
 
-	if (t == -1)
-		pr_debug("OMAP PM: remove max MPU wakeup latency constraint\n");
-	else
-		pr_debug("OMAP PM: add max MPU wakeup latency constraint:"
-			"t = %ld usec\n", t);
-
-	/*
-	 * For current Linux, this needs to map the MPU to a
-	 * powerdomain, then go through the list of current max lat
-	 * constraints on the MPU and find the smallest.  If
-	 * the latency constraint has changed, the code should
-	 * recompute the state to enter for the next powerdomain
-	 * state.
-	 *
-	 * TI CDP code can call constraint_set here.
-	 */
-
-	return 0;
+	return -EINVAL;
 }
 
 int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, long r)
@@ -116,32 +97,13 @@ int omap_pm_set_max_dev_wakeup_lat(struct device *req_dev, struct device *dev,
 	return 0;
 }
 
+/* WARNING: Device drivers need to now use pm_qos directly. */
 int omap_pm_set_max_sdma_lat(struct pm_qos_request_list **qos_request, long t)
 {
-	if (!qos_request || t < -1) {
-		WARN(1, "OMAP PM: %s: invalid parameter(s)", __func__);
-		return -EINVAL;
-	};
+	WARN(1, "Deprecated %s: Driver should use pm_qos to add request\n",
+		__func__);
 
-	if (t == -1)
-		pr_debug("OMAP PM: remove max DMA latency constraint:\n");
-	else
-		pr_debug("OMAP PM: add max DMA latency constraint:"
-			"t = %ld usec\n", t);
-
-	/*
-	 * For current Linux PM QOS params, this code should scan the
-	 * list of maximum CPU and DMA latencies and select the
-	 * smallest, then set cpu_dma_latency pm_qos_param
-	 * accordingly.
-	 *
-	 * For future Linux PM QOS params, with separate CPU and DMA
-	 * latency params, this code should just set the dma_latency param.
-	 *
-	 * TI CDP code can call constraint_set here.
-	 */
-
-	return 0;
+	return -EINVAL;
 }
 
 int omap_pm_set_min_clk_rate(struct device *dev, struct clk *c, long r)

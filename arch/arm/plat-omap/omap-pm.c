@@ -224,32 +224,16 @@ unlock:
 
 /*
  * Device-driver-originated constraints (via board-*.c files)
+ * WARNING: Device drivers need to now use pm_qos directly.
  */
-
 int omap_pm_set_max_mpu_wakeup_lat(struct pm_qos_request_list **qos_request,
 					long t)
 {
-	if (!qos_request || t < -1) {
-		WARN(1, "OMAP PM: %s: invalid parameter(s)", __func__);
-		return -EINVAL;
-	};
+	WARN(1, "Deprecated %s: Driver should use pm_qos to add request\n",
+		__func__);
 
-	mutex_lock(&mpu_lat_mutex);
-
-	if (t == -1) {
-		pm_qos_remove_request(*qos_request);
-		kfree(*qos_request);
-		*qos_request = NULL;
-	} else if (*qos_request == NULL) {
-		*qos_request = kzalloc(sizeof(struct pm_qos_request_list), GFP_KERNEL);
-		pm_qos_add_request(*qos_request, PM_QOS_CPU_DMA_LATENCY, t);
-	} else
-		pm_qos_update_request(*qos_request, t);
-
-	mutex_unlock(&mpu_lat_mutex);
-	return 0;
+	return -EINVAL;
 }
-
 
 int omap_pm_set_min_bus_tput(struct device *dev, u8 agent_id, long r)
 {
@@ -366,25 +350,14 @@ int omap_pm_set_max_dev_wakeup_lat(struct device *req_dev, struct device *dev,
 	return ret;
 }
 
+/* WARNING: Device drivers need to now use pm_qos directly. */
 int omap_pm_set_max_sdma_lat(struct pm_qos_request_list **qos_request,
 					long t)
 {
-	if (!qos_request || t < -1) {
-		WARN(1, "OMAP PM: %s: invalid parameter(s)", __func__);
-		return -EINVAL;
-	};
+	WARN(1, "Deprecated %s: Driver should use pm_qos to add request\n",
+		__func__);
 
-	if (t == -1) {
-		pm_qos_remove_request(*qos_request);
-		kfree(*qos_request);
-		*qos_request = NULL;
-	} else if (*qos_request == NULL) {
-		*qos_request = kzalloc(sizeof(struct pm_qos_request_list), GFP_KERNEL);
-		pm_qos_add_request(*qos_request, PM_QOS_CPU_DMA_LATENCY, t);
-	} else
-		pm_qos_update_request(*qos_request, t);
-
-	return 0;
+	return -EINVAL;
 }
 
 int omap_pm_set_min_clk_rate(struct device *dev, struct clk *c, long r)
