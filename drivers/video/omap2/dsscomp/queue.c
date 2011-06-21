@@ -713,8 +713,8 @@ skip_ovl_set:
 					d->win.y, d->win.w, d->win.h);
 		}
 	} else {
-		/* wait for sync to avoid tear */
-		r = mgr->wait_for_vsync(mgr) ? : mgr->apply(mgr);
+		/* wait for sync to do smooth animations */
+		r = mgr->apply(mgr) ? : mgr->wait_for_vsync(mgr);
 
 		if (r)
 			dev_err(DEV(cdev), "failed to apply %d", r);
