@@ -28,6 +28,7 @@
 #include <linux/regulator/fixed.h>
 #include <linux/wl12xx.h>
 #include <linux/reboot.h>
+#include <linux/memblock.h>
 
 #include <mach/hardware.h>
 #include <mach/omap4-common.h>
@@ -46,6 +47,9 @@
 #include "control.h"
 #include "mux.h"
 #include "board-tuna.h"
+
+#define TUNA_RAMCONSOLE_START	(PLAT_PHYS_OFFSET + SZ_512M)
+#define TUNA_RAMCONSOLE_SIZE	SZ_2M
 
 #define GPIO_AUD_PWRON		127
 #define GPIO_AUD_PWRON_TORO_V1	20
@@ -122,7 +126,23 @@ static struct platform_device wl1271_device = {
 	},
 };
 
+static struct resource ramconsole_resources[] = {
+	{
+		.flags  = IORESOURCE_MEM,
+		.start	= TUNA_RAMCONSOLE_START,
+		.end	= TUNA_RAMCONSOLE_START + TUNA_RAMCONSOLE_SIZE - 1,
+	},
+};
+
+static struct platform_device ramconsole_device = {
+	.name           = "ram_console",
+	.id             = -1,
+	.num_resources  = ARRAY_SIZE(ramconsole_resources),
+	.resource       = ramconsole_resources,
+};
+
 static struct platform_device *tuna_devices[] __initdata = {
+	&ramconsole_device,
 	&wl1271_device,
 };
 
@@ -587,10 +607,16 @@ static void __init tuna_map_io(void)
 	omap44xx_map_common_io();
 }
 
+static void __init tuna_reserve(void)
+{
+	omap_reserve();
+	memblock_remove(TUNA_RAMCONSOLE_START, TUNA_RAMCONSOLE_SIZE);
+}
+
 MACHINE_START(TUNA, "Tuna")
 	/* Maintainer: Google, Inc */
 	.boot_params	= 0x80000100,
-	.reserve	= omap_reserve,
+	.reserve	= tuna_reserve,
 	.map_io		= tuna_map_io,
 	.init_early	= tuna_init_early,
 	.init_irq	= gic_init_irq,
