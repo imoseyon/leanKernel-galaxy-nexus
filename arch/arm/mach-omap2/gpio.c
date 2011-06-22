@@ -83,6 +83,10 @@ static int omap2_gpio_dev_init(struct omap_hwmod *oh, void *unused)
 		return -ENOMEM;
 	}
 
+	pdata->regs->irqctrl = USHRT_MAX;
+	pdata->regs->edgectrl1 = USHRT_MAX;
+	pdata->regs->edgectrl2 = USHRT_MAX;
+
 	switch (oh->class->rev) {
 	case 0:
 		if (id == 1)
