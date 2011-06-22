@@ -27,6 +27,7 @@ int omap4_tuna_get_type(void);
 bool omap4_tuna_final_gpios(void);
 void omap4_tuna_display_init(void);
 void omap4_tuna_input_init(void);
+void omap4_tuna_nfc_init(void);
 void omap4_tuna_power_init(void);
 void omap4_tuna_sensors_init(void);
 int tuna_wlan_init(void);

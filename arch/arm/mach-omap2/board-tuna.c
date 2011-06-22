@@ -54,10 +54,6 @@
 #define GPIO_AUD_PWRON		127
 #define GPIO_AUD_PWRON_TORO_V1	20
 
-#define GPIO_NFC_IRQ 17
-#define GPIO_NFC_FIRMWARE 172
-#define GPIO_NFC_EN 173
-
 #define REBOOT_FLAG_RECOVERY	0x52564352
 #define REBOOT_FLAG_FASTBOOT	0x54534146
 #define REBOOT_FLAG_NORMAL	0x4D524F4E
@@ -519,21 +515,6 @@ static struct notifier_block tuna_reboot_notifier = {
 	.notifier_call = tuna_notifier_call,
 };
 
-static void __init omap4_tuna_nfc_init(void)
-{
-	gpio_request(GPIO_NFC_FIRMWARE, "nfc_firmware");
-	gpio_direction_output(GPIO_NFC_FIRMWARE, 0);
-	omap_mux_init_gpio(GPIO_NFC_FIRMWARE, OMAP_PIN_OUTPUT);
-
-	gpio_request(GPIO_NFC_EN, "nfc_enable");
-	gpio_direction_output(GPIO_NFC_EN, 1);
-	omap_mux_init_gpio(GPIO_NFC_EN, OMAP_PIN_OUTPUT);
-
-	gpio_request(GPIO_NFC_IRQ, "nfc_irq");
-	gpio_direction_input(GPIO_NFC_IRQ);
-	omap_mux_init_gpio(GPIO_NFC_IRQ, OMAP_PIN_INPUT_PULLUP);
-}
-
 #define HSMMC2_MUX	(OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP)
 #define HSMMC1_MUX	OMAP_PIN_INPUT_PULLUP
 
@@ -596,8 +577,8 @@ static void __init tuna_init(void)
 	usb_musb_init(&musb_board_data);
 	omap4_tuna_display_init();
 	omap4_tuna_input_init();
-	omap4_tuna_power_init();
 	omap4_tuna_nfc_init();
+	omap4_tuna_power_init();
 	omap4_tuna_sensors_init();
 #ifdef CONFIG_OMAP_HSI_DEVICE
 	if (TUNA_TYPE_MAGURO == omap4_tuna_get_type())
