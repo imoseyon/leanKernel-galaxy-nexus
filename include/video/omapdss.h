@@ -337,6 +337,12 @@ struct omapdss_ovl_cb {
 	void *data;
 };
 
+struct omap_dss_cpr_coefs {
+	s16 rr, rg, rb;
+	s16 gr, gg, gb;
+	s16 br, bg, bb;
+};
+
 struct omap_overlay_info {
 	bool enabled;
 
@@ -402,6 +408,9 @@ struct omap_overlay_manager_info {
 	bool alpha_enabled;
 
 	struct omapdss_ovl_cb cb;
+
+	bool cpr_enable;
+	struct omap_dss_cpr_coefs cpr_coefs;
 };
 
 struct omap_overlay_manager {
