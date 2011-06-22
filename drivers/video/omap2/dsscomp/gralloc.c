@@ -1,9 +1,15 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include <linux/sched.h>
 #include <mach/tiler.h>
 #include <video/dsscomp.h>
 #include <plat/dsscomp.h>
 #include "dsscomp.h"
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+#include <linux/earlysuspend.h>
+#endif
+static bool blanked;
 
 #define NUM_TILER1D_SLOTS 8
 #define TILER1D_SLOT_SIZE (4 << 20)
@@ -112,6 +118,15 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 	for (i = 0; i < d->num_ovls; i++)
 		dump_ovl_info(cdev, d->ovls + i);
 
+	/* ignore frames while we are blanked */
+	if (blanked) {
+		if (debug & DEBUG_PHASES)
+			dev_info(DEV(cdev), "[%08x] ignored\n", d->sync_id);
+		if (cb_fn)
+			cb_fn(cb_arg, 0);
+		return 0;
+	}
+
 	/* verify display is valid and connected */
 	if (d->mgr.ix >= cdev->num_displays)
 		return -EINVAL;
@@ -204,13 +219,60 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 	return r;
 }
 
+#ifdef CONFIG_EARLYSUSPEND
+static int blank_complete;
+static DECLARE_WAIT_QUEUE_HEAD(early_suspend_wq);
+
+static void dsscomp_early_suspend_cb(void *data, int status)
+{
+	blank_complete = true;
+	wake_up_interruptible_sync(&early_suspend_wq);
+}
+
+static void dsscomp_early_suspend(struct early_suspend *h)
+{
+	struct dsscomp_setup_mgr_data d = {
+		.mgr.alpha_blending = 1,
+	};
+	struct tiler_pa_info *pas[] = { NULL };
+
+	pr_info("DSSCOMP: %s\n", __func__);
+
+	/* use gralloc queue as we need to blank all screens */
+	dsscomp_gralloc_queue(&d, pas, dsscomp_early_suspend_cb, NULL);
+	blanked = true;
+	blank_complete = false;
+
+	/* wait until composition is displayed */
+	wait_event_interruptible(early_suspend_wq, blank_complete);
+	pr_info("DSSCOMP: blanked screen\n");
+}
+
+static void dsscomp_late_resume(struct early_suspend *h)
+{
+	pr_info("DSSCOMP: %s\n", __func__);
+	blanked = false;
+}
+
+static struct early_suspend early_suspend_info = {
+	.suspend = dsscomp_early_suspend,
+	.resume = dsscomp_late_resume,
+	.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN,
+};
+#endif
+
 void dsscomp_gralloc_init(struct dsscomp_dev *cdev_)
 {
 	int i;
 
 	/* save at least cdev pointer */
-	if (!cdev && cdev_)
+	if (!cdev && cdev_) {
 		cdev = cdev_;
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+		register_early_suspend(&early_suspend_info);
+#endif
+	}
 
 	if (!free_slots.next) {
 		INIT_LIST_HEAD(&free_slots);
@@ -235,6 +297,11 @@ void dsscomp_gralloc_init(struct dsscomp_dev *cdev_)
 void dsscomp_gralloc_exit(void)
 {
 	struct tiler1d_slot *slot;
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	unregister_early_suspend(&early_suspend_info);
+#endif
+
 	list_for_each_entry(slot, &free_slots, q)
 		tiler_free_block_area(slot->slot);
 	INIT_LIST_HEAD(&free_slots);
