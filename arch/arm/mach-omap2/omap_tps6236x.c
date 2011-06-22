@@ -67,6 +67,8 @@
 
 /* TWL usage */
 #define TWL6030_REG_SYSEN_CFG_GRP			0xB3
+#define TWL6030_REG_VCORE3_CFG_GRP			0x5E
+#define TWL6030_REG_VMEM_CFG_GRP			0x64
 #define TWL6030_BIT_APE_GRP				BIT(0)
 
 /* Voltage params of the attached device (all in uV) */
@@ -228,6 +230,7 @@ out:
 static int __init omap4_twl_tps62361_enable(struct voltagedomain *voltdm)
 {
 	int ret = 0;
+	int ret1;
 	u8 val;
 
 	/* Dont trust the bootloader. start with max, pm will set to proper */
@@ -270,8 +273,28 @@ static int __init omap4_twl_tps62361_enable(struct voltagedomain *voltdm)
 	/* if we have to work with TWL */
 #ifdef CONFIG_TWL4030_CORE
 	/* Map up SYSEN on TWL core to control TPS */
-	ret = _twl_i2c_rmw_u8(TWL6030_MODULE_ID0, TWL6030_BIT_APE_GRP,
+	ret1 = _twl_i2c_rmw_u8(TWL6030_MODULE_ID0, TWL6030_BIT_APE_GRP,
 			TWL6030_BIT_APE_GRP, TWL6030_REG_SYSEN_CFG_GRP);
+	if (ret1) {
+		pr_err("%s:Err:TWL6030: map APE SYEN(%d)\n", __func__, ret1);
+		ret = ret1;
+	}
+
+	/* Since we dont use VCORE3, this should not be associated with APE */
+	ret1 = _twl_i2c_rmw_u8(TWL6030_MODULE_ID0, TWL6030_BIT_APE_GRP,
+			0x00, TWL6030_REG_VCORE3_CFG_GRP);
+	if (ret1) {
+		pr_err("%s:Err:TWL6030:unmap APE VCORE3(%d)\n", __func__, ret1);
+		ret = ret1;
+	}
+
+	/* Since we dont use VMEM, this should not be associated with APE */
+	ret1 = _twl_i2c_rmw_u8(TWL6030_MODULE_ID0, TWL6030_BIT_APE_GRP,
+			0x00, TWL6030_REG_VMEM_CFG_GRP);
+	if (ret1) {
+		pr_err("%s:Err:TWL6030: unmap APE VMEM(%d)\n", __func__, ret1);
+		ret = ret1;
+	}
 #endif
 
 out:
