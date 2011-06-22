@@ -25,3 +25,10 @@ config OMAP_REMOTE_PROC
 
 	  It's safe to say n here if you're not interested in multimedia
 	  offloading or just want a bare minium kernel.
+
+config OMAP_RPRES
+	bool "Remote Processor Resources"
+	depends on OMAP_REMOTE_PROC
+	help
+	  Say Y here if you want to use OMAP remote processor resources
+	  frame work.

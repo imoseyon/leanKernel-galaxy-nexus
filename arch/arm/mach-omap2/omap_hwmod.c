@@ -401,7 +401,8 @@ static int _enable_wakeup(struct omap_hwmod *oh, u32 *v)
 
 	wakeup_mask = (0x1 << oh->class->sysc->sysc_fields->enwkup_shift);
 
-	*v |= wakeup_mask;
+	if (oh->class->sysc->sysc_flags & SYSC_HAS_ENAWAKEUP)
+		*v |= wakeup_mask;
 
 	if (oh->class->sysc->idlemodes & SIDLE_SMART_WKUP)
 		_set_slave_idlemode(oh, HWMOD_IDLEMODE_SMART_WKUP, v);
@@ -436,7 +437,8 @@ static int _disable_wakeup(struct omap_hwmod *oh, u32 *v)
 
 	wakeup_mask = (0x1 << oh->class->sysc->sysc_fields->enwkup_shift);
 
-	*v &= ~wakeup_mask;
+	if (oh->class->sysc->sysc_flags & SYSC_HAS_ENAWAKEUP)
+		*v &= ~wakeup_mask;
 
 	if (oh->class->sysc->idlemodes & SIDLE_SMART_WKUP)
 		_set_slave_idlemode(oh, HWMOD_IDLEMODE_SMART, v);
@@ -1381,8 +1383,11 @@ static int _shutdown(struct omap_hwmod *oh)
 		}
 	}
 
-	if (oh->class->sysc)
+	if (oh->class->sysc) {
+		if (oh->_state == _HWMOD_STATE_IDLE)
+			_enable(oh);
 		_shutdown_sysc(oh);
+	}
 
 	/*
 	 * If an IP contains only one HW reset line, then assert it
