@@ -119,7 +119,6 @@ static int omap2_gpio_dev_init(struct omap_hwmod *oh, void *unused)
 		return PTR_ERR(od);
 	}
 
-	gpio_bank_count++;
 	return 0;
 }
 
