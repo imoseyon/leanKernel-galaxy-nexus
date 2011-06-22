@@ -62,7 +62,7 @@ struct virtproc_info {
 	void *rbufs, *sbufs;
 	int last_rbuf, last_sbuf;
 	void *sim_base;
-	spinlock_t svq_lock;
+	struct mutex svq_lock;
 	int num_bufs;
 	int buf_size;
 	struct idr endpoints;
@@ -492,7 +492,7 @@ int rpmsg_send_offchannel_raw(struct rpmsg_channel *rpdev, u32 src, u32 dst,
 	sg_init_one(&sg, sim_addr, sizeof(*msg) + len);
 
 	/* protect svq from simultaneous concurrent manipulations */
-	spin_lock(&vrp->svq_lock);
+	mutex_lock(&vrp->svq_lock);
 
 	/* add message to the remote processor's virtqueue */
 	err = virtqueue_add_buf_gfp(vrp->svq, &sg, 1, 0, msg, GFP_KERNEL);
@@ -506,7 +506,7 @@ int rpmsg_send_offchannel_raw(struct rpmsg_channel *rpdev, u32 src, u32 dst,
 
 	err = 0;
 out:
-	spin_unlock(&vrp->svq_lock);
+	mutex_unlock(&vrp->svq_lock);
 	return err;
 }
 EXPORT_SYMBOL(rpmsg_send_offchannel_raw);
@@ -639,7 +639,7 @@ static int rpmsg_probe(struct virtio_device *vdev)
 
 	idr_init(&vrp->endpoints);
 	spin_lock_init(&vrp->endpoints_lock);
-	spin_lock_init(&vrp->svq_lock);
+	mutex_init(&vrp->svq_lock);
 	init_waitqueue_head(&vrp->sendq);
 
 	/* We expect two virtqueues, rx and tx (in this order) */
