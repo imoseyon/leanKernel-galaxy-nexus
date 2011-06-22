@@ -194,6 +194,30 @@ static struct omap_voltdm_pmic omap4_mpu_pmic = {
 };
 
 /**
+ * _twl_i2c_rmw_u8() - Tiny helper function to do a read modify write for twl
+ * @mod_no:	module number
+ * @mask:	mask for the val
+ * @value:	value to write
+ * @reg:	register to write to
+ */
+static int __init _twl_i2c_rmw_u8(u8 mod_no, u8 mask, u8 value, u8 reg)
+{
+	int ret;
+	u8 val;
+
+	ret = twl_i2c_read_u8(mod_no, &val, reg);
+	if (ret)
+		goto out;
+
+	val &= ~mask;
+	val |= (value & mask);
+
+	ret = twl_i2c_write_u8(mod_no, val, reg);
+out:
+	return ret;
+}
+
+/**
  * omap4_twl_tps62361_enable() - Enable tps chip
  *
  * This function enables TPS chip by associating SYSEN signal
@@ -245,14 +269,9 @@ static int __init omap4_twl_tps62361_enable(struct voltagedomain *voltdm)
 
 	/* if we have to work with TWL */
 #ifdef CONFIG_TWL4030_CORE
-	ret = twl_i2c_read_u8(TWL6030_MODULE_ID0, &val,
-			TWL6030_REG_SYSEN_CFG_GRP);
-	if (ret)
-		goto out;
-
-	val |= TWL6030_BIT_APE_GRP;
-	ret = twl_i2c_write_u8(TWL6030_MODULE_ID0, val,
-			TWL6030_REG_SYSEN_CFG_GRP);
+	/* Map up SYSEN on TWL core to control TPS */
+	ret = _twl_i2c_rmw_u8(TWL6030_MODULE_ID0, TWL6030_BIT_APE_GRP,
+			TWL6030_BIT_APE_GRP, TWL6030_REG_SYSEN_CFG_GRP);
 #endif
 
 out:
