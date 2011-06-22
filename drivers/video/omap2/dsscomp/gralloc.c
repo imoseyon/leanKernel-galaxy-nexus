@@ -31,7 +31,6 @@ static void unpin_tiler_blocks(struct list_head *slots)
 {
 	struct tiler1d_slot *slot;
 
-	mutex_lock(&mtx);
 	/* unpin any tiler memory */
 	list_for_each_entry(slot, slots, q) {
 		tiler_unpin_block(slot->slot);
@@ -40,7 +39,6 @@ static void unpin_tiler_blocks(struct list_head *slots)
 
 	/* free tiler slots */
 	list_splice_init(slots, &free_slots);
-	mutex_unlock(&mtx);
 }
 
 static void dsscomp_gralloc_cb(dsscomp_t comp, int status)

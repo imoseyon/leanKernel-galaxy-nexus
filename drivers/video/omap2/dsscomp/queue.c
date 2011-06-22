@@ -463,16 +463,16 @@ static void dsscomp_mgr_delayed_cb(struct work_struct *work)
 
 	kfree(work);
 
-	/* call extra callbacks if requested */
-	if (comp->extra_cb)
-		comp->extra_cb(comp, status);
-
 	mutex_lock(&mtx);
 
 	/* verify validity */
 	comp = validate(comp);
 	if (IS_ERR(comp))
 		goto done;
+
+	/* call extra callbacks if requested */
+	if (comp->extra_cb)
+		comp->extra_cb(comp, status);
 
 	ix = comp->frm.mgr.ix;
 	if (ix >= cdev->num_displays ||
@@ -717,8 +717,11 @@ skip_ovl_set:
 		r = mgr->apply(mgr) ? : mgr->wait_for_vsync(mgr);
 
 		if (r)
-			dev_err(DEV(cdev), "failed to apply %d", r);
+			dev_err(DEV(cdev), "failed while applying %d", r);
 
+		/* ignore this error if callback has already been registered */
+		if (!mgr->info_dirty)
+			r = 0;
 	}
 
 done:
