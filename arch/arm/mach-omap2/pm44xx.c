@@ -186,8 +186,7 @@ static int omap4_pm_suspend(void)
 				continue;
 #ifdef CONFIG_OMAP_ALLOW_OSWR
 		/*OSWR is supported on silicon > ES2.0 */
-		if ((pwrst->pwrdm->pwrsts_logic_ret == PWRSTS_OFF_RET) &&
-			(!strcmp(pwrst->pwrdm->name, "mpu_pwrdm")))
+		if (pwrst->pwrdm->pwrsts_logic_ret == PWRSTS_OFF_RET)
 				pwrdm_set_logic_retst(pwrst->pwrdm,
 							PWRDM_POWER_OFF);
 #endif
