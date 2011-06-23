@@ -44,6 +44,7 @@ static LIST_HEAD(free_ois);
 #undef STRICT_CHECK
 
 #define MAGIC_ACTIVE		0xAC54156E
+#define MAGIC_APPLYING		0xA554C591
 #define MAGIC_APPLIED		0xA50504C1
 #define MAGIC_PROGRAMMED	0x50520652
 #define MAGIC_DISPLAYED		0xD15504CA
@@ -137,6 +138,7 @@ static inline struct dsscomp_data *validate(struct dsscomp_data *comp)
 	return (comp->magic == MAGIC_PROGRAMMED ||
 		comp->magic == MAGIC_DISPLAYED ||
 		comp->magic == MAGIC_APPLIED ||
+		comp->magic == MAGIC_APPLYING ||
 		comp->magic == MAGIC_ACTIVE) ? comp : ERR_PTR(-ESRCH);
 #endif
 }
@@ -559,7 +561,8 @@ int dsscomp_apply(dsscomp_t comp)
 		goto done;
 	}
 
-	if (comp->magic != MAGIC_ACTIVE) {
+	if (comp->magic != MAGIC_ACTIVE &&
+	    comp->magic != MAGIC_APPLYING) {
 		r = -EACCES;
 		goto done;
 	}
@@ -754,6 +757,22 @@ int dsscomp_delayed_apply(dsscomp_t comp)
 	struct dsscomp_apply_work *wk = kzalloc(sizeof(*wk), GFP_NOWAIT);
 	if (!wk)
 		return -ENOMEM;
+
+	mutex_lock(&mtx);
+
+	/* check if composition is active */
+	if (IS_ERR(validate(comp)) ||
+	    comp->magic != MAGIC_ACTIVE) {
+		kfree(wk);
+		mutex_unlock(&mtx);
+		return -EACCES;
+	}
+
+	/* mark composition as being queued, so that it does not get skipped */
+	comp->magic = MAGIC_APPLYING;
+
+	mutex_unlock(&mtx);
+
 	wk->comp = comp;
 	INIT_WORK(&wk->work, dsscomp_do_apply);
 	return queue_work(apply_wkq, &wk->work) ? 0 : -EBUSY;

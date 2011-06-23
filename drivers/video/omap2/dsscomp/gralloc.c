@@ -44,7 +44,9 @@ static void unpin_tiler_blocks(struct list_head *slots)
 static void dsscomp_gralloc_cb(dsscomp_t comp, int status)
 {
 	if (status & DSS_COMPLETION_RELEASED) {
+		mutex_lock(&mtx);
 		unpin_tiler_blocks(&comp->slots);
+		mutex_unlock(&mtx);
 	}
 	if ((status == DSS_COMPLETION_DISPLAYED) ||
 	    (status & DSS_COMPLETION_RELEASED)) {
@@ -108,6 +110,7 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 	struct omap_overlay_manager *mgr;
 	dsscomp_t comp;
 	u32 ovl_new_set_mask = 0;
+	int skip;
 
 	/* reserve tiler areas if not already done so */
 	dsscomp_gralloc_init(cdev);
@@ -117,7 +120,14 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 		dump_ovl_info(cdev, d->ovls + i);
 
 	/* ignore frames while we are blanked */
-	if (blanked) {
+	mutex_lock(&mtx);
+	skip = blanked;
+	/* mark blank frame by NULL tiler pa pointer */
+	if (!skip && pas == NULL)
+		blanked = true;
+	mutex_unlock(&mtx);
+
+	if (skip) {
 		if (debug & DEBUG_PHASES)
 			dev_info(DEV(cdev), "[%08x] ignored\n", d->sync_id);
 		if (cb_fn)
@@ -232,13 +242,11 @@ static void dsscomp_early_suspend(struct early_suspend *h)
 	struct dsscomp_setup_mgr_data d = {
 		.mgr.alpha_blending = 1,
 	};
-	struct tiler_pa_info *pas[] = { NULL };
 
 	pr_info("DSSCOMP: %s\n", __func__);
 
 	/* use gralloc queue as we need to blank all screens */
-	dsscomp_gralloc_queue(&d, pas, dsscomp_early_suspend_cb, NULL);
-	blanked = true;
+	dsscomp_gralloc_queue(&d, NULL, dsscomp_early_suspend_cb, NULL);
 	blank_complete = false;
 
 	/* wait until composition is displayed */
