@@ -75,7 +75,7 @@ static struct rpmsg_device_id rpmsg_driver_sample_id_table[] = {
 };
 MODULE_DEVICE_TABLE(platform, rpmsg_driver_sample_id_table);
 
-static struct rpmsg_driver rpmsg_sample_client = {
+static struct rpmsg_driver rpmsg_sample_client_driver = {
 	.drv.name	= KBUILD_MODNAME,
 	.drv.owner	= THIS_MODULE,
 	.id_table	= rpmsg_driver_sample_id_table,
@@ -86,12 +86,12 @@ static struct rpmsg_driver rpmsg_sample_client = {
 
 static int __init init(void)
 {
-	return register_rpmsg_driver(&rpmsg_sample_client);
+	return register_rpmsg_driver(&rpmsg_sample_client_driver);
 }
 
 static void __exit fini(void)
 {
-	unregister_rpmsg_driver(&rpmsg_sample_client);
+	unregister_rpmsg_driver(&rpmsg_sample_client_driver);
 }
 module_init(init);
 module_exit(fini);
