@@ -56,6 +56,24 @@ static void gp2a_gpio_init(void)
 	}
 }
 
+static s8 orientation_right_90[] = {
+	 0,  1,  0,
+	-1,  0,  0,
+	 0,  0,  1,
+};
+
+static s8 orientation_left_90[] = {
+	 0, -1,  0,
+	 1,  0,  0,
+	 0,  0,  1,
+};
+
+static s8 orientation_back[] = {
+	-1,  0,  0,
+	 0,  1,  0,
+	 0,  0, -1,
+};
+
 static s8 orientation_back_right_90[] = {
 	 0, -1,  0,
 	-1,  0,  0,
@@ -90,9 +108,9 @@ static struct mpu_platform_data mpu_data = {
 		.adapt_num   = 4,
 		.bus         = EXT_SLAVE_BUS_SECONDARY,
 		.address     = 0x18,
-		.orientation = {  0,  1,  0,
-				  1,  0,  0,
-				  0,  0, -1 },
+		.orientation = {  1,  0,  0,
+				  0,  1,  0,
+				  0,  0,  1 },
 	},
 	/* compass */
 	.compass = {
@@ -137,6 +155,32 @@ static struct i2c_board_info __initdata tuna_sensors_i2c4_boardinfo[] = {
 	},
 };
 
+static void omap4_tuna_fixup_orientations_maguro(int revision)
+{
+	if (revision >= 2) {
+		rotcpy(mpu_data.orientation, orientation_back_right_90);
+		rotcpy(mpu_data.accel.orientation, orientation_back_180);
+	} else if (revision == 1) {
+		rotcpy(mpu_data.accel.orientation, orientation_back_left_90);
+	}
+}
+
+static void omap4_tuna_fixup_orientations_toro(int revision)
+{
+	if (revision >= 2) {
+		rotcpy(mpu_data.orientation, orientation_back_left_90);
+		rotcpy(mpu_data.accel.orientation, orientation_back);
+		rotcpy(mpu_data.compass.orientation, orientation_back_180);
+	} else if (revision >= 1) {
+		rotcpy(mpu_data.orientation, orientation_back_left_90);
+		rotcpy(mpu_data.accel.orientation, orientation_back_180);
+		rotcpy(mpu_data.compass.orientation, orientation_back_left_90);
+	} else if (revision == TUNA_REV_LUNCHBOX) {
+		rotcpy(mpu_data.orientation, orientation_left_90);
+		rotcpy(mpu_data.compass.orientation, orientation_right_90);
+	}
+}
+
 void __init omap4_tuna_sensors_init(void)
 {
 	omap_mux_init_gpio(GPIO_GYRO_INT, OMAP_PIN_INPUT);
@@ -154,17 +198,10 @@ void __init omap4_tuna_sensors_init(void)
 	/* optical sensor */
 	gp2a_gpio_init();
 
-	if (omap4_tuna_get_type() == TUNA_TYPE_MAGURO &&
-	    omap4_tuna_get_revision() >= 2) {
-		rotcpy(mpu_data.orientation, orientation_back_right_90);
-		rotcpy(mpu_data.accel.orientation, orientation_back_180);
-	}
-	if (omap4_tuna_get_type() == TUNA_TYPE_TORO &&
-	    omap4_tuna_get_revision() >= 1) {
-		rotcpy(mpu_data.orientation, orientation_back_left_90);
-		rotcpy(mpu_data.accel.orientation, orientation_back_180);
-		rotcpy(mpu_data.compass.orientation, orientation_back_left_90);
-	}
+	if (omap4_tuna_get_type() == TUNA_TYPE_MAGURO)
+		omap4_tuna_fixup_orientations_maguro(omap4_tuna_get_revision());
+	else if (omap4_tuna_get_type() == TUNA_TYPE_TORO)
+		omap4_tuna_fixup_orientations_toro(omap4_tuna_get_revision());
 
 	i2c_register_board_info(4, tuna_sensors_i2c4_boardinfo,
 				ARRAY_SIZE(tuna_sensors_i2c4_boardinfo));
