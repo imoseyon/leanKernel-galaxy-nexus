@@ -29,12 +29,12 @@
 
 typedef struct tagIOCTL_PACKAGE
 {
-	IMG_UINT32 ui32Cmd;              
-	IMG_UINT32 ui32Size;			   
-	IMG_VOID 	*pInBuffer;          
-	IMG_UINT32  ui32InBufferSize;     
-	IMG_VOID    *pOutBuffer;         
-	IMG_UINT32  ui32OutBufferSize;    
+	IMG_UINT32 ui32Cmd;              // ioctl command
+	IMG_UINT32 ui32Size;			   // needs to be correctly set
+	IMG_VOID 	*pInBuffer;          // input data buffer
+	IMG_UINT32  ui32InBufferSize;     // size of input data buffer
+	IMG_VOID    *pOutBuffer;         // output data buffer
+	IMG_UINT32  ui32OutBufferSize;    // size of output data buffer
 } IOCTL_PACKAGE;
 
 IMG_UINT32 DeviceIoControl(IMG_UINT32 hDevice,		
@@ -45,4 +45,4 @@ IMG_UINT32 DeviceIoControl(IMG_UINT32 hDevice,
 						IMG_UINT32 ui32OutBufferSize,  
 						IMG_UINT32 *pui32BytesReturned); 
 
-#endif 
+#endif /* _LINUXSRV_H__*/

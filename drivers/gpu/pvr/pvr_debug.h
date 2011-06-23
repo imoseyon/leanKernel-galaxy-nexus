@@ -37,6 +37,7 @@ extern "C" {
 
 #define PVR_MAX_DEBUG_MESSAGE_LEN	(512)
 
+/* These are privately used by pvr_debug, use the PVR_DBG_ defines instead */
 #define DBGPRIV_FATAL		0x01UL
 #define DBGPRIV_ERROR		0x02UL
 #define DBGPRIV_WARNING		0x04UL
@@ -59,6 +60,9 @@ extern "C" {
 #define PVR_DBG_CALLTRACE	DBGPRIV_CALLTRACE,__FILE__, __LINE__
 #define PVR_DBG_ALLOC		DBGPRIV_ALLOC,__FILE__, __LINE__
 
+/*
+ *	Debug driver debugging
+ */
 #define PVR_DBGDRIV_MESSAGE		DBGPRIV_DBGDRV_MESSAGE, "", 0
 
 #if !defined(PVRSRV_NEED_PVR_ASSERT) && defined(DEBUG)
@@ -74,6 +78,8 @@ extern "C" {
 #endif
 
 
+/* PVR_ASSERT() and PVR_DBG_BREAK handling */
+
 #if defined(PVRSRV_NEED_PVR_ASSERT)
 
 	#define PVR_ASSERT(EXPR) if (!(EXPR)) PVRSRVDebugAssertFail(__FILE__, __LINE__);
@@ -87,13 +93,15 @@ IMG_IMPORT IMG_VOID IMG_CALLCONV PVRSRVDebugAssertFail(const IMG_CHAR *pszFile,
 				#define PVR_DBG_BREAK
 			#endif
 
-#else  
+#else  /* defined(PVRSRV_NEED_PVR_ASSERT) */
 
 	#define PVR_ASSERT(EXPR)
 	#define PVR_DBG_BREAK
 
-#endif 
+#endif /* defined(PVRSRV_NEED_PVR_ASSERT) */
 
+
+/* PVR_DPF() handling */
 
 #if defined(PVRSRV_NEED_PVR_DPF)
 
@@ -105,12 +113,14 @@ IMG_IMPORT IMG_VOID IMG_CALLCONV PVRSRVDebugPrintf(IMG_UINT32 ui32DebugLevel,
 												   const IMG_CHAR *pszFormat,
 												   ...) IMG_FORMAT_PRINTF(4, 5);
 
-#else  
+#else  /* defined(PVRSRV_NEED_PVR_DPF) */
 
 	#define PVR_DPF(X)
 
-#endif 
+#endif /* defined(PVRSRV_NEED_PVR_DPF) */
 
+
+/* PVR_TRACE() handling */
 
 #if defined(PVRSRV_NEED_PVR_TRACE)
 
@@ -119,16 +129,20 @@ IMG_IMPORT IMG_VOID IMG_CALLCONV PVRSRVDebugPrintf(IMG_UINT32 ui32DebugLevel,
 IMG_IMPORT IMG_VOID IMG_CALLCONV PVRSRVTrace(const IMG_CHAR* pszFormat, ... )
 	IMG_FORMAT_PRINTF(1, 2);
 
-#else 
+#else /* defined(PVRSRV_NEED_PVR_TRACE) */
 
 	#define PVR_TRACE(X)
 
-#endif 
+#endif /* defined(PVRSRV_NEED_PVR_TRACE) */
 
 
 #if defined (__cplusplus)
 }
 #endif
 
-#endif	
+#endif	/* __PVR_DEBUG_H__ */
+
+/******************************************************************************
+ End of file (pvr_debug.h)
+******************************************************************************/
 
