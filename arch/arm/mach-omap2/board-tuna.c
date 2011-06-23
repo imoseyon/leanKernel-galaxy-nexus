@@ -53,6 +53,7 @@
 
 #define GPIO_AUD_PWRON		127
 #define GPIO_AUD_PWRON_TORO_V1	20
+#define GPIO_MICBIAS_EN	48
 
 #define REBOOT_FLAG_RECOVERY	0x52564352
 #define REBOOT_FLAG_FASTBOOT	0x54534146
@@ -398,6 +399,10 @@ static void tuna_audio_init(void)
 		aud_pwron = GPIO_AUD_PWRON;
 	omap_mux_init_gpio(aud_pwron, OMAP_PIN_OUTPUT);
 	twl6040_codec.audpwron_gpio = aud_pwron;
+
+	omap_mux_init_gpio(GPIO_MICBIAS_EN, OMAP_PIN_OUTPUT);
+	gpio_request(GPIO_MICBIAS_EN, "MICBIAS_EN");
+	gpio_direction_output(GPIO_MICBIAS_EN, 1);
 }
 
 static struct i2c_board_info __initdata tuna_i2c1_boardinfo[] = {
