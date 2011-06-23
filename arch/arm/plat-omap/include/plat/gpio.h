@@ -189,6 +189,9 @@ struct omap_gpio_reg_offs {
 	u16 debounce;
 	u16 debounce_en;
 	u16 ctrl;
+	u16 wkup_status;
+	u16 wkup_clear;
+	u16 wkup_set;
 
 	bool irqenable_inv;
 };
@@ -198,6 +201,7 @@ struct omap_gpio_platform_data {
 	int bank_type;
 	int bank_width;		/* GPIO bank width */
 	int bank_stride;	/* Only needed for omap1 MPUIO */
+	bool suspend_support;	/* If Bank supports suspend/resume operations */
 	bool dbck_flag;		/* dbck required or not - True for OMAP3&4 */
 	bool loses_context;	/* whether the bank would ever lose context */
 	u32 non_wakeup_gpios;
