@@ -37,6 +37,7 @@
 #include "mux.h"
 #include "control.h"
 #include "devices.h"
+#include "dvfs.h"
 
 #define L3_MODULES_MAX_LEN 12
 #define L3_MODULES 3
@@ -732,9 +733,14 @@ static void omap_init_gpu(void)
 		return;
 	}
 
+	pdata->device_scale = omap_device_scale;
 	pdata->device_enable = omap_device_enable;
 	pdata->device_idle = omap_device_idle;
 	pdata->device_shutdown = omap_device_shutdown;
+
+	pdata->ovfreqs = 0;
+	if (cpu_is_omap446x())
+		pdata->ovfreqs = 1;
 
 	od = omap_device_build(name, 0, oh, pdata,
 			     sizeof(struct gpu_platform_data),

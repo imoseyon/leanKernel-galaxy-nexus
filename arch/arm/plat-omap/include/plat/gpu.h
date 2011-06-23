@@ -23,8 +23,14 @@
 #include <linux/platform_device.h>
 
 struct gpu_platform_data {
+
+	/* Number of overdrive frequencies */
+	unsigned int ovfreqs;
+
 	void (*set_min_bus_tput)(struct device *dev, u8 agent_id,
 						unsigned long r);
+	int (*device_scale) (struct device *req_dev, struct device *target_dev,
+			unsigned long rate);
 	int (*device_enable) (struct platform_device *pdev);
 	int (*device_shutdown) (struct platform_device *pdev);
 	int (*device_idle) (struct platform_device *pdev);
