@@ -634,40 +634,26 @@ skip_ovl_set:
 	/* apply changes and call update on manual panels */
 	comp->magic = MAGIC_APPLIED;
 
-	if (dssdev_manually_updated(dssdev)) {
-		if (!d->win.w && !d->win.x)
-			d->win.w = dssdev->panel.timings.x_res - d->win.x;
-		if (!d->win.h && !d->win.y)
-			d->win.h = dssdev->panel.timings.y_res - d->win.y;
+	if (!d->win.w && !d->win.x)
+		d->win.w = dssdev->panel.timings.x_res - d->win.x;
+	if (!d->win.h && !d->win.y)
+		d->win.h = dssdev->panel.timings.y_res - d->win.y;
 
-		/* sync to prevent frame loss */
-		r = drv->sync(dssdev) ? : mgr->apply(mgr);
-		if (r)
-			dev_err(DEV(cdev), "failed to apply %d", r);
+	r = mgr->apply(mgr);
+	if (r)
+		dev_err(DEV(cdev), "failed while applying %d", r);
 
-		if (!r && (d->mode & DSSCOMP_SETUP_MODE_DISPLAY)) {
-#if 0
-			/* schedule update if supported */
-			if (drv->sched_update)
-				r = drv->sched_update(dssdev, d->win.x,
+	/* ignore this error if callback has already been registered */
+	if (!mgr->info_dirty)
+		r = 0;
+
+	if (!r && (d->mode & DSSCOMP_SETUP_MODE_DISPLAY)) {
+		if (dssdev_manually_updated(dssdev) && drv->update)
+			r = drv->update(dssdev, d->win.x,
 					d->win.y, d->win.w, d->win.h);
-			else if (drv->update)
-#else
-			if (drv->update)
-#endif
-				r = drv->update(dssdev, d->win.x,
-					d->win.y, d->win.w, d->win.h);
-		}
-	} else {
-		/* wait for sync to do smooth animations */
-		r = mgr->apply(mgr) ? : mgr->wait_for_vsync(mgr);
-
-		if (r)
-			dev_err(DEV(cdev), "failed while applying %d", r);
-
-		/* ignore this error if callback has already been registered */
-		if (!mgr->info_dirty)
-			r = 0;
+		else
+			/* wait for sync to do smooth animations */
+			r = mgr->wait_for_vsync(mgr);
 	}
 
 done:
