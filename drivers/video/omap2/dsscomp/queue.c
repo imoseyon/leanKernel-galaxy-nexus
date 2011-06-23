@@ -48,29 +48,6 @@ static LIST_HEAD(free_ois);
 #define MAGIC_PROGRAMMED	0x50520652
 #define MAGIC_DISPLAYED		0xD15504CA
 
-struct dsscomp_data {
-	u32 magic;
-	/*
-	 * :TRICKY: before applying, overlays used in a composition are stored
-	 * in ovl_mask and the other masks are empty.  Once composition is
-	 * applied, blank is set to see if all overlays are to be disabled on
-	 * this composition, any disabled overlays in the composition are set in
-	 * ovl_dmask, and ovl_mask is updated to include ALL overlays that are
-	 * actually on the display - even if they are not part of the
-	 * composition. The reason: we use ovl_mask to see if an overlay is used
-	 * or planned to be used on a manager.  We update ovl_mask when
-	 * composition is programmed (removing the disabled overlays).
-	 */
-	bool blank;		/* true if all overlays are to be disabled */
-	u32 ovl_mask;		/* overlays used on this frame */
-	u32 ovl_dmask;		/* overlays disabled on this frame */
-	u32 ix;			/* manager index that this frame is on */
-	struct list_head q;
-	struct omapdss_ovl_cb cb;
-	struct dsscomp_setup_mgr_data frm;
-	struct dss2_ovl_info ovls[5];
-};
-
 static struct {
 	struct list_head q_ci;		/* compositions */
 
@@ -483,6 +460,10 @@ static void dsscomp_mgr_callback(void *data, int id, int status)
 	ix = cdev->displays[ix]->manager->id;
 	if (ix >= cdev->num_mgrs)
 		return;
+
+	/* call extra callbacks if requested */
+	if (comp->extra_cb)
+		comp->extra_cb(comp, status);
 
 	/* handle programming & release */
 	if (status == DSS_COMPLETION_PROGRAMMED) {

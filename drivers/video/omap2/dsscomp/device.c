@@ -236,19 +236,30 @@ static long comp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	struct dsscomp_dev *cdev = container_of(dev, struct dsscomp_dev, dev);
 	void __user *ptr = (void __user *)arg;
 
+	struct {
+		struct dsscomp_setup_mgr_data set;
+		struct dss2_ovl_info ovl[MAX_OVERLAYS];
+	} p;
+
+	dsscomp_gralloc_init(cdev);
+
 	switch (cmd) {
 	case DSSCOMP_SETUP_MGR:
 	{
-		struct {
-			struct dsscomp_setup_mgr_data set;
-			struct dss2_ovl_info ovl[MAX_OVERLAYS];
-		} p;
-
 		r = copy_from_user(&p.set, ptr, sizeof(p.set)) ? :
 		    p.set.num_ovls >= ARRAY_SIZE(p.ovl) ? -EINVAL :
 		    copy_from_user(&p.ovl, (void __user *)arg + sizeof(p.set),
 					sizeof(*p.ovl) * p.set.num_ovls) ? :
 		    setup_mgr(cdev, &p.set);
+		break;
+	}
+	case DSSCOMP_SETUP_MGR_G:
+	{
+		r = copy_from_user(&p.set, ptr, sizeof(p.set)) ? :
+		    p.set.num_ovls >= ARRAY_SIZE(p.ovl) ? -EINVAL :
+		    copy_from_user(&p.ovl, (void __user *)arg + sizeof(p.set),
+					sizeof(*p.ovl) * p.set.num_ovls) ? :
+		    dsscomp_gralloc_queue_ioctl(&p.set);
 		break;
 	}
 	case DSSCOMP_QUERY_DISPLAY:
@@ -315,10 +326,13 @@ static int dsscomp_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, cdev);
 
+	pr_info("dsscomp: initializing.\n");
+
 	fill_cache(cdev);
 
 	/* initialize queues */
 	dsscomp_queue_init(cdev);
+	dsscomp_gralloc_init(cdev);
 
 	return 0;
 }
@@ -330,6 +344,7 @@ static int dsscomp_remove(struct platform_device *pdev)
 	debugfs_remove_recursive(cdev->dbgfs);
 
 	dsscomp_queue_exit();
+	dsscomp_gralloc_exit();
 	kfree(cdev);
 
 	return 0;

@@ -18,4 +18,8 @@ int dsscomp_apply(dsscomp_t comp);
 int dsscomp_wait(dsscomp_t comp, enum dsscomp_wait_phase phase, int timeout);
 void dsscomp_drop(dsscomp_t c);
 
+struct tiler_pa_info;
+int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
+			struct tiler_pa_info **pas,
+			void (*cb_fn)(void *, int), void *cb_arg);
 #endif

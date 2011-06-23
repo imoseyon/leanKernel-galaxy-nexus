@@ -62,11 +62,41 @@ struct dsscomp_dev {
 
 extern int debug;
 
+struct dsscomp_data {
+	u32 magic;
+	/*
+	 * :TRICKY: before applying, overlays used in a composition are stored
+	 * in ovl_mask and the other masks are empty.  Once composition is
+	 * applied, blank is set to see if all overlays are to be disabled on
+	 * this composition, any disabled overlays in the composition are set in
+	 * ovl_dmask, and ovl_mask is updated to include ALL overlays that are
+	 * actually on the display - even if they are not part of the
+	 * composition. The reason: we use ovl_mask to see if an overlay is used
+	 * or planned to be used on a manager.  We update ovl_mask when
+	 * composition is programmed (removing the disabled overlays).
+	 */
+	bool blank;		/* true if all overlays are to be disabled */
+	u32 ovl_mask;		/* overlays used on this frame */
+	u32 ovl_dmask;		/* overlays disabled on this frame */
+	u32 ix;			/* manager index that this frame is on */
+	struct list_head q;
+	struct omapdss_ovl_cb cb;
+	struct dsscomp_setup_mgr_data frm;
+	struct dss2_ovl_info ovls[5];
+	struct list_head slots;	/* tiler slots used by the composition */
+	void (*extra_cb)(dsscomp_t comp, int status);
+	void (*gralloc_cb_fn)(void *, int);
+	void *gralloc_cb_arg;
+};
+
 /*
  * Kernel interface
  */
 int dsscomp_queue_init(struct dsscomp_dev *cdev);
 void dsscomp_queue_exit(void);
+void dsscomp_gralloc_init(struct dsscomp_dev *cdev);
+void dsscomp_gralloc_exit(void);
+int dsscomp_gralloc_queue_ioctl(struct dsscomp_setup_mgr_data *d);
 
 /* basic operation - if not using queues */
 int set_dss_ovl_info(struct dss2_ovl_info *oi);
