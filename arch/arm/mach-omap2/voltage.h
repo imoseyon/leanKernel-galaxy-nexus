@@ -113,6 +113,11 @@ struct omap_voltage_notifier {
 	int			op_result;
 };
 
+/* Flags for various ABB options */
+#define OMAP_ABB_NONE		-1
+#define OMAP_ABB_NOMINAL_OPP	0
+#define OMAP_ABB_FAST_OPP	1
+
 /**
  * struct omap_volt_data - Omap voltage specific data.
  * @voltage_nominal:	The possible voltage value in uV
@@ -124,12 +129,17 @@ struct omap_voltage_notifier {
  *			with voltage.
  * @vp_errorgain:	Error gain value for the voltage processor. This
  *			field also differs according to the voltage/opp.
+ * @abb_type:		Either OMAP_ABB_NONE - which implies that there is no
+ *			usage of ABB; OMAP_ABB_NOMINAL_OPP - which bypasses ABB
+ *			LDO; or OMAP_ABB_FAST_OPP, which enables Forward-Body
+ *			Bias.
  */
 struct omap_volt_data {
 	u32	volt_nominal;
 	u32	sr_efuse_offs;
 	u8	sr_errminlimit;
 	u8	vp_errgain;
+	int	abb_type;
 };
 
 /*
