@@ -235,30 +235,29 @@ int hsi_protocol_send_command(u32 cmd, u32 channel, u32 param)
 
 	channel_zero = &hsi_protocol_iface.channels[0];
 	cmd_array[0] = protocol_create_cmd(cmd, channel, &param);
-	//printk(KERN_INFO "[%s] CMD = %08x\n",__func__, cmd_array[0]);
+	pr_debug("[%s] CMD = %08x\n",__func__, cmd_array[0]);
 	while (channel_zero->tx_state != HSI_LL_TX_STATE_IDLE) {
 		cmd_saved[saved_cmd_queue] = cmd_array[0];
 		saved_cmd_queue++;
-		printk(KERN_INFO "(%s) cmd_saved : %x(%d)\n", __func__, cmd_array[0], saved_cmd_queue);
+		pr_debug("(%s) cmd_saved : %x(%d)\n", __func__, cmd_array[0], saved_cmd_queue);
 
 		return 0;
 	}
 
-SEND_RETRY:
+send_retry:
 
 	channel_zero->tx_state = HSI_LL_TX_STATE_TX;
-	//ret = hsi_proto_write(0, cmd_array, 16);
 
 	// For es 2.1 ver.
 	ret = hsi_proto_write(0, cmd_array, 4);
 	if (ret < 0) {
-		printk(KERN_INFO "(%s) Command Write failed, CMD->%X\n", __func__, cmd_array[0]);
+		pr_err("(%s) Command Write failed, CMD->%X\n", __func__, cmd_array[0]);
 		channel_zero->tx_state = HSI_LL_TX_STATE_IDLE;
 		return -1;
 	} else {
 		channel_zero->tx_state = HSI_LL_TX_STATE_IDLE;
 
-		printk(KERN_INFO "[%s] CMD = %08x\n", __func__, cmd_array[0]);
+		pr_debug("[%s] CMD = %08x\n", __func__, cmd_array[0]);
 
 		hsi_cmd_history.tx_cmd[tx_cmd_history_p] = cmd_array[0];
 		hsi_cmd_history.tx_cmd_time[tx_cmd_history_p] = CURRENT_TIME;
@@ -285,11 +284,11 @@ void rx_stm(u32 cmd, u32 ch, u32 param)
 
 	switch (cmd) {
 	case HSI_LL_MSG_OPEN_CONN:
-		printk(KERN_INFO "ERROR... OPEN_CONN Not supported. Should use OPEN_CONN_OCTECT instead.\n");
+		pr_err("ERROR... OPEN_CONN Not supported. Should use OPEN_CONN_OCTECT instead.\n");
 		break;
 
 	case HSI_LL_MSG_ECHO:
-		printk(KERN_INFO "ERROR... HSI_LL_MSG_ECHO not supported.\n");
+		pr_err("ERROR... HSI_LL_MSG_ECHO not supported.\n");
 		break;
 
 	case HSI_LL_MSG_CONN_CLOSED:
@@ -297,25 +296,23 @@ void rx_stm(u32 cmd, u32 ch, u32 param)
 		case HSI_LL_TX_STATE_WAIT_FOR_CONN_CLOSED:
 			channel->tx_state = HSI_LL_TX_STATE_IDLE;
 
-#if 1
 			/* ACWAKE ->LOW */
 			ret = hsi_ioctl(hsi_protocol_iface.channels[0].dev, HSI_IOCTL_ACWAKE_DOWN, NULL);
 			if (ret == 0)
-				printk(KERN_INFO "ACWAKE pulled low in %s()\n", __func__);
+				pr_debug("ACWAKE pulled low in %s()\n", __func__);
 			else
-				printk(KERN_INFO "ACWAKE pulled low in %s() ERROR : %d\n", __func__, ret);
-#endif
+				pr_err("ACWAKE pulled low in %s() ERROR : %d\n", __func__, ret);
 
-			//printk(KERN_INFO "[%s] Received CONN_CLOSED. ch-> %d\n", __func__,ch);
+			pr_debug("[%s] Received CONN_CLOSED. ch-> %d\n", __func__,ch);
 			break;
 
 		default:
-			printk(KERN_INFO "Wrong STATE for CONN_CLOSED\n");
+			pr_err("Wrong STATE for CONN_CLOSED\n");
 		}
 		break;
 
 	case HSI_LL_MSG_CANCEL_CONN:
-		printk(KERN_INFO "Received CANCEL_CONN\n");
+		pr_debug("Received CANCEL_CONN\n");
 		break;
 
 	case HSI_LL_MSG_ACK:
@@ -338,7 +335,7 @@ void rx_stm(u32 cmd, u32 ch, u32 param)
 			if (size % 4)
 				size += (4 - (size % 4));
 
-			//printk(KERN_INFO "Writing %d bytes data on channel %d, tx_buf = %x,  in %s()\n", size, ch, channel->tx_buf, __func__);
+			pr_debug("Writing %d bytes data on channel %d, tx_buf = %x,  in %s()\n", size, ch, channel->tx_buf, __func__);
 			ret = hsi_proto_write(ch, channel->tx_buf, size);
 			channel->tx_state = HSI_LL_TX_STATE_WAIT_FOR_CONN_CLOSED;
 			wake_up_interruptible(&ipc_write_wait);
@@ -376,13 +373,13 @@ void rx_stm(u32 cmd, u32 ch, u32 param)
 				}
 				size = (hsi_cmd_history.tx_cmd[i] & 0x000FFFFF);
 
-				printk(KERN_INFO "(%s) Re Send OPEN CONN ch->%d, size->%d, count->%d\n", __func__, ch, size, channel->tx_nak_count);
+				pr_debug("(%s) Re Send OPEN CONN ch->%d, size->%d, count->%d\n", __func__, ch, size, channel->tx_nak_count);
 
 				hsi_protocol_send_command(HSI_LL_MSG_OPEN_CONN_OCTET, ch, size);
 				channel->tx_nak_count++;
 			} else {
 				hsi_protocol_send_command(HSI_LL_MSG_BREAK, ch, size);
-				printk(KERN_INFO "(%s) Sending MSG_BREAK. ch->%d\n", __func__, ch);
+				pr_debug("(%s) Sending MSG_BREAK. ch->%d\n", __func__, ch);
 				//TODO Reset All channels and inform IPC write about failure (Possibly by sending signal)
 			}
 			break;
@@ -403,25 +400,24 @@ void rx_stm(u32 cmd, u32 ch, u32 param)
 
 	case HSI_LL_MSG_OPEN_CONN_OCTET:
 		switch (channel->rx_state) {
-		//case HSI_LL_RX_STATE_CLOSED:
+		/* case HSI_LL_RX_STATE_CLOSED: */
 		case HSI_LL_RX_STATE_IDLE:
-			//printk(KERN_INFO "OPEN_CONN_OCTET in %s(), ch-> %d\n", __func__, ch);
+			pr_debug("OPEN_CONN_OCTET in %s(), ch-> %d\n", __func__, ch);
 			channel->rx_state = HSI_LL_RX_STATE_TO_ACK;
 			hsi_protocol_send_command(HSI_LL_MSG_ACK, ch, param);
 
 			channel->rx_count = param;
 			channel->rx_state = HSI_LL_RX_STATE_RX;
-			//printk(KERN_INFO "Waking up IPC read, length in command = %d\n", param);
 			wake_up_interruptible(&ipc_read_wait);
 			break;
 
 		case HSI_LL_RX_STATE_BLOCKED:
-			//TODO
+			/* TODO */
 			break;
 
 		default:
 			pr_err("OPEN_CONN_OCTET in invalid state, Current State -> %d\n", channel->rx_state);
-			printk(KERN_INFO "Sending NAK to channel-> %d\n", ch);
+			pr_info("Sending NAK to channel-> %d\n", ch);
 			hsi_protocol_send_command(HSI_LL_MSG_NAK, ch, param);
 		}
 		break;

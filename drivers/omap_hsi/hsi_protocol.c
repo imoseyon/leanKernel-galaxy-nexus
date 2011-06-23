@@ -68,10 +68,7 @@ void if_notify(int ch, struct hsi_event *ev)
 
 	pr_debug("%s, ev = {0x%x, 0x%p, %u}\n",
 		 __func__, ev->event, ev->data, ev->count);
-#if 0
-	printk(KERN_INFO "%s, ev = {0x%x, 0x%p, %u} ch{%d}\n",
-	       __func__, ev->event, ev->data, ev->count, ch);
-#endif
+
 	spin_lock(&hsi_protocol_data[ch].lock);
 
 /* Not Required */
@@ -110,7 +107,6 @@ void if_notify(int ch, struct hsi_event *ev)
 		list_add_tail(&entry->list, &hsi_protocol_data[ch].tx_queue);
 		spin_unlock(&hsi_protocol_data[ch].lock);
 		pr_debug("%s, HSI_EV_OUT\n", __func__);
-		/*printk(KERN_INFO "%s, HSI_EV_OUT\n", __func__);*/
 		wake_up_interruptible(&hsi_protocol_data[ch].tx_wait);
 		break;
 	case HSI_EV_EXCEP:
@@ -138,9 +134,7 @@ int hsi_proto_read(int ch, u32 *buffer, int count)
 	unsigned int data_len = 0;
 	struct protocol_queue *entry;
 	int ret, recv_data = 0;
-#if 0
-	printk(KERN_DEBUG "%s, count = %d\n", __func__, count);
-#endif
+
 	/*if (count > MAX_HSI_IPC_BUFFER)
 		count = MAX_HSI_IPC_BUFFER;
 
@@ -177,11 +171,8 @@ int hsi_proto_read(int ch, u32 *buffer, int count)
 			 __func__, data, data_len);
 
 		if (data_len) {
-			pr_debug("%s, RX finished\n", __func__);
-#if 0
-			printk(KERN_INFO "%s, RX finished, ch-> %d, length = %d\n",
+			pr_debug("%s, RX finished, ch-> %d, length = %d\n",
 				__func__, ch, count);
-#endif
 			spin_lock_bh(&hsi_protocol_data[ch].lock);
 			hsi_protocol_data[ch].poll_event &=
 							~(POLLIN | POLLRDNORM);
@@ -218,7 +209,6 @@ out2:
 	* greater than 512K Bytes and return to IPC call
 	*/
 
-	/*printk(KERN_DEBUG "%s, ret = %d\n", __func__, ret); */
 	return recv_data;
 }
 
@@ -257,11 +247,8 @@ int hsi_proto_write(int ch, u32 *buffer, int length)
 		spin_unlock_bh(&hsi_protocol_data[ch].lock);
 
 		if (data_len) {
-			pr_debug("%s, TX finished\n", __func__);
-#if 0
-			printk(KERN_INFO "%s, TX finished, data_len = %d, ch-> %d\n",
+			pr_debug("%s, TX finished, data_len = %d, ch-> %d\n",
 				__func__, length, ch);
-#endif
 			ret = data_len;
 			break;
 		} else if (signal_pending(current)) {
@@ -278,10 +265,9 @@ out:
 	remove_wait_queue(&hsi_protocol_data[ch].tx_wait, &wait);
 
 out2:
-	/*printk(KERN_DEBUG "%s, ret = %d\n", __func__, ret); */
 	return ret;
 }
-//EXPORT_SYMBOL(hsi_proto_write);
+EXPORT_SYMBOL(hsi_proto_write);
 
 static int __init hsi_protocol_init(void)
 {
