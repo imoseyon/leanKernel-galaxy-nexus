@@ -362,7 +362,7 @@ static int rx_hdlc_packet(struct io_device *iod, const char *data,
 	if (rest <= 0)
 		goto exit;
 
-	pr_info("[MODEM_IF] RX_SIZE=%d\n", rest);
+	pr_debug("[MODEM_IF] RX_SIZE=%d\n", rest);
 
 next_frame:
 	err = len = rx_hdlc_head_check(iod, buf, rest);
@@ -564,7 +564,7 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long _arg)
 
 		skb = skb_dequeue(&iod->sk_rx_q);
 		if (!skb) {
-			pr_info("[MODEM_IF] no data from sk_rx_q\n");
+			pr_err("[MODEM_IF] no data from sk_rx_q\n");
 			return 0;
 		}
 
