@@ -569,7 +569,7 @@ static struct omap_board_data serial4_data __initdata = {
 	.pads_cnt       = ARRAY_SIZE(serial4_pads),
 };
 
-static inline void board_serial_init(void)
+static inline void __init board_serial_init(void)
 {
 	struct omap_board_data bdata;
 	bdata.flags     = 0;
@@ -586,7 +586,7 @@ static inline void board_serial_init(void)
 #else
 #define board_mux	NULL
 
-static inline void board_serial_init(void)
+static inline void __init board_serial_init(void)
 {
 	omap_serial_init();
 }

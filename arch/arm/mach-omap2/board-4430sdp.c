@@ -823,7 +823,7 @@ static struct omap_board_data serial4_data __initdata = {
 	.pads_cnt	= ARRAY_SIZE(serial4_pads),
 };
 
-static inline void board_serial_init(void)
+static inline void __init board_serial_init(void)
 {
 	struct omap_board_data bdata;
 	bdata.flags	= 0;

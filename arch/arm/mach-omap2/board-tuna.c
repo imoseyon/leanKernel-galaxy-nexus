@@ -441,25 +441,25 @@ static struct omap_device_pad serial4_pads[] __initdata = {
 			 OMAP_PIN_OUTPUT | OMAP_MUX_MODE0),
 };
 
-static struct omap_board_data serial2_data = {
+static struct omap_board_data serial2_data __initdata = {
 	.id             = 1,
 	.pads           = serial2_pads,
 	.pads_cnt       = ARRAY_SIZE(serial2_pads),
 };
 
-static struct omap_board_data serial3_data = {
+static struct omap_board_data serial3_data __initdata = {
 	.id             = 2,
 	.pads           = serial3_pads,
 	.pads_cnt       = ARRAY_SIZE(serial3_pads),
 };
 
-static struct omap_board_data serial4_data = {
+static struct omap_board_data serial4_data __initdata = {
 	.id             = 3,
 	.pads           = serial4_pads,
 	.pads_cnt       = ARRAY_SIZE(serial4_pads),
 };
 
-static inline void board_serial_init(void)
+static inline void __init board_serial_init(void)
 {
 	struct omap_board_data bdata;
 	bdata.flags     = 0;
@@ -477,7 +477,7 @@ static inline void board_serial_init(void)
 #define board_mux	NULL
 #define board_wkup_mux	NULL
 
-static inline void board_serial_init(void)
+static inline void __init board_serial_init(void)
 {
 	omap_serial_init();
 }
