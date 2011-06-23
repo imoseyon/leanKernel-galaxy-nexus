@@ -147,9 +147,7 @@ static int omap_hsi_wakeup_enable(struct hsi_dev *hsi_ctrl, int hsi_port)
 {
 	dev_dbg(hsi_ctrl->dev, "%s\n", __func__);
 	if (omap_hsi_is_io_pad_hsi())
-		dev_warn(hsi_ctrl->dev, "Trying to enable HSI IO wakeup on non "
-				"HSI board\n");
-
+		{}
 #if 0
 		omap_mux_disable_wakeup(OMAP_HSI_PADCONF_CAWAKE_PIN);
 #endif
@@ -162,8 +160,7 @@ static int omap_hsi_wakeup_disable(struct hsi_dev *hsi_ctrl, int hsi_port)
 {
 	dev_dbg(hsi_ctrl->dev, "%s\n", __func__);
 	if (omap_hsi_is_io_pad_hsi())
-		dev_warn(hsi_ctrl->dev, "Trying to disable HSI IO wakeup on non"
-					" HSI board\n");
+		{}
 #if 0
 		omap_mux_disable_wakeup(OMAP_HSI_PADCONF_CAWAKE_PIN);
 #endif

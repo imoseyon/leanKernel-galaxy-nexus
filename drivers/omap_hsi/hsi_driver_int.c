@@ -307,7 +307,7 @@ static void hsi_do_channel_rx(struct hsi_channel *ch)
 	n_p = ch->hsi_port->port_number;
 	irq = ch->hsi_port->n_irq;
 
-	dev_info(hsi_ctrl->dev,
+	dev_dbg(hsi_ctrl->dev,
 		"Data Available interrupt for channel %d.\n", n_ch);
 
 	/* Check if there is data in FIFO available for reading */
