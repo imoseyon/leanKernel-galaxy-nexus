@@ -23,14 +23,15 @@
  * Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK 
  *
  ******************************************************************************/
+
 #ifndef _PVRVERSION_H_
 #define _PVRVERSION_H_
 
 #define PVRVERSION_MAJ 1
 #define PVRVERSION_MIN 8
 #define PVRVERSION_BRANCH 18
-#define PVRVERSION_BUILD 684
-#define PVRVERSION_STRING "1.8.18.684"
+#define PVRVERSION_BUILD 687
+#define PVRVERSION_STRING "1.8.18.687"
 #define PVRVERSION_FILE "eurasiacon.pj"
 
 #endif 
