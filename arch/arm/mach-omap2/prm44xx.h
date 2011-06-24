@@ -773,9 +773,12 @@ extern int omap4_prm_deassert_hardreset(void __iomem *rstctrl_reg, u8 shift);
 
 extern void omap4_prm_global_warm_sw_reset(void);
 
+#define OMAP4_PRM_IRQ_VDD_CORE_ID	0
+#define OMAP4_PRM_IRQ_VDD_IVA_ID	1
+#define OMAP4_PRM_IRQ_VDD_MPU_ID	2
 /* OMAP4-specific VP functions */
-u32 omap4_prm_vp_check_txdone(u8 vp_id);
-void omap4_prm_vp_clear_txdone(u8 vp_id);
+u32 omap4_prm_vp_check_txdone(u8 irq_id);
+void omap4_prm_vp_clear_txdone(u8 irq_id);
 
 /*
  * OMAP4 access functions for voltage controller (VC) and
