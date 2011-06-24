@@ -1146,6 +1146,13 @@ void dispc_setup_plane_fifo(enum omap_plane plane, u32 low, u32 high)
 	dss_feat_get_reg_field(FEAT_REG_FIFOHIGHTHRESHOLD, &hi_start, &hi_end);
 	dss_feat_get_reg_field(FEAT_REG_FIFOLOWTHRESHOLD, &lo_start, &lo_end);
 
+	/* HACK: force thresholds to higher values while debugging
+	 * GFX_UNDERFLOWs */
+	if (plane == OMAP_DSS_GFX) {
+		low = 0xcf8;
+		high = 0xcff;
+	}
+
 	DSSDBG("fifo(%d) low/high old %u/%u, new %u/%u\n",
 			plane,
 			REG_GET(DISPC_OVL_FIFO_THRESHOLD(plane),
