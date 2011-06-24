@@ -75,6 +75,11 @@ static int omap_mcbsp_st_read(struct omap_mcbsp *mcbsp, u16 reg)
 {
 	return __raw_readl(mcbsp->st_data->io_base_st + reg);
 }
+
+#define MCBSP_ST_READ(mcbsp, reg) \
+			omap_mcbsp_st_read(mcbsp, OMAP_ST_REG_##reg)
+#define MCBSP_ST_WRITE(mcbsp, reg, val) \
+			omap_mcbsp_st_write(mcbsp, OMAP_ST_REG_##reg, val)
 #endif
 
 #define MCBSP_READ(mcbsp, reg) \
@@ -83,11 +88,6 @@ static int omap_mcbsp_st_read(struct omap_mcbsp *mcbsp, u16 reg)
 		omap_mcbsp_write(mcbsp, OMAP_MCBSP_REG_##reg, val)
 #define MCBSP_READ_CACHE(mcbsp, reg) \
 		omap_mcbsp_read(mcbsp, OMAP_MCBSP_REG_##reg, 1)
-
-#define MCBSP_ST_READ(mcbsp, reg) \
-			omap_mcbsp_st_read(mcbsp, OMAP_ST_REG_##reg)
-#define MCBSP_ST_WRITE(mcbsp, reg, val) \
-			omap_mcbsp_st_write(mcbsp, OMAP_ST_REG_##reg, val)
 
 static void omap_mcbsp_dump_reg(u8 id)
 {
@@ -292,14 +292,16 @@ int omap_mcbsp_dma_reg_params(unsigned int id, unsigned int stream)
 }
 EXPORT_SYMBOL(omap_mcbsp_dma_reg_params);
 
-#ifdef CONFIG_ARCH_OMAP3
+#if defined(CONFIG_ARCH_OMAP3) || defined(CONFIG_ARCH_OMAP4)
 static struct omap_device *find_omap_device_by_dev(struct device *dev)
 {
 	struct platform_device *pdev = container_of(dev,
 					struct platform_device, dev);
 	return container_of(pdev, struct omap_device, pdev);
 }
+#endif
 
+#ifdef CONFIG_ARCH_OMAP3
 static void omap_st_on(struct omap_mcbsp *mcbsp)
 {
 	unsigned int w;
@@ -550,7 +552,12 @@ int omap_st_is_enabled(unsigned int id)
 	return st_data->enabled;
 }
 EXPORT_SYMBOL(omap_st_is_enabled);
+#else
+static inline void omap_st_start(struct omap_mcbsp *mcbsp) {}
+static inline void omap_st_stop(struct omap_mcbsp *mcbsp) {}
+#endif
 
+#if defined(CONFIG_ARCH_OMAP3) || defined(CONFIG_ARCH_OMAP4)
 /*
  * omap_mcbsp_set_rx_threshold configures the transmit threshold in words.
  * The threshold parameter is 1 based, and it is converted (threshold - 1)
@@ -754,8 +761,6 @@ static inline void omap34xx_mcbsp_free(struct omap_mcbsp *mcbsp)
 #else
 static inline void omap34xx_mcbsp_request(struct omap_mcbsp *mcbsp) {}
 static inline void omap34xx_mcbsp_free(struct omap_mcbsp *mcbsp) {}
-static inline void omap_st_start(struct omap_mcbsp *mcbsp) {}
-static inline void omap_st_stop(struct omap_mcbsp *mcbsp) {}
 #endif
 
 /*
@@ -1522,7 +1527,7 @@ void omap_mcbsp_set_spi_mode(unsigned int id,
 }
 EXPORT_SYMBOL(omap_mcbsp_set_spi_mode);
 
-#ifdef CONFIG_ARCH_OMAP3
+#if defined(CONFIG_ARCH_OMAP3) || defined(CONFIG_ARCH_OMAP4)
 #define max_thres(m)			(mcbsp->pdata->buffer_size)
 #define valid_threshold(m, val)		((val) <= max_thres(m))
 #define THRESHOLD_PROP_BUILDER(prop)					\
@@ -1613,6 +1618,29 @@ unlock:
 
 static DEVICE_ATTR(dma_op_mode, 0644, dma_op_mode_show, dma_op_mode_store);
 
+static const struct attribute *additional_attrs[] = {
+	&dev_attr_max_tx_thres.attr,
+	&dev_attr_max_rx_thres.attr,
+	&dev_attr_dma_op_mode.attr,
+	NULL,
+};
+
+static const struct attribute_group additional_attr_group = {
+	.attrs = (struct attribute **)additional_attrs,
+};
+
+static inline int __devinit omap_additional_add(struct device *dev)
+{
+	return sysfs_create_group(&dev->kobj, &additional_attr_group);
+}
+
+static inline void __devexit omap_additional_remove(struct device *dev)
+{
+	sysfs_remove_group(&dev->kobj, &additional_attr_group);
+}
+#endif
+
+#ifdef CONFIG_ARCH_OMAP3
 static ssize_t st_taps_show(struct device *dev,
 			    struct device_attribute *attr, char *buf)
 {
@@ -1671,27 +1699,6 @@ out:
 
 static DEVICE_ATTR(st_taps, 0644, st_taps_show, st_taps_store);
 
-static const struct attribute *additional_attrs[] = {
-	&dev_attr_max_tx_thres.attr,
-	&dev_attr_max_rx_thres.attr,
-	&dev_attr_dma_op_mode.attr,
-	NULL,
-};
-
-static const struct attribute_group additional_attr_group = {
-	.attrs = (struct attribute **)additional_attrs,
-};
-
-static inline int __devinit omap_additional_add(struct device *dev)
-{
-	return sysfs_create_group(&dev->kobj, &additional_attr_group);
-}
-
-static inline void __devexit omap_additional_remove(struct device *dev)
-{
-	sysfs_remove_group(&dev->kobj, &additional_attr_group);
-}
-
 static const struct attribute *sidetone_attrs[] = {
 	&dev_attr_st_taps.attr,
 	NULL,
@@ -1749,11 +1756,16 @@ static void __devexit omap_st_remove(struct omap_mcbsp *mcbsp)
 		kfree(st_data);
 	}
 }
+#else
+static inline int __devinit omap_st_add(struct omap_mcbsp *mcbsp) { return 0; }
+static inline void __devexit omap_st_remove(struct omap_mcbsp *mcbsp) {}
+#endif
 
+#if defined(CONFIG_ARCH_OMAP3) || defined(CONFIG_ARCH_OMAP4)
 static inline void __devinit omap34xx_device_init(struct omap_mcbsp *mcbsp)
 {
 	mcbsp->dma_op_mode = MCBSP_DMA_MODE_ELEMENT;
-	if (cpu_is_omap34xx()) {
+	if (cpu_is_omap34xx() || cpu_is_omap44xx()) {
 		/*
 		 * Initially configure the maximum thresholds to a safe value.
 		 * The McBSP FIFO usage with these values should not go under
@@ -1771,26 +1783,26 @@ static inline void __devinit omap34xx_device_init(struct omap_mcbsp *mcbsp)
 		if (omap_additional_add(mcbsp->dev))
 			dev_warn(mcbsp->dev,
 				"Unable to create additional controls\n");
+	} else {
+		mcbsp->max_tx_thres = -EINVAL;
+		mcbsp->max_rx_thres = -EINVAL;
+	}
 
+	if (cpu_is_omap34xx()) {
 		if (mcbsp->id == 2 || mcbsp->id == 3)
 			if (omap_st_add(mcbsp))
 				dev_warn(mcbsp->dev,
 				 "Unable to create sidetone controls\n");
-
-	} else {
-		mcbsp->max_tx_thres = -EINVAL;
-		mcbsp->max_rx_thres = -EINVAL;
 	}
 }
 
 static inline void __devexit omap34xx_device_exit(struct omap_mcbsp *mcbsp)
 {
-	if (cpu_is_omap34xx()) {
+	if (cpu_is_omap34xx() || cpu_is_omap44xx())
 		omap_additional_remove(mcbsp->dev);
-
+	if (cpu_is_omap34xx())
 		if (mcbsp->id == 2 || mcbsp->id == 3)
 			omap_st_remove(mcbsp);
-	}
 }
 #else
 static inline void __devinit omap34xx_device_init(struct omap_mcbsp *mcbsp) {}
