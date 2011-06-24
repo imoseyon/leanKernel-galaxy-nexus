@@ -83,6 +83,10 @@ static const __initdata struct resource charger_resources[] = {
 	}
 };
 
+static char *tuna_charger_supplied_to[] = {
+	"battery",
+};
+
 static const __initdata struct pda_power_pdata charger_pdata = {
 	.init = charger_init,
 	.exit = charger_exit,
@@ -91,6 +95,8 @@ static const __initdata struct pda_power_pdata charger_pdata = {
 	.set_charge = charger_set_charge,
 	.wait_for_status = 500,
 	.wait_for_charger = 500,
+	.supplied_to = tuna_charger_supplied_to,
+	.num_supplicants = ARRAY_SIZE(tuna_charger_supplied_to),
 };
 
 static struct max17040_platform_data max17043_pdata = {
