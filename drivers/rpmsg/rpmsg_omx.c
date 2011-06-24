@@ -140,8 +140,10 @@ static void rpmsg_omx_cb(struct rpmsg_channel *rpdev, void *data, int len,
 
 	dev_dbg(&rpdev->dev, "%s: incoming msg src 0x%x type %d len %d\n",
 					__func__, src, hdr->type, hdr->len);
+#if 0
 	print_hex_dump(KERN_DEBUG, "rpmsg_omx RX: ", DUMP_PREFIX_NONE, 16, 1,
 		       data, len,  true);
+#endif
 
 	switch (hdr->type) {
 	case OMX_CONN_RSP:
