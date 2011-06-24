@@ -2265,6 +2265,47 @@ static IMG_BOOL CPUVAddrToPFN(struct vm_area_struct *psVMArea, IMG_UINT32 ulCPUV
 #endif
 }
 
+#if defined(SUPPORT_OMAP_TILER)
+static IMG_BOOL CPUAddrToTilerPhy(IMG_UINT32 vma, IMG_UINT32 *phyAddr)
+{
+    IMG_UINT32 tmpPhysAddr = 0;
+    pgd_t *pgd = NULL;
+    pmd_t *pmd = NULL;
+    pte_t *ptep = NULL, pte = 0x0;
+    IMG_BOOL bRet = IMG_FALSE;
+
+    pgd = pgd_offset(current->mm, vma);
+    if (!(pgd_none(*pgd) || pgd_bad(*pgd)))
+    {
+        pmd = pmd_offset(pgd, vma);
+        if (!(pmd_none(*pmd) || pmd_bad(*pmd)))
+        {
+            ptep = pte_offset_map(pmd, vma);
+            if (ptep)
+            {
+                pte = *ptep;
+                if (pte_present(pte))
+                {
+                    tmpPhysAddr = (pte & PAGE_MASK) |
+                        (~PAGE_MASK & vma);
+                    bRet = IMG_TRUE;
+                }
+            }
+        }
+    }
+    /* If the physAddr is not in the TILER physical range
+     * then we don't proceed. */
+    if ((tmpPhysAddr < 0x60000000) && (tmpPhysAddr > 0x7fffffff))
+    {
+        PVR_DPF((PVR_DBG_ERROR, "CPUAddrToTilerPhy: Not in tiler range"));
+        tmpPhysAddr = 0;
+        bRet = IMG_FALSE;
+    }
+    *phyAddr = tmpPhysAddr;
+    return bRet;
+}
+#endif /* SUPPORT_OMAP_TILER */
+
 PVRSRV_ERROR OSReleasePhysPageAddr(IMG_HANDLE hOSWrapMem)
 {
     sWrapMemInfo *psInfo = (sWrapMemInfo *)hOSWrapMem;
@@ -2529,7 +2570,18 @@ PVRSRV_ERROR OSAcquirePhysPageAddr(IMG_VOID *pvCPUVAddr,
 	}
 	if (psInfo->ppsPages[i] == NULL)
 	{
-
+#if defined(SUPPORT_OMAP_TILER)
+            IMG_UINT32 tilerAddr;
+            /* This could be tiler memory.*/
+            if (CPUAddrToTilerPhy(ulAddr, &tilerAddr))
+            {
+                bHavePageStructs = IMG_TRUE;
+                psInfo->iNumPagesMapped++;
+                psInfo->psPhysAddr[i].uiAddr = tilerAddr;
+                psSysPAddr[i].uiAddr = tilerAddr;
+                continue;
+            }
+#endif /* SUPPORT_OMAP_TILER */
 	    bHaveNoPageStructs = IMG_TRUE;
 
 #if defined(VM_PFNMAP)

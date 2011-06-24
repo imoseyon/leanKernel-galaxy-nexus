@@ -26,6 +26,16 @@ config RPMSG_OMX
 
 	  If unsure, say N.
 
+config RPMSG_RESMGR
+	tristate "rpmsg resource manager"
+	default y
+	depends on RPMSG
+	depends on OMAP_RPRES
+	---help---
+	  Add Framework base on RPMSG to request and release resources
+	  from a remote Processor.
+	  Say either Y or M. You know you want to.
+
 config RPMSG_CLIENT_SAMPLE
 	tristate "An rpmsg client sample"
 	default m
@@ -40,14 +50,4 @@ config RPMSG_SERVER_SAMPLE
 	depends on RPMSG
 	---help---
 	  This is just a sample server driver for the rpmsg bus.
-	  Say either Y or M. You know you want to.
-
-config RPMSG_RESMGR
-	tristate "rpmsg resource manager"
-	default y
-	depends on RPMSG
-	depends on OMAP_RPRES
-	---help---
-	  Add Framework base on RPMSG to request and release resources
-	  from a remote Processor.
 	  Say either Y or M. You know you want to.

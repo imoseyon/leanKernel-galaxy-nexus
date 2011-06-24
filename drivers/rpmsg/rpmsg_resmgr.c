@@ -505,8 +505,10 @@ static int rprm_resource_free(struct rprm *rprm, u32 addr, int res_id)
 out:
 	mutex_unlock(&rprm->lock);
 
-	if (!ret)
+	if (!ret) {
 		ret = _resource_free(e->handle, e->type);
+		kfree(e);
+	}
 
 	return ret;
 }
@@ -569,7 +571,6 @@ static int rprm_resource_alloc(struct rprm *rprm, u32 addr, int *res_id,
 
 	mutex_lock(&rprm->lock);
 	if (!idr_find(&rprm->conn_list, addr)) {
-		mutex_unlock(&rprm->lock);
 		ret = -ENOTCONN;
 		goto err;
 	}
@@ -578,7 +579,6 @@ static int rprm_resource_alloc(struct rprm *rprm, u32 addr, int *res_id,
 	 * remote processor.
 	 */
 	if (!idr_pre_get(&rprm->id_list, GFP_KERNEL)) {
-		mutex_unlock(&rprm->lock);
 		ret = -ENOMEM;
 		goto err;
 	}
@@ -596,6 +596,7 @@ static int rprm_resource_alloc(struct rprm *rprm, u32 addr, int *res_id,
 
 	return 0;
 err:
+	mutex_unlock(&rprm->lock);
 	kfree(e);
 mem_err:
 	_resource_free(handle, type);

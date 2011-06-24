@@ -39,7 +39,8 @@ ccflags-y += \
 	-DPVR_LDM_DRIVER_REGISTRATION_NAME="\"pvrsrvkm\"" \
 	-DPVRSRV_FLUSH_KERNEL_OPS_LAST_ONLY \
 	-DPVRSRV_DO_NOT_FLUSH_CLIENT_OPS \
-	-Idrivers/gpu/pvr/sgx
+	-Idrivers/gpu/pvr/sgx \
+	-DSUPPORT_OMAP_TILER
 
 ccflags-$(CONFIG_PVR_SGXCORE_540) += \
 	-DSGX540 -DSUPPORT_SGX540 \
