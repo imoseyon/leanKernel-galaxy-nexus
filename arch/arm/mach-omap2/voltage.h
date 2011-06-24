@@ -19,6 +19,7 @@
 
 #include "vc.h"
 #include "vp.h"
+#include "ldo.h"
 
 struct powerdomain;
 
@@ -74,6 +75,7 @@ struct voltagedomain {
 	const struct omap_vfsm_instance *vfsm;
 	struct omap_vp_instance *vp;
 	struct omap_voltdm_pmic *pmic;
+	struct omap_ldo_abb_instance *abb;
 
 	/* VC/VP register access functions: SoC specific */
 	u32 (*read) (u8 offset);

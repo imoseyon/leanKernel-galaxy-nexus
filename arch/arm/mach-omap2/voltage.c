@@ -115,7 +115,7 @@ unsigned long omap_voltage_get_nom_volt(struct voltagedomain *voltdm)
 int voltdm_scale(struct voltagedomain *voltdm,
 		 unsigned long target_volt)
 {
-	int ret;
+	int ret = 0;
 	struct omap_voltage_notifier notify;
 
 	if (!voltdm || IS_ERR(voltdm)) {
@@ -136,7 +136,29 @@ int voltdm_scale(struct voltagedomain *voltdm,
 			OMAP_VOLTAGE_PRECHANGE,
 			(void *)&notify);
 
-	ret = voltdm->scale(voltdm, target_volt);
+	if (voltdm->abb) {
+		ret = omap_ldo_abb_pre_scale(voltdm, target_volt);
+		if (ret)
+			pr_err("%s: ABB prescale failed for vdd%s: %d\n",
+				__func__, voltdm->name, ret);
+		/* Fall through */
+	}
+
+	if (!ret) {
+		ret = voltdm->scale(voltdm, target_volt);
+		if (ret)
+			pr_err("%s: voltage scale failed for vdd%s: %d\n",
+				__func__, voltdm->name, ret);
+
+		if (voltdm->abb) {
+			ret = omap_ldo_abb_post_scale(voltdm,
+					voltdm->curr_volt);
+			if (ret)
+				pr_err("%s: ABB postscale fail for vdd%s:%d\n",
+					__func__, voltdm->name, ret);
+		}
+		/* Fall through */
+	}
 
 	notify.op_result = ret;
 	srcu_notifier_call_chain(&voltdm->change_notify_list,
@@ -390,6 +412,9 @@ int __init omap_voltage_late_init(void)
 
 		if (voltdm->vc)
 			omap_vc_init_channel(voltdm);
+
+		if (voltdm->abb)
+			omap_ldo_abb_init(voltdm);
 
 		if (voltage_dir)
 			voltdm_debugfs_init(voltage_dir, voltdm);
