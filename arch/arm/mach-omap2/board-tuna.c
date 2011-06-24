@@ -154,10 +154,23 @@ static void __init tuna_bt_init(void)
 	omap_mux_init_signal("kpd_row5.gpio_177", OMAP_PIN_INPUT);
 }
 
+static struct twl4030_madc_platform_data twl6030_madc = {
+	.irq_line = -1,
+};
+
+static struct platform_device twl6030_madc_device = {
+	.name   = "twl6030_madc",
+	.id = -1,
+	.dev	= {
+		.platform_data	= &twl6030_madc,
+	},
+};
+
 static struct platform_device *tuna_devices[] __initdata = {
 	&ramconsole_device,
 	&wl1271_device,
 	&bcm4330_bluetooth_device,
+	&twl6030_madc_device
 };
 
 static void __init tuna_init_early(void)
@@ -366,6 +379,7 @@ static struct twl4030_platform_data tuna_twldata = {
 
 	/* children */
 	.codec		= &twl6040_codec,
+	.madc		= &twl6030_madc,
 };
 
 static void tuna_audio_init(void)
