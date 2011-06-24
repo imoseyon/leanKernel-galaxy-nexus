@@ -106,7 +106,7 @@ obj-$(CONFIG_ARCH_OMAP3)		+= $(voltagedomain-common) \
 					   ldo.o ldo3xxx_data.o
 obj-$(CONFIG_ARCH_OMAP4)		+= $(voltagedomain-common) \
 					   voltagedomains44xx_data.o \
-					   ldo.o
+					   ldo.o ldo4xxx_data.o
 endif
 
 # OMAP powerdomain framework
