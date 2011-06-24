@@ -403,6 +403,8 @@ struct omap_mcbsp_platform_data {
 #endif
 	u16 buffer_size;
 	unsigned int mcbsp_config_type;
+	char clks_pad_src[30];
+	char clks_prcm_src[30];
 };
 
 struct omap_mcbsp_st_data {
@@ -448,6 +450,8 @@ struct omap_mcbsp {
 	struct clk *fclk;
 #ifdef CONFIG_ARCH_OMAP3
 	struct omap_mcbsp_st_data *st_data;
+#endif
+#if defined(CONFIG_ARCH_OMAP3) || defined(CONFIG_ARCH_OMAP4)
 	int dma_op_mode;
 	u16 max_tx_thres;
 	u16 max_rx_thres;
@@ -474,7 +478,7 @@ int omap_mcbsp_init(void);
 void omap_mcbsp_register_board_cfg(struct resource *res, int res_count,
 			struct omap_mcbsp_platform_data *config, int size);
 void omap_mcbsp_config(unsigned int id, const struct omap_mcbsp_reg_cfg * config);
-#ifdef CONFIG_ARCH_OMAP3
+#if defined(CONFIG_ARCH_OMAP3) || defined(CONFIG_ARCH_OMAP4)
 void omap_mcbsp_set_tx_threshold(unsigned int id, u16 threshold);
 void omap_mcbsp_set_rx_threshold(unsigned int id, u16 threshold);
 u16 omap_mcbsp_get_max_tx_threshold(unsigned int id);
