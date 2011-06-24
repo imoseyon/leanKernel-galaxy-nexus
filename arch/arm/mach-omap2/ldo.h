@@ -99,6 +99,8 @@ struct omap_ldo_abb_instance {
 	int __cur_abb_type;
 };
 
+extern struct omap_ldo_abb_instance omap3630_ldo_abb_mpu_instance;
+
 extern int omap_ldo_abb_pre_scale(struct voltagedomain *voltdm,
 			   unsigned long target_volt);
 extern int omap_ldo_abb_post_scale(struct voltagedomain *voltdm,
