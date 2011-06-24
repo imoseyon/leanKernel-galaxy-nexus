@@ -29,6 +29,7 @@ config OMAP_REMOTE_PROC
 config OMAP_RPRES
 	bool "Remote Processor Resources"
 	depends on OMAP_REMOTE_PROC
+	default y
 	help
 	  Say Y here if you want to use OMAP remote processor resources
 	  frame work.
