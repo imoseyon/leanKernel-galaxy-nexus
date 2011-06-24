@@ -14,6 +14,7 @@
 #ifndef __ARCH_ARM_MACH_OMAP2_VOLTAGE_H
 #define __ARCH_ARM_MACH_OMAP2_VOLTAGE_H
 
+#include <linux/notifier.h>
 #include <linux/err.h>
 
 #include "vc.h"
@@ -62,6 +63,7 @@ struct omap_vfsm_instance {
  * @pwrdms: powerdomains in this voltagedomain
  * @scale: function used to scale the voltage of the voltagedomain
  * @curr_volt: current nominal voltage for this voltage domain
+ * @change_notify_list: notifiers that need to be told on pre and post change
  */
 struct voltagedomain {
 	char *name;
@@ -88,7 +90,27 @@ struct voltagedomain {
 	u32 curr_volt;
 
 	struct omap_vdd_info *vdd;
+	struct srcu_notifier_head change_notify_list;
 	struct dentry *debug_dir;
+};
+
+/* Notifier values for voltage changes */
+#define OMAP_VOLTAGE_PRECHANGE	1
+#define OMAP_VOLTAGE_POSTCHANGE	2
+
+/**
+ * struct omap_voltage_notifier - notifier data that is passed along
+ * @voltdm:		voltage domain for the notification
+ * @target_volt:	what voltage is happening
+ * @op_result:		valid only for POSTCHANGE, tells the result of
+ *			the operation.
+ *
+ * This provides notification
+ */
+struct omap_voltage_notifier {
+	struct voltagedomain	*voltdm;
+	unsigned long		target_volt;
+	int			op_result;
 };
 
 /**
@@ -263,4 +285,17 @@ int voltdm_for_each_pwrdm(struct voltagedomain *voltdm,
 				    struct powerdomain *pwrdm));
 int voltdm_scale(struct voltagedomain *voltdm, unsigned long target_volt);
 void voltdm_reset(struct voltagedomain *voltdm);
+
+static inline int voltdm_register_notifier(struct voltagedomain *voltdm,
+						struct notifier_block *nb)
+{
+	return srcu_notifier_chain_register(&voltdm->change_notify_list, nb);
+}
+
+static inline int voltdm_unregister_notifier(struct voltagedomain *voltdm,
+						struct notifier_block *nb)
+{
+	return srcu_notifier_chain_unregister(&voltdm->change_notify_list, nb);
+}
+
 #endif

@@ -115,6 +115,9 @@ unsigned long omap_voltage_get_nom_volt(struct voltagedomain *voltdm)
 int voltdm_scale(struct voltagedomain *voltdm,
 		 unsigned long target_volt)
 {
+	int ret;
+	struct omap_voltage_notifier notify;
+
 	if (!voltdm || IS_ERR(voltdm)) {
 		pr_warning("%s: VDD specified does not exist!\n", __func__);
 		return -EINVAL;
@@ -126,7 +129,21 @@ int voltdm_scale(struct voltagedomain *voltdm,
 		return -ENODATA;
 	}
 
-	return voltdm->scale(voltdm, target_volt);
+	notify.voltdm = voltdm;
+	notify.target_volt = target_volt;
+
+	srcu_notifier_call_chain(&voltdm->change_notify_list,
+			OMAP_VOLTAGE_PRECHANGE,
+			(void *)&notify);
+
+	ret = voltdm->scale(voltdm, target_volt);
+
+	notify.op_result = ret;
+	srcu_notifier_call_chain(&voltdm->change_notify_list,
+			OMAP_VOLTAGE_POSTCHANGE,
+			(void *)&notify);
+
+	return ret;
 }
 
 /**
@@ -377,6 +394,7 @@ int __init omap_voltage_late_init(void)
 		if (voltage_dir)
 			voltdm_debugfs_init(voltage_dir, voltdm);
 
+		srcu_init_notifier_head(&voltdm->change_notify_list);
 	}
 
 	return 0;
