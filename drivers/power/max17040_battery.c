@@ -192,7 +192,7 @@ static void max17040_work(struct work_struct *work)
 	max17040_get_online(chip->client);
 	max17040_get_status(chip->client);
 
-	schedule_delayed_work(&chip->work, MAX17040_DELAY);
+	schedule_delayed_work(&chip->work, msecs_to_jiffies(MAX17040_DELAY));
 }
 
 static enum power_supply_property max17040_battery_props[] = {
@@ -238,7 +238,7 @@ static int __devinit max17040_probe(struct i2c_client *client,
 	max17040_get_version(client);
 
 	INIT_DELAYED_WORK_DEFERRABLE(&chip->work, max17040_work);
-	schedule_delayed_work(&chip->work, MAX17040_DELAY);
+	schedule_delayed_work(&chip->work, msecs_to_jiffies(MAX17040_DELAY));
 
 	return 0;
 }
@@ -268,7 +268,7 @@ static int max17040_resume(struct i2c_client *client)
 {
 	struct max17040_chip *chip = i2c_get_clientdata(client);
 
-	schedule_delayed_work(&chip->work, MAX17040_DELAY);
+	schedule_delayed_work(&chip->work, msecs_to_jiffies(MAX17040_DELAY));
 	return 0;
 }
 
