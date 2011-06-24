@@ -645,14 +645,14 @@ int omap_abe_write_gain(struct omap_abe *abe,
 	/* CMEM bytes address */
 	mixer_target = OMAP_ABE_C_1_ALPHA_ADDR;
 	/* a pair of gains is updated once in the firmware */
-	mixer_target += (p + mixer_offset) << 1;
+	mixer_target += ((p + mixer_offset) >> 1) << 2;
 	/* load the ramp delay data */
 	omap_abe_mem_write(abe, OMAP_ABE_CMEM, mixer_target,
 		       (u32 *) &alpha, sizeof(alpha));
 	/* CMEM bytes address */
 	mixer_target = OMAP_ABE_C_ALPHA_ADDR;
 	/* a pair of gains is updated once in the firmware */
-	mixer_target += (p + mixer_offset) << 1;
+	mixer_target += ((p + mixer_offset) >> 1) << 2;
 	omap_abe_mem_write(abe, OMAP_ABE_CMEM, mixer_target,
 		       (u32 *) &beta, sizeof(beta));
 	return 0;

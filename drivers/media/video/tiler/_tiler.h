@@ -56,6 +56,12 @@ struct process_info {
 	bool kernel;			/* tracking kernel objects */
 };
 
+struct __buf_info {
+	struct list_head by_pid;		/* list of buffers per pid */
+	struct tiler_buf_info buf_info;
+	struct mem_info *mi[TILER_MAX_NUM_BLOCKS];	/* blocks */
+};
+
 /* per group info (within a process) */
 struct gid_info {
 	struct list_head by_pid;	/* other groups */
@@ -104,16 +110,16 @@ struct tiler_geom {
 struct tiler_ops {
 	/* block operations */
 	s32 (*alloc) (enum tiler_fmt fmt, u32 width, u32 height,
-			u32 align, u32 offs, u32 key,
+			u32 key,
 			u32 gid, struct process_info *pi,
 			struct mem_info **info);
-	s32 (*map) (enum tiler_fmt fmt, u32 width, u32 height,
+	s32 (*pin) (enum tiler_fmt fmt, u32 width, u32 height,
 			u32 key, u32 gid, struct process_info *pi,
 			struct mem_info **info, u32 usr_addr);
-	void (*reserve_nv12) (u32 n, u32 width, u32 height, u32 align, u32 offs,
+	void (*reserve_nv12) (u32 n, u32 width, u32 height,
 					u32 gid, struct process_info *pi);
 	void (*reserve) (u32 n, enum tiler_fmt fmt, u32 width, u32 height,
-			 u32 align, u32 offs, u32 gid, struct process_info *pi);
+			 u32 gid, struct process_info *pi);
 	void (*unreserve) (u32 gid, struct process_info *pi);
 
 	/* block access operations */
@@ -123,10 +129,12 @@ struct tiler_ops {
 	void (*unlock_free) (struct mem_info *mi, bool free);
 
 	s32 (*lay_2d) (enum tiler_fmt fmt, u16 n, u16 w, u16 h, u16 band,
-			u16 align, u16 offs, struct gid_info *gi,
+			u16 align, struct gid_info *gi,
 			struct list_head *pos);
+#ifdef CONFIG_TILER_ENABLE_NV12
 	s32 (*lay_nv12) (int n, u16 w, u16 w1, u16 h, struct gid_info *gi,
-									u8 *p);
+			 u8 *p);
+#endif
 	/* group operations */
 	struct gid_info * (*get_gi) (struct process_info *pi, u32 gid);
 	void (*release_gi) (struct gid_info *gi);
@@ -138,8 +146,7 @@ struct tiler_ops {
 
 	/* area operations */
 	s32 (*analize) (enum tiler_fmt fmt, u32 width, u32 height,
-			u16 *x_area, u16 *y_area, u16 *band,
-			u16 *align, u16 *offs, u16 *in_offs);
+			u16 *x_area, u16 *y_area, u16 *band, u16 *align);
 
 	/* process operations */
 	void (*cleanup) (void);
@@ -151,16 +158,26 @@ struct tiler_ops {
 
 	/* additional info */
 	const struct file_operations *fops;
-
+#ifdef CONFIG_TILER_ENABLE_NV12
 	bool nv12_packed;	/* whether NV12 is packed into same container */
+#endif
 	u32 page;		/* page size */
 	u32 width;		/* container width */
 	u32 height;		/* container height */
+
+	struct mutex mtx;	/* mutex for interfaces and ioctls */
 };
 
 void tiler_iface_init(struct tiler_ops *tiler);
 void tiler_geom_init(struct tiler_ops *tiler);
 void tiler_reserve_init(struct tiler_ops *tiler);
+void tiler_nv12_init(struct tiler_ops *tiler);
+u32 tiler_best2pack(u16 o, u16 a, u16 b, u16 w, u16 *n, u16 *_area);
+void tiler_ioctl_init(struct tiler_ops *tiler);
+struct process_info *__get_pi(pid_t pid, bool kernel);
+void _m_unregister_buf(struct __buf_info *_b);
+s32 tiler_notify_event(int event, void *data);
+void _m_free_process_info(struct process_info *pi);
 
 struct process_info *__get_pi(pid_t pid, bool kernel);
 
