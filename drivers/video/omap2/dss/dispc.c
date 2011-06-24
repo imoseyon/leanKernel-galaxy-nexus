@@ -3737,6 +3737,13 @@ static void _omap_dispc_initial_config(void)
 	dispc_set_loadmode(OMAP_DSS_LOAD_FRAME_ONLY);
 
 	dispc_read_plane_fifo_sizes();
+
+	/* re-assign write-back's fifo space to GFX, thus making GFX FIFO
+	 * bigger */
+	l = dispc_read_reg(DISPC_GLOBAL_BUFFER);
+	l = FLD_MOD(l, 0, 29, 27);
+	l = FLD_MOD(l, 0, 26, 24);
+	dispc_write_reg(DISPC_GLOBAL_BUFFER, l);
 }
 
 /* DISPC HW IP initialisation */
