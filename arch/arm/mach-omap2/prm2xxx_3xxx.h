@@ -303,9 +303,12 @@ extern int omap2_prm_is_hardreset_asserted(s16 prm_mod, u8 shift);
 extern int omap2_prm_assert_hardreset(s16 prm_mod, u8 shift);
 extern int omap2_prm_deassert_hardreset(s16 prm_mod, u8 rst_shift, u8 st_shift);
 
+#define OMAP3_PRM_IRQ_VDD_MPU_ID	0
+#define OMAP3_PRM_IRQ_VDD_CORE_ID	1
 /* OMAP3-specific VP functions */
-u32 omap3_prm_vp_check_txdone(u8 vp_id);
-void omap3_prm_vp_clear_txdone(u8 vp_id);
+u32 omap3_prm_vp_check_txdone(u8 irq_id);
+void omap3_prm_vp_clear_txdone(u8 irq_id);
+
 
 /*
  * OMAP3 access functions for voltage controller (VC) and
