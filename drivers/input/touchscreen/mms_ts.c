@@ -17,6 +17,7 @@
 //#define DEBUG
 #include <linux/completion.h>
 #include <linux/delay.h>
+#include <linux/earlysuspend.h>
 #include <linux/firmware.h>
 #include <linux/gpio.h>
 #include <linux/i2c.h>
@@ -88,7 +89,13 @@ struct mms_ts_info {
 
 	char				*fw_name;
 	struct completion		init_done;
+	struct early_suspend		early_suspend;
 };
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void mms_ts_early_suspend(struct early_suspend *h);
+static void mms_ts_late_resume(struct early_suspend *h);
+#endif
 
 static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 {
@@ -734,6 +741,13 @@ static int __devinit mms_ts_probe(struct i2c_client *client,
 		goto err_config;
 	}
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	info->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
+	info->early_suspend.suspend = mms_ts_early_suspend;
+	info->early_suspend.resume = mms_ts_late_resume;
+	register_early_suspend(&info->early_suspend);
+#endif
+
 	return 0;
 
 err_config:
@@ -760,7 +774,7 @@ static int __devexit mms_ts_remove(struct i2c_client *client)
 	return 0;
 }
 
-#ifdef CONFIG_PM
+#if defined(CONFIG_PM) || defined(CONFIG_HAS_EARLYSUSPEND)
 static int mms_ts_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
@@ -801,7 +815,25 @@ static int mms_ts_resume(struct device *dev)
 
 	return ret;
 }
+#endif
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void mms_ts_early_suspend(struct early_suspend *h)
+{
+	struct mms_ts_info *info;
+	info = container_of(h, struct mms_ts_info, early_suspend);
+	mms_ts_suspend(&info->client->dev);
+}
+
+static void mms_ts_late_resume(struct early_suspend *h)
+{
+	struct mms_ts_info *info;
+	info = container_of(h, struct mms_ts_info, early_suspend);
+	mms_ts_resume(&info->client->dev);
+}
+#endif
+
+#if defined(CONFIG_PM) && !defined(CONFIG_HAS_EARLYSUSPEND)
 static const struct dev_pm_ops mms_ts_pm_ops = {
 	.suspend	= mms_ts_suspend,
 	.resume		= mms_ts_resume,
@@ -819,7 +851,7 @@ static struct i2c_driver mms_ts_driver = {
 	.remove		= __devexit_p(mms_ts_remove),
 	.driver = {
 		.name = "mms_ts",
-#ifdef CONFIG_PM
+#if defined(CONFIG_PM) && !defined(CONFIG_HAS_EARLYSUSPEND)
 		.pm	= &mms_ts_pm_ops,
 #endif
 	},
