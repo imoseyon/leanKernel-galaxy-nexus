@@ -31,6 +31,9 @@
 
 #include <mach/hardware.h>
 #include <mach/omap4-common.h>
+#include <mach/emif.h>
+#include <mach/lpddr2-elpida.h>
+
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
@@ -690,6 +693,23 @@ static struct omap_dss_board_info omap4_panda_dss_data = {
 	.default_device	= &omap4_panda_dvi_device,
 };
 
+/*
+ * LPDDR2 Configeration Data:
+ * The memory organisation is as below :
+ *	EMIF1 - CS0 -	2 Gb
+ *		CS1 -	2 Gb
+ *	EMIF2 - CS0 -	2 Gb
+ *		CS1 -	2 Gb
+ *	--------------------
+ *	TOTAL -		8 Gb
+ *
+ * Same devices installed on EMIF1 and EMIF2
+ */
+static __initdata struct emif_device_details emif_devices = {
+	.cs0_device = &lpddr2_elpida_2G_S4_dev,
+	.cs1_device = &lpddr2_elpida_2G_S4_dev
+};
+
 void omap4_panda_display_init(void)
 {
 	int r;
@@ -705,6 +725,8 @@ void omap4_panda_display_init(void)
 static void __init omap4_panda_init(void)
 {
 	int package = OMAP_PACKAGE_CBS;
+
+	omap_emif_setup_device_details(&emif_devices, &emif_devices);
 
 	if (omap_rev() == OMAP4430_REV_ES1_0)
 		package = OMAP_PACKAGE_CBL;
