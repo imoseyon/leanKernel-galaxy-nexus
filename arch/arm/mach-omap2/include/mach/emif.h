@@ -282,8 +282,6 @@ struct emif_regs {
 	u32 emif_ddr_phy_ctlr_1_final;
 };
 
-int omap_emif_notify_voltage(u32 volt_state);
-
 int omap_emif_setup_registers(u32 freq,
 			      u32 volt_state);
 int omap_emif_setup_device_details(

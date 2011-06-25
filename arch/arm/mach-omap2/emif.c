@@ -28,6 +28,8 @@
 #include <mach/lpddr2-jedec.h>
 #include <mach/omap4-common.h>
 
+#include "voltage.h"
+
 /* Utility macro for masking and setting a field in a register/variable */
 #define mask_n_set(reg, shift, msk, val) \
 	(reg) = (((reg) & ~(msk))|(((val) << (shift)) & msk))
@@ -1138,8 +1140,16 @@ postcore_initcall(omap_emif_register);
  * read idle forcing) when voltage is scaling and can have a more relaxed
  * nominal value(frequency dependent) when voltage is stable
  */
-int omap_emif_notify_voltage(u32 volt_state)
+int omap_emif_notify_voltage(struct notifier_block *nb,
+		unsigned long val, void *data)
 {
+	u32 volt_state;
+
+	if (val == OMAP_VOLTAGE_PRECHANGE)
+		volt_state =  LPDDR2_VOLTAGE_RAMPING;
+	 else
+		volt_state =  LPDDR2_VOLTAGE_STABLE;
+
 	if (likely(emif_curr_regs[EMIF1]))
 		setup_volt_sensitive_registers(EMIF1, emif_curr_regs[EMIF1],
 					       volt_state);
@@ -1160,6 +1170,25 @@ int omap_emif_notify_voltage(u32 volt_state)
 	 */
 	return omap4_prcm_freq_update();
 }
+
+static struct notifier_block emif_volt_notifier_block = {
+	.notifier_call = omap_emif_notify_voltage,
+};
+
+static int __init omap_emif_late_init(void)
+{
+	struct voltagedomain *voltdm = voltdm_lookup("core");
+
+	if (!voltdm) {
+		pr_err("CORE voltage domain lookup failed\n");
+		return -EINVAL;
+	}
+
+	voltdm_register_notifier(voltdm, &emif_volt_notifier_block);
+
+	return 0;
+}
+late_initcall(omap_emif_late_init);
 
 /*
  * omap_emif_setup_registers - setup the shadow registers for a given
