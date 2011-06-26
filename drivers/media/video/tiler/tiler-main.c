@@ -331,6 +331,37 @@ static s32 __analize_area(enum tiler_fmt fmt, u32 width, u32 height,
 	return 0;
 }
 
+void fill_virt_array(struct tiler_block_t *blk, u32 *virt_array)
+{
+	u32 v, p, len, size;
+	u32 i = 0, offs = 0;
+
+	if (!virt_array)
+		return;
+
+	/* get page aligned stride */
+	v = tiler_vstride(blk);
+	p = tiler_pstride(blk);
+
+	/* get page aligned virtual size for the block */
+	size = tiler_size(blk);
+	offs = blk->phys;
+	while (size) {
+		/* set len to length of one row (2D), or full length if 1D */
+		len = v;
+
+		while (len && size) {
+			virt_array[i++] = PAGE_ALIGN(offs);
+			size -= PAGE_SIZE;
+			len -= PAGE_SIZE;
+			offs += PAGE_SIZE;
+		}
+
+		/* set offset to next row beginning */
+		offs += p - v;
+	}
+}
+
 /**
  * Find a place where a 2D block would fit into a 2D area of the
  * same height.
@@ -1019,34 +1050,6 @@ cleanup:
 	return res;
 }
 
-/* gets physical pages from scatterlist */
-static struct tiler_pa_info *scatterlist_to_pa(struct scatterlist *sglist,
-						u32 nents)
-{
-	int i;
-	struct scatterlist *sg;
-	struct tiler_pa_info *pa = NULL;
-	u32 *mem = NULL;
-
-	pa = kzalloc(sizeof(*pa), GFP_KERNEL);
-	if (!pa)
-		return NULL;
-
-	mem = kzalloc(nents * sizeof(*mem), GFP_KERNEL);
-	if (!mem) {
-		kfree(pa);
-		return NULL;
-	}
-
-	/* iterate over scatterlist and build up mem information */
-	for_each_sg(sglist, sg, nents, i)
-		mem[i] = sg_phys(sg);
-
-	pa->mem = mem;
-	pa->memtype =  TILER_MEM_USING;
-	pa->num_pg = nents;
-	return pa;
-}
 
 /* get physical pages of a user block */
 static struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg)
@@ -1199,15 +1202,25 @@ static s32 pin_block(enum tiler_fmt fmt, u32 width, u32 height,
 	return pin_any_block(fmt, width, height, key, gid, pi, info, pa);
 }
 
-s32 tiler_pin_block(tiler_blk_handle block, struct scatterlist *sg, u32 nents)
+s32 tiler_pin_block(tiler_blk_handle block, u32 *addr_array, u32 nents)
 {
 	struct tiler_pa_info *pa = NULL;
+	u32 *mem = NULL;
 	int res;
 
-	/* get user pages */
-	pa = scatterlist_to_pa(sg, nents);
-	if (IS_ERR_OR_NULL(pa))
-		return pa ? PTR_ERR(pa) : -ENOMEM;
+	pa = kzalloc(sizeof(*pa), GFP_KERNEL);
+	if (!pa)
+		return -ENOMEM;
+
+	mem = kmemdup(addr_array, sizeof(*addr_array)*nents, GFP_KERNEL);
+	if (!mem) {
+		kfree(pa);
+		return -ENOMEM;
+	}
+
+	pa->mem = mem;
+	pa->memtype =  TILER_MEM_USING;
+	pa->num_pg = nents;
 
 	res = pin_memory(block, pa);
 	free_pa(pa);
@@ -1412,7 +1425,7 @@ void tiler_free_block_area(tiler_blk_handle block)
 EXPORT_SYMBOL(tiler_free_block_area);
 
 tiler_blk_handle tiler_alloc_block_area(enum tiler_fmt fmt, u32 width,
-					u32 height, u32 *ssptr)
+					u32 height, u32 *ssptr, u32 *virt_array)
 {
 	struct mem_info *mi;
 	*ssptr = 0;
@@ -1422,6 +1435,7 @@ tiler_blk_handle tiler_alloc_block_area(enum tiler_fmt fmt, u32 width,
 	if (IS_ERR_OR_NULL(mi))
 		goto done;
 
+	fill_virt_array(&mi->blk, virt_array);
 	*ssptr = mi->blk.phys;
 
 done:
@@ -1452,14 +1466,26 @@ s32 tiler_pin_memory(tiler_blk_handle block, struct tiler_pa_info *pa)
 }
 EXPORT_SYMBOL(tiler_pin_memory);
 
-u32 tiler_memsize(enum tiler_fmt fmt, u32 width, u32 height)
+s32 tiler_memsize(enum tiler_fmt fmt, u32 width, u32 height, u32 *alloc_pages,
+		  u32 *virt_pages)
 {
 	u16 x, y, band, align;
+	int res;
+	struct tiler_block_t blk;
 
-	if (tiler.analize(fmt, width, height, &x, &y, &align, &band))
-		return 0;
-	else
-		return x*y;
+	*alloc_pages = *virt_pages = 0;
+
+	res = tiler.analize(fmt, width, height, &x, &y, &align, &band);
+
+	if (!res) {
+		blk.height = height;
+		blk.width = width;
+		blk.phys = tiler.addr(fmt, 0, 0);
+		*alloc_pages = x*y;
+		*virt_pages = tiler_size(&blk) / PAGE_SIZE;
+	}
+
+	return res;
 }
 EXPORT_SYMBOL(tiler_memsize);
 
