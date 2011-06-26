@@ -15,6 +15,7 @@
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/platform_device.h>
+#include <linux/dma-mapping.h>
 
 #include <asm/hardware/gic.h>
 #include <asm/hardware/cache-l2x0.h>
@@ -36,6 +37,15 @@ static void __iomem *gic_dist_base_addr;
 static void __iomem *gic_cpu_base;
 static void __iomem *sar_ram_base;
 static struct clockdomain *l4_secure_clkdm;
+static void *dram_barrier_base;
+
+static void omap_bus_sync_noop(void)
+{ }
+
+struct omap_bus_post_fns omap_bus_post = {
+	.sync = omap_bus_sync_noop,
+};
+EXPORT_SYMBOL(omap_bus_post);
 
 void __iomem *omap4_get_gic_dist_base(void)
 {
@@ -45,6 +55,11 @@ void __iomem *omap4_get_gic_dist_base(void)
 void __iomem *omap4_get_gic_cpu_base(void)
 {
 	return gic_cpu_base;
+}
+
+void *omap_get_dram_barrier_base(void)
+{
+	return dram_barrier_base;
 }
 
 void __init gic_init_irq(void)
@@ -203,6 +218,26 @@ skip_aux_por_api:
 }
 early_initcall(omap_l2_cache_init);
 #endif
+
+static int __init omap_barriers_init(void)
+{
+	dma_addr_t dram_phys;
+
+	if (!cpu_is_omap44xx())
+		return -ENODEV;
+
+	dram_barrier_base = dma_alloc_stronglyordered(NULL, SZ_4K,
+				(dma_addr_t *)&dram_phys, GFP_KERNEL);
+	if (!dram_barrier_base) {
+		pr_err("%s: failed to allocate memory.\n", __func__);
+		return -ENOMEM;
+	}
+
+	omap_bus_post.sync = omap_bus_sync;
+
+	return 0;
+}
+core_initcall(omap_barriers_init);
 
 void __iomem *omap4_get_sar_ram_base(void)
 {

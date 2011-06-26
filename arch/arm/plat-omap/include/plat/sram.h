@@ -15,6 +15,7 @@
 #include <asm/fncpy.h>
 
 extern void *omap_sram_push_address(unsigned long size);
+extern unsigned long omap_get_sram_barrier_base(void);
 
 /* Macro to push a function to the internal SRAM, using the fncpy API */
 #define omap_sram_push(funcp, size) ({				\
