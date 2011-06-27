@@ -3751,9 +3751,6 @@ static void _omap_dispc_initial_config(void)
 	l = FLD_MOD(l, 0, 29, 27);
 	l = FLD_MOD(l, 0, 26, 24);
 	dispc_write_reg(DISPC_GLOBAL_BUFFER, l);
-
-	/* make hardware prefetch up to high threshold value for GFX*/
-	REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(OMAP_DSS_GFX), 1, 11, 11);
 }
 
 /* DISPC HW IP initialisation */
