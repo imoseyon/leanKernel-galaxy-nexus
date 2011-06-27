@@ -62,6 +62,7 @@ EXPORT_SYMBOL(sec_class);
 #define GPIO_AP_AGPS_TSYNC	18
 #define GPIO_GPS_nRST	136
 #define GPIO_GPS_PWR_EN	137
+#define GPIO_GPS_UART_SEL	164
 
 #define REBOOT_FLAG_RECOVERY	0x52564352
 #define REBOOT_FLAG_FASTBOOT	0x54534146
@@ -190,6 +191,8 @@ static void tuna_gsd4t_gps_gpio(void)
 	omap_mux_init_signal("mcspi1_simo.gpio_136", OMAP_PIN_OUTPUT);
 	/* GPS_PWR_EN - GPIO 137 */
 	omap_mux_init_signal("mcspi1_cs0.gpio_137", OMAP_PIN_OUTPUT);
+	/* GPS_UART_SEL - GPIO 164 */
+	omap_mux_init_signal("usbb2_ulpitll_dat3.gpio_164", OMAP_PIN_OUTPUT);
 }
 
 static void tuna_gsd4t_gps_init(void)
@@ -211,6 +214,9 @@ static void tuna_gsd4t_gps_init(void)
 
 	gpio_request(GPIO_GPS_PWR_EN, "GPS_PWR_EN");
 	gpio_direction_output(GPIO_GPS_PWR_EN, 0);
+
+	gpio_request(GPIO_GPS_UART_SEL , "GPS_UART_SEL");
+	gpio_direction_output(GPIO_GPS_UART_SEL , 0);
 
 	gpio_export(GPIO_GPS_nRST, 1);
 	gpio_export(GPIO_GPS_PWR_EN, 1);
