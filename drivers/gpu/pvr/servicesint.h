@@ -179,6 +179,8 @@ typedef struct _PVRSRV_COMMAND
 	IMG_SIZE_T			uDataSize;		
 	IMG_UINT32			ui32ProcessID;		
 	IMG_VOID			*pvData;			
+	PFN_QUEUE_COMMAND_COMPLETE  pfnCommandComplete;	
+	IMG_HANDLE					hCallbackData;		
 }PVRSRV_COMMAND, *PPVRSRV_COMMAND;
 
 

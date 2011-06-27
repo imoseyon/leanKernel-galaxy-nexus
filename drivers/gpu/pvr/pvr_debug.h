@@ -22,7 +22,7 @@
  * Imagination Technologies Ltd. <gpl-support@imgtec.com>
  * Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK 
  *
- ******************************************************************************/
+******************************************************************************/
 
 #ifndef __PVR_DEBUG_H__
 #define __PVR_DEBUG_H__

@@ -877,6 +877,12 @@ static PVRSRV_ERROR DestroyDCSwapChain(PVRSRV_DC_SWAPCHAIN *psSwapChain)
 		}
 	}
 
+	if (psSwapChain->ppsLastSyncInfos)
+	{
+		OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof(PVRSRV_KERNEL_SYNC_INFO *) * psSwapChain->ui32LastNumSyncInfos,
+					psSwapChain->ppsLastSyncInfos, IMG_NULL);
+	}
+
 	OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof(PVRSRV_DC_SWAPCHAIN), psSwapChain, IMG_NULL);
 	
 
@@ -1408,7 +1414,9 @@ PVRSRV_ERROR PVRSRVSwapToDCBufferKM(IMG_HANDLE	hDeviceKM,
 									IMG_NULL,
 									ui32NumSrcSyncs,
 									apsSrcSync,
-									sizeof(DISPLAYCLASS_FLIP_COMMAND) + (sizeof(IMG_RECT) * ui32ClipRectCount));
+									sizeof(DISPLAYCLASS_FLIP_COMMAND) + (sizeof(IMG_RECT) * ui32ClipRectCount),
+									IMG_NULL,
+									IMG_NULL);
 	if(eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBufferKM: Failed to get space in queue"));
@@ -1475,6 +1483,20 @@ Exit:
 	return eError;
 }
 
+typedef struct _CALLBACK_DATA_
+{
+	IMG_PVOID	pvPrivData;
+	IMG_UINT32	ui32PrivDataLength;
+} CALLBACK_DATA;
+
+static IMG_VOID FreePrivateData(IMG_HANDLE hCallbackData)
+{
+	CALLBACK_DATA *psCallbackData = hCallbackData;
+
+	OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, psCallbackData->ui32PrivDataLength,
+				psCallbackData->pvPrivData, IMG_NULL);
+	OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof(CALLBACK_DATA), hCallbackData, IMG_NULL);
+}
 
 IMG_EXPORT
 PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
@@ -1486,17 +1508,16 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 									 IMG_PVOID	pvPrivData,
 									 IMG_UINT32	ui32PrivDataLength)
 {
+	PVRSRV_KERNEL_SYNC_INFO **ppsCompiledSyncInfos;
+	IMG_UINT32 i, ui32NumCompiledSyncInfos;
 	DISPLAYCLASS_FLIP_COMMAND2 *psFlipCmd;
 	PVRSRV_DISPLAYCLASS_INFO *psDCInfo;
 	PVRSRV_DC_SWAPCHAIN *psSwapChain;
+	PVRSRV_ERROR eError = PVRSRV_OK;
 	PVRSRV_QUEUE_INFO *psQueue;
 	PVRSRV_COMMAND *psCommand;
-	PVRSRV_ERROR eError = PVRSRV_OK;
 	SYS_DATA *psSysData;
-	IMG_UINT32 i;
-
-	PVRSRV_KERNEL_SYNC_INFO **ppsCompiledSyncInfos;
-	IMG_UINT32 ui32NumCompiledSyncInfos;
+	CALLBACK_DATA *psCallbackData;
 
 	if(!hDeviceKM || !hSwapChain || !ppsMemInfos || !ppsSyncInfos || ui32NumMemSyncInfos < 1)
 	{
@@ -1516,6 +1537,17 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 		return PVRSRV_ERROR_INVALID_SWAPINTERVAL;
 	}
 
+	eError = OSAllocMem(PVRSRV_OS_PAGEABLE_HEAP,
+					  sizeof(CALLBACK_DATA),
+					  (IMG_VOID **)&psCallbackData, IMG_NULL,
+					  "PVRSRVSwapToDCBuffer2KM callback data");
+	if (eError != PVRSRV_OK)
+	{
+		return eError;
+	}
+	psCallbackData->pvPrivData = pvPrivData;
+	psCallbackData->ui32PrivDataLength = ui32PrivDataLength;
+
 	
 	psQueue = psSwapChain->psQueue;
 
@@ -1531,7 +1563,6 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 				if(psSwapChain->ppsLastSyncInfos[j] == ppsSyncInfos[i])
 				{
 					psSwapChain->ppsLastSyncInfos[j] = NULL;
-					BUG_ON(ui32NumUniqueSyncInfos == 0);
 					ui32NumUniqueSyncInfos--;
 				}
 			}
@@ -1539,7 +1570,7 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 
 		ui32NumCompiledSyncInfos = ui32NumMemSyncInfos + ui32NumUniqueSyncInfos;
 
-		/* FIXME: This leaks */
+		
 		if(OSAllocMem(PVRSRV_OS_PAGEABLE_HEAP,
 					  sizeof(PVRSRV_KERNEL_SYNC_INFO *) * ui32NumCompiledSyncInfos,
 					  (IMG_VOID **)&ppsCompiledSyncInfos, IMG_NULL,
@@ -1557,7 +1588,6 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 				ppsCompiledSyncInfos[i] = psSwapChain->ppsLastSyncInfos[j];
 				i++;
 			}
-			BUG_ON(i > ui32NumCompiledSyncInfos);
 		}
 	}
 	else
@@ -1566,6 +1596,7 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 		ui32NumCompiledSyncInfos = ui32NumMemSyncInfos;
 	}
 
+	
 	eError = PVRSRVInsertCommandKM (psQueue,
 									&psCommand,
 									psDCInfo->ui32DeviceID,
@@ -1574,7 +1605,15 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 									IMG_NULL,
 									ui32NumCompiledSyncInfos,
 									ppsCompiledSyncInfos,
-									sizeof(DISPLAYCLASS_FLIP_COMMAND2));
+									sizeof(DISPLAYCLASS_FLIP_COMMAND2),
+									FreePrivateData,
+									psCallbackData);
+
+	OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP,
+			  sizeof(PVRSRV_KERNEL_SYNC_INFO *) * ui32NumCompiledSyncInfos,
+			  (IMG_VOID *)ppsCompiledSyncInfos,
+			  IMG_NULL);
+
 	if(eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBuffer2KM: Failed to get space in queue"));
@@ -1611,7 +1650,9 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 	}
 
 	for(i = 0; i < ui32NumMemSyncInfos; i++)
+	{
 		psFlipCmd->ppvMemInfos[i] = ppsMemInfos[i];
+	}
 
 	psFlipCmd->ui32NumMemInfos = ui32NumMemSyncInfos;
 
@@ -1620,6 +1661,10 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBuffer2KM: Failed to submit command"));
+		OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP,
+				  sizeof(IMG_VOID *) * ui32NumMemSyncInfos,
+				  (IMG_VOID *)psFlipCmd->ppvMemInfos,
+				  IMG_NULL);
 		goto Exit;
 	}
 
@@ -1634,21 +1679,34 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 		goto Exit;
 	}
 
-	/* FIXME: We don't free this properly yet */
-	if(OSAllocMem(PVRSRV_OS_PAGEABLE_HEAP,
-				  sizeof(PVRSRV_KERNEL_SYNC_INFO *) * ui32NumMemSyncInfos,
-				  (IMG_VOID **)&psSwapChain->ppsLastSyncInfos, IMG_NULL,
-				  "Last syncinfos") != PVRSRV_OK)
+	
+	if (psSwapChain->ui32LastNumSyncInfos < ui32NumMemSyncInfos)
 	{
-		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBuffer2KM: Failed to allocate space for meminfo list"));
-		goto Exit;
+		if (psSwapChain->ppsLastSyncInfos)
+		{
+			OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof(PVRSRV_KERNEL_SYNC_INFO *) * psSwapChain->ui32LastNumSyncInfos,
+						psSwapChain->ppsLastSyncInfos, IMG_NULL);
+		}
+
+		if(OSAllocMem(PVRSRV_OS_PAGEABLE_HEAP,
+					  sizeof(PVRSRV_KERNEL_SYNC_INFO *) * ui32NumMemSyncInfos,
+					  (IMG_VOID **)&psSwapChain->ppsLastSyncInfos, IMG_NULL,
+					  "Last syncinfos") != PVRSRV_OK)
+		{
+			PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBuffer2KM: Failed to allocate space for meminfo list"));
+			goto Exit;
+		}
 	}
 
 	psSwapChain->ui32LastNumSyncInfos = ui32NumMemSyncInfos;
+
 	for(i = 0; i < ui32NumMemSyncInfos; i++)
+	{
 		psSwapChain->ppsLastSyncInfos[i] = ppsSyncInfos[i];
+	}
 
 Exit:
+	OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof(CALLBACK_DATA), psCallbackData, IMG_NULL);
 	if(eError == PVRSRV_ERROR_CANNOT_GET_QUEUE_SPACE)
 	{
 		eError = PVRSRV_ERROR_RETRY;
@@ -1730,7 +1788,9 @@ PVRSRV_ERROR PVRSRVSwapToDCSystemKM(IMG_HANDLE	hDeviceKM,
 									IMG_NULL,
 									ui32NumSrcSyncs,
 									apsSrcSync,
-									sizeof(DISPLAYCLASS_FLIP_COMMAND));
+									sizeof(DISPLAYCLASS_FLIP_COMMAND),
+									IMG_NULL,
+									IMG_NULL);
 	if(eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCSystemKM: Failed to get space in queue"));
