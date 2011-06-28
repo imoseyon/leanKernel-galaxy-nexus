@@ -70,6 +70,12 @@ static const char const *rnames[] = {
 	[RPRM_SDMA]		= "SDMA",
 };
 
+static const char *rname(u32 type) {
+	if (type >= RPRM_MAX)
+		return "(invalid)";
+	return rnames[type];
+}
+
 struct rprm_elem {
 	struct list_head next;
 	u32 src;
@@ -164,7 +170,7 @@ static int rprm_auxclk_request(void **rh, struct rprm_auxclk *obj)
 	sprintf(clk_name, "auxclk%d_ck", obj->id);
 	acd->aux_clk = clk_get(NULL, clk_name);
 	if (!acd->aux_clk) {
-		pr_debug("Unable to get %s\n", clk_name);
+		pr_err("%s: unable to get clock %s\n", __func__, clk_name);
 		ret = -EFAULT;
 		goto error;
 	}
@@ -175,14 +181,14 @@ static int rprm_auxclk_request(void **rh, struct rprm_auxclk *obj)
 	sprintf(src_clk_name, "auxclk%d_src_ck", obj->id);
 	acd->src = clk_get(NULL, src_clk_name);
 	if (!acd->src) {
-		pr_debug("Unable to get %s\n", src_clk_name);
+		pr_err("%s: unable to get clock %s\n", __func__, src_clk_name);
 		ret = -EFAULT;
 		goto error_aux;
 	}
 
 	src_parent = clk_get(NULL, clk_src_name[obj->parent_src_clk]);
 	if (!src_parent) {
-		pr_debug("Unable to get %s\n",
+		pr_err("%s: unable to get parent clock %s\n", __func__,
 					clk_src_name[obj->parent_src_clk]);
 		ret = -EFAULT;
 		goto error_aux_src;
@@ -190,7 +196,7 @@ static int rprm_auxclk_request(void **rh, struct rprm_auxclk *obj)
 
 	ret = clk_set_rate(src_parent, (obj->parent_src_clk_rate * MHZ));
 	if (ret) {
-		pr_debug("Rate not supported by %s\n",
+		pr_err("%s: rate not supported by %s\n", __func__,
 					clk_src_name[obj->parent_src_clk]);
 		ret = -EINVAL;
 		goto error_aux_src_parent;
@@ -198,7 +204,8 @@ static int rprm_auxclk_request(void **rh, struct rprm_auxclk *obj)
 
 	ret = clk_set_parent(acd->src, src_parent);
 	if (ret) {
-		pr_debug("Unable to set clk %s as parent of aux_clk %s\n",
+		pr_err("%s: unable to set clk %s as parent of aux_clk %s\n",
+			__func__,
 			clk_src_name[obj->parent_src_clk],
 			src_clk_name);
 		goto error_aux_src_parent;
@@ -206,19 +213,19 @@ static int rprm_auxclk_request(void **rh, struct rprm_auxclk *obj)
 
 	ret = clk_enable(acd->src);
 	if (ret) {
-		pr_debug("Error enabling %s\n", src_clk_name);
+		pr_err("%s: error enabling %s\n", __func__, src_clk_name);
 		goto error_aux_src_parent;
 	}
 
 	ret = clk_set_rate(acd->aux_clk, (obj->clk_rate * MHZ));
 	if (ret) {
-		pr_debug("Rate not supported by %s\n", clk_name);
+		pr_err("%s: rate not supported by %s\n", __func__, clk_name);
 		goto error_aux_src_parent;
 	}
 
 	ret = clk_enable(acd->aux_clk);
 	if (ret) {
-		pr_debug("Error enabling %s\n", clk_name);
+		pr_err("%s: error enabling %s\n", __func__, clk_name);
 		goto error_aux_enable;
 	}
 	clk_put(src_parent);
@@ -269,7 +276,7 @@ static int rprm_regulator_request(void **rh, struct rprm_regulator *obj)
 	reg_name = regulator_name[obj->id - 1];
 	rd->reg_p = regulator_get_exclusive(NULL, reg_name);
 	if (IS_ERR_OR_NULL(rd->reg_p)) {
-		pr_debug("Error providing regulator %s\n", reg_name);
+		pr_err("%s: error providing regulator %s\n", __func__, reg_name);
 		ret = -EINVAL;
 		goto error;
 	}
@@ -278,13 +285,13 @@ static int rprm_regulator_request(void **rh, struct rprm_regulator *obj)
 
 	ret = regulator_set_voltage(rd->reg_p, obj->min_uv, obj->max_uv);
 	if (ret) {
-		pr_debug("Error setting %s voltage\n", reg_name);
+		pr_err("%s: error setting %s voltage\n", __func__, reg_name);
 		goto error_reg;
 	}
 
 	ret = regulator_enable(rd->reg_p);
 	if (ret) {
-		pr_debug("Error enabling %s ldo\n", reg_name);
+		pr_err("%s: error enabling %s ldo\n", __func__, reg_name);
 		goto error_reg;
 	}
 
@@ -306,14 +313,14 @@ static void rprm_regulator_release(struct rprm_regulator_depot *obj)
 
 	ret = regulator_disable(obj->reg_p);
 	if (ret) {
-		pr_debug("Error disabling ldo\n");
+		pr_err("%s: error disabling ldo\n", __func__);
 		return;
 	}
 
 	/* Restore orginal voltage */
 	ret = regulator_set_voltage(obj->reg_p, obj->orig_uv, obj->orig_uv);
 	if (ret) {
-		pr_debug("Error restoring voltage\n");
+		pr_err("%s: error restoring voltage\n", __func__);
 		return;
 	}
 
@@ -333,7 +340,7 @@ static int rprm_gpio_request(void **rh, struct rprm_gpio *obj)
 
 	ret = gpio_request(obj->id , "rpmsg_resmgr");
 	if (ret) {
-		pr_debug("Error providing gpio %d\n", obj->id);
+		pr_err("%s: error providing gpio %d\n", __func__, obj->id);
 		return ret;
 	}
 
@@ -423,7 +430,7 @@ static int rprm_rpres_request(void **rh, int type)
 	res = rpres_get(res_name);
 
 	if (IS_ERR(res)) {
-		pr_debug("Error requesting %s\n", res_name);
+		pr_err("%s: error requesting %s\n", __func__, res_name);
 		return PTR_ERR(res);
 	}
 	*rh = res;
@@ -545,7 +552,8 @@ static int _resource_alloc(void **handle, int type, void *data)
 		ret = rprm_sdma_request(handle, data);
 		break;
 	default:
-		ret = -ENOENT;
+		pr_err("%s: invalid source %d!\n", __func__, type);
+		ret = -EINVAL;
 	}
 
 	return ret;
@@ -560,8 +568,11 @@ static int rprm_resource_alloc(struct rprm *rprm, u32 addr, int *res_id,
 	int rlen = _get_rprm_size(type);
 
 	ret = _resource_alloc(&handle, type, data);
-	if (ret)
+	if (ret) {
+		pr_err("%s: request for %d (%s) failed: %d\n", __func__,
+				type, rname(type), ret);
 		return ret;
+	}
 
 	e = kmalloc(sizeof(*e) + rlen, GFP_KERNEL);
 	if (!e) {
@@ -571,6 +582,7 @@ static int rprm_resource_alloc(struct rprm *rprm, u32 addr, int *res_id,
 
 	mutex_lock(&rprm->lock);
 	if (!idr_find(&rprm->conn_list, addr)) {
+		pr_err("%s: addr %d not connected!\n", __func__, addr);
 		ret = -ENOTCONN;
 		goto err;
 	}

@@ -48,6 +48,7 @@ enum {
 	RPRM_REGULATOR	= 9,
 	RPRM_GPIO	= 10,
 	RPRM_SDMA	= 11,
+	RPRM_MAX
 };
 
 enum {

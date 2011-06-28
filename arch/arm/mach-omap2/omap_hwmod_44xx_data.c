@@ -1426,8 +1426,59 @@ static struct omap_hwmod_class_sysconfig omap44xx_dss_sysc = {
 
 static int omap44xx_dss_reset(struct omap_hwmod *oh)
 {
+#define DISPC_IRQSTATUS		(0x48041018UL)
+#define DISPC_CONTROL1		(0x48041040UL)
+#define DISPC_CONTROL2		(0x48041238UL)
+	u32 ctrl1_mask = 0;
+	u32 ctrl2_mask = 0;
+	u32 irq_mask = 0;
+	u32 val;
+	unsigned long end_wait;
+
+	/* HACK */
+	/* If LCD1/LCD2/TV are active, disable them first before
+	 * moving the clock sources back to PRCM. We don't want to change
+	 * the clock source while a DMA is active.
+	 */
+	val = omap_readl(DISPC_CONTROL1);
+	if (val & (1 << 0)) {
+		/* LCD1 */
+		irq_mask |= 1 << 0;
+		ctrl1_mask |= 1 << 0;
+	}
+	if (val & (1 << 1)) {
+		/* TV/VENC */
+		irq_mask |= 1 << 24;
+		ctrl1_mask |= 1 << 1;
+	}
+	val = omap_readl(DISPC_CONTROL2);
+	if (val & (1 << 0)) {
+		/* LCD2 */
+		irq_mask |= 1 << 22;
+		ctrl2_mask |= 1 << 0;
+	}
+
+	/* disable the active controllers */
+	omap_writel(omap_readl(DISPC_CONTROL1) & (~ctrl1_mask), DISPC_CONTROL1);
+	omap_writel(omap_readl(DISPC_CONTROL2) & (~ctrl2_mask), DISPC_CONTROL2);
+
+	omap_writel(irq_mask, DISPC_IRQSTATUS);
+
+	end_wait = jiffies + msecs_to_jiffies(50);
+	while (((omap_readl(DISPC_CONTROL1) & ctrl1_mask) ||
+		(omap_readl(DISPC_CONTROL2) & ctrl2_mask) ||
+		((omap_readl(DISPC_IRQSTATUS) & irq_mask) != irq_mask)) &&
+	       time_before(jiffies, end_wait))
+		cpu_relax();
+	WARN_ON((omap_readl(DISPC_CONTROL1) & ctrl1_mask) ||
+		(omap_readl(DISPC_CONTROL2) & ctrl2_mask) ||
+		((omap_readl(DISPC_IRQSTATUS) & irq_mask) != irq_mask));
+
 	omap_hwmod_write(0x0, oh, 0x40);
 	return 0;
+#undef DISPC_IRQSTATUS
+#undef DISPC_CONTROL1
+#undef DISPC_CONTROL2
 }
 
 static struct omap_hwmod_class omap44xx_dss_hwmod_class = {
