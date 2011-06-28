@@ -120,8 +120,8 @@ typedef IMG_UINT32      IMG_EVENTSID;
 /*
  * Address types.
  * All types used to refer to a block of memory are wrapped in structures
- * to enforce some type degree of type safety, i.e. a IMG_DEV_VIRTADDR cannot
- * be assigned to a variable of type IMG_DEV_PHYSADDR because they are not the
+ * to enforce some degree of type safety, i.e. a IMG_DEV_VIRTADDR cannot
+ * be assigned to a variable of type IMG_DEV_PHYADDR because they are not the
  * same thing.
  *
  * There is an assumption that the system contains at most one non-cpu mmu,

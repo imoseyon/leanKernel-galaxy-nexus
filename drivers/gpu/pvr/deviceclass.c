@@ -1562,7 +1562,7 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 			{
 				if(psSwapChain->ppsLastSyncInfos[j] == ppsSyncInfos[i])
 				{
-					psSwapChain->ppsLastSyncInfos[j] = NULL;
+					psSwapChain->ppsLastSyncInfos[j] = IMG_NULL;
 					ui32NumUniqueSyncInfos--;
 				}
 			}
@@ -1579,8 +1579,8 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 			PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBuffer2KM: Failed to allocate space for meminfo list"));
 			goto Exit;
 		}
-
-		memcpy(ppsCompiledSyncInfos, ppsSyncInfos, sizeof(PVRSRV_KERNEL_SYNC_INFO *) * ui32NumMemSyncInfos);
+				
+		OSMemCopy(ppsCompiledSyncInfos, ppsSyncInfos, sizeof(PVRSRV_KERNEL_SYNC_INFO *) * ui32NumMemSyncInfos);
 		for(j = 0, i = ui32NumMemSyncInfos; j < psSwapChain->ui32LastNumSyncInfos; j++)
 		{
 			if(psSwapChain->ppsLastSyncInfos[j])
