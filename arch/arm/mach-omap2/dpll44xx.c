@@ -18,6 +18,7 @@
 #include <plat/clock.h>
 #include <plat/common.h>
 
+#include <mach/emif.h>
 #include <mach/omap4-common.h>
 
 #include "clock.h"
@@ -67,10 +68,11 @@ int omap4_core_dpll_m2_set_rate(struct clk *clk, unsigned long rate)
 	clkdm_wakeup(l3_emif_clkdm);
 
 	/*
-	 * TODO: Program EMIF timing parameters in EMIF shadow registers
+	 * Program EMIF timing parameters in EMIF shadow registers
 	 * for targetted DRR clock.
 	 * DDR Clock = core_dpll_m2 / 2
 	 */
+	omap_emif_setup_registers(validrate >> 1, LPDDR2_VOLTAGE_STABLE);
 
 	/*
 	 * FREQ_UPDATE sequence:
