@@ -844,6 +844,7 @@ static void __init tuna_init(void)
 	omap4_tuna_input_init();
 	omap4_tuna_nfc_init();
 	omap4_tuna_power_init();
+	omap4_tuna_jack_init();
 	omap4_tuna_sensors_init();
 #ifdef CONFIG_OMAP_HSI_DEVICE
 	if (TUNA_TYPE_MAGURO == omap4_tuna_get_type())
