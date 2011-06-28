@@ -417,13 +417,6 @@ static int s6e8aa0_power_on(struct omap_dss_device *dssdev)
 
 		/* reset s6e8aa0 bridge */
 		s6e8aa0_hw_reset(dssdev);
-		msleep(10);
-
-		ret = omapdss_dsi_display_enable(dssdev);
-		if (ret) {
-			dev_err(&dssdev->dev, "failed to enable DSI\n");
-			goto err;
-		}
 
 		/* XXX */
 		msleep(100);
