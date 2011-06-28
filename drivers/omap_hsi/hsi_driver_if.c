@@ -669,7 +669,7 @@ EXPORT_SYMBOL(hsi_unpoll);
  * @command - HSI I/O control command
  * @arg - parameter associated to the control command. NULL, if no parameter.
  *
- * Return 0 on sucess, a negative value on failure.
+ * Return 0 on success, a negative value on failure.
  *
  */
 int hsi_ioctl(struct hsi_device *dev, unsigned int command, void *arg)

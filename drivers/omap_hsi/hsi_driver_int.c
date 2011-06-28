@@ -528,7 +528,6 @@ static u32 hsi_driver_int_proc(struct hsi_port *pport,
 
 	if (status_reg & HSI_BREAKDETECTED) {
 		dev_info(hsi_ctrl->dev, "Hardware BREAK on port %d\n", port);
-		hsi_outl(0, base, HSI_HSR_BREAK_REG(port));
 		spin_unlock(&hsi_ctrl->lock);
 		hsi_port_event_handler(pport, HSI_EVENT_BREAK_DETECTED, NULL);
 		spin_lock(&hsi_ctrl->lock);

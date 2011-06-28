@@ -259,6 +259,11 @@
 #define HSI_HSR_ERROR_TBE		(1 << 4)	/* HSI only */
 #define HSI_HSR_ERROR_RME		(1 << 7)	/* HSI only */
 #define HSI_HSR_ERROR_TME		(1 << 11)	/* HSI only */
+#define HSI_HSR_ERROR_ALL		(HSI_HSR_ERROR_SIG |    \
+					 HSI_HSR_ERROR_FTE |    \
+					 HSI_HSR_ERROR_TBE |    \
+					 HSI_HSR_ERROR_RME |    \
+					 HSI_HSR_ERROR_TME)
 
 #define HSI_HSR_ERRORACK_REG(port)	(HSI_HSR_BASE(port) + 0x0024)
 
