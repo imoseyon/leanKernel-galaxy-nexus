@@ -493,6 +493,8 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 	if (r)
 		return r;
 
+	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 0);
+
 	dispc_enable_channel(OMAP_DSS_CHANNEL_DIGIT, 0);
 
 	p = &dssdev->panel.timings;
@@ -535,8 +537,6 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 	}
 
 	hdmi_compute_pll(dssdev, phy, &pll_data);
-
-	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 0);
 
 	/* config the PLL and PHY hdmi_set_pll_pwrfirst */
 	r = hdmi_ti_4xxx_pll_program(&hdmi.hdmi_data, &pll_data);
@@ -585,9 +585,9 @@ err:
 
 static void hdmi_power_off(struct omap_dss_device *dssdev)
 {
-	dispc_enable_channel(OMAP_DSS_CHANNEL_DIGIT, 0);
-
 	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 0);
+
+	dispc_enable_channel(OMAP_DSS_CHANNEL_DIGIT, 0);
 	hdmi_ti_4xxx_phy_off(&hdmi.hdmi_data);
 	hdmi_ti_4xxx_set_pll_pwr(&hdmi.hdmi_data, HDMI_PLLPWRCMD_ALLOFF);
 	hdmi_runtime_put();
