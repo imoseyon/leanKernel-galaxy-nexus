@@ -70,7 +70,6 @@ EXPORT_SYMBOL(sec_class);
 
 #define GPIO_AUD_PWRON		127
 #define GPIO_AUD_PWRON_TORO_V1	20
-#define GPIO_MICBIAS_EN	48
 
 /* GPS GPIO Setting */
 #define GPIO_AP_AGPS_TSYNC	18
@@ -595,9 +594,8 @@ static void tuna_audio_init(void)
 	omap_mux_init_gpio(aud_pwron, OMAP_PIN_OUTPUT);
 	twl6040_codec.audpwron_gpio = aud_pwron;
 
-	omap_mux_init_gpio(GPIO_MICBIAS_EN, OMAP_PIN_OUTPUT);
-	gpio_request(GPIO_MICBIAS_EN, "MICBIAS_EN");
-	gpio_direction_output(GPIO_MICBIAS_EN, 1);
+	omap_mux_init_signal("gpmc_a24.gpio_48", OMAP_PIN_OUTPUT | OMAP_MUX_MODE3);
+	omap_mux_init_signal("kpd_col3.gpio_171", OMAP_PIN_OUTPUT | OMAP_MUX_MODE3);
 }
 
 static struct i2c_board_info __initdata tuna_i2c1_boardinfo[] = {
