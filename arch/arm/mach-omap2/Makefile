@@ -246,7 +246,6 @@ obj-$(CONFIG_MACH_OMAP_4430SDP)		+= board-4430sdp.o \
 obj-$(CONFIG_MACH_OMAP4_PANDA)		+= board-omap4panda.o \
 					   hsmmc.o \
 					   omap_phy_internal.o
-# Android specific board file extensions
 obj-$(CONFIG_MACH_TUNA)			+= board-tuna.o \
 					   hsmmc.o \
 					   omap_phy_internal.o
