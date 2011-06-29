@@ -1159,7 +1159,7 @@ int omap_emif_notify_voltage(struct notifier_block *nb,
 					       volt_state);
 
 	if (unlikely(!emif_curr_regs[EMIF1] && !emif_curr_regs[EMIF2])) {
-		pr_err("emif: voltage state notification came before the"
+		pr_err_once("emif: voltage state notification came before the"
 		       " initial setup - ignoring the notification");
 		return -EINVAL;
 	}
