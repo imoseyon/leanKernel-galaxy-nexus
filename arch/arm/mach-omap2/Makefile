@@ -15,6 +15,7 @@ clock-common				= clock.o clock_common_data.o \
 obj-$(CONFIG_ARCH_OMAP2) += $(omap-2-3-common) $(hwmod-common)
 obj-$(CONFIG_ARCH_OMAP3) += $(omap-2-3-common) $(hwmod-common)
 obj-$(CONFIG_ARCH_OMAP4) += prm44xx.o $(hwmod-common)
+obj-$(CONFIG_ARCH_OMAP4) += emif.o lpddr2_jedec_data.o lpddr2_elpida_data.o
 
 obj-$(CONFIG_OMAP_MCBSP) += mcbsp.o
 
@@ -102,9 +103,11 @@ voltagedomain-common			:= voltage.o vc.o vp.o
 obj-$(CONFIG_ARCH_OMAP2)		+= $(voltagedomain-common) \
 					   voltagedomains2xxx_data.o
 obj-$(CONFIG_ARCH_OMAP3)		+= $(voltagedomain-common) \
-					   voltagedomains3xxx_data.o
+					   voltagedomains3xxx_data.o \
+					   ldo.o ldo3xxx_data.o
 obj-$(CONFIG_ARCH_OMAP4)		+= $(voltagedomain-common) \
-					   voltagedomains44xx_data.o
+					   voltagedomains44xx_data.o \
+					   ldo.o ldo4xxx_data.o
 endif
 
 # OMAP powerdomain framework

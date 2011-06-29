@@ -505,7 +505,7 @@ static struct clk dpll_core_m2_ck = {
 	.ops		= &clkops_omap4_dpllmx_ops,
 	.recalc		= &omap2_clksel_recalc,
 	.round_rate	= &omap2_clksel_round_rate,
-	.set_rate	= &omap2_clksel_set_rate,
+	.set_rate	= &omap4_core_dpll_m2_set_rate,
 };
 
 static struct clk ddrphy_ck = {
@@ -1560,7 +1560,6 @@ static struct clk emif1_fck = {
 	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_MEMIF_EMIF_1_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
-	.flags		= ENABLE_ON_INIT,
 	.clkdm_name	= "l3_emif_clkdm",
 	.parent		= &ddrphy_ck,
 	.recalc		= &followparent_recalc,
@@ -1571,7 +1570,6 @@ static struct clk emif2_fck = {
 	.ops		= &clkops_omap4_dflt_wait,
 	.enable_reg	= OMAP4430_CM_MEMIF_EMIF_2_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
-	.flags		= ENABLE_ON_INIT,
 	.clkdm_name	= "l3_emif_clkdm",
 	.parent		= &ddrphy_ck,
 	.recalc		= &followparent_recalc,
@@ -1734,6 +1732,7 @@ static struct clk gpmc_ick = {
 	.enable_reg	= OMAP4430_CM_L3_2_GPMC_CLKCTRL,
 	.enable_bit	= OMAP4430_MODULEMODE_HWCTRL,
 	.clkdm_name	= "l3_2_clkdm",
+	.flags		= ENABLE_ON_INIT,
 	.parent		= &l3_div_ck,
 	.recalc		= &followparent_recalc,
 };
@@ -3467,6 +3466,8 @@ static struct omap_clk omap44xx_clks[] = {
 };
 
 #define L3_OPP50_RATE			100000000
+#define DPLL_CORE_M2_OPP50_RATE		400000000
+#define DPLL_CORE_M2_OPP100_RATE	800000000
 #define DPLL_CORE_M3_OPP50_RATE		200000000
 #define DPLL_CORE_M3_OPP100_RATE	320000000
 #define DPLL_CORE_M6_OPP50_RATE		200000000
@@ -3518,6 +3519,7 @@ static int omap4_clksel_set_rate(struct clk *clk, unsigned long rate)
 }
 
 struct virt_l3_ck_deps {
+	unsigned long core_m2_rate;
 	unsigned long core_m3_rate;
 	unsigned long core_m6_rate;
 	unsigned long core_m7_rate;
@@ -3531,6 +3533,7 @@ struct virt_l3_ck_deps {
 
 static struct virt_l3_ck_deps omap4_virt_l3_clk_deps[NO_OF_L3_OPPS] = {
 	{ /* OPP 50 */
+		.core_m2_rate = DPLL_CORE_M2_OPP50_RATE,
 		.core_m3_rate = DPLL_CORE_M3_OPP50_RATE,
 		.core_m6_rate = DPLL_CORE_M6_OPP50_RATE,
 		.core_m7_rate = DPLL_CORE_M7_OPP50_RATE,
@@ -3538,6 +3541,7 @@ static struct virt_l3_ck_deps omap4_virt_l3_clk_deps[NO_OF_L3_OPPS] = {
 		.per_m6_rate = DPLL_PER_M6_OPP50_RATE,
 	},
 	{ /* OPP 100 */
+		.core_m2_rate = DPLL_CORE_M2_OPP100_RATE,
 		.core_m3_rate = DPLL_CORE_M3_OPP100_RATE,
 		.core_m6_rate = DPLL_CORE_M3_OPP100_RATE,
 		.core_m7_rate = DPLL_CORE_M7_OPP100_RATE,
@@ -3561,6 +3565,7 @@ static int omap4_virt_l3_set_rate(struct clk *clk, unsigned long rate)
 	omap4_clksel_set_rate(&dpll_per_m3x2_ck, l3_deps->per_m3_rate);
 	omap4_clksel_set_rate(&dpll_per_m6x2_ck, l3_deps->per_m6_rate);
 	omap4_clksel_set_rate(&dpll_core_m5x2_ck, rate * 2);
+	omap4_clksel_set_rate(&dpll_core_m2_ck, l3_deps->core_m2_rate);
 
 	clk->rate = rate;
 	return 0;
