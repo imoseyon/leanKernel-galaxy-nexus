@@ -277,26 +277,6 @@ void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 		}
 	}
 #endif
-
-	{
-	#include <video/dsscomp.h>
-	#include <plat/dsscomp.h>
-
-	struct omapfb_info *ofbi = FB2OFB(psDevInfo->psLINFBInfo);
-	struct omap_overlay_manager *manager;
-	struct omap_overlay *overlay;
-
-	dsscomp_t comp;
-	u32 sync_id;
-
-	overlay = ofbi->overlays[OMAP_DSS_GFX];
-	manager = overlay->manager;
-
-	sync_id = dsscomp_first_sync_id(manager);
-	comp = dsscomp_find(manager, sync_id);
-	dsscomp_apply(comp);
-	}
-
 	console_unlock();
 }
 

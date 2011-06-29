@@ -321,118 +321,6 @@ static ssize_t overlay_pre_mult_alpha_store(struct omap_overlay *ovl,
 	return size;
 }
 
-static ssize_t overlay_zorder_show(struct omap_overlay *ovl, char *buf)
-{
-	return snprintf(buf, PAGE_SIZE, "%d\n",
-			ovl->info.zorder);
-}
-
-static ssize_t overlay_zorder_store(struct omap_overlay *ovl,
-		const char *buf, size_t size)
-{
-	int r;
-	struct omap_overlay_info info;
-
-	if (!dss_has_feature(FEAT_OVL_ZORDER))
-		return size;
-
-	ovl->get_overlay_info(ovl, &info);
-
-	info.zorder = simple_strtoul(buf, NULL, 10);
-
-	r = ovl->set_overlay_info(ovl, &info);
-	if (r)
-		return r;
-
-	if (ovl->manager) {
-		r = ovl->manager->apply(ovl->manager);
-		if (r)
-			return r;
-	}
-
-	return size;
-}
-
-static ssize_t overlay_decim_show(u16 min, u16 max, char *buf)
-{
-	return snprintf(buf, PAGE_SIZE, "%d..%d\n", min, max);
-}
-
-static ssize_t overlay_x_decim_show(struct omap_overlay *ovl, char *buf)
-{
-	return overlay_decim_show(ovl->info.min_x_decim, ovl->info.max_x_decim,
-									buf);
-}
-
-static ssize_t overlay_y_decim_show(struct omap_overlay *ovl, char *buf)
-{
-	return overlay_decim_show(ovl->info.min_y_decim, ovl->info.max_y_decim,
-									buf);
-}
-
-static ssize_t overlay_decim_store(u16 *min, u16 *max,
-						const char *buf, size_t size)
-{
-	char *last;
-
-	*min = *max = simple_strtoul(buf, &last, 10);
-	if (last < buf + size && *last == '.') {
-		/* check for .. separator */
-		if (last + 2 >= buf + size || last[1] != '.')
-			return -EINVAL;
-
-		*max = simple_strtoul(last + 2, &last, 10);
-
-		/* fix order */
-		if (*max < *min)
-			swap(*min, *max);
-	}
-
-	/* decimation must be positive */
-	if (*min == 0)
-		return -EINVAL;
-
-	return 0;
-}
-
-static ssize_t overlay_x_decim_store(struct omap_overlay *ovl,
-						const char *buf, size_t size)
-{
-	int r;
-	struct omap_overlay_info info;
-
-	ovl->get_overlay_info(ovl, &info);
-
-	r = overlay_decim_store(&info.min_x_decim, &info.max_x_decim,
-				buf, size);
-
-	r = r ? : ovl->set_overlay_info(ovl, &info);
-
-	if (!r && ovl->manager)
-		r = ovl->manager->apply(ovl->manager);
-
-	return r ? : size;
-}
-
-static ssize_t overlay_y_decim_store(struct omap_overlay *ovl,
-						const char *buf, size_t size)
-{
-	int r;
-	struct omap_overlay_info info;
-
-	ovl->get_overlay_info(ovl, &info);
-
-	r = overlay_decim_store(&info.min_y_decim, &info.max_y_decim,
-				   buf, size);
-
-	r = r ? : ovl->set_overlay_info(ovl, &info);
-
-	if (!r && ovl->manager)
-		r = ovl->manager->apply(ovl->manager);
-
-	return r ? : size;
-}
-
 struct overlay_attribute {
 	struct attribute attr;
 	ssize_t (*show)(struct omap_overlay *, char *);
@@ -459,12 +347,6 @@ static OVERLAY_ATTR(global_alpha, S_IRUGO|S_IWUSR,
 static OVERLAY_ATTR(pre_mult_alpha, S_IRUGO|S_IWUSR,
 		overlay_pre_mult_alpha_show,
 		overlay_pre_mult_alpha_store);
-static OVERLAY_ATTR(x_decim, S_IRUGO|S_IWUSR,
-		overlay_x_decim_show, overlay_x_decim_store);
-static OVERLAY_ATTR(y_decim, S_IRUGO|S_IWUSR,
-		overlay_y_decim_show, overlay_y_decim_store);
-static OVERLAY_ATTR(zorder, S_IRUGO|S_IWUSR,
-		overlay_zorder_show, overlay_zorder_store);
 
 static struct attribute *overlay_sysfs_attrs[] = {
 	&overlay_attr_name.attr,
@@ -476,9 +358,6 @@ static struct attribute *overlay_sysfs_attrs[] = {
 	&overlay_attr_enabled.attr,
 	&overlay_attr_global_alpha.attr,
 	&overlay_attr_pre_mult_alpha.attr,
-	&overlay_attr_zorder.attr,
-	&overlay_attr_x_decim.attr,
-	&overlay_attr_y_decim.attr,
 	NULL
 };
 
@@ -583,12 +462,6 @@ int dss_check_overlay(struct omap_overlay *ovl, struct omap_dss_device *dssdev)
 		return -EINVAL;
 	}
 
-	if ((info->zorder < OMAP_DSS_OVL_ZORDER_0) ||
-			(info->zorder > OMAP_DSS_OVL_ZORDER_3)) {
-		DSSERR("overlay doesn't support zorder %d\n", info->zorder);
-		return -EINVAL;
-	}
-
 	return 0;
 }
 
@@ -608,14 +481,6 @@ static int dss_ovl_set_overlay_info(struct omap_overlay *ovl,
 			return r;
 		}
 	}
-
-	/* complete previous settings */
-	if (ovl->info_dirty)
-		dss_ovl_cb(&old_info.cb, ovl->id,
-			   (info->cb.fn == old_info.cb.fn &&
-			    info->cb.data == old_info.cb.data) ?
-			   DSS_COMPLETION_CHANGED_SET :
-			   DSS_COMPLETION_ECLIPSED_SET);
 
 	ovl->info_dirty = true;
 
@@ -755,7 +620,6 @@ void dss_init_overlays(struct platform_device *pdev)
 			ovl->id = OMAP_DSS_GFX;
 			ovl->caps = OMAP_DSS_OVL_CAP_DISPC;
 			ovl->info.global_alpha = 255;
-			ovl->info.zorder = OMAP_DSS_OVL_ZORDER_0;
 			break;
 		case 1:
 			ovl->name = "vid1";
@@ -763,9 +627,6 @@ void dss_init_overlays(struct platform_device *pdev)
 			ovl->caps = OMAP_DSS_OVL_CAP_SCALE |
 				OMAP_DSS_OVL_CAP_DISPC;
 			ovl->info.global_alpha = 255;
-			ovl->info.zorder = dss_has_feature(FEAT_OVL_ZORDER) ?
-				OMAP_DSS_OVL_ZORDER_3 :
-				OMAP_DSS_OVL_ZORDER_0;
 			break;
 		case 2:
 			ovl->name = "vid2";
@@ -773,26 +634,8 @@ void dss_init_overlays(struct platform_device *pdev)
 			ovl->caps = OMAP_DSS_OVL_CAP_SCALE |
 				OMAP_DSS_OVL_CAP_DISPC;
 			ovl->info.global_alpha = 255;
-			ovl->info.zorder = dss_has_feature(FEAT_OVL_ZORDER) ?
-				OMAP_DSS_OVL_ZORDER_2 :
-				OMAP_DSS_OVL_ZORDER_0;
 			break;
-		case 3:
-			ovl->name = "vid3";
-			ovl->id = OMAP_DSS_VIDEO3;
-			ovl->caps = OMAP_DSS_OVL_CAP_SCALE |
-				OMAP_DSS_OVL_CAP_DISPC;
-			ovl->info.global_alpha = 255;
-			ovl->info.zorder = dss_has_feature(FEAT_OVL_ZORDER) ?
-				OMAP_DSS_OVL_ZORDER_1 :
-				OMAP_DSS_OVL_ZORDER_0;
-			break;
-
 		}
-
-		ovl->info.min_x_decim = ovl->info.min_y_decim = 1;
-		ovl->info.max_x_decim = ovl->info.max_y_decim =
-			cpu_is_omap44xx() ? 16 : 1;
 
 		ovl->set_manager = &omap_dss_set_manager;
 		ovl->unset_manager = &omap_dss_unset_manager;

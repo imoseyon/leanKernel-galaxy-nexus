@@ -358,7 +358,7 @@ static int fb_mode_to_dss_mode(struct fb_var_screeninfo *var,
 		dssmode = OMAP_DSS_COLOR_RGB24P;
 		break;
 	case 32:
-		dssmode = OMAP_DSS_COLOR_ARGB32;
+		dssmode = OMAP_DSS_COLOR_RGB24U;
 		break;
 	default:
 		return -EINVAL;
