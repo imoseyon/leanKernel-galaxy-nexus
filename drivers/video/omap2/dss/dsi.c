@@ -3770,6 +3770,11 @@ int dsi_video_mode_enable(struct omap_dss_device *dssdev, u8 data_type)
 	r = FLD_MOD(r, 1, 9, 9);
 	dsi_write_reg(dsidev, DSI_VC_CTRL(0), r);
 
+	r = dsi_read_reg(dsidev, DSI_VC_CTRL(1));
+	r = FLD_MOD(r, 0, 4, 4);
+	r = FLD_MOD(r, 1, 9, 9);
+	dsi_write_reg(dsidev, DSI_VC_CTRL(1), r);
+
 	word_count = dssdev->panel.timings.x_res * 3;
 	header = FLD_VAL(0, 31, 24) | /* ECC */
 		FLD_VAL(word_count, 23, 8) | /* WORD_COUNT */
@@ -3777,6 +3782,7 @@ int dsi_video_mode_enable(struct omap_dss_device *dssdev, u8 data_type)
 		FLD_VAL(data_type, 5, 0);
 	dsi_write_reg(dsidev, DSI_VC_LONG_PACKET_HEADER(0), header);
 
+	dsi_vc_enable(dsidev, 1, 1);
 	dsi_vc_enable(dsidev, 0, 1);
 	dsi_if_enable(dsidev, 1);
 
