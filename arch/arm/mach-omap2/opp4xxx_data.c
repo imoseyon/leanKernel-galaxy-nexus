@@ -129,7 +129,20 @@ static struct omap_opp_def __initdata omap443x_opp_def_list[] = {
 	OPP_INITIALIZER("gpu", "dpll_per_m7x2_ck", "core", true, 153600000, OMAP4430_VDD_CORE_OPP50_UV),
 	/* SGX OPP2 - OPP100 */
 	OPP_INITIALIZER("gpu", "dpll_per_m7x2_ck", "core", true, 307200000, OMAP4430_VDD_CORE_OPP50_UV),
-	/* TODO: add DSP, aess, fdif */
+	/* FDIF OPP1 - OPP25 */
+	OPP_INITIALIZER("fdif", "fdif_fck", "core", true, 32000000, OMAP4430_VDD_CORE_OPP50_UV),
+	/* FDIF OPP2 - OPP50 */
+	OPP_INITIALIZER("fdif", "fdif_fck", "core", true, 64000000, OMAP4430_VDD_CORE_OPP50_UV),
+	/* FDIF OPP3 - OPP100 */
+	OPP_INITIALIZER("fdif", "fdif_fck", "core", true, 128000000, OMAP4430_VDD_CORE_OPP100_UV),
+	/* DSP OPP1 - OPP50 */
+	OPP_INITIALIZER("dsp", "dpll_iva_m4x2_ck", "iva", true, 232750000, OMAP4430_VDD_IVA_OPP50_UV),
+	/* DSP OPP2 - OPP100 */
+	OPP_INITIALIZER("dsp", "dpll_iva_m4x2_ck", "iva", true, 465500000, OMAP4430_VDD_IVA_OPP100_UV),
+	/* DSP OPP3 - OPPTB */
+	OPP_INITIALIZER("dsp", "dpll_iva_m4x2_ck", "iva", false, 496000000, OMAP4430_VDD_IVA_OPPTURBO_UV),
+
+	/* TODO: add aess */
 };
 
 #define OMAP4460_VDD_MPU_OPP50_UV		1025000
@@ -245,7 +258,20 @@ static struct omap_opp_def __initdata omap446x_opp_def_list[] = {
 	/* SGX OPP3 - OPPOV */
 	OPP_INITIALIZER("gpu", "dpll_per_m7x2_ck", "core", true, 384000000, OMAP4460_VDD_CORE_OPP100_OV_UV),
 
-	/* TODO: add DSP, aess, fdif */
+	/* FDIF OPP1 - OPP25 */
+	OPP_INITIALIZER("fdif", "fdif_fck", "core", true, 32000000, OMAP4430_VDD_CORE_OPP50_UV),
+	/* FDIF OPP2 - OPP50 */
+	OPP_INITIALIZER("fdif", "fdif_fck", "core", true, 64000000, OMAP4430_VDD_CORE_OPP50_UV),
+	/* FDIF OPP3 - OPP100 */
+	OPP_INITIALIZER("fdif", "fdif_fck", "core", true, 128000000, OMAP4430_VDD_CORE_OPP100_UV),
+	/* DSP OPP1 - OPP50 */
+	OPP_INITIALIZER("dsp", "dpll_iva_m4x2_ck", "iva", true, 232750000, OMAP4430_VDD_IVA_OPP50_UV),
+	/* DSP OPP2 - OPP100 */
+	OPP_INITIALIZER("dsp", "dpll_iva_m4x2_ck", "iva", true, 465500000, OMAP4430_VDD_IVA_OPP100_UV),
+	/* DSP OPP3 - OPPTB */
+	OPP_INITIALIZER("dsp", "dpll_iva_m4x2_ck", "iva", false, 496000000, OMAP4430_VDD_IVA_OPPTURBO_UV),
+
+	/* TODO: add aess */
 };
 
 /**
