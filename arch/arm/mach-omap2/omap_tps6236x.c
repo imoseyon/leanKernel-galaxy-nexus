@@ -380,3 +380,8 @@ int __init omap_tps6236x_board_setup(bool use_62361, int gpio_vsel0,
 out:
 	return r;
 }
+
+int __init omap_tps6236x_update(char *name, u16 old_chip_id, u16 new_chip_id)
+{
+	return omap_pmic_update(omap_tps_map, name, old_chip_id, new_chip_id);
+}

@@ -11,6 +11,7 @@
 
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/string.h>
 
 #include "voltage.h"
 
@@ -72,4 +73,25 @@ next:
 	}
 
 	return 0;
+}
+
+int __init omap_pmic_update(struct omap_pmic_map *tmp_map, char *name,
+				u16 old_chip_id, u16 new_chip_id)
+{
+	while (tmp_map->name != NULL) {
+		if (!strcmp(tmp_map->name, name) &&
+				(tmp_map->omap_chip.oc & new_chip_id)) {
+			WARN("%s: this map already exists\n", __func__, name,
+						new_chip_id);
+			return -1;
+		}
+		if (!strcmp(tmp_map->name, name) &&
+				(tmp_map->omap_chip.oc & old_chip_id))
+			break;
+		tmp_map++;
+	}
+	if (tmp_map->name != NULL) {
+		tmp_map->omap_chip.oc = new_chip_id;
+		return 0;
+	}
 }
