@@ -130,6 +130,7 @@ struct mipi_link_device {
 	struct work_struct cmd_work;
 	struct delayed_work start_work;
 
+	struct wake_lock wlock;
 	struct timer_list hsi_acwake_down_timer;
 
 	/* maybe -list of io devices for the link device to use

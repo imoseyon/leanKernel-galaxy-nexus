@@ -22,6 +22,7 @@
 #include <linux/poll.h>
 #include <linux/gpio.h>
 #include <linux/if_arp.h>
+#include <linux/wakelock.h>
 
 #include <linux/hsi_driver_if.h>
 
@@ -253,7 +254,8 @@ static void if_hsi_acwake_down_func(unsigned long data)
 	for (i = 1; i < HSI_NUM_OF_USE_CHANNELS; i++) {
 		channel = &mipi_ld->hsi_channles[i];
 
-		if (channel->send_step == STEP_IDLE) {
+		if ((channel->send_step == STEP_IDLE) &&
+			(channel->recv_step == STEP_IDLE)) {
 			if_hsi_set_wakeline(channel, 0);
 		} else {
 			mod_timer(&mipi_ld->hsi_acwake_down_timer, jiffies +
@@ -421,6 +423,11 @@ static int hsi_init_handshake(struct mipi_link_device *mipi_ld, int mode)
 					HSI_IOCTL_SET_RX, &rx_config);
 		pr_debug("[MIPI-HSI] Set TX/RX MIPI-HSI\n");
 
+		if (!wake_lock_active(&mipi_ld->wlock)) {
+			wake_lock(&mipi_ld->wlock);
+			pr_debug("[MIPI-HSI] wake_lock\n");
+		}
+
 		if_hsi_set_wakeline(
 			&mipi_ld->hsi_channles[HSI_FLASHLESS_CHANNEL], 1);
 
@@ -499,9 +506,13 @@ static void if_hsi_cmd_work(struct work_struct *work)
 
 	pr_debug("[MIPI-HSI] cmd_work\n");
 
-	if (!list_empty(&mipi_ld->list_of_hsi_cmd))
+	if (!list_empty(&mipi_ld->list_of_hsi_cmd)) {
+		if (!wake_lock_active(&mipi_ld->wlock)) {
+			wake_lock(&mipi_ld->wlock);
+			pr_debug("[MIPI-HSI] wake_lock\n");
+		}
 		if_hsi_set_wakeline(channel, 1);
-	else
+	} else
 		return;
 
 	do {
@@ -628,6 +639,13 @@ static int if_hsi_rx_cmd_handle(struct mipi_link_device *mipi_ld, u32 cmd,
 		switch (channel->recv_step) {
 		case STEP_IDLE:
 			channel->recv_step = STEP_TO_ACK;
+
+			if (!wake_lock_active(&mipi_ld->wlock)) {
+				wake_lock(&mipi_ld->wlock);
+				pr_debug("[MIPI-HSI] wake_lock\n");
+			}
+			if_hsi_set_wakeline(channel, 1);
+
 			ret = if_hsi_send_command(mipi_ld, HSI_LL_MSG_ACK, ch,
 						param);
 			if (ret) {
@@ -649,7 +667,7 @@ static int if_hsi_rx_cmd_handle(struct mipi_link_device *mipi_ld, u32 cmd,
 			}
 			return 0;
 
-		default:
+		case STEP_NOT_READY:
 			ret = if_hsi_send_command(mipi_ld, HSI_LL_MSG_NAK, ch,
 						param);
 			if (ret) {
@@ -658,6 +676,9 @@ static int if_hsi_rx_cmd_handle(struct mipi_link_device *mipi_ld, u32 cmd,
 				return ret;
 			}
 			return 0;
+
+		default:
+			pr_err("[MIPI-HSI] wrong state : %08x\n", cmd);
 		}
 
 	case HSI_LL_MSG_ACK:
@@ -713,6 +734,7 @@ static int if_hsi_protocol_send(struct mipi_link_device *mipi_ld, int ch,
 {
 	int ret;
 	int retry_count = 0;
+	int ack_timeout_cnt = 0;
 	struct if_hsi_channel *channel = &mipi_ld->hsi_channles[ch];
 
 	if (channel->send_step != STEP_IDLE) {
@@ -721,6 +743,11 @@ static int if_hsi_protocol_send(struct mipi_link_device *mipi_ld, int ch,
 		return -EBUSY;
 	}
 	channel->send_step = STEP_SEND_OPEN_CONN;
+
+	if (!wake_lock_active(&mipi_ld->wlock)) {
+		wake_lock(&mipi_ld->wlock);
+		pr_debug("[MIPI-HSI] wake_lock\n");
+	}
 
 	if_hsi_set_wakeline(channel, 1);
 	mod_timer(&mipi_ld->hsi_acwake_down_timer, jiffies +
@@ -734,6 +761,7 @@ retry_send:
 				len);
 	if (ret) {
 		pr_err("[MIPI-HSI] if_hsi_send_command fail : %d\n", ret);
+		if_hsi_set_wakeline(channel, 0);
 		channel->send_step = STEP_IDLE;
 		return -1;
 	}
@@ -743,6 +771,16 @@ retry_send:
 	if (down_timeout(&channel->ack_done_sem, HSI_ACK_DONE_TIMEOUT) < 0) {
 		pr_err("[MIPI-HSI] ch=%d, ack_done timeout\n",
 					channel->channel_id);
+
+		if_hsi_set_wakeline(channel, 0);
+
+		ack_timeout_cnt++;
+		if (ack_timeout_cnt < 10) {
+			if_hsi_set_wakeline(channel, 1);
+			pr_err("[MIPI-HSI] ch=%d, retry send open. cnt : %d\n",
+					channel->channel_id, ack_timeout_cnt);
+			goto retry_send;
+		}
 
 		channel->send_step = STEP_IDLE;
 		return -ETIMEDOUT;
@@ -765,6 +803,7 @@ retry_send:
 	ret = if_hsi_write(channel, data, len);
 	if (ret < 0) {
 		pr_err("[MIPI-HSI] if_hsi_write fail : %d\n", ret);
+		if_hsi_set_wakeline(channel, 0);
 		channel->send_step = STEP_IDLE;
 		return ret;
 	}
@@ -781,6 +820,7 @@ retry_send:
 				HSI_CLOSE_CONN_DONE_TIMEOUT) < 0) {
 		pr_err("[MIPI-HSI] ch=%d, close conn timeout\n",
 					channel->channel_id);
+		if_hsi_set_wakeline(channel, 0);
 		channel->send_step = STEP_IDLE;
 		return -ETIMEDOUT;
 	}
@@ -1033,6 +1073,8 @@ static void if_hsi_read_done(struct hsi_device *dev, unsigned int size)
 		pr_debug("[MIPI-HSI] iodevice format : %d\n", iod->format);
 
 		if (iod->format == format_type) {
+			channel->recv_step = STEP_NOT_READY;
+
 			pr_debug("[MIPI-HSI] RECV DATA : %08x(%d)-%d\n",
 				*channel->rx_data, channel->packet_size,
 					iod->format);
@@ -1048,17 +1090,15 @@ static void if_hsi_read_done(struct hsi_device *dev, unsigned int size)
 			if (ret < 0)
 				pr_err("[MIPI-HSI] recv call fail : %d\n", ret);
 
-			if (channel->recv_step == STEP_RX) {
-				ch = channel->channel_id;
-				param = 0;
-				ret = if_hsi_send_command(mipi_ld,
-					HSI_LL_MSG_CONN_CLOSED, ch, param);
-				if (ret)
-					pr_err("[MIPI-HSI] send_cmd fail=%d\n",
-								ret);
+			ch = channel->channel_id;
+			param = 0;
+			ret = if_hsi_send_command(mipi_ld,
+				HSI_LL_MSG_CONN_CLOSED, ch, param);
+			if (ret)
+				pr_err("[MIPI-HSI] send_cmd fail=%d\n", ret);
 
-				channel->recv_step = STEP_IDLE;
-			}
+			channel->recv_step = STEP_IDLE;
+
 			return;
 		}
 	}
@@ -1081,19 +1121,13 @@ static void if_hsi_port_event(struct hsi_device *dev, unsigned int event,
 		return;
 
 	case HSI_EVENT_CAWAKE_UP:
-		if (dev->n_ch == HSI_CONTROL_CHANNEL)
+		if (dev->n_ch == HSI_CONTROL_CHANNEL) {
+			if (!wake_lock_active(&mipi_ld->wlock)) {
+				wake_lock(&mipi_ld->wlock);
+				pr_debug("[MIPI-HSI] wake_lock\n");
+			}
 			pr_debug("[MIPI-HSI] CAWAKE_%d(1)\n", dev->n_ch);
-
-		if ((dev->n_ch == HSI_CONTROL_CHANNEL) &&
-			mipi_ld->hsi_channles[HSI_CONTROL_CHANNEL].opened) {
-			hsi_ioctl(
-			mipi_ld->hsi_channles[HSI_CONTROL_CHANNEL].dev,
-			HSI_IOCTL_SET_ACREADY_NORMAL, NULL);
-
-			pr_debug("[MIPI-HSI] ACREADY_NORMAL. Ch : %d\n",
-					dev->n_ch);
 		}
-
 		return;
 
 	case HSI_EVENT_CAWAKE_DOWN:
@@ -1108,19 +1142,12 @@ static void if_hsi_port_event(struct hsi_device *dev, unsigned int event,
 
 			pr_debug("[MIPI-HSI] GET_ACWAKE. Ch : %d, level : %d\n",
 					dev->n_ch, acwake_level);
+
+			if (!acwake_level) {
+				wake_unlock(&mipi_ld->wlock);
+				pr_debug("[MIPI-HSI] wake_unlock\n");
+			}
 		}
-
-		if ((dev->n_ch == HSI_CONTROL_CHANNEL) &&
-			mipi_ld->hsi_channles[HSI_CONTROL_CHANNEL].opened &&
-			!acwake_level) {
-			hsi_ioctl(
-			mipi_ld->hsi_channles[HSI_CONTROL_CHANNEL].dev,
-			HSI_IOCTL_SET_ACREADY_SAFEMODE, NULL);
-
-			pr_debug("[MIPI-HSI] ACREADY_SAFEMODE. Ch : %d\n",
-					dev->n_ch);
-		}
-
 		return;
 
 	case HSI_EVENT_ERROR:
@@ -1264,6 +1291,8 @@ struct link_device *mipi_create_link_device(struct platform_device *pdev)
 	INIT_LIST_HEAD(&mipi_ld->list_of_hsi_cmd);
 	skb_queue_head_init(&mipi_ld->ld.sk_fmt_tx_q);
 	skb_queue_head_init(&mipi_ld->ld.sk_raw_tx_q);
+
+	wake_lock_init(&mipi_ld->wlock, WAKE_LOCK_SUSPEND, "mipi_link");
 
 	ld = &mipi_ld->ld;
 
