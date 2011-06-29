@@ -81,6 +81,7 @@ extern "C" {
 
 #define PVRSRV_MAP_NOUSERVIRTUAL            (1UL<<27)
 #define PVRSRV_MEM_XPROC  					(1U<<28)
+#define PVRSRV_MEM_ION						(1U<<29)
 
 #define PVRSRV_NO_CONTEXT_LOSS					0		
 #define PVRSRV_SEVERE_LOSS_OF_CONTEXT			1		

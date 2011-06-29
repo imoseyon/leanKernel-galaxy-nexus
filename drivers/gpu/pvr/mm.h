@@ -83,7 +83,8 @@ typedef enum {
     LINUX_MEM_AREA_VMALLOC,
     LINUX_MEM_AREA_ALLOC_PAGES,
     LINUX_MEM_AREA_SUB_ALLOC,
-    LINUX_MEM_AREA_TYPE_COUNT
+    LINUX_MEM_AREA_TYPE_COUNT,
+    LINUX_MEM_AREA_ION,
 }LINUX_MEM_AREA_TYPE;
 
 typedef struct _LinuxMemArea LinuxMemArea;
@@ -277,6 +278,12 @@ LinuxMemArea *NewAllocPagesLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32Are
 
 
 IMG_VOID FreeAllocPagesLinuxMemArea(LinuxMemArea *psLinuxMemArea);
+
+
+LinuxMemArea *NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags);
+
+
+IMG_VOID FreeIONLinuxMemArea(LinuxMemArea *psLinuxMemArea);
 
 
 LinuxMemArea *NewSubLinuxMemArea(LinuxMemArea *psParentLinuxMemArea,

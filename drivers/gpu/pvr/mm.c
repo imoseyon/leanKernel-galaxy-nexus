@@ -1077,6 +1077,102 @@ FreeAllocPagesLinuxMemArea(LinuxMemArea *psLinuxMemArea)
 }
 
 
+LinuxMemArea *
+NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags)
+{
+    LinuxMemArea *psLinuxMemArea;
+
+#if 0
+    psLinuxMemArea = LinuxMemAreaStructAlloc();
+    if(!psLinuxMemArea)
+    {
+        goto failed_area_alloc;
+    }
+
+    
+
+
+
+
+
+
+
+
+#if 0 && defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
+    
+    DebugMemAllocRecordAdd(DEBUG_MEM_ALLOC_TYPE_ION,
+                           pvPageList,
+                           0,
+                           0,
+                           NULL,
+                           PAGE_ALIGN(ui32Bytes),
+                           "unknown",
+                           0
+                           );
+#endif
+
+    psLinuxMemArea->eAreaType = LINUX_MEM_AREA_ION;
+    psLinuxMemArea->uData.sPageList.pvPageList = pvPageList;
+    psLinuxMemArea->uData.sPageList.hBlockPageList = hBlockPageList;
+    psLinuxMemArea->ui32ByteSize = ui32Bytes;
+    psLinuxMemArea->ui32AreaFlags = ui32AreaFlags;
+    INIT_LIST_HEAD(&psLinuxMemArea->sMMapOffsetStructList);
+
+    
+    if(ui32AreaFlags & (PVRSRV_HAP_WRITECOMBINE | PVRSRV_HAP_UNCACHED))
+    {
+        psLinuxMemArea->bNeedsCacheInvalidate = IMG_TRUE;
+    }
+
+#if 0 && defined(DEBUG_LINUX_MEM_AREAS)
+    
+    DebugLinuxMemAreaRecordAdd(psLinuxMemArea, ui32AreaFlags);
+#endif
+
+    return psLinuxMemArea;
+    
+failed_area_alloc:
+    PVR_DPF((PVR_DBG_ERROR, "%s: failed", __FUNCTION__));
+    
+    return NULL;
+#endif
+
+    psLinuxMemArea = NewAllocPagesLinuxMemArea(ui32Bytes, ui32AreaFlags);
+    if(!psLinuxMemArea)
+        return NULL;
+
+    psLinuxMemArea->eAreaType = LINUX_MEM_AREA_ION;
+    return psLinuxMemArea;
+}
+
+
+IMG_VOID
+FreeIONLinuxMemArea(LinuxMemArea *psLinuxMemArea)
+{
+    PVR_ASSERT(psLinuxMemArea);
+    PVR_ASSERT(psLinuxMemArea->eAreaType == LINUX_MEM_AREA_ION);
+
+#if 0
+#if 0 && defined(DEBUG_LINUX_MEM_AREAS)
+    
+    DebugLinuxMemAreaRecordRemove(psLinuxMemArea);
+#endif
+
+    
+
+#if 0 && defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
+    
+    DebugMemAllocRecordRemove(DEBUG_MEM_ALLOC_TYPE_ALLOC_PAGES, pvPageList, __FILE__, __LINE__);
+#endif
+
+    LinuxMemAreaStructFree(psLinuxMemArea);
+#endif
+
+    psLinuxMemArea->eAreaType = LINUX_MEM_AREA_ALLOC_PAGES;
+    FreeAllocPagesLinuxMemArea(psLinuxMemArea);
+}
+
+
 struct page*
 LinuxMemAreaOffsetToPage(LinuxMemArea *psLinuxMemArea,
                          IMG_UINT32 ui32ByteOffset)
@@ -1278,14 +1374,17 @@ LinuxMemAreaDeepFree(LinuxMemArea *psLinuxMemArea)
         case LINUX_MEM_AREA_IOREMAP:
             FreeIORemapLinuxMemArea(psLinuxMemArea);
             break;
-	case LINUX_MEM_AREA_EXTERNAL_KV:
-	    FreeExternalKVLinuxMemArea(psLinuxMemArea);
-	    break;
+        case LINUX_MEM_AREA_EXTERNAL_KV:
+            FreeExternalKVLinuxMemArea(psLinuxMemArea);
+            break;
         case LINUX_MEM_AREA_IO:
             FreeIOLinuxMemArea(psLinuxMemArea);
             break;
         case LINUX_MEM_AREA_SUB_ALLOC:
             FreeSubLinuxMemArea(psLinuxMemArea);
+            break;
+        case LINUX_MEM_AREA_ION:
+            FreeIONLinuxMemArea(psLinuxMemArea);
             break;
         default:
             PVR_DPF((PVR_DBG_ERROR, "%s: Unknown are type (%d)\n",
@@ -1490,6 +1589,8 @@ LinuxMemAreaToCpuPAddr(LinuxMemArea *psLinuxMemArea, IMG_UINT32 ui32ByteOffset)
             CpuPAddr.uiAddr = VMallocToPhys(pCpuVAddr);
             break;
         }
+        case LINUX_MEM_AREA_ION:
+            
         case LINUX_MEM_AREA_ALLOC_PAGES:
         {
             struct page *page;
@@ -1529,16 +1630,17 @@ LinuxMemAreaPhysIsContig(LinuxMemArea *psLinuxMemArea)
         case LINUX_MEM_AREA_IO:
             return IMG_TRUE;
 
-	case LINUX_MEM_AREA_EXTERNAL_KV:
-	    return psLinuxMemArea->uData.sExternalKV.bPhysContig;
+        case LINUX_MEM_AREA_EXTERNAL_KV:
+            return psLinuxMemArea->uData.sExternalKV.bPhysContig;
 
+        case LINUX_MEM_AREA_ION:
         case LINUX_MEM_AREA_VMALLOC:
         case LINUX_MEM_AREA_ALLOC_PAGES:
-	    return IMG_FALSE;
+            return IMG_FALSE;
 
         case LINUX_MEM_AREA_SUB_ALLOC:
              
-	    return LinuxMemAreaPhysIsContig(psLinuxMemArea->uData.sSubAlloc.psParentLinuxMemArea);
+            return LinuxMemAreaPhysIsContig(psLinuxMemArea->uData.sSubAlloc.psParentLinuxMemArea);
 
         default:
             PVR_DPF((PVR_DBG_ERROR, "%s: Unknown LinuxMemArea type (%d)\n",
@@ -1567,6 +1669,8 @@ LinuxMemAreaTypeToString(LINUX_MEM_AREA_TYPE eMemAreaType)
             return "LINUX_MEM_AREA_SUB_ALLOC";
         case LINUX_MEM_AREA_ALLOC_PAGES:
             return "LINUX_MEM_AREA_ALLOC_PAGES";
+        case LINUX_MEM_AREA_ION:
+            return "LINUX_MEM_AREA_ION";
         default:
             PVR_ASSERT(0);
     }

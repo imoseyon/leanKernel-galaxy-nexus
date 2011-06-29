@@ -183,6 +183,21 @@ OSAllocPages_Impl(IMG_UINT32 ui32AllocFlags,
     }
 #endif
 
+    if(ui32AllocFlags & PVRSRV_MEM_ION)
+    {
+        
+        BUG_ON((ui32AllocFlags & PVRSRV_HAP_MAPTYPE_MASK) != PVRSRV_HAP_SINGLE_PROCESS);
+
+        psLinuxMemArea = NewIONLinuxMemArea(ui32Size, ui32AllocFlags);
+        if(!psLinuxMemArea)
+        {
+            return PVRSRV_ERROR_OUT_OF_MEMORY;
+        }
+
+        PVRMMapRegisterArea(psLinuxMemArea);
+        goto ExitSkipSwitch;
+    }
+
     switch(ui32AllocFlags & PVRSRV_HAP_MAPTYPE_MASK)
     {
         case PVRSRV_HAP_KERNEL_ONLY:
@@ -196,7 +211,6 @@ OSAllocPages_Impl(IMG_UINT32 ui32AllocFlags,
         }
         case PVRSRV_HAP_SINGLE_PROCESS:
         {
-            
             
             psLinuxMemArea = NewAllocPagesLinuxMemArea(ui32Size, ui32AllocFlags);
             if(!psLinuxMemArea)
@@ -229,6 +243,7 @@ OSAllocPages_Impl(IMG_UINT32 ui32AllocFlags,
             return PVRSRV_ERROR_INVALID_PARAMS;
     }
 
+ExitSkipSwitch:
     *ppvCpuVAddr = LinuxMemAreaToCpuVAddr(psLinuxMemArea);
     *phOSMemHandle = psLinuxMemArea;
     
@@ -2876,6 +2891,8 @@ IMG_BOOL CheckExecuteCacheOp(IMG_HANDLE hOSMemHandle,
 			break;
 		}
 
+		case LINUX_MEM_AREA_ION:
+			
 		case LINUX_MEM_AREA_ALLOC_PAGES:
 		{
 			pvMinVAddr = FindMMapBaseVAddr(psMMapOffsetStructList,
