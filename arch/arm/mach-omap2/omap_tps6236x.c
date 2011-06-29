@@ -67,6 +67,8 @@
 
 /* TWL usage */
 #define TWL6030_REG_SYSEN_CFG_GRP			0xB3
+#define TWL6030_REG_VCORE3_CFG_GRP			0x5E
+#define TWL6030_REG_VMEM_CFG_GRP			0x64
 #define TWL6030_BIT_APE_GRP				BIT(0)
 
 /* Voltage params of the attached device (all in uV) */
@@ -194,6 +196,30 @@ static struct omap_voltdm_pmic omap4_mpu_pmic = {
 };
 
 /**
+ * _twl_i2c_rmw_u8() - Tiny helper function to do a read modify write for twl
+ * @mod_no:	module number
+ * @mask:	mask for the val
+ * @value:	value to write
+ * @reg:	register to write to
+ */
+static int __init _twl_i2c_rmw_u8(u8 mod_no, u8 mask, u8 value, u8 reg)
+{
+	int ret;
+	u8 val;
+
+	ret = twl_i2c_read_u8(mod_no, &val, reg);
+	if (ret)
+		goto out;
+
+	val &= ~mask;
+	val |= (value & mask);
+
+	ret = twl_i2c_write_u8(mod_no, val, reg);
+out:
+	return ret;
+}
+
+/**
  * omap4_twl_tps62361_enable() - Enable tps chip
  *
  * This function enables TPS chip by associating SYSEN signal
@@ -204,6 +230,7 @@ static struct omap_voltdm_pmic omap4_mpu_pmic = {
 static int __init omap4_twl_tps62361_enable(struct voltagedomain *voltdm)
 {
 	int ret = 0;
+	int ret1;
 	u8 val;
 
 	/* Dont trust the bootloader. start with max, pm will set to proper */
@@ -245,14 +272,29 @@ static int __init omap4_twl_tps62361_enable(struct voltagedomain *voltdm)
 
 	/* if we have to work with TWL */
 #ifdef CONFIG_TWL4030_CORE
-	ret = twl_i2c_read_u8(TWL6030_MODULE_ID0, &val,
-			TWL6030_REG_SYSEN_CFG_GRP);
-	if (ret)
-		goto out;
+	/* Map up SYSEN on TWL core to control TPS */
+	ret1 = _twl_i2c_rmw_u8(TWL6030_MODULE_ID0, TWL6030_BIT_APE_GRP,
+			TWL6030_BIT_APE_GRP, TWL6030_REG_SYSEN_CFG_GRP);
+	if (ret1) {
+		pr_err("%s:Err:TWL6030: map APE SYEN(%d)\n", __func__, ret1);
+		ret = ret1;
+	}
 
-	val |= TWL6030_BIT_APE_GRP;
-	ret = twl_i2c_write_u8(TWL6030_MODULE_ID0, val,
-			TWL6030_REG_SYSEN_CFG_GRP);
+	/* Since we dont use VCORE3, this should not be associated with APE */
+	ret1 = _twl_i2c_rmw_u8(TWL6030_MODULE_ID0, TWL6030_BIT_APE_GRP,
+			0x00, TWL6030_REG_VCORE3_CFG_GRP);
+	if (ret1) {
+		pr_err("%s:Err:TWL6030:unmap APE VCORE3(%d)\n", __func__, ret1);
+		ret = ret1;
+	}
+
+	/* Since we dont use VMEM, this should not be associated with APE */
+	ret1 = _twl_i2c_rmw_u8(TWL6030_MODULE_ID0, TWL6030_BIT_APE_GRP,
+			0x00, TWL6030_REG_VMEM_CFG_GRP);
+	if (ret1) {
+		pr_err("%s:Err:TWL6030: unmap APE VMEM(%d)\n", __func__, ret1);
+		ret = ret1;
+	}
 #endif
 
 out:
@@ -337,4 +379,9 @@ int __init omap_tps6236x_board_setup(bool use_62361, int gpio_vsel0,
 	}
 out:
 	return r;
+}
+
+int __init omap_tps6236x_update(char *name, u16 old_chip_id, u16 new_chip_id)
+{
+	return omap_pmic_update(omap_tps_map, name, old_chip_id, new_chip_id);
 }

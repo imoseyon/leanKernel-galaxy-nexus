@@ -26,6 +26,7 @@
 #include "voltage.h"
 #include "vc.h"
 #include "vp.h"
+#include "ldo.h"
 
 /*
  * VDD data
@@ -97,6 +98,7 @@ void __init omap3xxx_voltagedomains_init(void)
 		omap3_vdd1_info.volt_data = omap36xx_vddmpu_volt_data;
 		omap3_vdd2_info.volt_data = omap36xx_vddcore_volt_data;
 		omap3_vdd1_info.dep_vdd_info = omap36xx_vddmpu_dep_info;
+		omap3_voltdm_mpu.abb = &omap3630_ldo_abb_mpu_instance;
 
 	} else {
 		omap3_vdd1_info.volt_data = omap34xx_vddmpu_volt_data;

@@ -117,5 +117,8 @@ static inline u32 omap4_secure_dispatcher(u32 idx, u32 flag, u32 nargs,
 }
 #endif	/* CONFIG_PM */
 #endif	/* CONFIG_SMP */
+
+extern int omap4_prcm_freq_update(void);
+
 #endif /* __ASSEMBLER__ */
 #endif /* OMAP_ARCH_OMAP4_COMMON_H */
