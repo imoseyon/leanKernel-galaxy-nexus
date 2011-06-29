@@ -41,7 +41,6 @@
 #define TILER_H
 
 #include <linux/mm.h>
-#include <linux/scatterlist.h>
 
 /*
  * ----------------------------- API Definitions -----------------------------
@@ -398,6 +397,8 @@ tiler_blk_handle tiler_map_1d_block(struct tiler_pa_info *pa);
  * @param width		Width in pixels
  * @param height	Height in pixels
  * @param ssptr		Value of tiler physical address of allocation
+ * @param virt_array	Array of physical address for the start of each virtual
+			page
  *
  * @return handle	Handle to tiler block information.  NULL on error.
  *
@@ -405,7 +406,8 @@ tiler_blk_handle tiler_map_1d_block(struct tiler_pa_info *pa);
  *       specify a height of 1.
  */
 tiler_blk_handle tiler_alloc_block_area(enum tiler_fmt fmt, u32 width,
-					u32 height, u32 *ssptr);
+					u32 height, u32 *ssptr,
+					u32 *virt_array);
 
 /**
  * Free a reserved area in the Tiler
@@ -420,12 +422,12 @@ void tiler_free_block_area(tiler_blk_handle block);
  * handle
  *
  * @param handle	Handle to tiler block information
- * @param sg		Scatterlist of physical pages
- * @param nents		Number of entries in scatterlist
+ * @param addr_array	Array of addresses
+ * @param nents		Number of addresses in array
  *
  * @return error status.
  */
-s32 tiler_pin_block(tiler_blk_handle handle, struct scatterlist *sg, u32 nents);
+s32 tiler_pin_block(tiler_blk_handle handle, u32 *addr_array, u32 nents);
 
 /**
  * Unpins a set of physical pages from the Tiler
@@ -435,26 +437,19 @@ s32 tiler_pin_block(tiler_blk_handle handle, struct scatterlist *sg, u32 nents);
  */
 void tiler_unpin_block(tiler_blk_handle handle);
 
-
-/**
- * Gives Tiler physical address for a given tiler_blk_handle
- *
- * @param handle	Handle to tiler block information
- *
- * @return phsyical address.  NULL on error.
- */
-u32 tiler_handle_to_phys(tiler_blk_handle handle);
-
 /**
  * Gives memory requirements for a given container allocation
  *
  * @param fmt		Tiler bpp mode
  * @param width		Width in pixels
  * @param height	Height in pixels
+ * @param alloc_pages	Number of pages required to back tiler container
+ * @param virt_pages    Number of pages required to back the virtual address space
  *
- * @return Number of pages required.  On error, returns 0
+ * @return 0 for success.  Non zero for error
  */
-u32 tiler_memsize(enum tiler_fmt fmt, u32 width, u32 height);
+s32 tiler_memsize(enum tiler_fmt fmt, u32 width, u32 height, u32 *alloc_pages,
+		  u32 *virt_pages);
 
 /**
  * Returns virtual stride of a tiler block
