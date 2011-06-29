@@ -22,6 +22,8 @@
 #include <linux/pda_power.h>
 #include <linux/platform_device.h>
 
+#include <plat/cpu.h>
+
 #include "board-tuna.h"
 #include "mux.h"
 #include "pm.h"
@@ -116,12 +118,22 @@ void __init omap4_tuna_power_init(void)
 	struct platform_device *pdev;
 	int status;
 
-	if (omap4_tuna_final_gpios()) {
-		/* Vsel0 = gpio, vsel1 = gnd */
-		status = omap_tps6236x_board_setup(true, TPS62361_GPIO, -1,
-					OMAP_PIN_OFF_OUTPUT_HIGH, -1);
-		if (status)
-			pr_err("TPS62361 initialization failed: %d\n", status);
+	/* Vsel0 = gpio, vsel1 = gnd */
+	status = omap_tps6236x_board_setup(true, TPS62361_GPIO, -1,
+				OMAP_PIN_OFF_OUTPUT_HIGH, -1);
+	if (status)
+		pr_err("TPS62361 initialization failed: %d\n", status);
+	/*
+	 * Some Tuna devices have a 4430 chip on a 4460 board, manually
+	 * tweak the power tree to the 4460 style with the TPS regulator.
+	 */
+	if (cpu_is_omap443x()) {
+		/* Disable 4430 mapping */
+		omap_twl_pmic_update("mpu", CHIP_IS_OMAP443X, 0x0);
+		omap_twl_pmic_update("core", CHIP_IS_OMAP443X, 0x0);
+		/* make 4460 map usable for 4430 */
+		omap_twl_pmic_update("core", CHIP_IS_OMAP446X, CHIP_IS_OMAP44XX);
+		omap_tps6236x_update("mpu", CHIP_IS_OMAP446X, CHIP_IS_OMAP44XX);
 	}
 
 	if (omap4_tuna_get_revision() == TUNA_REV_PRE_LUNCHBOX) {
