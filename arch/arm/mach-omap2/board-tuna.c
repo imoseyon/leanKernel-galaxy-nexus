@@ -869,6 +869,10 @@ static void __init tuna_init(void)
 	if (TUNA_TYPE_MAGURO == omap4_tuna_get_type())
 		omap_hsi_init();
 #endif
+#ifdef CONFIG_USB_EHCI_HCD_OMAP
+	if (TUNA_TYPE_TORO == omap4_tuna_get_type())
+		omap4_ehci_init();
+#endif
 }
 
 static void __init tuna_map_io(void)
