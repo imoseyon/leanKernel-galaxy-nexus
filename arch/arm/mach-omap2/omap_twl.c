@@ -391,3 +391,8 @@ err:
 	pr_err("%s: Error access to TWL4030 (%d)\n", __func__, ret);
 	return ret;
 }
+
+int __init omap_twl_pmic_update(char *name, u16 old_chip_id, u16 new_chip_id)
+{
+	return omap_pmic_update(omap_twl_map, name, old_chip_id, new_chip_id);
+}

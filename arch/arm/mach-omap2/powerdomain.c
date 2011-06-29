@@ -1089,7 +1089,9 @@ int pwrdm_wakeuplat_set_constraint (struct powerdomain *pwrdm,
 	}
 
 	plist_node_init(&user->node, t);
+	spin_lock(&pwrdm->wakeuplat_lock);
 	plist_add(&user->node, &pwrdm->wakeuplat_dev_list);
+	spin_unlock(&pwrdm->wakeuplat_lock);
 	user->node.prio = user->constraint_us = t;
 
 	ret = pwrdm_wakeuplat_update_pwrst(pwrdm);
@@ -1136,7 +1138,9 @@ int pwrdm_wakeuplat_release_constraint (struct powerdomain *pwrdm,
 		goto exit_rls;
 	}
 
+	spin_lock(&pwrdm->wakeuplat_lock);
 	plist_del(&user->node, &pwrdm->wakeuplat_dev_list);
+	spin_unlock(&pwrdm->wakeuplat_lock);
 	kfree(user);
 
 	ret = pwrdm_wakeuplat_update_pwrst(pwrdm);

@@ -27,6 +27,7 @@
 #include <plat/omap_device.h>
 #include <plat/common.h>
 #include "../mach-omap2/powerdomain.h"
+#include "../mach-omap2/dvfs.h"
 #include "omap-pm-helper.h"
 
 struct omap_opp *dsp_opps;
@@ -220,14 +221,7 @@ int omap_pm_set_min_bus_tput_helper(struct device *dev, u8 agent_id, long r)
 
 	int ret = 0;
 	struct device *l3_dev;
-
-	/*
-	 * TODO: This will go away when complete device scaling support for
-	 * L3 is added.
-	 */
-#if 0
 	static struct device dummy_l3_dev;
-#endif
 	unsigned long target_level = 0;
 
 	mutex_lock(&bus_tput_mutex);
@@ -247,18 +241,10 @@ int omap_pm_set_min_bus_tput_helper(struct device *dev, u8 agent_id, long r)
 	/* Convert the throughput(in KiB/s) into Hz. */
 	target_level = (target_level * 1000) / 4;
 
-	/*
-	 * TODO: This will go away when complete device scaling support for
-	 * L3 is added.
-	 */
-#if 0
 	ret = omap_device_scale(&dummy_l3_dev, l3_dev, target_level);
 	if (ret)
 		pr_err("Failed: change interconnect bandwidth to %ld\n",
 		     target_level);
-#else
-	WARN(1, "OMAP PM: %s: constraint not called, needs DVFS", __func__);
-#endif
 unlock:
 	mutex_unlock(&bus_tput_mutex);
 	return ret;

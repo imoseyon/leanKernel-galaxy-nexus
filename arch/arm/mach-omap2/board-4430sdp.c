@@ -27,6 +27,9 @@
 
 #include <mach/hardware.h>
 #include <mach/omap4-common.h>
+#include <mach/emif.h>
+#include <mach/lpddr2-elpida.h>
+
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
@@ -823,6 +826,23 @@ static struct omap_board_data serial4_data __initdata = {
 	.pads_cnt	= ARRAY_SIZE(serial4_pads),
 };
 
+/*
+ * LPDDR2 Configeration Data:
+ * The memory organisation is as below :
+ *	EMIF1 - CS0 -	2 Gb
+ *		CS1 -	2 Gb
+ *	EMIF2 - CS0 -	2 Gb
+ *		CS1 -	2 Gb
+ *	--------------------
+ *	TOTAL -		8 Gb
+ *
+ * Same devices installed on EMIF1 and EMIF2
+ */
+static __initdata struct emif_device_details emif_devices = {
+	.cs0_device = &lpddr2_elpida_2G_S4_dev,
+	.cs1_device = &lpddr2_elpida_2G_S4_dev
+};
+
 static inline void __init board_serial_init(void)
 {
 	struct omap_board_data bdata;
@@ -854,6 +874,8 @@ static void __init omap_4430sdp_init(void)
 	if (omap_rev() == OMAP4430_REV_ES1_0)
 		package = OMAP_PACKAGE_CBL;
 	omap4_mux_init(board_mux, NULL, package);
+
+	omap_emif_setup_device_details(&emif_devices, &emif_devices);
 
 	omap_board_config = sdp4430_config;
 	omap_board_config_size = ARRAY_SIZE(sdp4430_config);

@@ -56,7 +56,7 @@ static const struct omap_vp_common omap4_vp_common = {
 };
 
 struct omap_vp_instance omap4_vp_mpu = {
-	.id = OMAP4_VP_VDD_MPU_ID,
+	.id = OMAP4_PRM_IRQ_VDD_MPU_ID,
 	.common = &omap4_vp_common,
 	.vpconfig = OMAP4_PRM_VP_MPU_CONFIG_OFFSET,
 	.vstepmin = OMAP4_PRM_VP_MPU_VSTEPMIN_OFFSET,
@@ -67,7 +67,7 @@ struct omap_vp_instance omap4_vp_mpu = {
 };
 
 struct omap_vp_instance omap4_vp_iva = {
-	.id = OMAP4_VP_VDD_IVA_ID,
+	.id = OMAP4_PRM_IRQ_VDD_IVA_ID,
 	.common = &omap4_vp_common,
 	.vpconfig = OMAP4_PRM_VP_IVA_CONFIG_OFFSET,
 	.vstepmin = OMAP4_PRM_VP_IVA_VSTEPMIN_OFFSET,
@@ -78,7 +78,7 @@ struct omap_vp_instance omap4_vp_iva = {
 };
 
 struct omap_vp_instance omap4_vp_core = {
-	.id = OMAP4_VP_VDD_CORE_ID,
+	.id = OMAP4_PRM_IRQ_VDD_CORE_ID,
 	.common = &omap4_vp_common,
 	.vpconfig = OMAP4_PRM_VP_CORE_CONFIG_OFFSET,
 	.vstepmin = OMAP4_PRM_VP_CORE_VSTEPMIN_OFFSET,

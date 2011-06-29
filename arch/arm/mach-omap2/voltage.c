@@ -115,6 +115,9 @@ unsigned long omap_voltage_get_nom_volt(struct voltagedomain *voltdm)
 int voltdm_scale(struct voltagedomain *voltdm,
 		 unsigned long target_volt)
 {
+	int ret = 0;
+	struct omap_voltage_notifier notify;
+
 	if (!voltdm || IS_ERR(voltdm)) {
 		pr_warning("%s: VDD specified does not exist!\n", __func__);
 		return -EINVAL;
@@ -126,7 +129,43 @@ int voltdm_scale(struct voltagedomain *voltdm,
 		return -ENODATA;
 	}
 
-	return voltdm->scale(voltdm, target_volt);
+	notify.voltdm = voltdm;
+	notify.target_volt = target_volt;
+
+	srcu_notifier_call_chain(&voltdm->change_notify_list,
+			OMAP_VOLTAGE_PRECHANGE,
+			(void *)&notify);
+
+	if (voltdm->abb) {
+		ret = omap_ldo_abb_pre_scale(voltdm, target_volt);
+		if (ret)
+			pr_err("%s: ABB prescale failed for vdd%s: %d\n",
+				__func__, voltdm->name, ret);
+		/* Fall through */
+	}
+
+	if (!ret) {
+		ret = voltdm->scale(voltdm, target_volt);
+		if (ret)
+			pr_err("%s: voltage scale failed for vdd%s: %d\n",
+				__func__, voltdm->name, ret);
+
+		if (voltdm->abb) {
+			ret = omap_ldo_abb_post_scale(voltdm,
+					voltdm->curr_volt);
+			if (ret)
+				pr_err("%s: ABB postscale fail for vdd%s:%d\n",
+					__func__, voltdm->name, ret);
+		}
+		/* Fall through */
+	}
+
+	notify.op_result = ret;
+	srcu_notifier_call_chain(&voltdm->change_notify_list,
+			OMAP_VOLTAGE_POSTCHANGE,
+			(void *)&notify);
+
+	return ret;
 }
 
 /**
@@ -223,8 +262,8 @@ struct omap_volt_data *omap_voltage_get_voltdata(struct voltagedomain *voltdm,
 			return &vdd->volt_data[i];
 	}
 
-	pr_notice("%s: Unable to match the current voltage with the voltage"
-		"table for vdd_%s\n", __func__, voltdm->name);
+	pr_notice("%s: Unable to match the current voltage %lu with the voltage"
+		"table for vdd_%s\n", __func__, volt, voltdm->name);
 
 	return ERR_PTR(-ENODATA);
 }
@@ -374,9 +413,13 @@ int __init omap_voltage_late_init(void)
 		if (voltdm->vc)
 			omap_vc_init_channel(voltdm);
 
+		if (voltdm->abb)
+			omap_ldo_abb_init(voltdm);
+
 		if (voltage_dir)
 			voltdm_debugfs_init(voltage_dir, voltdm);
 
+		srcu_init_notifier_head(&voltdm->change_notify_list);
 	}
 
 	return 0;
