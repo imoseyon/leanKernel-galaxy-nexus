@@ -43,6 +43,8 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <linux/pm_runtime.h>
+#include <linux/interrupt.h>
+#include <linux/workqueue.h>
 #include <mach/hardware.h>
 #include <plat/prcm.h>
 
@@ -54,6 +56,10 @@ static unsigned timer_margin;
 module_param(timer_margin, uint, 0);
 MODULE_PARM_DESC(timer_margin, "initial watchdog timeout (in seconds)");
 
+static int kernelpet = 1;
+module_param(kernelpet, int, 0);
+MODULE_PARM_DESC(kernelpet, "pet watchdog in kernel via irq");
+
 static unsigned int wdt_trgr_pattern = 0x1234;
 static spinlock_t wdt_lock;
 
@@ -63,6 +69,8 @@ struct omap_wdt_dev {
 	int             omap_wdt_users;
 	struct resource *mem;
 	struct miscdevice omap_wdt_miscdev;
+	int irq;
+	struct work_struct sitter;
 };
 
 static void omap_wdt_ping(struct omap_wdt_dev *wdev)
@@ -122,6 +130,7 @@ static void omap_wdt_adjust_timeout(unsigned new_timeout)
 static void omap_wdt_set_timeout(struct omap_wdt_dev *wdev)
 {
 	u32 pre_margin = GET_WLDR_VAL(timer_margin);
+	u32 delay_period = GET_WLDR_VAL(timer_margin / 2);
 	void __iomem *base = wdev->base;
 
 	pm_runtime_get_sync(wdev->dev);
@@ -134,15 +143,38 @@ static void omap_wdt_set_timeout(struct omap_wdt_dev *wdev)
 	while (__raw_readl(base + OMAP_WATCHDOG_WPS) & 0x04)
 		cpu_relax();
 
+	/* Set delay interrupt to half the watchdog interval. */
+	while (__raw_readl(base + OMAP_WATCHDOG_WPS) & 1 << 5)
+		cpu_relax();
+	__raw_writel(delay_period, base + OMAP_WATCHDOG_WDLY);
+
 	pm_runtime_put_sync(wdev->dev);
 }
 
-/*
- *	Allow only one task to hold it open
- */
-static int omap_wdt_open(struct inode *inode, struct file *file)
+static void omap_wdt_dogsitter(struct work_struct *work)
 {
-	struct omap_wdt_dev *wdev = platform_get_drvdata(omap_wdt_dev);
+	struct omap_wdt_dev *wdev =
+		container_of(work, struct omap_wdt_dev, sitter);
+
+	pm_runtime_get_sync(wdev->dev);
+	omap_wdt_ping(wdev);
+	pm_runtime_put_sync(wdev->dev);
+}
+
+static irqreturn_t omap_wdt_interrupt(int irq, void *dev_id)
+{
+	struct omap_wdt_dev *wdev = dev_id;
+	void __iomem *base = wdev->base;
+	u32 i;
+
+	schedule_work(&wdev->sitter);
+	i = __raw_readl(base + OMAP_WATCHDOG_WIRQSTAT);
+	__raw_writel(i, base + OMAP_WATCHDOG_WIRQSTAT);
+	return IRQ_HANDLED;
+}
+
+static int omap_wdt_setup(struct omap_wdt_dev *wdev)
+{
 	void __iomem *base = wdev->base;
 
 	if (test_and_set_bit(1, (unsigned long *)&(wdev->omap_wdt_users)))
@@ -158,20 +190,41 @@ static int omap_wdt_open(struct inode *inode, struct file *file)
 	while (__raw_readl(base + OMAP_WATCHDOG_WPS) & 0x01)
 		cpu_relax();
 
-	file->private_data = (void *) wdev;
-
 	omap_wdt_set_timeout(wdev);
 	omap_wdt_ping(wdev); /* trigger loading of new timeout value */
+
+	/* Enable delay interrupt */
+
+	if (kernelpet && wdev->irq)
+		__raw_writel(0x2, base + OMAP_WATCHDOG_WIRQENSET);
+
 	omap_wdt_enable(wdev);
 
 	pm_runtime_put_sync(wdev->dev);
+	return 0;
+}
 
+/*
+ *	Allow only one task to hold it open
+ */
+static int omap_wdt_open(struct inode *inode, struct file *file)
+{
+	struct omap_wdt_dev *wdev = platform_get_drvdata(omap_wdt_dev);
+	int ret;
+
+	ret = omap_wdt_setup(wdev);
+
+	if (ret)
+		return ret;
+
+	file->private_data = (void *) wdev;
 	return nonseekable_open(inode, file);
 }
 
 static int omap_wdt_release(struct inode *inode, struct file *file)
 {
 	struct omap_wdt_dev *wdev = file->private_data;
+	void __iomem *base = wdev->base;
 
 	/*
 	 *      Shut off the timer unless NOWAYOUT is defined.
@@ -180,6 +233,12 @@ static int omap_wdt_release(struct inode *inode, struct file *file)
 	pm_runtime_get_sync(wdev->dev);
 
 	omap_wdt_disable(wdev);
+
+	if (kernelpet && wdev->irq) {
+		/* Disable delay interrupt */
+		__raw_writel(0x2, base + OMAP_WATCHDOG_WIRQENCLR);
+		cancel_work_sync(&wdev->sitter);
+	}
 
 	pm_runtime_put_sync(wdev->dev);
 #else
@@ -272,7 +331,7 @@ static const struct file_operations omap_wdt_fops = {
 
 static int __devinit omap_wdt_probe(struct platform_device *pdev)
 {
-	struct resource *res, *mem;
+	struct resource *res, *mem, *res_irq;
 	struct omap_wdt_dev *wdev;
 	int ret;
 
@@ -294,6 +353,8 @@ static int __devinit omap_wdt_probe(struct platform_device *pdev)
 		goto err_busy;
 	}
 
+	res_irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+
 	wdev = kzalloc(sizeof(struct omap_wdt_dev), GFP_KERNEL);
 	if (!wdev) {
 		ret = -ENOMEM;
@@ -308,6 +369,18 @@ static int __devinit omap_wdt_probe(struct platform_device *pdev)
 	if (!wdev->base) {
 		ret = -ENOMEM;
 		goto err_ioremap;
+	}
+
+	INIT_WORK(&wdev->sitter, omap_wdt_dogsitter);
+
+	if (res_irq) {
+		ret = request_irq(res_irq->start, omap_wdt_interrupt, 0,
+				  dev_name(&pdev->dev), wdev);
+
+		if (ret)
+			goto err_irq;
+
+		wdev->irq = res_irq->start;
 	}
 
 	platform_set_drvdata(pdev, wdev);
@@ -335,10 +408,18 @@ static int __devinit omap_wdt_probe(struct platform_device *pdev)
 
 	omap_wdt_dev = pdev;
 
+	if (kernelpet && wdev->irq)
+		return omap_wdt_setup(wdev);
+
 	return 0;
 
 err_misc:
 	platform_set_drvdata(pdev, NULL);
+
+	if (wdev->irq)
+		free_irq(wdev->irq, wdev);
+
+err_irq:
 	iounmap(wdev->base);
 
 err_ioremap:
@@ -376,6 +457,9 @@ static int __devexit omap_wdt_remove(struct platform_device *pdev)
 	misc_deregister(&(wdev->omap_wdt_miscdev));
 	release_mem_region(res->start, resource_size(res));
 	platform_set_drvdata(pdev, NULL);
+
+	if (wdev->irq)
+		free_irq(wdev->irq, wdev);
 
 	iounmap(wdev->base);
 
