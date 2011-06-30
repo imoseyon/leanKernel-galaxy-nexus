@@ -33,6 +33,9 @@
 #include <linux/reboot.h>
 #include <linux/memblock.h>
 #include <linux/sysfs.h>
+#include <linux/spi/spi.h>
+#include <linux/platform_data/lte_modem_bootloader.h>
+#include <plat/mcspi.h>
 
 #include <mach/hardware.h>
 #include <mach/omap4-common.h>
@@ -59,6 +62,10 @@
 
 struct class *sec_class;
 EXPORT_SYMBOL(sec_class);
+
+/* For LTE(CMC221) */
+#define OMAP_GPIO_LTE_ACTIVE	47
+#define OMAP_GPIO_CMC2AP_INT1	61
 
 #define GPIO_AUD_PWRON		127
 #define GPIO_AUD_PWRON_TORO_V1	20
@@ -665,6 +672,33 @@ static inline void __init board_serial_init(void)
 }
 #endif
 
+/*SPI for LTE modem bootloader*/
+#define LTE_MODEM_SPI_BUS_NUM 4
+#define LTE_MODEM_SPI_CS  0
+#define LTE_MODEM_SPI_MAX_HZ 1500000
+
+struct lte_modem_bootloader_platform_data lte_modem_bootloader_pdata = {
+	.name = "lte_modem_int",
+	.gpio_lte2ap_status = OMAP_GPIO_CMC2AP_INT1,
+};
+
+static struct omap2_mcspi_device_config lte_mcspi_config = {
+	.turbo_mode	= 0,
+	.single_channel	= 1,	/* 0: slave, 1: master */
+};
+
+static struct spi_board_info tuna_lte_modem[] __initdata = {
+	{
+		.modalias = "lte_modem_spi",
+		.controller_data = &lte_mcspi_config,
+		.platform_data = &lte_modem_bootloader_pdata,
+		.max_speed_hz = LTE_MODEM_SPI_MAX_HZ,
+		.bus_num = LTE_MODEM_SPI_BUS_NUM,
+		.chip_select = LTE_MODEM_SPI_CS,
+		.mode = SPI_MODE_0,
+	},
+};
+
 static int tuna_notifier_call(struct notifier_block *this,
 					unsigned long code, void *_cmd)
 {
@@ -848,6 +882,19 @@ static void __init tuna_init(void)
 	}
 
 	sec_common_init();
+
+	if (TUNA_TYPE_TORO == omap4_tuna_get_type()) {
+		omap_mux_init_signal("gpmc_wait0",
+				OMAP_MUX_MODE3 | OMAP_PIN_INPUT_PULLDOWN);
+		gpio_request(OMAP_GPIO_CMC2AP_INT1, "gpio_61");
+		gpio_direction_input(OMAP_GPIO_CMC2AP_INT1);
+
+		omap_mux_init_signal("mcspi4_clk", OMAP_MUX_MODE0);
+		omap_mux_init_signal("mcspi4_simo", OMAP_MUX_MODE0);
+		omap_mux_init_signal("mcspi4_somi", OMAP_MUX_MODE0);
+		omap_mux_init_signal("mcspi4_cs0", OMAP_MUX_MODE0);
+	}
+
 	tuna_wlan_init();
 	tuna_audio_init();
 	tuna_i2c_init();
@@ -858,6 +905,10 @@ static void __init tuna_init(void)
 	omap2_hsmmc_init(mmc);
 	usb_musb_init(&musb_board_data);
 	omap4_tuna_create_board_props();
+	if (TUNA_TYPE_TORO == omap4_tuna_get_type()) {
+		spi_register_board_info(tuna_lte_modem,
+				ARRAY_SIZE(tuna_lte_modem));
+	}
 	omap4_tuna_display_init();
 	omap4_tuna_input_init();
 	omap4_tuna_nfc_init();
