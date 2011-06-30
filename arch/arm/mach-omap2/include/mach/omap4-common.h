@@ -21,6 +21,11 @@
 #define HAL_SAVEHW_INDEX		0x1b
 #define HAL_SAVEALL_INDEX		0x1c
 #define HAL_SAVEGIC_INDEX		0x1d
+
+/*
+ * Secure HAL, PPA services available
+ */
+#define PPA_SERVICE_PL310_POR		0x23
 #define PPA_SERVICE_NS_SMP		0x25
 /*
  * Secure HAL API flags
