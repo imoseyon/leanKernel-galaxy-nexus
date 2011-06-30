@@ -153,4 +153,6 @@ void __init omap4_tuna_power_init(void)
 		&charger_pdata, sizeof(charger_pdata));
 
 	i2c_register_board_info(4, max17043_i2c, ARRAY_SIZE(max17043_i2c));
+
+	omap_enable_smartreflex_on_init();
 }
