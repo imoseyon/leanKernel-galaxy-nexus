@@ -535,6 +535,18 @@ PVRSRVAllocDeviceMemBW(IMG_UINT32 ui32BridgeID,
 		}
 	}
 
+	
+	if(psAllocDeviceMemIN->pvPrivData)
+	{
+		if(!OSAccessOK(PVR_VERIFY_READ,
+					   psAllocDeviceMemIN->pvPrivData,
+					   psAllocDeviceMemIN->ui32PrivDataLength))
+		{
+			PVR_DPF((PVR_DBG_ERROR, "PVRSRVAllocDeviceMemBW: Access check failed for pvPrivData"));
+			return -EFAULT;
+		}
+	}
+
 	psAllocDeviceMemOUT->eError =
 		PVRSRVAllocDeviceMemKM(hDevCookieInt,
 							   psPerProc,
@@ -542,6 +554,8 @@ PVRSRVAllocDeviceMemBW(IMG_UINT32 ui32BridgeID,
 							   psAllocDeviceMemIN->ui32Attribs,
 							   psAllocDeviceMemIN->ui32Size,
 							   psAllocDeviceMemIN->ui32Alignment,
+							   psAllocDeviceMemIN->pvPrivData,
+							   psAllocDeviceMemIN->ui32PrivDataLength,
 							   &psMemInfo,
 							   "" );
 
@@ -868,6 +882,8 @@ PVRSRVMapDeviceMemoryBW(IMG_UINT32 ui32BridgeID,
 								   psSrcKernelMemInfo->sShareMemWorkaround.ui32OrigReqAttribs | PVRSRV_MEM_NO_SYNCOBJ,
 								   psSrcKernelMemInfo->sShareMemWorkaround.ui32OrigReqSize,
 								   psSrcKernelMemInfo->sShareMemWorkaround.ui32OrigReqAlignment,
+								   IMG_NULL,
+								   0,
 								   &psDstKernelMemInfo,
 								   "" );
 		

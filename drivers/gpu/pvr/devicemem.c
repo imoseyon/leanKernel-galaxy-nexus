@@ -37,6 +37,8 @@ static PVRSRV_ERROR AllocDeviceMem(IMG_HANDLE		hDevCookie,
 									IMG_UINT32		ui32Flags,
 									IMG_SIZE_T		ui32Size,
 									IMG_SIZE_T		ui32Alignment,
+									IMG_PVOID		pvPrivData,
+									IMG_UINT32		ui32PrivDataLength,
 									PVRSRV_KERNEL_MEM_INFO	**ppsMemInfo);
 
 typedef struct _RESMAN_MAP_DEVICE_MEM_DATA_
@@ -348,11 +350,13 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVGetDeviceMemHeapInfoKM(IMG_HANDLE					hDevCookie
 
 
 static PVRSRV_ERROR AllocDeviceMem(IMG_HANDLE		hDevCookie,
-									IMG_HANDLE		hDevMemHeap,
-									IMG_UINT32		ui32Flags,
-									IMG_SIZE_T		ui32Size,
-									IMG_SIZE_T		ui32Alignment,
-									PVRSRV_KERNEL_MEM_INFO	**ppsMemInfo)
+								   IMG_HANDLE		hDevMemHeap,
+								   IMG_UINT32		ui32Flags,
+								   IMG_SIZE_T		ui32Size,
+								   IMG_SIZE_T		ui32Alignment,
+								   IMG_PVOID		pvPrivData,
+								   IMG_UINT32		ui32PrivDataLength,
+								   PVRSRV_KERNEL_MEM_INFO **ppsMemInfo)
 {
  	PVRSRV_KERNEL_MEM_INFO	*psMemInfo;
 	BM_HANDLE 		hBuffer;
@@ -385,6 +389,8 @@ static PVRSRV_ERROR AllocDeviceMem(IMG_HANDLE		hDevCookie,
 							ui32Size,
 							&psMemInfo->ui32Flags,
 							IMG_CAST_TO_DEVVADDR_UINT(ui32Alignment),
+							pvPrivData,
+							ui32PrivDataLength,
 							&hBuffer);
 
 	if (!bBMError)
@@ -519,6 +525,8 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVAllocSyncInfoKM(IMG_HANDLE					hDevCookie,
 							PVRSRV_MEM_CACHE_CONSISTENT,
 							sizeof(PVRSRV_SYNC_DATA),
 							sizeof(IMG_UINT32),
+							IMG_NULL,
+							0,
 							&psKernelSyncInfo->psSyncDataMemInfoKM);
 
 	if (eError != PVRSRV_OK)
@@ -834,13 +842,15 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVFreeDeviceMemKM(IMG_HANDLE				hDevCookie,
 
 
 IMG_EXPORT
-PVRSRV_ERROR IMG_CALLCONV _PVRSRVAllocDeviceMemKM(IMG_HANDLE					hDevCookie,
-												 PVRSRV_PER_PROCESS_DATA	*psPerProc,
-												 IMG_HANDLE					hDevMemHeap,
-												 IMG_UINT32					ui32Flags,
-												 IMG_SIZE_T					ui32Size,
-												 IMG_SIZE_T					ui32Alignment,
-												 PVRSRV_KERNEL_MEM_INFO		**ppsMemInfo)
+PVRSRV_ERROR IMG_CALLCONV _PVRSRVAllocDeviceMemKM(IMG_HANDLE				hDevCookie,
+												  PVRSRV_PER_PROCESS_DATA	*psPerProc,
+												  IMG_HANDLE				hDevMemHeap,
+												  IMG_UINT32				ui32Flags,
+												  IMG_SIZE_T				ui32Size,
+												  IMG_SIZE_T				ui32Alignment,
+												  IMG_PVOID					pvPrivData,
+												  IMG_UINT32				ui32PrivDataLength,
+												  PVRSRV_KERNEL_MEM_INFO	**ppsMemInfo)
 {
 	PVRSRV_KERNEL_MEM_INFO	*psMemInfo;
 	PVRSRV_ERROR 			eError;
@@ -869,6 +879,8 @@ PVRSRV_ERROR IMG_CALLCONV _PVRSRVAllocDeviceMemKM(IMG_HANDLE					hDevCookie,
 							ui32Flags,
 							ui32Size,
 							ui32Alignment,
+							pvPrivData,
+							ui32PrivDataLength,
 							&psMemInfo);
 
 	if (eError != PVRSRV_OK)

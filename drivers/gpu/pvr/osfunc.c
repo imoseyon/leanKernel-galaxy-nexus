@@ -167,12 +167,16 @@ PVRSRV_ERROR
 OSAllocPages_Impl(IMG_UINT32 ui32AllocFlags,
 				  IMG_UINT32 ui32Size,
 				  IMG_UINT32 ui32PageSize,
+				  IMG_PVOID pvPrivData,
+				  IMG_UINT32 ui32PrivDataLength,
 				  IMG_VOID **ppvCpuVAddr,
 				  IMG_HANDLE *phOSMemHandle)
 {
     LinuxMemArea *psLinuxMemArea;
 
     PVR_UNREFERENCED_PARAMETER(ui32PageSize);
+    PVR_UNREFERENCED_PARAMETER(pvPrivData);
+    PVR_UNREFERENCED_PARAMETER(ui32PrivDataLength);
 
 #if 0
     

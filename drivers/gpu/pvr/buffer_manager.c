@@ -38,8 +38,9 @@ static IMG_VOID
 BM_FreeMemory (IMG_VOID *pH, IMG_UINTPTR_T base, BM_MAPPING *psMapping);
 static IMG_BOOL
 BM_ImportMemory(IMG_VOID *pH, IMG_SIZE_T uSize,
-					IMG_SIZE_T *pActualSize, BM_MAPPING **ppsMapping,
-					IMG_UINT32 uFlags, IMG_UINTPTR_T *pBase);
+				IMG_SIZE_T *pActualSize, BM_MAPPING **ppsMapping,
+				IMG_UINT32 uFlags, IMG_PVOID pvPrivData,
+				IMG_UINT32 ui32PrivDataLength, IMG_UINTPTR_T *pBase);
 
 static IMG_BOOL
 DevMemoryAlloc (BM_CONTEXT *pBMContext,
@@ -52,13 +53,15 @@ static IMG_VOID
 DevMemoryFree (BM_MAPPING *pMapping);
 
 static IMG_BOOL
-AllocMemory (BM_CONTEXT				*pBMContext,
-				BM_HEAP				*psBMHeap,
-				IMG_DEV_VIRTADDR	*psDevVAddr,
-				IMG_SIZE_T			uSize,
-				IMG_UINT32			uFlags,
-				IMG_UINT32			uDevVAddrAlignment,
-				BM_BUF				*pBuf)
+AllocMemory (BM_CONTEXT			*pBMContext,
+			 BM_HEAP			*psBMHeap,
+			 IMG_DEV_VIRTADDR	*psDevVAddr,
+			 IMG_SIZE_T			uSize,
+			 IMG_UINT32			uFlags,
+			 IMG_UINT32			uDevVAddrAlignment,
+			 IMG_PVOID			pvPrivData,
+			 IMG_UINT32			ui32PrivDataLength,
+			 BM_BUF				*pBuf)
 {
 	BM_MAPPING			*pMapping;
 	IMG_UINTPTR_T		uOffset;
@@ -105,6 +108,8 @@ AllocMemory (BM_CONTEXT				*pBMContext,
 					  uFlags,
 					  uDevVAddrAlignment,
 					  0,
+					  pvPrivData,
+					  ui32PrivDataLength,
 					  (IMG_UINTPTR_T *)&(pBuf->DevVAddr.uiAddr)))
 		{
 			PVR_DPF((PVR_DBG_ERROR, "AllocMemory: RA_Alloc(0x%x) FAILED", uSize));
@@ -1192,6 +1197,8 @@ BM_Alloc (  IMG_HANDLE			hDevMemHeap,
 			IMG_SIZE_T			uSize,
 			IMG_UINT32			*pui32Flags,
 			IMG_UINT32			uDevVAddrAlignment,
+			IMG_PVOID			pvPrivData,
+			IMG_UINT32			ui32PrivDataLength,
 			BM_HANDLE			*phBuf)
 {
 	BM_BUF *pBuf;
@@ -1241,6 +1248,8 @@ BM_Alloc (  IMG_HANDLE			hDevMemHeap,
 					uSize,
 					uFlags,
 					uDevVAddrAlignment,
+					pvPrivData,
+					ui32PrivDataLength,
 					pBuf) != IMG_TRUE)
 	{
 		OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof (BM_BUF), pBuf, IMG_NULL);
@@ -1827,6 +1836,8 @@ XProcWorkaroundAllocShareable(RA_ARENA *psArena,
                               IMG_UINT32 ui32AllocFlags,
                               IMG_UINT32 ui32Size,
                               IMG_UINT32 ui32PageSize,
+							  IMG_PVOID pvPrivData,
+							  IMG_UINT32 ui32PrivDataLength,
                               IMG_VOID **ppvCpuVAddr,
                               IMG_HANDLE *phOSMemHandle)
 {
@@ -1891,6 +1902,8 @@ XProcWorkaroundAllocShareable(RA_ARENA *psArena,
 						   0,
                            ui32PageSize,
 						   0,
+						   pvPrivData,
+						   ui32PrivDataLength,
 						   (IMG_UINTPTR_T *)&sSysPAddr.uiAddr))
 			{
 				PVR_DPF((PVR_DBG_ERROR, "XProcWorkaroundAllocShareable: RA_Alloc(0x%x) FAILED", ui32Size));
@@ -1921,6 +1934,8 @@ XProcWorkaroundAllocShareable(RA_ARENA *psArena,
             if (OSAllocPages(ui32AllocFlags,
                              ui32Size,
                              ui32PageSize,
+							 pvPrivData,
+							 ui32PrivDataLength,
                              (IMG_VOID **)&gXProcWorkaroundShareData[gXProcWorkaroundShareIndex].pvCpuVAddr,
                              &gXProcWorkaroundShareData[gXProcWorkaroundShareIndex].hOSMemHandle) != PVRSRV_OK)
             {
@@ -2032,6 +2047,8 @@ BM_ImportMemory (IMG_VOID *pH,
 			  IMG_SIZE_T *pActualSize,
 			  BM_MAPPING **ppsMapping,
 			  IMG_UINT32 uFlags,
+			  IMG_PVOID pvPrivData,
+			  IMG_UINT32 ui32PrivDataLength,
 			  IMG_UINTPTR_T *pBase)
 {
 	BM_MAPPING *pMapping;
@@ -2129,8 +2146,10 @@ BM_ImportMemory (IMG_VOID *pH,
 		
 		if (XProcWorkaroundAllocShareable(IMG_NULL,
                                           ui32Attribs,
-							   (IMG_UINT32)uPSize,
+										  (IMG_UINT32)uPSize,
                                           pBMHeap->sDevArena.ui32DataPageSize,
+										  pvPrivData,
+										  ui32PrivDataLength,
                                           (IMG_VOID **)&pMapping->CpuVAddr,
                                           &pMapping->hOSMemHandle) != PVRSRV_OK)
 		{
@@ -2170,6 +2189,8 @@ BM_ImportMemory (IMG_VOID *pH,
                                               ui32Attribs,
                                               (IMG_UINT32)uPSize,
                                               pBMHeap->sDevArena.ui32DataPageSize,
+											  pvPrivData,
+											  ui32PrivDataLength,
                                               (IMG_VOID **)&pMapping->CpuVAddr,
                                               &pMapping->hOSMemHandle) != PVRSRV_OK)
             {
@@ -2211,6 +2232,8 @@ BM_ImportMemory (IMG_VOID *pH,
 		if (OSAllocPages(ui32Attribs,
 						 uPSize,
 						 pBMHeap->sDevArena.ui32DataPageSize,
+						 pvPrivData,
+						 ui32PrivDataLength,
 						 (IMG_VOID **)&pMapping->CpuVAddr,
 						 &pMapping->hOSMemHandle) != PVRSRV_OK)
 		{
@@ -2245,6 +2268,8 @@ BM_ImportMemory (IMG_VOID *pH,
 					   0,
 					   pBMHeap->sDevArena.ui32DataPageSize,
 					   0,
+					   pvPrivData,
+					   ui32PrivDataLength,
 					   (IMG_UINTPTR_T *)&sSysPAddr.uiAddr))
 		{
 			PVR_DPF((PVR_DBG_ERROR, "BM_ImportMemory: RA_Alloc(0x%x) FAILED", uPSize));

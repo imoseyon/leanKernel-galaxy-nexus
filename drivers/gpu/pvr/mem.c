@@ -80,6 +80,8 @@ PVRSRVAllocSharedSysMemoryKM(PVRSRV_PER_PROCESS_DATA	*psPerProc,
 	if(OSAllocPages(psKernelMemInfo->ui32Flags,
 					psKernelMemInfo->uAllocSize,
 					(IMG_UINT32)HOST_PAGESIZE(),
+					IMG_NULL,
+					0,
 					&psKernelMemInfo->pvLinAddrKM,
 					&psKernelMemInfo->sMemBlk.hOSMemHandle)
 		!= PVRSRV_OK)

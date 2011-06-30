@@ -103,17 +103,19 @@ PVRSRV_ERROR IMG_CALLCONV _PVRSRVAllocDeviceMemKM(IMG_HANDLE					hDevCookie,
 												 IMG_UINT32					ui32Flags,
 												 IMG_SIZE_T					ui32Size,
 												 IMG_SIZE_T					ui32Alignment,
+												 IMG_PVOID					pvPrivData,
+												 IMG_UINT32					ui32PrivDataLength,
 												 PVRSRV_KERNEL_MEM_INFO		**ppsMemInfo);
 
 
 #if defined(PVRSRV_LOG_MEMORY_ALLOCS)
-	#define PVRSRVAllocDeviceMemKM(devCookie, perProc, devMemHeap, flags, size, alignment, memInfo, logStr) \
+	#define PVRSRVAllocDeviceMemKM(devCookie, perProc, devMemHeap, flags, size, alignment, privdata, privdatalength, memInfo, logStr) \
 		(PVR_TRACE(("PVRSRVAllocDeviceMemKM(" #devCookie ", " #perProc ", " #devMemHeap ", " #flags ", " #size \
 			", " #alignment "," #memInfo "): " logStr " (size = 0x%x)", size)),\
-			_PVRSRVAllocDeviceMemKM(devCookie, perProc, devMemHeap, flags, size, alignment, memInfo))
+			_PVRSRVAllocDeviceMemKM(devCookie, perProc, devMemHeap, flags, size, alignment, privdata, privdatalength, memInfo))
 #else
-	#define PVRSRVAllocDeviceMemKM(devCookie, perProc, devMemHeap, flags, size, alignment, memInfo, logStr) \
-			_PVRSRVAllocDeviceMemKM(devCookie, perProc, devMemHeap, flags, size, alignment, memInfo)
+	#define PVRSRVAllocDeviceMemKM(devCookie, perProc, devMemHeap, flags, size, alignment, privdata, privdatalength, memInfo, logStr) \
+			_PVRSRVAllocDeviceMemKM(devCookie, perProc, devMemHeap, flags, size, alignment, privdata, privdatalength, memInfo)
 #endif
 
 

@@ -540,6 +540,20 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVGetDeviceMemHeapInfo(IMG_CONST PVRSRV_DEV_DATA *
 
 
 IMG_IMPORT
+PVRSRV_ERROR IMG_CALLCONV PVRSRVAllocDeviceMem2(IMG_CONST PVRSRV_DEV_DATA	*psDevData,
+#if defined (SUPPORT_SID_INTERFACE)
+									IMG_SID			hDevMemHeap,
+#else
+									IMG_HANDLE		hDevMemHeap,
+#endif
+									IMG_UINT32		ui32Attribs,
+									IMG_SIZE_T		ui32Size,
+									IMG_SIZE_T		ui32Alignment,
+									IMG_PVOID		pvPrivData,
+									IMG_UINT32		ui32PrivDataLength,
+									PVRSRV_CLIENT_MEM_INFO	**ppsMemInfo);
+
+IMG_IMPORT
 PVRSRV_ERROR IMG_CALLCONV PVRSRVAllocDeviceMem(IMG_CONST PVRSRV_DEV_DATA	*psDevData,
 #if defined (SUPPORT_SID_INTERFACE)
 									IMG_SID			hDevMemHeap,

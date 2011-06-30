@@ -411,6 +411,8 @@ typedef struct PVRSRV_BRIDGE_IN_ALLOCDEVICEMEM_TAG
 	IMG_UINT32			ui32Attribs;
 	IMG_SIZE_T			ui32Size;
 	IMG_SIZE_T			ui32Alignment;
+	IMG_PVOID			pvPrivData;
+	IMG_UINT32			ui32PrivDataLength;
 
 }PVRSRV_BRIDGE_IN_ALLOCDEVICEMEM;
 
