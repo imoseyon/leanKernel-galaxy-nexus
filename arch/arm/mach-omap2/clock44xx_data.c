@@ -3487,7 +3487,7 @@ static long omap4_virt_l3_round_rate(struct clk *clk, unsigned long rate)
 		return 0;
 
 	if (clk->parent->round_rate) {
-		parent_rate = clk->parent->round_rate(clk, rate * 2);
+		parent_rate = clk->parent->round_rate(clk->parent, rate * 2);
 		if (parent_rate)
 			return parent_rate / 2;
 	}

@@ -311,7 +311,7 @@ long omap4460_mpu_dpll_round_rate(struct clk *clk, unsigned long rate)
 		return -EINVAL;
 
 	if (clk->parent->round_rate)
-		return clk->parent->round_rate(clk, rate);
+		return clk->parent->round_rate(clk->parent, rate);
 	else
 		return 0;
 }
