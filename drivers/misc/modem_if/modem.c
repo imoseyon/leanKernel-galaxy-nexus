@@ -128,6 +128,7 @@ static int __devinit modem_probe(struct platform_device *pdev)
 	struct io_raw_devices *io_raw_devs = NULL;
 
 	pdata = pdev->dev.platform_data;
+	memset(iod, 0, sizeof(iod));
 
 	modemctl = create_modemctl_device(pdev);
 	if (!modemctl)
