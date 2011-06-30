@@ -29,6 +29,7 @@
 #include <linux/wl12xx.h>
 #include <linux/reboot.h>
 #include <linux/memblock.h>
+#include <linux/sysfs.h>
 
 #include <mach/hardware.h>
 #include <mach/omap4-common.h>
@@ -38,6 +39,7 @@
 
 #include <plat/board.h>
 #include <plat/common.h>
+#include <plat/cpu.h>
 #include <plat/usb.h>
 #include <plat/mmc.h>
 #include "timer-gp.h"
@@ -619,6 +621,80 @@ static struct notifier_block tuna_reboot_notifier = {
 	.notifier_call = tuna_notifier_call,
 };
 
+static ssize_t tuna_soc_family_show(struct kobject *kobj,
+				    struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "OMAP%04x\n", GET_OMAP_TYPE);
+}
+
+static ssize_t tuna_soc_revision_show(struct kobject *kobj,
+				 struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "ES%d.%d\n", (GET_OMAP_REVISION() >> 4) & 0xf,
+		       GET_OMAP_REVISION() & 0xf);
+}
+
+static const char *omap_types[] = {
+	[OMAP2_DEVICE_TYPE_TEST]	= "TST",
+	[OMAP2_DEVICE_TYPE_EMU]		= "EMU",
+	[OMAP2_DEVICE_TYPE_SEC]		= "HS",
+	[OMAP2_DEVICE_TYPE_GP]		= "GP",
+	[OMAP2_DEVICE_TYPE_BAD]		= "BAD",
+};
+
+static ssize_t tuna_soc_type_show(struct kobject *kobj,
+				 struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%s\n", omap_types[omap_type()]);
+}
+
+#define TUNA_SOC_ATTR_RO(_name, _show) \
+	struct kobj_attribute tuna_soc_prop_attr_##_name = \
+		__ATTR(_name, S_IRUGO, _show, NULL)
+
+static TUNA_SOC_ATTR_RO(family, tuna_soc_family_show);
+static TUNA_SOC_ATTR_RO(revision, tuna_soc_revision_show);
+static TUNA_SOC_ATTR_RO(type, tuna_soc_type_show);
+
+static struct attribute *tuna_soc_prop_attrs[] = {
+	&tuna_soc_prop_attr_family.attr,
+	&tuna_soc_prop_attr_revision.attr,
+	&tuna_soc_prop_attr_type.attr,
+	NULL,
+};
+
+static struct attribute_group tuna_soc_prop_attr_group = {
+	.attrs = tuna_soc_prop_attrs,
+};
+
+static void __init omap4_tuna_create_board_props(void)
+{
+	struct kobject *board_props_kobj;
+	struct kobject *soc_kobj;
+	int ret = 0;
+
+	board_props_kobj = kobject_create_and_add("board_properties", NULL);
+	if (!board_props_kobj)
+		goto err_board_obj;
+
+	soc_kobj = kobject_create_and_add("soc", board_props_kobj);
+	if (!soc_kobj)
+		goto err_soc_obj;
+
+	ret = sysfs_create_group(soc_kobj, &tuna_soc_prop_attr_group);
+	if (ret)
+		goto err_sysfs_create;
+	return;
+
+err_sysfs_create:
+	kobject_put(soc_kobj);
+err_soc_obj:
+	kobject_put(board_props_kobj);
+err_board_obj:
+	if (!board_props_kobj || !soc_kobj || ret)
+		pr_err("failed to create board_properties\n");
+}
+
 #define HSMMC2_MUX	(OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP)
 #define HSMMC1_MUX	OMAP_PIN_INPUT_PULLUP
 
@@ -682,6 +758,7 @@ static void __init tuna_init(void)
 	board_serial_init();
 	omap2_hsmmc_init(mmc);
 	usb_musb_init(&musb_board_data);
+	omap4_tuna_create_board_props();
 	omap4_tuna_display_init();
 	omap4_tuna_input_init();
 	omap4_tuna_nfc_init();
