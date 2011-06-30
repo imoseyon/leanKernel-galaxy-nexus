@@ -90,6 +90,24 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	 *	4.3.4.2 Power States of CPU0 and CPU1
 	 */
 	if (booted) {
+		/*
+		 * GIC distributor control register has changed between
+		 * CortexA9 r1pX and r2pX. The Control Register secure
+		 * banked version is now composed of 2 bits:
+		 * bit 0 == Secure Enable
+		 * bit 1 == Non-Secure Enable
+		 * The Non-Secure banked register has not changed
+		 * Because the ROM Code is based on the r1pX GIC, the CPU1
+		 * GIC restoration will cause a problem to CPU0 Non-Secure SW.
+		 * The workaround must be:
+		 * 1) Before doing the CPU1 wakeup, CPU0 must disable
+		 * the GIC distributor
+		 * 2) CPU1 must re-enable the GIC distributor on
+		 * it's wakeup path.
+		 */
+		if (!cpu_is_omap443x())
+			gic_dist_disable();
+
 		clkdm_wakeup(cpu1_clkdm);
 	} else {
 		dsb_sev();

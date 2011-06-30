@@ -97,7 +97,9 @@ void gic_cpu_disable(void)
 
 void gic_dist_enable(void)
 {
-	__raw_writel(0x1, gic_dist_base_addr + GIC_DIST_CTRL);
+	if (cpu_is_omap443x() ||
+		!(__raw_readl(gic_dist_base_addr + GIC_DIST_CTRL) & 0x1))
+			__raw_writel(0x1, gic_dist_base_addr + GIC_DIST_CTRL);
 }
 void gic_dist_disable(void)
 {

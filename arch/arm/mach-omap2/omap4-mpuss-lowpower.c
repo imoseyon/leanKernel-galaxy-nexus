@@ -439,9 +439,28 @@ cpu_prepare:
 	wakeup_cpu = hard_smp_processor_id();
 	set_cpu_next_pwrst(wakeup_cpu, PWRDM_POWER_ON);
 
-	/* If !master cpu return to hotplug-path */
-	if (wakeup_cpu)
+	/*
+	 * If !master cpu return to hotplug-path.
+	 *
+	 * GIC distributor control register has changed between
+	 * CortexA9 r1pX and r2pX. The Control Register secure
+	 * banked version is now composed of 2 bits:
+	 * bit 0 == Secure Enable
+	 * bit 1 == Non-Secure Enable
+	 * The Non-Secure banked register has not changed
+	 * Because the ROM Code is based on the r1pX GIC, the CPU1
+	 * GIC restoration will cause a problem to CPU0 Non-Secure SW.
+	 * The workaround must be:
+	 * 1) Before doing the CPU1 wakeup, CPU0 must disable
+	 * the GIC distributor
+	 * 2) CPU1 must re-enable the GIC distributor on
+	 * it's wakeup path.
+	 */
+	if (wakeup_cpu) {
+		if (!cpu_is_omap443x())
+			gic_dist_enable();
 		goto ret;
+	}
 
 	/* Check if MPUSS lost it's logic */
 	if (mpuss_read_prev_logic_pwrst()) {
