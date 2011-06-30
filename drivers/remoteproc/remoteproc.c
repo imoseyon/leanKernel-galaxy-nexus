@@ -828,6 +828,50 @@ const struct dev_pm_ops rproc_gen_pm_ops = {
 	SET_RUNTIME_PM_OPS(rproc_runtime_suspend, rproc_runtime_resume, NULL)
 };
 #endif
+int
+rproc_set_constraints(struct rproc *rproc, enum rproc_constraint type, long v)
+{
+	int ret;
+	char *cname[] = {"scale", "latency", "bandwidth"};
+	int (*func)(struct rproc *, long);
+
+	switch (type) {
+	case RPROC_CONSTRAINT_SCALE:
+		func = rproc->ops->scale;
+		break;
+	case RPROC_CONSTRAINT_LATENCY:
+		func = rproc->ops->set_lat;
+		break;
+	case RPROC_CONSTRAINT_BANDWIDTH:
+		func = rproc->ops->set_bw;
+		break;
+	default:
+		dev_err(rproc->dev, "invalid constraint\n");
+		return -EINVAL;
+	}
+
+	if (!func) {
+		dev_err(rproc->dev, "%s: no %s constraint\n",
+			__func__, cname[type]);
+		return -EINVAL;
+	}
+
+	mutex_lock(&rproc->lock);
+	if (rproc->state == RPROC_OFFLINE) {
+		pr_err("%s: rproc inactive\n", __func__);
+		mutex_unlock(&rproc->lock);
+		return -EPERM;
+	}
+
+	dev_dbg(rproc->dev, "set %s constraint %ld\n", cname[type], v);
+	ret = func(rproc, v);
+	if (ret)
+		dev_err(rproc->dev, "error %s constraint\n", cname[type]);
+	mutex_unlock(&rproc->lock);
+
+	return ret;
+}
+EXPORT_SYMBOL(rproc_set_constraints);
 
 int rproc_register(struct device *dev, const char *name,
 				const struct rproc_ops *ops,
@@ -863,6 +907,16 @@ int rproc_register(struct device *dev, const char *name,
 	BLOCKING_INIT_NOTIFIER_HEAD(&rproc->nb_error);
 
 	rproc->state = RPROC_OFFLINE;
+
+	rproc->qos_request = kzalloc(sizeof(*rproc->qos_request),
+			GFP_KERNEL);
+	if (!rproc->qos_request) {
+		kfree(rproc);
+		return -ENOMEM;
+	}
+
+	pm_qos_add_request(rproc->qos_request, PM_QOS_CPU_DMA_LATENCY,
+				PM_QOS_DEFAULT_VALUE);
 
 	spin_lock(&rprocs_lock);
 	list_add_tail(&rproc->next, &rprocs);
@@ -914,6 +968,8 @@ int rproc_unregister(const char *name)
 	list_del(&rproc->next);
 	spin_unlock(&rprocs_lock);
 
+	pm_qos_remove_request(rproc->qos_request);
+	kfree(rproc->qos_request);
 	kfree(rproc);
 
 	return 0;
