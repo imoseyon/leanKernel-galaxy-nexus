@@ -90,6 +90,10 @@ struct mms_ts_info {
 	char				*fw_name;
 	struct completion		init_done;
 	struct early_suspend		early_suspend;
+
+	/* protects the enabled flag */
+	struct mutex			lock;
+	bool				enabled;
 };
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -503,16 +507,28 @@ static int get_fw_version(struct mms_ts_info *info)
 
 static int mms_ts_enable(struct mms_ts_info *info)
 {
+	mutex_lock(&info->lock);
+	if (info->enabled)
+		goto out;
 	/* wake up the touch controller. */
 	i2c_smbus_write_byte_data(info->client, 0, 0);
+	info->enabled = true;
 	enable_irq(info->irq);
+out:
+	mutex_unlock(&info->lock);
 	return 0;
 }
 
 static int mms_ts_disable(struct mms_ts_info *info)
 {
+	mutex_lock(&info->lock);
+	if (!info->enabled)
+		goto out;
 	disable_irq(info->irq);
 	i2c_smbus_write_byte_data(info->client, MMS_MODE_CONTROL, 0);
+	info->enabled = false;
+out:
+	mutex_unlock(&info->lock);
 	return 0;
 }
 
@@ -693,6 +709,7 @@ static int __devinit mms_ts_probe(struct i2c_client *client,
 	info->pdata = client->dev.platform_data;
 	init_completion(&info->init_done);
 	info->irq = -1;
+	mutex_init(&info->lock);
 
 	if (info->pdata) {
 		info->max_x = info->pdata->max_x;
