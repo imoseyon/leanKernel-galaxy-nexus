@@ -22,9 +22,48 @@
 #ifndef __LINUX_PLATFORM_DATA_PANEL_S6E8AA0_H
 #define __LINUX_PLATFORM_DATA_PANEL_S6E8AA0_H
 
+enum {
+	BV_0	=        0x0,
+	BV_1	=   0x13E456,
+	BV_15	=  0x1390FFB,
+	BV_35	=  0x44D7CF9,
+	BV_59	=  0xB323808,
+	BV_87	= 0x186611F4,
+	BV_171	= 0x6840E4FF,
+	BV_255	= 0xFFFFFFFF,
+};
+
+struct s6e8aa0_gamma_entry {
+	u32 brightness;
+	u32 v[3];
+};
+
+struct s6e8aa0_gamma_adj_points {
+	const u32 v0;
+	const u32 v1;
+	const u32 v15;
+	const u32 v35;
+	const u32 v59;
+	const u32 v87;
+	const u32 v171;
+	const u32 v255;
+};
+
+struct s6e8aa0_color_adj {
+	u32 mult[3];
+	int rshift;
+};
+
 struct panel_s6e8aa0_data {
 	int	reset_gpio;
 	void	(* set_power)(bool enable);
+
+	u16 factory_v255_regs[3];
+	struct s6e8aa0_color_adj color_adj;
+
+	const struct s6e8aa0_gamma_adj_points *gamma_adj_points;
+	const struct s6e8aa0_gamma_entry *gamma_table;
+	int gamma_table_size;
 };
 
 #endif
