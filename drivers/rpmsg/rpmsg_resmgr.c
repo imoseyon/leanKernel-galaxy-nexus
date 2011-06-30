@@ -83,6 +83,7 @@ struct rprm_elem {
 	u32 id;
 	void *handle;
 	u32 base;
+	struct rprm_constraints_data *constraints;
 	char res[];
 };
 
@@ -104,6 +105,12 @@ struct rprm_regulator_depot {
 	u32 orig_uv;
 };
 
+static struct rprm_constraints_data def_data = {
+	.frequency	= 0,
+	.bandwidth	= -1,
+	.latency	= -1,
+};
+
 static int _get_rprm_size(u32 type)
 {
 	switch (type) {
@@ -121,7 +128,7 @@ static int _get_rprm_size(u32 type)
 	return 0;
 }
 
-static int rprm_gptimer_request(void **rh, struct rprm_gpt *obj)
+static int rprm_gptimer_request(struct rprm_elem *e, struct rprm_gpt *obj)
 {
 	int ret;
 	struct omap_dm_timer *gpt;
@@ -137,7 +144,7 @@ static int rprm_gptimer_request(void **rh, struct rprm_gpt *obj)
 
 	ret = omap_dm_timer_set_source(gpt, obj->src_clk);
 	if (!ret)
-		*rh = gpt;
+		e->handle = gpt;
 	else
 		omap_dm_timer_free(gpt);
 
@@ -149,7 +156,7 @@ static void rprm_gptimer_release(struct omap_dm_timer *obj)
 	omap_dm_timer_free(obj);
 }
 
-static int rprm_auxclk_request(void **rh, struct rprm_auxclk *obj)
+static int rprm_auxclk_request(struct rprm_elem *e, struct rprm_auxclk *obj)
 {
 	int ret;
 	char clk_name[NAME_SIZE];
@@ -230,7 +237,7 @@ static int rprm_auxclk_request(void **rh, struct rprm_auxclk *obj)
 	}
 	clk_put(src_parent);
 
-	*rh = acd;
+	e->handle = acd;
 
 	return 0;
 error_aux_enable:
@@ -257,7 +264,8 @@ static void rprm_auxclk_release(struct rprm_auxclk_depot *obj)
 	kfree(obj);
 }
 
-static int rprm_regulator_request(void **rh, struct rprm_regulator *obj)
+static
+int rprm_regulator_request(struct rprm_elem *e, struct rprm_regulator *obj)
 {
 	int ret;
 	struct rprm_regulator_depot *rd;
@@ -295,7 +303,7 @@ static int rprm_regulator_request(void **rh, struct rprm_regulator *obj)
 		goto error_reg;
 	}
 
-	*rh = rd;
+	e->handle = rd;
 
 	return 0;
 
@@ -328,7 +336,7 @@ static void rprm_regulator_release(struct rprm_regulator_depot *obj)
 	kfree(obj);
 }
 
-static int rprm_gpio_request(void **rh, struct rprm_gpio *obj)
+static int rprm_gpio_request(struct rprm_elem *e, struct rprm_gpio *obj)
 {
 	int ret;
 	struct rprm_gpio *gd;
@@ -344,7 +352,7 @@ static int rprm_gpio_request(void **rh, struct rprm_gpio *obj)
 		return ret;
 	}
 
-	*rh = memcpy(gd, obj, sizeof(*obj));
+	e->handle = memcpy(gd, obj, sizeof(*obj));
 
 	return ret;
 }
@@ -355,7 +363,7 @@ static void rprm_gpio_release(struct rprm_gpio *obj)
 	kfree(obj);
 }
 
-static int rprm_sdma_request(void **rh, struct rprm_sdma *obj)
+static int rprm_sdma_request(struct rprm_elem *e, struct rprm_sdma *obj)
 {
 	int ret;
 	int sdma;
@@ -382,7 +390,7 @@ static int rprm_sdma_request(void **rh, struct rprm_sdma *obj)
 		pr_debug("Providing sdma ch %d\n", sdma);
 	}
 
-	*rh = memcpy(sd, obj, sizeof(*obj));
+	e->handle = memcpy(sd, obj, sizeof(*obj));
 
 	return 0;
 err:
@@ -422,18 +430,107 @@ static const char *_get_rpres_name(int type)
 	return "";
 }
 
-static int rprm_rpres_request(void **rh, int type)
+static
+int _set_constraints(struct rprm_elem *e, struct rprm_constraints_data *c)
+{
+	int ret = -EINVAL;
+	u32 mask = 0;
+
+	if (c->mask & RPRM_SCALE) {
+		ret = rpres_set_constraints(e->handle,
+					    RPRES_CONSTRAINT_SCALE,
+					    c->frequency);
+		if (ret)
+			goto err;
+		mask |= RPRM_SCALE;
+		e->constraints->frequency = c->frequency;
+	}
+
+	if (c->mask & RPRM_LAT) {
+		ret = rpres_set_constraints(e->handle,
+					    RPRES_CONSTRAINT_LATENCY,
+					    c->latency);
+		if (ret)
+			goto err;
+		mask |= RPRM_LAT;
+		e->constraints->latency = c->latency;
+	}
+
+	if (c->mask & RPRM_BW) {
+		ret = rpres_set_constraints(e->handle,
+					    RPRES_CONSTRAINT_BANDWIDTH,
+					    c->bandwidth);
+		if (ret)
+			goto err;
+		mask |= RPRM_BW;
+		e->constraints->bandwidth = c->bandwidth;
+	}
+err:
+	c->mask = mask;
+	return ret;
+}
+
+static int rprm_set_constraints(struct rprm *rprm, u32 addr, int res_id,
+			   void *data, bool set)
+{
+	int ret = 0;
+	struct rprm_elem *e;
+
+	mutex_lock(&rprm->lock);
+	if (!idr_find(&rprm->conn_list, addr)) {
+		ret = -ENOTCONN;
+		goto out;
+	}
+
+	e = idr_find(&rprm->id_list, res_id);
+	if (!e || e->src != addr) {
+		ret = -ENOENT;
+		goto out;
+	}
+
+	if (!e->constraints) {
+		pr_warn("No constraints\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (set) {
+		ret = _set_constraints(e, data);
+		if (!ret) {
+			e->constraints->mask |=
+				((struct rprm_constraints_data *)data)->mask;
+			goto out;
+		}
+	}
+	def_data.mask = ((struct rprm_constraints_data *)data)->mask;
+	if (def_data.mask) {
+		_set_constraints(e, &def_data);
+		e->constraints->mask &=
+				~((struct rprm_constraints_data *)data)->mask;
+	}
+out:
+	mutex_unlock(&rprm->lock);
+	return ret;
+}
+
+
+static int rprm_rpres_request(struct rprm_elem *e, int type)
 {
 	const char *res_name = _get_rpres_name(type);
 	struct rpres *res;
+
+	e->constraints = kzalloc(sizeof(*(e->constraints)), GFP_KERNEL);
+	if (!(e->constraints))
+		return -ENOMEM;
 
 	res = rpres_get(res_name);
 
 	if (IS_ERR(res)) {
 		pr_err("%s: error requesting %s\n", __func__, res_name);
+		kfree(e->constraints);
 		return PTR_ERR(res);
 	}
-	*rh = res;
+	e->handle = res;
 
 	return 0;
 }
@@ -443,26 +540,17 @@ static void rprm_rpres_release(struct rpres *res)
 	rpres_put(res);
 }
 
-static int rprm_l3_bus_request(void **handle)
+static int _resource_free(struct rprm_elem *e)
 {
-	pr_debug("l3 bus request\n");
+	if (e->constraints && e->constraints->mask) {
+		def_data.mask = e->constraints->mask;
+		_set_constraints(e, &def_data);
+	}
+	kfree(e->constraints);
 
-	return 0;
-}
-
-static void rprm_l3_bus_release(void *handle)
-{
-	/* Nothing */
-}
-
-static int _resource_free(void *handle, int type)
-{
-	switch (type) {
+	switch (e->type) {
 	case RPRM_GPTIMER:
-		rprm_gptimer_release(handle);
-		break;
-	case RPRM_L3BUS:
-		rprm_l3_bus_release(handle);
+		rprm_gptimer_release(e->handle);
 		break;
 	case RPRM_IVAHD:
 	case RPRM_IVASEQ0:
@@ -470,19 +558,22 @@ static int _resource_free(void *handle, int type)
 	case RPRM_ISS:
 	case RPRM_SL2IF:
 	case RPRM_FDIF:
-		rprm_rpres_release(handle);
+		rprm_rpres_release(e->handle);
 		break;
 	case RPRM_AUXCLK:
-		rprm_auxclk_release(handle);
+		rprm_auxclk_release(e->handle);
 		break;
 	case RPRM_REGULATOR:
-		rprm_regulator_release(handle);
+		rprm_regulator_release(e->handle);
 		break;
 	case RPRM_GPIO:
-		rprm_gpio_release(handle);
+		rprm_gpio_release(e->handle);
 		break;
 	case RPRM_SDMA:
-		rprm_sdma_release(handle);
+		rprm_sdma_release(e->handle);
+		break;
+	case RPRM_L3BUS:
+		/* ignore silently */
 		break;
 	default:
 		return -EINVAL;
@@ -513,23 +604,20 @@ out:
 	mutex_unlock(&rprm->lock);
 
 	if (!ret) {
-		ret = _resource_free(e->handle, e->type);
+		ret = _resource_free(e);
 		kfree(e);
 	}
 
 	return ret;
 }
 
-static int _resource_alloc(void **handle, int type, void *data)
+static int _resource_alloc(struct rprm_elem *e, int type, void *data)
 {
 	int ret = 0;
 
 	switch (type) {
 	case RPRM_GPTIMER:
-		ret = rprm_gptimer_request(handle, data);
-		break;
-	case RPRM_L3BUS:
-		ret = rprm_l3_bus_request(handle);
+		ret = rprm_gptimer_request(e, data);
 		break;
 	case RPRM_IVAHD:
 	case RPRM_IVASEQ0:
@@ -537,19 +625,22 @@ static int _resource_alloc(void **handle, int type, void *data)
 	case RPRM_ISS:
 	case RPRM_SL2IF:
 	case RPRM_FDIF:
-		ret = rprm_rpres_request(handle, type);
+		ret = rprm_rpres_request(e, type);
 		break;
 	case RPRM_AUXCLK:
-		ret = rprm_auxclk_request(handle, data);
+		ret = rprm_auxclk_request(e, data);
 		break;
 	case RPRM_REGULATOR:
-		ret = rprm_regulator_request(handle, data);
+		ret = rprm_regulator_request(e, data);
 		break;
 	case RPRM_GPIO:
-		ret = rprm_gpio_request(handle, data);
+		ret = rprm_gpio_request(e, data);
 		break;
 	case RPRM_SDMA:
-		ret = rprm_sdma_request(handle, data);
+		ret = rprm_sdma_request(e, data);
+		break;
+	case RPRM_L3BUS:
+		/* ignore silently; */
 		break;
 	default:
 		pr_err("%s: invalid source %d!\n", __func__, type);
@@ -562,22 +653,19 @@ static int _resource_alloc(void **handle, int type, void *data)
 static int rprm_resource_alloc(struct rprm *rprm, u32 addr, int *res_id,
 				int type, void *data)
 {
-	void *handle = NULL;
 	struct rprm_elem *e;
 	int ret;
 	int rlen = _get_rprm_size(type);
 
-	ret = _resource_alloc(&handle, type, data);
+	e = kzalloc(sizeof(*e) + rlen, GFP_KERNEL);
+	if (!e)
+		return -ENOMEM;
+
+	ret = _resource_alloc(e, type, data);
 	if (ret) {
 		pr_err("%s: request for %d (%s) failed: %d\n", __func__,
 				type, rname(type), ret);
-		return ret;
-	}
-
-	e = kmalloc(sizeof(*e) + rlen, GFP_KERNEL);
-	if (!e) {
-		ret = -ENOMEM;
-		goto mem_err;
+		goto err_res_alloc;
 	}
 
 	mutex_lock(&rprm->lock);
@@ -598,7 +686,6 @@ static int rprm_resource_alloc(struct rprm *rprm, u32 addr, int *res_id,
 	if (ret)
 		goto err;
 
-	e->handle = handle;
 	e->type = type;
 	e->src = addr;
 	e->id = *res_id;
@@ -609,9 +696,10 @@ static int rprm_resource_alloc(struct rprm *rprm, u32 addr, int *res_id,
 	return 0;
 err:
 	mutex_unlock(&rprm->lock);
+	_resource_free(e);
+err_res_alloc:
 	kfree(e);
-mem_err:
-	_resource_free(handle, type);
+
 	return ret;
 }
 
@@ -627,7 +715,7 @@ static int rprm_disconnect_client(struct rprm *rprm, u32 addr)
 	}
 	list_for_each_entry_safe(e, tmp, &rprm->res_list, next) {
 		if (e->src == addr) {
-			_resource_free(e->handle, e->type);
+			_resource_free(e);
 			idr_remove(&rprm->id_list, e->id);
 			list_del(&e->next);
 			kfree(e);
@@ -714,6 +802,24 @@ static void rprm_cb(struct rpmsg_channel *rpdev, void *data, int len,
 		if (ret)
 			dev_err(dev, "disconnection failed ret %d\n", ret);
 		return;
+	case RPRM_REQ_CONSTRAINTS:
+		r_sz = len - sizeof(*req);
+		if (r_sz != sizeof(struct rprm_constraints_data)) {
+			r_sz = 0;
+			ret = -EINVAL;
+			break;
+		}
+		ret = rprm_set_constraints(rprm, src, req->res_id,
+						req->data, true);
+		if (ret)
+			dev_err(dev, "set constraints failed! ret %d\n", ret);
+		break;
+	case RPRM_REL_CONSTRAINTS:
+		ret = rprm_set_constraints(rprm, src, req->res_id,
+						req->data, false);
+		if (ret)
+			dev_err(dev, "rel constraints failed! ret %d\n", ret);
+		return;
 	default:
 		dev_err(dev, "Unknow request\n");
 		ret = -EINVAL;
@@ -791,6 +897,17 @@ static int _print_res_args(char *buf, struct rprm_elem *e)
 	return 0;
 }
 
+static int _printf_constraints_args(char *buf, struct rprm_elem *e)
+{
+	return sprintf(buf,
+		"Mask:0x%x\n"
+		"Frequency:%ld\n"
+		"Latency:%ld\n"
+		"Bandwidth:%ld\n",
+		e->constraints->mask, e->constraints->frequency,
+		e->constraints->latency, e->constraints->bandwidth);
+}
+
 static ssize_t rprm_dbg_read(struct file *filp, char __user *userbuf,
 			 size_t count, loff_t *ppos)
 {
@@ -808,6 +925,9 @@ static ssize_t rprm_dbg_read(struct file *filp, char __user *userbuf,
 
 		if (_get_rprm_size(e->type))
 			c += _print_res_args(res + c, e);
+
+		if (e->constraints && e->constraints->mask)
+			c += _printf_constraints_args(res + c, e);
 
 		p += c;
 		if (*ppos >= p)
@@ -874,7 +994,7 @@ static void __devexit rprm_remove(struct rpmsg_channel *rpdev)
 
 	/* clean up remaining resources */
 	list_for_each_entry_safe(e, tmp, &rprm->res_list, next) {
-		_resource_free(e->handle, e->type);
+		_resource_free(e);
 		list_del(&e->next);
 		kfree(e);
 	}

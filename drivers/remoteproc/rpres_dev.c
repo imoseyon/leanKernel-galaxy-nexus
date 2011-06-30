@@ -19,6 +19,10 @@
 #include <plat/omap_hwmod.h>
 #include <plat/clock.h>
 #include <plat/rpres.h>
+#include <linux/pm_qos_params.h>
+#include <plat/common.h>
+#include <plat/omap-pm.h>
+#include "../../arch/arm/mach-omap2/dvfs.h"
 
 static void _enable_optional_clocks(struct omap_hwmod *oh)
 {
@@ -68,9 +72,41 @@ static int rpres_iss_shutdown(struct platform_device *pdev)
 	return ret;
 }
 
+static int rpres_scale_ivahd(struct platform_device *pdev, long val)
+{
+	return omap_device_scale(&pdev->dev, &pdev->dev, val);
+}
+
+static int rpres_set_dev_lat(struct platform_device *pdev, long val)
+{
+	return omap_pm_set_max_dev_wakeup_lat(&pdev->dev, &pdev->dev, val);
+}
+
+static int rpres_set_l3_bw(struct platform_device *pdev, long val)
+{
+	return omap_pm_set_min_bus_tput(&pdev->dev, OCP_INITIATOR_AGENT, val);
+}
+
 static struct rpres_ops iss_ops = {
 	.start = rpres_iss_enable,
 	.stop = rpres_iss_shutdown,
+	.set_lat = rpres_set_dev_lat,
+	.set_bw = rpres_set_l3_bw,
+};
+
+static struct rpres_ops ivahd_ops = {
+	.start = omap_device_enable,
+	.stop = omap_device_shutdown,
+	.set_lat = rpres_set_dev_lat,
+	.set_bw = rpres_set_l3_bw,
+	.scale_dev = rpres_scale_ivahd,
+};
+
+static struct rpres_ops fdif_ops = {
+	.start = omap_device_enable,
+	.stop = omap_device_shutdown,
+	.set_lat = rpres_set_dev_lat,
+	.set_bw = rpres_set_l3_bw,
 };
 
 static struct rpres_ops gen_ops = {
@@ -90,7 +126,7 @@ static struct rpres_platform_data rpres_data[] = {
 	{
 		.name = "rpres_iva",
 		.oh_name = "iva",
-		.ops = &gen_ops,
+		.ops = &ivahd_ops,
 	},
 	{
 		.name = "rpres_iva_seq0",
@@ -111,7 +147,7 @@ static struct rpres_platform_data rpres_data[] = {
 	{
 		.name = "rpres_fdif",
 		.oh_name = "fdif",
-		.ops = &gen_ops,
+		.ops = &fdif_ops,
 	},
 	{
 		.name = "rpres_sl2if",
