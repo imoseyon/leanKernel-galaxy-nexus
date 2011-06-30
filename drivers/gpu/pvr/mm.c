@@ -1076,27 +1076,56 @@ FreeAllocPagesLinuxMemArea(LinuxMemArea *psLinuxMemArea)
     LinuxMemAreaStructFree(psLinuxMemArea);
 }
 
+#if defined(CONFIG_ION_OMAP)
+
+#include "env_perproc.h"
+
+#include <linux/ion.h>
+#include <linux/omap_ion.h>
 
 LinuxMemArea *
-NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags)
+NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags,
+                   IMG_PVOID pvPrivData, IMG_UINT32 ui32PrivDataLength)
 {
-    LinuxMemArea *psLinuxMemArea;
+    struct omap_ion_tiler_alloc_data sAllocData;
+    PVRSRV_ENV_PER_PROCESS_DATA *psEnvPerProc;
+    LinuxMemArea *psLinuxMemArea = IMG_NULL;
+    u32 *pu32PageAddrs;
+    int iNumPages;
 
-#if 0
+    psEnvPerProc = PVRSRVFindPerProcessPrivateData();
+    if(!psEnvPerProc)
+    {
+        PVR_DPF((PVR_DBG_ERROR, "%s: Failed to look-up envperproc data", __func__));
+        goto err_out;
+    }
+
     psLinuxMemArea = LinuxMemAreaStructAlloc();
     if(!psLinuxMemArea)
     {
-        goto failed_area_alloc;
+        PVR_DPF((PVR_DBG_ERROR, "%s: Failed to allocate LinuxMemArea struct", __func__));
+        goto err_out;
     }
 
     
+    BUG_ON(ui32PrivDataLength != offsetof(struct omap_ion_tiler_alloc_data, handle));
+    memcpy(&sAllocData, pvPrivData, offsetof(struct omap_ion_tiler_alloc_data, handle));
 
+    if(omap_ion_tiler_alloc(psEnvPerProc->psIONClient, &sAllocData) < 0)
+    {
+        PVR_DPF((PVR_DBG_ERROR, "%s: Failed to allocate via ion_tiler", __func__));
+        goto err_free;
+    }
 
+    if(omap_tiler_pages(psEnvPerProc->psIONClient, sAllocData.handle,
+                        &iNumPages, &pu32PageAddrs) < 0)
+    {
+      	PVR_DPF((PVR_DBG_ERROR, "%s: Failed to compute tiler pages", __func__));
+       	goto err_free;
+    }	
 
-
-
-
-
+    
+    BUG_ON(ui32Bytes != iNumPages * PAGE_SIZE);
 
 #if 0 && defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
     
@@ -1112,8 +1141,8 @@ NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags)
 #endif
 
     psLinuxMemArea->eAreaType = LINUX_MEM_AREA_ION;
-    psLinuxMemArea->uData.sPageList.pvPageList = pvPageList;
-    psLinuxMemArea->uData.sPageList.hBlockPageList = hBlockPageList;
+    psLinuxMemArea->uData.sIONTilerAlloc.pCPUPhysAddrs = (IMG_CPU_PHYADDR *)pu32PageAddrs;
+    psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle = sAllocData.handle;
     psLinuxMemArea->ui32ByteSize = ui32Bytes;
     psLinuxMemArea->ui32AreaFlags = ui32AreaFlags;
     INIT_LIST_HEAD(&psLinuxMemArea->sMMapOffsetStructList);
@@ -1129,36 +1158,29 @@ NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags)
     DebugLinuxMemAreaRecordAdd(psLinuxMemArea, ui32AreaFlags);
 #endif
 
+err_out:
     return psLinuxMemArea;
-    
-failed_area_alloc:
-    PVR_DPF((PVR_DBG_ERROR, "%s: failed", __FUNCTION__));
-    
-    return NULL;
-#endif
 
-    psLinuxMemArea = NewAllocPagesLinuxMemArea(ui32Bytes, ui32AreaFlags);
-    if(!psLinuxMemArea)
-        return NULL;
-
-    psLinuxMemArea->eAreaType = LINUX_MEM_AREA_ION;
-    return psLinuxMemArea;
+err_free:
+    LinuxMemAreaStructFree(psLinuxMemArea);
+    goto err_out;
 }
 
 
 IMG_VOID
 FreeIONLinuxMemArea(LinuxMemArea *psLinuxMemArea)
 {
-    PVR_ASSERT(psLinuxMemArea);
-    PVR_ASSERT(psLinuxMemArea->eAreaType == LINUX_MEM_AREA_ION);
-
-#if 0
 #if 0 && defined(DEBUG_LINUX_MEM_AREAS)
     
     DebugLinuxMemAreaRecordRemove(psLinuxMemArea);
 #endif
 
     
+    PVR_DPF((PVR_DBG_ERROR, "%s: implement freeing of ion LinuxMemArea!\n", __func__));
+
+    
+    psLinuxMemArea->uData.sIONTilerAlloc.pCPUPhysAddrs = IMG_NULL;
+    psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle = IMG_NULL;
 
 #if 0 && defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
     
@@ -1166,12 +1188,9 @@ FreeIONLinuxMemArea(LinuxMemArea *psLinuxMemArea)
 #endif
 
     LinuxMemAreaStructFree(psLinuxMemArea);
-#endif
-
-    psLinuxMemArea->eAreaType = LINUX_MEM_AREA_ALLOC_PAGES;
-    FreeAllocPagesLinuxMemArea(psLinuxMemArea);
 }
 
+#endif 
 
 struct page*
 LinuxMemAreaOffsetToPage(LinuxMemArea *psLinuxMemArea,
@@ -1590,7 +1609,12 @@ LinuxMemAreaToCpuPAddr(LinuxMemArea *psLinuxMemArea, IMG_UINT32 ui32ByteOffset)
             break;
         }
         case LINUX_MEM_AREA_ION:
-            
+        {
+            IMG_UINT32 ui32PageIndex = PHYS_TO_PFN(ui32ByteOffset);
+            CpuPAddr = psLinuxMemArea->uData.sIONTilerAlloc.pCPUPhysAddrs[ui32PageIndex];
+            CpuPAddr.uiAddr += ADDR_TO_PAGE_OFFSET(ui32ByteOffset);
+            break;
+        }
         case LINUX_MEM_AREA_ALLOC_PAGES:
         {
             struct page *page;

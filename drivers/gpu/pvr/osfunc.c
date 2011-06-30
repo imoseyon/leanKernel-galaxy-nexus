@@ -175,8 +175,6 @@ OSAllocPages_Impl(IMG_UINT32 ui32AllocFlags,
     LinuxMemArea *psLinuxMemArea;
 
     PVR_UNREFERENCED_PARAMETER(ui32PageSize);
-    PVR_UNREFERENCED_PARAMETER(pvPrivData);
-    PVR_UNREFERENCED_PARAMETER(ui32PrivDataLength);
 
 #if 0
     
@@ -192,7 +190,8 @@ OSAllocPages_Impl(IMG_UINT32 ui32AllocFlags,
         
         BUG_ON((ui32AllocFlags & PVRSRV_HAP_MAPTYPE_MASK) != PVRSRV_HAP_SINGLE_PROCESS);
 
-        psLinuxMemArea = NewIONLinuxMemArea(ui32Size, ui32AllocFlags);
+        psLinuxMemArea = NewIONLinuxMemArea(ui32Size, ui32AllocFlags,
+											pvPrivData, ui32PrivDataLength);
         if(!psLinuxMemArea)
         {
             return PVRSRV_ERROR_OUT_OF_MEMORY;

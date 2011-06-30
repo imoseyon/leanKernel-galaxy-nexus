@@ -127,6 +127,12 @@ struct _LinuxMemArea {
             struct page **pvPageList;
 	    IMG_HANDLE hBlockPageList;
         }sPageList;
+        struct _sIONTilerAlloc
+        {
+            
+            IMG_CPU_PHYADDR *pCPUPhysAddrs;
+            struct ion_handle *psIONHandle;
+        }sIONTilerAlloc;
         struct _sSubAlloc
         {
             
@@ -280,10 +286,36 @@ LinuxMemArea *NewAllocPagesLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32Are
 IMG_VOID FreeAllocPagesLinuxMemArea(LinuxMemArea *psLinuxMemArea);
 
 
-LinuxMemArea *NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags);
+#if defined(CONFIG_ION_OMAP)
+
+LinuxMemArea *
+NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags,
+                   IMG_PVOID pvPrivData, IMG_UINT32 ui32PrivDataLength);
 
 
 IMG_VOID FreeIONLinuxMemArea(LinuxMemArea *psLinuxMemArea);
+
+#else 
+
+static inline LinuxMemArea *
+NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags,
+                   IMG_PVOID pvPrivData, IMG_UINT32 ui32PrivDataLength)
+{
+    PVR_UNREFERENCED_PARAMETER(ui32Bytes);
+    PVR_UNREFERENCED_PARAMETER(ui32AreaFlags);
+    PVR_UNREFERENCED_PARAMETER(pvPrivData);
+    PVR_UNREFERENCED_PARAMETER(ui32PrivDataLength);
+    BUG();
+    return IMG_NULL;
+}
+
+static inline IMG_VOID FreeIONLinuxMemArea(LinuxMemArea *psLinuxMemArea)
+{
+    PVR_UNREFERENCED_PARAMETER(psLinuxMemArea);
+    BUG();
+}
+
+#endif 
 
 
 LinuxMemArea *NewSubLinuxMemArea(LinuxMemArea *psParentLinuxMemArea,

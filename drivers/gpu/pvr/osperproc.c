@@ -32,6 +32,10 @@
 
 extern IMG_UINT32 gui32ReleasePID;
 
+#if defined(CONFIG_ION_OMAP)
+extern struct ion_device *omap_ion_device;
+#endif
+
 PVRSRV_ERROR OSPerProcessPrivateDataInit(IMG_HANDLE *phOsPrivateData)
 {
 	PVRSRV_ERROR eError;
@@ -65,6 +69,21 @@ PVRSRV_ERROR OSPerProcessPrivateDataInit(IMG_HANDLE *phOsPrivateData)
 	INIT_LIST_HEAD(&psEnvPerProc->sDRMAuthListHead);
 #endif
 
+#if defined(CONFIG_ION_OMAP)
+	psEnvPerProc->psIONClient =
+		ion_client_create(omap_ion_device,
+						  1 << ION_HEAP_TYPE_CARVEOUT |
+						  1 << OMAP_ION_HEAP_TYPE_TILER,
+						  "pvr");
+
+	if (IS_ERR_OR_NULL(psEnvPerProc->psIONClient))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "OSPerProcessPrivateDataInit: Couldn't create "
+								"ion client for per process data"));
+		return PVRSRV_ERROR_OUT_OF_MEMORY;
+	}
+#endif 
+
 	return PVRSRV_OK;
 }
 
@@ -79,6 +98,10 @@ PVRSRV_ERROR OSPerProcessPrivateDataDeInit(IMG_HANDLE hOsPrivateData)
 	}
 
 	psEnvPerProc = (PVRSRV_ENV_PER_PROCESS_DATA *)hOsPrivateData;
+
+#if defined(CONFIG_ION_OMAP)
+	ion_client_destroy(psEnvPerProc->psIONClient);
+#endif
 
 	
 	LinuxMMapPerProcessDisconnect(psEnvPerProc);

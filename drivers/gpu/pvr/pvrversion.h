@@ -30,14 +30,20 @@
 #include "staticversion.h"
 
 #define PVRVERSION_BRANCHNAME "pj:1.8.18"
-#define PVRVERSION_BUILD      749
+#define PVRVERSION_BUILD      755
 #define PVRVERSION_BSCONTROL  "Internal"
 
-#define PVRVERSION_STRING     "1.8.18.749"
+#define PVRVERSION_STRING     "1.8.18.755"
 
 #define PVRVERSION_FILE       "eurasiacon.pj"
 
-#define COPYRIGHT_TXT         "\251 2011 Imagination Technologies Ltd"
+#define COPYRIGHT_TXT         "Copyright (c) Imagination Technologies Ltd."
+
+#define PVRVERSION_MM32B      "1.8.18.755"
+
+#define PVRVERSION_BUILD_LO	  755
+#define PVRVERSION_BUILD_HI	  18
+
 
 #endif 
 
