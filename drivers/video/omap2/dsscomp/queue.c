@@ -790,7 +790,7 @@ done_ovl:
 		}
 	} else {
 		/* wait for sync to avoid tear */
-		r = mgr->wait_for_vsync(mgr) ? : mgr->apply(mgr);
+		r = mgr->apply(mgr) ? : mgr->wait_for_vsync(mgr);
 	}
 done:
 	if (change)
