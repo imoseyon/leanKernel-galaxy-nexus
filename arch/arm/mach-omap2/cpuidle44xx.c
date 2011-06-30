@@ -37,7 +37,7 @@
 #define OMAP4_STATE_C2		1
 /* C3 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
 #define OMAP4_STATE_C3		2
-/* C4 - CPU0 OFF + CPU1 OFF + MPU RET + CORE CSWR */
+/* C4 - CPU0 OFF + CPU1 OFF + MPU OSWR + CORE OSWR */
 #define OMAP4_STATE_C4		3
 
 struct omap4_processor_cx {
@@ -74,8 +74,12 @@ static struct cpuidle_params cpuidle_params_table[] = {
 	{.exit_latency = 140 + 160, .target_residency = 300, .valid = 1},
 	/* C3 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
 	{.exit_latency = 1516 + 3220, .target_residency = 15000, .valid = 1},
+#ifdef CONFIG_OMAP_ALLOW_OSWR
 	/* C4 - CPU0 OFF + CPU1 OFF + MPU OSWR + CORE OSWR */
+	{.exit_latency = 1644 + 3298, .target_residency = 39000, .valid = 1},
+#else
 	{.exit_latency = 1644 + 3298, .target_residency = 39000, .valid = 0},
+#endif
 };
 
 static bool omap4_idle_bm_busy(void)
