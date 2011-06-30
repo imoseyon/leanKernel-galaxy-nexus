@@ -488,7 +488,7 @@ static const struct file_operations debug_reg_fops = {
 	.release        = single_release,
 };
 
-int pm_dbg_regset_init(int reg_set)
+int __init pm_dbg_regset_init(int reg_set)
 {
 	char name[2];
 
@@ -595,7 +595,7 @@ static int option_set(void *data, u64 val)
 
 DEFINE_SIMPLE_ATTRIBUTE(pm_dbg_option_fops, option_get, option_set, "%llu\n");
 
-static int pm_dbg_init(void)
+static int __init pm_dbg_init(void)
 {
 	int i;
 	struct dentry *d;
