@@ -43,6 +43,8 @@
 #define MHZ		1000000
 #define MAX_MSG		(sizeof(struct rprm_ack) + sizeof(struct rprm_sdma))
 
+#define RPRM_DEBUG_CONSTRAINTS
+
 static struct dentry *rprm_dbg;
 
 static char *regulator_name[] = {
@@ -75,6 +77,14 @@ static const char *rname(u32 type) {
 		return "(invalid)";
 	return rnames[type];
 }
+
+#ifdef RPRM_DEBUG_CONSTRAINTS
+static struct rprm_constraints_data test_data = {
+	.mask           = 0x6,
+	.latency        = 10,
+	.bandwidth      = 800000,
+};
+#endif
 
 struct rprm_elem {
 	struct list_head next;
@@ -531,6 +541,13 @@ static int rprm_rpres_request(struct rprm_elem *e, int type)
 		return PTR_ERR(res);
 	}
 	e->handle = res;
+
+#ifdef RPRM_DEBUG_CONSTRAINTS
+	if (!strcmp(res_name, "rpres_iss")) {
+		_set_constraints(e, &test_data);
+		e->constraints->mask = test_data.mask;
+	}
+#endif
 
 	return 0;
 }
