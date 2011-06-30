@@ -748,6 +748,8 @@ static void __init tuna_init(void)
 
 	omap4_tuna_init_hw_rev();
 
+	omap4_tuna_emif_init();
+
 	register_reboot_notifier(&tuna_reboot_notifier);
 
 	if (omap4_tuna_final_gpios()) {
