@@ -74,6 +74,8 @@ static struct {
 
 	struct clk *sys_clk;
 	struct clk *hdmi_clk;
+
+	int runtime_count;
 } hdmi;
 
 /*
@@ -169,21 +171,23 @@ static int hdmi_runtime_get(void)
 
 	DSSDBG("hdmi_runtime_get\n");
 
-	r = dss_runtime_get();
-	if (r)
-		goto err_get_dss;
+	if (hdmi.runtime_count++ == 0) {
+		r = dss_runtime_get();
+		if (r)
+			goto err_get_dss;
 
-	r = dispc_runtime_get();
-	if (r)
-		goto err_get_dispc;
+		r = dispc_runtime_get();
+		if (r)
+			goto err_get_dispc;
 
-	clk_enable(hdmi.sys_clk);
-	clk_enable(hdmi.hdmi_clk);
+		clk_enable(hdmi.sys_clk);
+		clk_enable(hdmi.hdmi_clk);
 
-	r = pm_runtime_get_sync(&hdmi.pdev->dev);
-	WARN_ON(r);
-	if (r < 0)
-		goto err_runtime_get;
+		r = pm_runtime_get_sync(&hdmi.pdev->dev);
+		WARN_ON(r);
+		if (r < 0)
+			goto err_runtime_get;
+	}
 
 	return 0;
 
@@ -203,14 +207,16 @@ static void hdmi_runtime_put(void)
 
 	DSSDBG("hdmi_runtime_put\n");
 
-	r = pm_runtime_put_sync(&hdmi.pdev->dev);
-	WARN_ON(r);
+	if (--hdmi.runtime_count == 0) {
+		r = pm_runtime_put_sync(&hdmi.pdev->dev);
+		WARN_ON(r);
 
-	clk_disable(hdmi.sys_clk);
-	clk_disable(hdmi.hdmi_clk);
+		clk_disable(hdmi.sys_clk);
+		clk_disable(hdmi.hdmi_clk);
 
-	dispc_runtime_put();
-	dss_runtime_put();
+		dispc_runtime_put();
+		dss_runtime_put();
+	}
 }
 
 int hdmi_init_display(struct omap_dss_device *dssdev)
