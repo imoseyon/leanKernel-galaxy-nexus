@@ -75,6 +75,54 @@ void rpres_put(struct rpres *obj)
 }
 EXPORT_SYMBOL(rpres_put);
 
+int rpres_set_constraints(struct rpres *obj, enum rpres_constraint type, long val)
+{
+	int ret;
+	struct rpres_platform_data *pdata = obj->pdev->dev.platform_data;
+	struct platform_device *pdev = obj->pdev;
+	static const char *cname[] = {"scale", "latency", "bandwidth"};
+	int (*func)(struct platform_device *, long);
+
+	switch (type) {
+	case RPRES_CONSTRAINT_SCALE:
+		func = pdata->ops->scale_dev;
+		break;
+	case RPRES_CONSTRAINT_LATENCY:
+		func = pdata->ops->set_lat;
+		break;
+	case RPRES_CONSTRAINT_BANDWIDTH:
+		func = pdata->ops->set_bw;
+		break;
+	default:
+		dev_err(&pdev->dev, "%s: invalid constraint %d\n",
+			__func__, type);
+		return -EINVAL;
+	}
+
+	if (!func) {
+		dev_err(&pdev->dev, "%s: No %s constraint\n",
+			__func__, cname[type]);
+		return -EINVAL;
+	}
+
+	mutex_lock(&obj->lock);
+	if (obj->state == RPRES_INACTIVE) {
+		mutex_unlock(&obj->lock);
+		pr_err("%s: resource inactive\n", __func__);
+		return -EPERM;
+	}
+
+	dev_dbg(&pdev->dev, "set %s constraint %ld\n", cname[type], val);
+	ret = func(pdev, val);
+	if (ret)
+		dev_err(&pdev->dev, "%s: error setting constraint %s\n",
+				__func__, cname[type]);
+	mutex_unlock(&obj->lock);
+
+	return ret;
+}
+EXPORT_SYMBOL(rpres_set_constraints);
+
 static int rpres_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
