@@ -116,13 +116,14 @@ static void ion_buffer_add(struct ion_device *dev,
 		parent = *p;
 		entry = rb_entry(parent, struct ion_buffer, node);
 
-		if (buffer < entry)
+		if (buffer < entry) {
 			p = &(*p)->rb_left;
-		else if (buffer > entry)
+		} else if (buffer > entry) {
 			p = &(*p)->rb_right;
-		else
+		} else {
 			pr_err("%s: buffer already found.", __func__);
 			BUG();
+		}
 	}
 
 	rb_link_node(&buffer->node, parent, p);
@@ -375,8 +376,6 @@ int ion_phys(struct ion_client *client, struct ion_handle *handle,
 
 	mutex_lock(&client->lock);
 	if (!ion_handle_validate(client, handle)) {
-		pr_err("%s: invalid handle passed to map_kernel.\n",
-		       __func__);
 		mutex_unlock(&client->lock);
 		return -EINVAL;
 	}
