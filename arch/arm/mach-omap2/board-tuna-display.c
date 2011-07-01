@@ -320,9 +320,9 @@ static struct panel_s6e8aa0_data tuna_oled_data = {
 	.gamma_table = tuna_oled_gamma_table,
 	.gamma_table_size = ARRAY_SIZE(tuna_oled_gamma_table),
 	.factory_v255_regs = {
-		0x084,
-		0x083,
-		0x0b7,
+		0x090,
+		0x081,
+		0x0c5,
 	},
 };
 
@@ -449,6 +449,27 @@ void __init omap4_tuna_display_init(void)
 			tuna_oled_data.reset_gpio = TUNA_GPIO_MLCD_RST_LUNCHBOX;
 		omap_mux_init_gpio(tuna_oled_data.reset_gpio, OMAP_PIN_OUTPUT);
 		dss_data = &tuna_dss_data;
+	}
+
+	if (omap4_tuna_get_revision() !=
+	    (omap4_tuna_get_type() == TUNA_TYPE_MAGURO ? 2 : 1)) {
+		/*
+		 * Older devices were not calibrated the same way as newer
+		 * devices. These values are probably not correct, but the older
+		 * devices tested look closer to the newer devices with these
+		 * values than they do using the same register values as the
+		 * newer devices.
+		 */
+
+		/* Convert from 8500K to D65, assuming:
+		 * Rx 0.66950, Ry 0.33100
+		 * Gx 0.18800, Gy 0.74350
+		 * Bx 0.14142, By 0.04258
+		 */
+		tuna_oled_data.color_adj.mult[0] = 2318372099U;
+		tuna_oled_data.color_adj.mult[1] = 2117262806U;
+		tuna_oled_data.color_adj.mult[2] = 1729744557U;
+		tuna_oled_data.color_adj.rshift = 31;
 	}
 
 	omap_vram_set_sdram_vram(TUNA_FB_RAM_SIZE, 0);
