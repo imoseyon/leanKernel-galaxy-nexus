@@ -33,7 +33,7 @@
 #include "servicesint.h"
 #include "mutex.h"
 #include "lock.h"
-#include "ion.h"
+#include <linux/ion.h>
 #include "mm.h"
 #include "handle.h"
 #include "perproc.h"
