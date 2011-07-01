@@ -40,12 +40,13 @@ static int __init omap4_ldo_trim_configure(void)
 	 * 2. trim VDAC value for TV output as per recomendation
 	 */
 
-	if (omap_rev() == CHIP_IS_OMAP4430ES2_2)
+	if (omap_rev() >= CHIP_IS_OMAP4430ES2_2)
 		is_trimmed = omap_ctrl_readl(
 			OMAP4_CTRL_MODULE_CORE_LDOSRAM_MPU_VOLTAGE_CTRL);
 
 	/* if not trimmed, we set force overide, insted of efuse. */
 	if (!is_trimmed) {
+		pr_err("%s: UNTRIMMED PART\n", __func__);
 		/* Fill in recommended values */
 		val = 0x0f << OMAP4_LDOSRAMCORE_ACTMODE_VSET_OUT_SHIFT;
 		val |= OMAP4_LDOSRAMCORE_ACTMODE_MUX_CTRL_MASK;
