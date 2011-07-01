@@ -37,7 +37,9 @@
 
 #define OMX_IOC_MAGIC	'X'
 
-#define OMX_IOCCONNECT	_IOW(OMX_IOC_MAGIC, 1, char *)
+#define OMX_IOCCONNECT		_IOW(OMX_IOC_MAGIC, 1, char *)
+#define OMX_IOCIONREGISTER	_IOWR(OMX_IOC_MAGIC, 2, struct ion_fd_data)
+#define OMX_IOCIONUNREGISTER	_IOWR(OMX_IOC_MAGIC, 3, struct ion_fd_data)
 
 #define OMX_IOC_MAXNR	(1)
 
