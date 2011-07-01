@@ -33,6 +33,7 @@ config PANEL_NEC_NL8048HL11_01B
 config PANEL_S6E8AA0
         tristate "S6E8AA0 DSI Panel"
         depends on OMAP2_DSS_DSI
+        select BACKLIGHT_CLASS_DEVICE
         help
           S6E8AA0 video mode panel.
 
