@@ -45,6 +45,7 @@
 #include <plat/cpu.h>
 #include <plat/usb.h>
 #include <plat/mmc.h>
+#include <mach/id.h>
 #include "timer-gp.h"
 
 #include "omap4-sar-layout.h"
@@ -713,6 +714,15 @@ static ssize_t tuna_soc_revision_show(struct kobject *kobj,
 		       GET_OMAP_REVISION() & 0xf);
 }
 
+static ssize_t tuna_soc_die_id_show(struct kobject *kobj,
+				 struct kobj_attribute *attr, char *buf)
+{
+	struct omap_die_id oid;
+	omap_get_die_id(&oid);
+	return sprintf(buf, "%08X-%08X-%08X-%08X\n", oid.id_3, oid.id_2,
+			oid.id_1, oid.id_0);
+}
+
 static const char *omap_types[] = {
 	[OMAP2_DEVICE_TYPE_TEST]	= "TST",
 	[OMAP2_DEVICE_TYPE_EMU]		= "EMU",
@@ -734,11 +744,13 @@ static ssize_t tuna_soc_type_show(struct kobject *kobj,
 static TUNA_SOC_ATTR_RO(family, tuna_soc_family_show);
 static TUNA_SOC_ATTR_RO(revision, tuna_soc_revision_show);
 static TUNA_SOC_ATTR_RO(type, tuna_soc_type_show);
+static TUNA_SOC_ATTR_RO(die_id, tuna_soc_die_id_show);
 
 static struct attribute *tuna_soc_prop_attrs[] = {
 	&tuna_soc_prop_attr_family.attr,
 	&tuna_soc_prop_attr_revision.attr,
 	&tuna_soc_prop_attr_type.attr,
+	&tuna_soc_prop_attr_die_id.attr,
 	NULL,
 };
 
