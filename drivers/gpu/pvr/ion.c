@@ -1,0 +1,111 @@
+/**********************************************************************
+ *
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
+ * 
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope it will be useful but, except 
+ * as otherwise stated in writing, without any warranty; without even the 
+ * implied warranty of merchantability or fitness for a particular purpose. 
+ * See the GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
+ * 
+ * The full GNU General Public License is included in this distribution in
+ * the file called "COPYING".
+ *
+ * Contact Information:
+ * Imagination Technologies Ltd. <gpl-support@imgtec.com>
+ * Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK 
+ *
+ *****************************************************************************/
+
+/* FIXME: Do this in the makefile.
+ *        Temporary until our builds are updated with a new kernel.
+ */
+#if defined(CONFIG_ION_OMAP)
+
+#include "services.h"
+#include "servicesint.h"
+#include "mutex.h"
+#include "lock.h"
+#include "ion.h"
+#include "mm.h"
+#include "handle.h"
+#include "perproc.h"
+#include "private_data.h"
+#include "pvr_debug.h"
+
+#include <linux/module.h>
+#include <linux/file.h>
+#include <linux/fs.h>
+
+struct ion_handle *PVRSRVExportFDToIONHandle(int fd)
+{
+	struct ion_handle *psIONHandle = IMG_NULL;
+	PVRSRV_FILE_PRIVATE_DATA *psPrivateData;
+	PVRSRV_KERNEL_MEM_INFO *psKernelMemInfo;
+	PVRSRV_PER_PROCESS_DATA *psPerProc;
+	LinuxMemArea *psLinuxMemArea;
+	PVRSRV_ERROR eError;
+	struct file *psFile;
+
+	/* Take the bridge mutex so the handle won't be freed underneath us */
+	LinuxLockMutex(&gPVRSRVLock);
+
+	psFile = fget(fd);
+	if(!psFile)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Invalid fd=%d specified", __func__, fd));
+		goto err_unlock;
+	}
+
+	psPrivateData = psFile->private_data;
+	if(!psPrivateData)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: struct file* has no private_data; "
+								"invalid export handle", __func__));
+		goto err_fput;
+	}
+
+	psPerProc = PVRSRVFindPerProcessData();
+	if(!psPerProc)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to look up per-process data",
+								__func__));
+		goto err_fput;
+	}
+
+	eError = PVRSRVLookupHandle(psPerProc->psHandleBase,
+								(IMG_PVOID *)&psKernelMemInfo,
+								psPrivateData->hKernelMemInfo,
+								PVRSRV_HANDLE_TYPE_MEM_INFO);
+	if(eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to look up MEM_INFO handle",
+								__func__));
+		goto err_fput;
+	}
+
+	psLinuxMemArea = (LinuxMemArea *)psKernelMemInfo->sMemBlk.hOSMemHandle;
+
+	BUG_ON(psLinuxMemArea == IMG_NULL);
+	BUG_ON(psLinuxMemArea->eAreaType != LINUX_MEM_AREA_ION);
+
+	psIONHandle = psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle;
+
+err_fput:
+	fput(psFile);
+err_unlock:
+	/* Allow PVRSRV clients to communicate with srvkm again */
+	LinuxUnLockMutex(&gPVRSRVLock);
+	return psIONHandle;
+}
+
+EXPORT_SYMBOL(PVRSRVExportFDToIONHandle);
+
+#endif /* defined(CONFIG_ION_OMAP) */

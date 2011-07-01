@@ -111,7 +111,8 @@ pvrsrvkm-y := \
 	sgx/sgxkick.o \
 	sgx/sgxtransfer.o \
 	sgx/mmu.o \
-	sgx/pb.o
+	sgx/pb.o \
+	ion.o
 
 omaplfb-y := \
 	omaplfb/omaplfb_displayclass.o \
