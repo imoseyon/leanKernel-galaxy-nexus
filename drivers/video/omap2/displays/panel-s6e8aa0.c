@@ -41,6 +41,21 @@
 /* DSI Command Virtual channel */
 #define CMD_VC_CHANNEL 1
 
+#define V1_ADJ_MAX 140
+#define V255_ADJ_MAX 430
+#define NUM_GAMMA_REGS	24
+
+enum {
+	V1,
+	V15,
+	V35,
+	V59,
+	V87,
+	V171,
+	V255,
+	V_COUNT,
+};
+
 #define DRIVER_NAME "s6e8aa0_i2c"
 #define DEVICE_NAME "s6e8aa0_i2c"
 
@@ -292,6 +307,65 @@ static u32 s6e8aa0_gamma_lookup(struct s6e8aa0_data *s6,
 	return ret;
 }
 
+/*
+ * V1    =  V0 -          V0 * (   5 +   v1_adj ) / 600
+ * V15   =  V1 - (V1 -  V35) * (  20 +  v15_adj ) / 320
+ * V35   =  V1 - (V1 -  V59) * (  65 +  v35_adj ) / 320
+ * V59   =  V1 - (V1 -  V87) * (  65 +  v59_adj ) / 320
+ * V87   =  V1 - (V1 - V171) * (  65 +  v87_adj ) / 320
+ * V171  =  V1 - (V1 - V255) * (  65 + v171_adj ) / 320
+ * V255  =  V0 -          V0 * ( 100 + v255_adj ) / 600
+ *
+ * v_n_adj = v_n_reg + v_n_offset
+ */
+
+static u32 v1adj_to_v1(u8 v1_adj, u32 v0)
+{
+	return DIV_ROUND_CLOSEST((600 - 5 - v1_adj) * v0, 600);
+}
+
+static u32 v1_to_v1adj(u32 v1, u32 v0)
+{
+	return  600 - 5 - DIV_ROUND_CLOSEST(600 * v1, v0);
+}
+
+static u32 vnadj_to_vn(int n, u8 v_n_adj, u32 v1, u32 v_next)
+{
+	int base = (n == V15) ? 20 : 65;
+	return v1 - DIV_ROUND_CLOSEST((v1 - v_next) * (base + v_n_adj), 320);
+}
+
+static u32 vn_to_vnadj(int n, u32 v_n, u32 v1, u32 v_next)
+{
+	int base = (n == V15) ? 20 : 65;
+	return DIV_ROUND_CLOSEST(320 * (v1 - v_n), v1 - v_next) - base;
+}
+
+static u32 v255adj_to_v255(u16 v255_adj, u32 v0)
+{
+	return DIV_ROUND_CLOSEST((600 - 100 - v255_adj) * v0, 600);
+}
+
+static u32 v255_to_v255adj(u32 v255, u32 v0)
+{
+	return 600 - 100 - DIV_ROUND_CLOSEST(600 * v255, v0);
+}
+
+static int gamma_reg_index(int c, int i)
+{
+	return 3 * i + c;
+}
+
+static int gamma_reg_index_v255_h(int c)
+{
+	return 3 * V255 + 2 * c;
+}
+
+static int gamma_reg_index_v255_l(int c)
+{
+	return gamma_reg_index_v255_h(c) + 1;
+}
+
 static void s6e8aa0_setup_gamma_regs(struct s6e8aa0_data *s6, u8 gamma_regs[])
 {
 	int c, i;
@@ -301,62 +375,60 @@ static void s6e8aa0_setup_gamma_regs(struct s6e8aa0_data *s6, u8 gamma_regs[])
 	for (c = 0; c < 3; c++) {
 		u32 adj;
 		u32 v0 = s6e8aa0_gamma_lookup(s6, brightness, BV_0, c);
-		u32 vx[7];
-		u32 v1;
-		u32 v255;
+		u32 v[V_COUNT];
 
-		v1 = vx[0] = s6e8aa0_gamma_lookup(s6, brightness, bv->v1, c);
-		adj = 600 - 5 - DIV_ROUND_CLOSEST(600 * v1, v0);
-		adj -= s6->gamma_reg_offsets.v[c][0];
-		if (adj > 140) {
+		v[V1] = s6e8aa0_gamma_lookup(s6, brightness, bv->v1, c);
+		adj = v1_to_v1adj(v[V1], v0);
+		adj -= s6->gamma_reg_offsets.v[c][V1];
+		if (adj > V1_ADJ_MAX) {
 			pr_debug("%s: bad adj value %d, v0 %d, v1 %d, c %d\n",
-				__func__, adj, v0, v1, c);
+				__func__, adj, v0, v[V1], c);
 			if ((int)adj < 0)
 				adj = 0;
 			else
-				adj = 140;
+				adj = V1_ADJ_MAX;
 		}
-		gamma_regs[c] = adj;
+		gamma_regs[gamma_reg_index(c, V1)] = adj;
 
-		v255 = s6e8aa0_gamma_lookup(s6, brightness, bv->v255, c);
-		vx[6] = v255;
-		adj = 600 - 100 - DIV_ROUND_CLOSEST(600 * v255, v0);
-		adj -= s6->gamma_reg_offsets.v[c][6];
-		if (adj > 380) {
+		v[V255] = s6e8aa0_gamma_lookup(s6, brightness, bv->v255, c);
+		adj = v255_to_v255adj(v[V255], v0);
+		adj -= s6->gamma_reg_offsets.v[c][V255];
+		if (adj > V255_ADJ_MAX) {
 			pr_debug("%s: bad adj value %d, v0 %d, v255 %d, c %d\n",
-				__func__, adj, v0, v255, c);
+				__func__, adj, v0, v[V255], c);
 			if ((int)adj < 0)
 				adj = 0;
 			else
-				adj = 380;
+				adj = V255_ADJ_MAX;
 		}
-		gamma_regs[3 * 6 + 2 * c] = adj >> 8;
-		gamma_regs[3 * 6 + 2 * c + 1] = (adj & 0xff);
+		gamma_regs[3 * V255 + 2 * c] = adj >> 8;
+		gamma_regs[3 * V255 + 2 * c + 1] = (adj & 0xff);
+		gamma_regs[gamma_reg_index_v255_h(c)] = adj >> 8;
+		gamma_regs[gamma_reg_index_v255_l(c)] = adj;
 
-		vx[1] = s6e8aa0_gamma_lookup(s6, brightness,  bv->v15, c);
-		vx[2] = s6e8aa0_gamma_lookup(s6, brightness,  bv->v35, c);
-		vx[3] = s6e8aa0_gamma_lookup(s6, brightness,  bv->v59, c);
-		vx[4] = s6e8aa0_gamma_lookup(s6, brightness,  bv->v87, c);
-		vx[5] = s6e8aa0_gamma_lookup(s6, brightness, bv->v171, c);
+		v[V15] = s6e8aa0_gamma_lookup(s6, brightness,  bv->v15, c);
+		v[V35] = s6e8aa0_gamma_lookup(s6, brightness,  bv->v35, c);
+		v[V59] = s6e8aa0_gamma_lookup(s6, brightness,  bv->v59, c);
+		v[V87] = s6e8aa0_gamma_lookup(s6, brightness,  bv->v87, c);
+		v[V171] = s6e8aa0_gamma_lookup(s6, brightness, bv->v171, c);
 
-		for (i = 5; i >= 1; i--) {
-			if (v1 <= vx[i + 1]) {
+		for (i = V171; i >= V15; i--) {
+			if (v[V1] <= v[i + 1]) {
 				adj = -1;
 			} else {
-				adj = DIV_ROUND_CLOSEST(320 * (v1 - vx[i]),
-							v1 - vx[i + 1]) - 65;
+				adj = vn_to_vnadj(i, v[i], v[V1], v[i + 1]);
 				adj -= s6->gamma_reg_offsets.v[c][i];
 			}
 			if (adj > 255) {
 				pr_debug("%s: bad adj value %d, "
 					"vh %d, v %d, c %d\n",
-					__func__, adj, vx[i + 1], vx[i], c);
+					__func__, adj, v[i + 1], v[i], c);
 				if ((int)adj < 0)
 					adj = 0;
 				else
 					adj = 255;
 			}
-			gamma_regs[3 * i + c] = adj;
+			gamma_regs[gamma_reg_index(c, i)] = adj;
 		}
 	}
 }
@@ -365,7 +437,7 @@ static int s6e8aa0_update_brightness(struct omap_dss_device *dssdev)
 {
 	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
 	int ret = 0;
-	u8 gamma_regs[26];
+	u8 gamma_regs[NUM_GAMMA_REGS + 2];
 
 	gamma_regs[0] = 0xFA;
 	gamma_regs[1] = 0x01;
@@ -417,9 +489,9 @@ static void s6e8aa0_adjust_brightness_from_mtp(struct s6e8aa0_data *s6)
 	const u16 *factory_v255_regs = pdata->factory_v255_regs;
 
 	for (c = 0; c < 3; c++) {
-		int scale = s6e8aa0_gamma_lookup(s6, 255, BV_0, c);
-		v255[c] = DIV_ROUND_CLOSEST((600 - 100 - factory_v255_regs[c] -
-						offset->v[c][6]) * scale, 600);
+		u32 v0 = s6e8aa0_gamma_lookup(s6, 255, BV_0, c);
+		v255[c] = v255adj_to_v255(factory_v255_regs[c] +
+					  offset->v[c][V255], v0);
 		bc[c] = s6e8aa0_voltage_lookup(s6, c, v255[c]);
 	}
 
@@ -457,6 +529,11 @@ static s16 s9_to_s16(s16 v)
 	return (s16)(v << 7) >> 7;
 }
 
+static int mtp_reg_index(int c, int i)
+{
+	return c * (V_COUNT + 1) + i;
+}
+
 static void s6e8aa0_read_mtp_info(struct s6e8aa0_data *s6)
 {
 	int ret;
@@ -476,12 +553,13 @@ static void s6e8aa0_read_mtp_info(struct s6e8aa0_data *s6)
 		return;
 	}
 	for (c = 0; c < 3; c++) {
-		for (i = 0; i < 6; i++)
-			s6->gamma_reg_offsets.v[c][i] = (s8)mtp_data[c * 8 + i];
+		for (i = 0; i < V255; i++)
+			s6->gamma_reg_offsets.v[c][i] =
+				(s8)mtp_data[mtp_reg_index(c, i)];
 
-		s6->gamma_reg_offsets.v[c][6] =
-			s9_to_s16(mtp_data[c * 8 + 6] << 8 |
-				  mtp_data[c * 8 + 7]);
+		s6->gamma_reg_offsets.v[c][V255] =
+			s9_to_s16(mtp_data[mtp_reg_index(c, V255)] << 8 |
+				  mtp_data[mtp_reg_index(c, V255 + 1)]);
 	}
 }
 
