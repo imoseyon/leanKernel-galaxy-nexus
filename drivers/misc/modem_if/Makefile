@@ -1,4 +1,4 @@
-obj-y			+= modem.o modem_io_device.o
+obj-y			+= modem.o modem_io_device.o lte_modem_bootloader.o
 obj-$(CONFIG_UMTS_MODEM_XMM6260) += modem_modemctl_device_xmm6260.o
 obj-$(CONFIG_UMTS_LINK_MIPI) += modem_link_device_mipi.o
 obj-$(CONFIG_UMTS_LINK_HSIC) += modem_link_device_hsic.o
