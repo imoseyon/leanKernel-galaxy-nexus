@@ -20,10 +20,12 @@
  */
 
 #include <linux/module.h>
+#include <linux/debugfs.h>
 #include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/jiffies.h>
 #include <linux/sched.h>
+#include <linux/seq_file.h>
 #include <linux/backlight.h>
 #include <linux/fb.h>
 #include <linux/interrupt.h>
@@ -94,6 +96,7 @@ struct s6e8aa0_data {
 
 	struct omap_dss_device *dssdev;
 	struct backlight_device *bldev;
+	struct dentry *debug_dir;
 	bool enabled;
 	u8 rotate;
 	bool mirror;
@@ -594,6 +597,77 @@ static const struct backlight_ops s6e8aa0_backlight_ops  = {
 	.update_status = s6e8aa0_set_brightness,
 };
 
+static void seq_print_gamma_regs(struct seq_file *m, const u8 gamma_regs[])
+{
+	struct s6e8aa0_data *s6 = m->private;
+	int c, i;
+	const int adj_points[] = { 1, 15, 35, 59, 87, 171, 255 };
+	const char color[] = { 'R', 'G', 'B' };
+	u8 brightness = s6->bl;
+	const struct s6e8aa0_gamma_adj_points *bv = s6->gamma_adj_points;
+	const struct s6e8aa0_gamma_reg_offsets *offset = &s6->gamma_reg_offsets;
+
+	for (c = 0; c < 3; c++) {
+		u32 adj[V_COUNT];
+		u32 vt[V_COUNT];
+		u32 v[V_COUNT];
+		u32 v0 = s6e8aa0_gamma_lookup(s6, brightness, BV_0, c);
+
+		vt[V1] = s6e8aa0_gamma_lookup(s6, brightness, bv->v1, c);
+		vt[V15] = s6e8aa0_gamma_lookup(s6, brightness, bv->v15, c);
+		vt[V35] = s6e8aa0_gamma_lookup(s6, brightness, bv->v35, c);
+		vt[V59] = s6e8aa0_gamma_lookup(s6, brightness, bv->v59, c);
+		vt[V87] = s6e8aa0_gamma_lookup(s6, brightness, bv->v87, c);
+		vt[V171] = s6e8aa0_gamma_lookup(s6, brightness, bv->v171, c);
+		vt[V255] = s6e8aa0_gamma_lookup(s6, brightness, bv->v255, c);
+
+		adj[V1] = gamma_regs[gamma_reg_index(c, V1)];
+		v[V1] = v1adj_to_v1(adj[V1] + offset->v[c][V1], v0);
+
+		adj[V255] = gamma_regs[gamma_reg_index_v255_h(c)] << 8 |
+			    gamma_regs[gamma_reg_index_v255_l(c)];
+		v[V255] = v255adj_to_v255(adj[V255] + offset->v[c][V255], v0);
+
+		for (i = V171; i >= V15; i--) {
+			adj[i] = gamma_regs[gamma_reg_index(c, i)];
+			v[i] = vnadj_to_vn(i, adj[i] + offset->v[c][i],
+					   v[V1], v[i + 1]);
+		}
+		seq_printf(m, "%c                   v0   %7d\n",
+			   color[c], v0);
+		for (i = 0; i < V_COUNT; i++) {
+			seq_printf(m, "%c adj %3d (%02x) %+4d "
+				   "v%-3d %7d - %7d %+8d\n",
+				   color[c], adj[i], adj[i], offset->v[c][i],
+				   adj_points[i], v[i], vt[i], v[i] - vt[i]);
+		}
+	}
+}
+
+static int s6e8aa0_current_gamma_show(struct seq_file *m, void *unused)
+{
+	struct s6e8aa0_data *s6 = m->private;
+	u8 gamma_regs[NUM_GAMMA_REGS];
+
+	mutex_lock(&s6->lock);
+	s6e8aa0_setup_gamma_regs(s6, gamma_regs);
+	seq_printf(m, "brightness %3d:\n", s6->bl);
+	seq_print_gamma_regs(m, gamma_regs);
+	mutex_unlock(&s6->lock);
+	return 0;
+}
+
+static int s6e8aa0_current_gamma_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, s6e8aa0_current_gamma_show, inode->i_private);
+}
+
+static const struct file_operations s6e8aa0_current_gamma_fops = {
+	.open = s6e8aa0_current_gamma_open,
+	.read = seq_read,
+	.release = single_release,
+};
+
 static int s6e8aa0_probe(struct omap_dss_device *dssdev)
 {
 	int ret = 0;
@@ -657,6 +731,13 @@ static int s6e8aa0_probe(struct omap_dss_device *dssdev)
 		goto err_backlight_device_register;
 	}
 
+	s6->debug_dir = debugfs_create_dir("s6e8aa0", NULL);
+	if (!s6->debug_dir)
+		dev_err(&dssdev->dev, "failed to create debug dir\n");
+	else
+		debugfs_create_file("current_gamma", S_IRUGO,
+			s6->debug_dir, s6, &s6e8aa0_current_gamma_fops);
+
 	if (cpu_is_omap44xx())
 		s6->force_update = true;
 
@@ -675,6 +756,7 @@ err:
 static void s6e8aa0_remove(struct omap_dss_device *dssdev)
 {
 	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
+	debugfs_remove_recursive(s6->debug_dir);
 	backlight_device_unregister(s6->bldev);
 	mutex_destroy(&s6->lock);
 	gpio_free(s6->pdata->reset_gpio);
