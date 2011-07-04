@@ -269,7 +269,7 @@ send_retry:
 			saved_cmd_queue--;
 			cmd_array[0] = cmd_saved[saved_cmd_queue];
 
-			goto SEND_RETRY;
+			goto send_retry;
 		}
 
 		return 0;
