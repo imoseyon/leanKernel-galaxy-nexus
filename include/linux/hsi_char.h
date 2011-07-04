@@ -39,6 +39,8 @@
 #define CS_GET_TX		CS_IOW(10, struct hsi_tx_config)
 #define CS_SW_RESET		CS_IO(11)
 #define CS_GET_FIFO_OCCUPANCY	CS_IOR(12, size_t)
+#define CS_GET_CAWAKELINE	CS_IOR(13, unsigned int)
+
 
 #define HSI_MODE_SLEEP		0
 #define HSI_MODE_STREAM		1
@@ -50,22 +52,45 @@
 #define WAKE_UP			1
 #define WAKE_DOWN		0
 
+/**
+ * struct hsi_tx_config - HSI TX configuration data
+ * @mode: Bit transmission mode
+ * @flow: Data flow type
+ * @frame_size: frame payload size
+ * @channels: Number of active channels
+ * @divisor: Transmission bit rate divisor
+ * @arb_mode: Arbitration type for the transmit FIFOs
+ */
 struct hsi_tx_config {
-	__u32 mode;
-	__u32 flow;
-	__u32 frame_size;
-	__u32 channels;
-	__u32 divisor;
-	__u32 arb_mode;
+	__u32 mode;       /* Stream:1, Frame:2 */
+	__u32 flow;       /* Synchronized:0, Pipelined:1. No Realtime support */
+	__u32 frame_size; /* HSI: 31,  SSI: <= 31 */
+	__u32 channels;   /* 1, 2, 4, 8, 16 (HSI only) */
+	__u32 divisor;    /* For HSI: <= 0xFF, for SSI: <= 0x7F */
+	__u32 arb_mode;   /* Round Robin: 0, Priority: 1 */
 };
 
+/**
+ * struct hsi_rx_config - HSI RX configuration data
+ * @mode: Bit transmission mode
+ * @flow: Data flow type
+ * @frame_size: frame payload size
+ * @channels: Number of active channels
+ * @divisor: Transmission bit rate divisor
+ *           Auto mode:ON:0x1000, OFF(SSI):0x1001)
+ *	     Normal range : HSI <= 255, SSI <= 127
+ * @counters: Counters settings for error generation.
+ *		Use HSI_HSR_COMBINE_COUNTERS for formatting the register value
+ */
 struct hsi_rx_config {
-	__u32 mode;
-	__u32 flow;
-	__u32 frame_size;
-	__u32 channels;
-	__u32 divisor;		/* not used for SSI */
-	__u32 counters;
+	__u32 mode;       /* Stream:1, Frame:2 */
+	__u32 flow;       /* Synchronized:0, Pipelined:1. No Realtime support */
+	__u32 frame_size; /* HSI: 31,  SSI: <= 31 */
+	__u32 channels;   /* 1, 2, 4, 8, 16(HSI only) */
+	__u32 divisor;    /* Normal range : HSI <= 255, SSI <= 127 */
+	__u32 counters;   /* HSI: FB[31..24], TB[23..20], FT[19..0] */
+			  /* SSI: FT[8..0] */
 };
+
 
 #endif /* HSI_CHAR_H */
