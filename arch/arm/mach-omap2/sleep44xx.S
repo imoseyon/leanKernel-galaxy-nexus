@@ -54,6 +54,9 @@ POR_params:
 .word 1, 0
 
 
+ppa_zero_params:
+	.word		0x0
+
 /*
  * =============================
  * == CPU suspend entry point ==
@@ -199,6 +202,14 @@ skip_scu_gp_set:
 	isb
 	dsb
 
+	mrc	p15, 0, r0, c1, c1, 2		@Read NSACR data
+	tst	r0, #(1 << 18)
+	mrcne	p15, 0, r0, c1, c0, 1
+	bicne	r0, r0, #(1 << 6)
+	mcrne	p15, 0, r0, c1, c0, 1
+	isb
+
+
 #ifdef CONFIG_CACHE_L2X0
 	/*
 	 * Clean and invalidate the L2 cache.
@@ -265,6 +276,13 @@ do_WFI:
 	mcreq	p15, 0, r0, c1, c0, 0
 	isb
 
+	/* Enable SMP bit if it's being disabled */
+	mrc	p15, 0, r0, c1, c0, 1
+	tst	r0, #(1 << 6)			@ Check SMP bit enabled?
+	orreq	r0, r0, #(1 << 6)
+	mcreq	p15, 0, r0, c1, c0, 1
+	isb
+
 	/*
 	 * Ensure the CPU power state is set to NORMAL in
 	 * SCU power state so that CPU is back in coherency.
@@ -309,6 +327,52 @@ ENDPROC(omap4_cpu_suspend)
  */
 
 ENTRY(omap4_cpu_resume)
+	/*
+	 * CPU1 must check if CPU0 is alive/awaken.
+	 * if PL310 is OFF, MPUSS was OFF and CPU0 is still off,
+	 * CPU1 must go to sleep and wait for CPU0.
+	 * CPU0 is needed for any PPA API to work.
+	 */
+	mrc     p15, 0, r0, c0, c0, 5	@ Get cpuID
+	ands    r0, r0, #0x0f		@ Continue boot if CPU0
+	beq	continue_boot
+	ldr     r8, =OMAP44XX_SAR_RAM_BASE
+	ldr	r9, [r8, #OMAP_TYPE_OFFSET]
+	cmp	r9, #0x1		@ Check for HS device
+	bne	continue_boot		@ Continue on GP devcies
+	ldr	r2, =OMAP44XX_L2CACHE_BASE
+	ldr	r0, [r2, #L2X0_CTRL]
+	and	r0, #0x0f
+	cmp	r0, #1				@ is CPU0 already UP?
+	beq	ppa_cp15_cpu1_configure		@ CPU1 HS go to next stage
+	/*
+	 * CPU0 and CPU1 are release together from OFF mode, however,
+	 * CPU0 can be busy doing restore operations while waking
+	 * from OFF mode, However, for many PPA services we need
+	 * CPU0, so, we ask CPU1 to loop back to stagger CPU1 behind CPU0
+	 */
+	b omap4_cpu_resume
+
+ppa_cp15_cpu1_configure:
+	/*
+	 * Configure CP15 for CPU1 on HS devices:
+	 * In HS devices CPU0's CP15 is configured at wakeup by PPA, CPU1 must
+	 * call PPA to configure it.
+	 * In 4430 devices CPU1 this call also enables the access to SMP bit,
+	 * on 4460 devices, CPU1 will have SMP bit access by default.
+	 */
+	mov     r0, #PPA_SERVICE_DEFAULT_POR_NS_SMP
+	adr	r3, ppa_zero_params		@ Pointer to parameters
+	LM_CALL_PPA_SERVICE_PA
+	isb
+	dsb
+	cmp	r0, #0x0			@ API returns 0 on success.
+	bne	ppa_cp15_cpu1_configure		@ retry if we did succeed
+
+	/* Fall through to continue with boot */
+
+continue_boot:
+
 #ifdef CONFIG_CACHE_L2X0
 	/*
 	 * Restore the L2 AUXCTRL and enable the L2 cache.
@@ -358,6 +422,19 @@ skip_por:
 	dsb
 skip_l2en:
 #endif
+
+	/* Check if we have Public access to SMP bit */
+	mrc	p15, 0, r0, c1, c1, 2		@ Read NSACR data
+	tst	r0, #(1 << 18)
+	beq	skip_ns_smp_enable		@ Skip if still no access
+
+	/* Set the SMP bit if it is not already set */
+	mrc	p15, 0, r0, c1, c0, 1
+	tst	r0, #(1 << 6)			@ Check SMP bit enabled?
+	orreq	r0, r0, #(1 << 6)
+	mcreq	p15, 0, r0, c1, c0, 1
+	isb
+skip_ns_smp_enable:
 
 	/*
 	 * Check the wakeup cpuid and use appropriate
