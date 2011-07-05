@@ -1736,7 +1736,7 @@ static int omap_hsmmc_disabled_to_sleep(struct omap_hsmmc_host *host)
 	if (mmc_card_can_sleep(host->mmc)) {
 		err = mmc_card_sleep(host->mmc);
 		if (err < 0) {
-			clk_disable(host->fclk);
+			pm_runtime_put_sync(host->dev);
 			mmc_release_host(host->mmc);
 			return err;
 		}
