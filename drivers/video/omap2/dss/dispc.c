@@ -3521,6 +3521,10 @@ static void dispc_error_worker(struct work_struct *work)
 
 			if (mgr->id == OMAP_DSS_CHANNEL_DIGIT) {
 				manager = mgr;
+				if (mgr->device->type == OMAP_DISPLAY_TYPE_HDMI) {
+					manager = NULL;
+					break;
+				}
 				enable = mgr->device->state ==
 						OMAP_DSS_DISPLAY_ACTIVE;
 				mgr->device->driver->disable(mgr->device);
