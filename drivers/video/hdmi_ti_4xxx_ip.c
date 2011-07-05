@@ -250,9 +250,6 @@ int hdmi_ti_4xxx_phy_init(struct hdmi_ip_data *ip_data)
 	hdmi_write_reg(hdmi_phy_base(ip_data),
 					HDMI_TXPHY_DIGITAL_CTRL, 0xF0000000);
 
-	/* Setup max LDO voltage */
-	REG_FLD_MOD(hdmi_phy_base(ip_data), HDMI_TXPHY_POWER_CTRL, 0xB, 3, 0);
-
 	/* Write to phy address 3 to change the polarity control */
 	REG_FLD_MOD(hdmi_phy_base(ip_data),
 					HDMI_TXPHY_PAD_CFG_CTRL, 0x1, 27, 27);
