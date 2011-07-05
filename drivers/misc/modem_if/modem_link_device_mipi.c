@@ -644,7 +644,12 @@ static int if_hsi_rx_cmd_handle(struct mipi_link_device *mipi_ld, u32 cmd,
 				wake_lock(&mipi_ld->wlock);
 				pr_debug("[MIPI-HSI] wake_lock\n");
 			}
+
 			if_hsi_set_wakeline(channel, 1);
+			mod_timer(&mipi_ld->hsi_acwake_down_timer, jiffies +
+						HSI_ACWAKE_DOWN_TIMEOUT);
+			pr_debug("[MIPI-HSI] mod_timer done(%d)\n",
+						HSI_ACWAKE_DOWN_TIMEOUT);
 
 			ret = if_hsi_send_command(mipi_ld, HSI_LL_MSG_ACK, ch,
 						param);
