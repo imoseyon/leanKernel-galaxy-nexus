@@ -490,6 +490,13 @@ config PCH_PHUB
 	  To compile this driver as a module, choose M here: the module will
 	  be called pch_phub.
 
+config OMAP_DIE_TEMP_SENSOR
+        bool "OMAP On-Die temp sensor support"
+        depends on OMAP_TEMP_SENSOR
+        help
+          Enabling this config will give support for the on-die
+          temp sensor for the OMAP platform.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
