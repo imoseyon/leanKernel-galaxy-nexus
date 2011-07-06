@@ -34,6 +34,7 @@
 #include "hsmmc.h"
 #include "control.h"
 #include "mux.h"
+#include "board-tuna.h"
 
 #define GPIO_WLAN_PMENA		104
 #define GPIO_WLAN_IRQ		2
@@ -223,9 +224,9 @@ static int tuna_wifi_reset(int on)
 	return 0;
 }
 
-#if 0
 static unsigned char tuna_mac_addr[IFHWADDRLEN] = { 0,0x90,0x4c,0,0,0 };
 
+#if 0
 static int __init parse_tag_wlan_mac(const struct tag *tag)
 {
 	unsigned char *dptr = (unsigned char *)(&tag->u);
@@ -247,13 +248,18 @@ static int __init parse_tag_wlan_mac(const struct tag *tag)
 }
 
 __tagtable(ATAG_TUNA_MAC, parse_tag_wlan_mac);
+#endif
 
 static int tuna_wifi_get_mac_addr(unsigned char *buf)
 {
+	int type = omap4_tuna_get_type();
 	uint rand_mac;
 
-	if (!buf)
+	if (type != TUNA_TYPE_TORO)
 		return -EINVAL;
+
+	if (!buf)
+		return -EFAULT;
 
 	if ((tuna_mac_addr[4] == 0) && (tuna_mac_addr[5] == 0)) {
 		srandom32((uint)jiffies);
@@ -266,6 +272,7 @@ static int tuna_wifi_get_mac_addr(unsigned char *buf)
 	return 0;
 }
 
+#if 0
 /* Customized Locale table : OPTIONAL feature */
 #define WLC_CNTRY_BUF_SZ	4
 typedef struct cntry_locales_custom {
@@ -309,7 +316,7 @@ static struct wifi_platform_data tuna_wifi_control = {
 	.set_reset      = tuna_wifi_reset,
 	.set_carddetect = tuna_wifi_set_carddetect,
 	.mem_prealloc	= tuna_wifi_mem_prealloc,
-	.get_mac_addr	= NULL, /* tuna_wifi_get_mac_addr, */
+	.get_mac_addr	= tuna_wifi_get_mac_addr,
 	.get_country_code = NULL, /* tuna_wifi_get_country_code, */
 };
 
