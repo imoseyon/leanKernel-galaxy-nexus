@@ -165,10 +165,25 @@ static int __devexit rpres_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static struct platform_device_id rpres_id_table[] = {
+	{
+		.name	= "iva",
+	},
+	{
+		.name	= "fdif",
+	},
+	{
+		.name	= "rpres",
+	},
+	{ },
+};
+MODULE_DEVICE_TABLE(platform, rpres_id_table);
+
 static struct platform_driver omap_rpres_driver = {
-	.probe = rpres_probe,
-	.remove = __devexit_p(rpres_remove),
-	.driver = {
+	.id_table	= rpres_id_table,
+	.probe		= rpres_probe,
+	.remove		= __devexit_p(rpres_remove),
+	.driver		= {
 		.name = "rpres",
 		.owner = THIS_MODULE,
 	},
@@ -178,7 +193,7 @@ static int __init rpres_init(void)
 {
 	return platform_driver_register(&omap_rpres_driver);
 }
-module_init(rpres_init);
+late_initcall(rpres_init);
 
 static void __exit rpres_exit(void)
 {

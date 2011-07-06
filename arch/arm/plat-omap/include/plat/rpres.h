@@ -40,6 +40,7 @@ struct rpres_platform_data {
 	struct rpres_ops *ops;
 	struct clk *opt_clk;
 	const char *opt_clk_name;
+	struct device *(*get_dev)(void);
 };
 
 struct rpres {
