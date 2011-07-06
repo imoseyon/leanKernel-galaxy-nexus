@@ -111,8 +111,9 @@ pvrsrvkm-y := \
 	sgx/sgxkick.o \
 	sgx/sgxtransfer.o \
 	sgx/mmu.o \
-	sgx/pb.o \
-	ion.o
+	sgx/pb.o
+
+pvrsrvkm-$(CONFIG_ION_OMAP) += ion.o
 
 omaplfb-y := \
 	omaplfb/omaplfb_displayclass.o \

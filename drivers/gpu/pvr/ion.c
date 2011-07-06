@@ -24,19 +24,16 @@
  *
  *****************************************************************************/
 
-/* FIXME: Do this in the makefile.
- *        Temporary until our builds are updated with a new kernel.
- */
-#if defined(CONFIG_ION_OMAP)
+#include "ion.h"
 
 #include "services.h"
 #include "servicesint.h"
 #include "mutex.h"
 #include "lock.h"
-#include <linux/ion.h>
 #include "mm.h"
 #include "handle.h"
 #include "perproc.h"
+#include "env_perproc.h"
 #include "private_data.h"
 #include "pvr_debug.h"
 
@@ -44,12 +41,12 @@
 #include <linux/file.h>
 #include <linux/fs.h>
 
-struct ion_handle *PVRSRVExportFDToIONHandle(int fd)
+struct ion_handle *
+PVRSRVExportFDToIONHandle(int fd, struct ion_client **client)
 {
 	struct ion_handle *psIONHandle = IMG_NULL;
 	PVRSRV_FILE_PRIVATE_DATA *psPrivateData;
 	PVRSRV_KERNEL_MEM_INFO *psKernelMemInfo;
-	PVRSRV_PER_PROCESS_DATA *psPerProc;
 	LinuxMemArea *psLinuxMemArea;
 	PVRSRV_ERROR eError;
 	struct file *psFile;
@@ -72,15 +69,7 @@ struct ion_handle *PVRSRVExportFDToIONHandle(int fd)
 		goto err_fput;
 	}
 
-	psPerProc = PVRSRVFindPerProcessData();
-	if(!psPerProc)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to look up per-process data",
-								__func__));
-		goto err_fput;
-	}
-
-	eError = PVRSRVLookupHandle(psPerProc->psHandleBase,
+	eError = PVRSRVLookupHandle(KERNEL_HANDLE_BASE,
 								(IMG_PVOID *)&psKernelMemInfo,
 								psPrivateData->hKernelMemInfo,
 								PVRSRV_HANDLE_TYPE_MEM_INFO);
@@ -89,6 +78,21 @@ struct ion_handle *PVRSRVExportFDToIONHandle(int fd)
 		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to look up MEM_INFO handle",
 								__func__));
 		goto err_fput;
+	}
+
+	if(client)
+	{
+		PVRSRV_ENV_PER_PROCESS_DATA *psEnvPerProc;
+
+		psEnvPerProc = PVRSRVPerProcessPrivateData(psPrivateData->ui32OpenPID);
+		if(!psEnvPerProc)
+		{
+			PVR_DPF((PVR_DBG_ERROR, "%s: Failed to look up per-process data",
+									__func__));
+			goto err_fput;
+		}
+
+		*client = psEnvPerProc->psIONClient;
 	}
 
 	psLinuxMemArea = (LinuxMemArea *)psKernelMemInfo->sMemBlk.hOSMemHandle;
@@ -107,5 +111,3 @@ err_unlock:
 }
 
 EXPORT_SYMBOL(PVRSRVExportFDToIONHandle);
-
-#endif /* defined(CONFIG_ION_OMAP) */

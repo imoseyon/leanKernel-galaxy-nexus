@@ -1170,13 +1170,22 @@ err_free:
 IMG_VOID
 FreeIONLinuxMemArea(LinuxMemArea *psLinuxMemArea)
 {
+    PVRSRV_ENV_PER_PROCESS_DATA *psEnvPerProc;
+
 #if 0 && defined(DEBUG_LINUX_MEM_AREAS)
     
     DebugLinuxMemAreaRecordRemove(psLinuxMemArea);
 #endif
 
-    
-    PVR_DPF((PVR_DBG_ERROR, "%s: implement freeing of ion LinuxMemArea!\n", __func__));
+    psEnvPerProc = PVRSRVFindPerProcessPrivateData();
+    if(!psEnvPerProc)
+    {
+        PVR_DPF((PVR_DBG_ERROR, "%s: Failed to look-up envperproc data", __func__));
+        return;
+    }
+
+    ion_free(psEnvPerProc->psIONClient,
+             psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle);
 
     
     psLinuxMemArea->uData.sIONTilerAlloc.pCPUPhysAddrs = IMG_NULL;

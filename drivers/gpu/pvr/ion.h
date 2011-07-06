@@ -22,28 +22,15 @@
  * Imagination Technologies Ltd. <gpl-support@imgtec.com>
  * Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK 
  *
- ******************************************************************************/
+ *****************************************************************************/
 
-#ifndef _PVRVERSION_H_
-#define _PVRVERSION_H_
+#ifndef __IMG_LINUX_ION_H__
+#define __IMG_LINUX_ION_H__
 
-#include "staticversion.h"
+#include <linux/ion.h>
+#include <linux/omap_ion.h>
 
-#define PVRVERSION_BRANCHNAME "pj:1.8.18"
-#define PVRVERSION_BUILD      781
-#define PVRVERSION_BSCONTROL  "Internal"
+struct ion_handle *PVRSRVExportFDToIONHandle(int fd,
+											 struct ion_client **client);
 
-#define PVRVERSION_STRING     "1.8.18.781"
-
-#define PVRVERSION_FILE       "eurasiacon.pj"
-
-#define COPYRIGHT_TXT         "Copyright (c) Imagination Technologies Ltd."
-
-#define PVRVERSION_MM32B      "1.8.18.781"
-
-#define PVRVERSION_BUILD_LO	  781
-#define PVRVERSION_BUILD_HI	  18
-
-
-#endif 
-
+#endif /* __IMG_LINUX_ION_H__ */
