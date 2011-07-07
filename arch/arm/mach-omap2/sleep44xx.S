@@ -216,6 +216,9 @@ sync:
 	ands	r0, r0, #0x1
 	bne	sync
 #endif
+	/* Drain interconnect write buffers. */
+	bl omap_bus_sync
+
 	/*
 	 * Execute an ISB instruction to ensure that all of the
 	 * CP15 register changes have been committed.
@@ -482,5 +485,19 @@ mmu_on_label:
 	.equ	local_va2pa_offet, (PLAT_PHYS_OFFSET + PAGE_OFFSET)
 
 ENDPROC(omap4_cpu_resume)
+
+ENTRY(omap_bus_sync)
+	stmfd	sp!, {r9, lr}
+	/* SO write to drain of MPU-2-DDR T2ASYNC FIFO */
+	bl	omap_get_dram_barrier_base
+	ldr	r2, [r0]
+	str	r2, [r0]
+	/* SO write to drain MPU-2-L3 T2ASYNC FIFO */
+	bl	omap_get_sram_barrier_base
+	ldr	r2, [r0]
+	str	r2, [r0]
+	isb
+	ldmfd	sp!, {r9, pc}
+ENDPROC(omap_bus_sync)
 
 #endif
