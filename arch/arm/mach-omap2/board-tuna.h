@@ -31,6 +31,7 @@ void omap4_tuna_jack_init(void);
 void omap4_tuna_nfc_init(void);
 void omap4_tuna_power_init(void);
 void omap4_tuna_sensors_init(void);
+void omap4_tuna_connector_init(void);
 int tuna_wlan_init(void);
 int omap_hsi_init(void);
 void omap4_tuna_emif_init(void);

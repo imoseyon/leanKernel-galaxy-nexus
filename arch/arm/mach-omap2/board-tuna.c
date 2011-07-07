@@ -471,16 +471,21 @@ static struct regulator_init_data tuna_vdac = {
 	},
 };
 
+static struct regulator_consumer_supply tuna_vusb_supply[] = {
+	REGULATOR_SUPPLY("vusb", "tuna_otg"),
+};
+
 static struct regulator_init_data tuna_vusb = {
 	.constraints = {
 		.min_uV			= 3300000,
 		.max_uV			= 3300000,
-		.apply_uV		= true,
 		.valid_modes_mask	= REGULATOR_MODE_NORMAL
 					| REGULATOR_MODE_STANDBY,
 		.valid_ops_mask	 =	REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
 	},
+	.num_consumer_supplies	= ARRAY_SIZE(tuna_vusb_supply),
+	.consumer_supplies	= tuna_vusb_supply,
 };
 
 static struct regulator_init_data tuna_clk32kg = {
@@ -859,6 +864,7 @@ static void __init tuna_init(void)
 	omap4_tuna_power_init();
 	omap4_tuna_jack_init();
 	omap4_tuna_sensors_init();
+	omap4_tuna_connector_init();
 #ifdef CONFIG_OMAP_HSI_DEVICE
 	if (TUNA_TYPE_MAGURO == omap4_tuna_get_type())
 		omap_hsi_init();

@@ -261,6 +261,7 @@ obj-$(CONFIG_MACH_TUNA)			+= board-tuna-sensors.o
 obj-$(CONFIG_MACH_TUNA)			+= board-tuna-wifi.o
 obj-$(CONFIG_MACH_TUNA)			+= board-tuna-bluetooth.o \
 					   board-tuna-emif.o
+obj-$(CONFIG_MACH_TUNA)			+= board-tuna-connector.o
 
 obj-$(CONFIG_MACH_OMAP3517EVM)		+= board-am3517evm.o \
 					   omap_phy_internal.o \
