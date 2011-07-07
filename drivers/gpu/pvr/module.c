@@ -484,6 +484,7 @@ static int PVRSRVRelease(struct inode unref__ * pInode, struct file *pFile)
 #endif
 {
 	PVRSRV_FILE_PRIVATE_DATA *psPrivateData;
+	int err = 0;
 
 	LinuxLockMutex(&gPVRSRVLock);
 
@@ -497,6 +498,31 @@ static int PVRSRVRelease(struct inode unref__ * pInode, struct file *pFile)
 #if defined(SUPPORT_DRI_DRM) && defined(PVR_SECURE_DRM_AUTH_EXPORT)
 		list_del(&psPrivateData->sDRMAuthListItem);
 #endif
+
+		if(psPrivateData->hKernelMemInfo)
+		{
+			PVRSRV_KERNEL_MEM_INFO *psKernelMemInfo;
+
+			
+			if(PVRSRVLookupHandle(KERNEL_HANDLE_BASE,
+								  (IMG_PVOID *)&psKernelMemInfo,
+								  psPrivateData->hKernelMemInfo,
+								  PVRSRV_HANDLE_TYPE_MEM_INFO) != PVRSRV_OK)
+			{
+				PVR_DPF((PVR_DBG_ERROR, "%s: Failed to look up export handle", __FUNCTION__));
+				err = -EFAULT;
+				goto err_unlock;
+			}
+
+			
+			if(FreeMemCallBackCommon(psKernelMemInfo, 0,
+									 PVRSRV_FREE_CALLBACK_ORIGIN_EXTERNAL) != PVRSRV_OK)
+			{
+				PVR_DPF((PVR_DBG_ERROR, "%s: FreeMemCallBackCommon failed", __FUNCTION__));
+				err = -EFAULT;
+				goto err_unlock;
+			}
+		}
 
 		
 		gui32ReleasePID = psPrivateData->ui32OpenPID;
@@ -512,10 +538,12 @@ static int PVRSRVRelease(struct inode unref__ * pInode, struct file *pFile)
 #endif
 	}
 
+err_unlock:
 	LinuxUnLockMutex(&gPVRSRVLock);
-
-#if !defined(SUPPORT_DRI_DRM)
-	return 0;
+#if defined(SUPPORT_DRI_DRM)
+	return;
+#else
+	return err;
 #endif
 }
 

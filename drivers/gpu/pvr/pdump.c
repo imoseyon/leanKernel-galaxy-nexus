@@ -431,7 +431,7 @@ IMG_VOID PDumpInit(IMG_VOID)
 		}
 
 		PDUMPCOMMENT("Driver Product Name: %s", VS_PRODUCT_NAME);
-		PDUMPCOMMENT("Driver Product Version: %s (%s)", PVRVERSION_STRING, PVRVERSION_FILE);
+		PDUMPCOMMENT("Driver Product Version: %s (%s)", PVRVERSION_STRING, PVRVERSION_FAMILY);
 		PDUMPCOMMENT("Start of Init Phase");
 	}
 

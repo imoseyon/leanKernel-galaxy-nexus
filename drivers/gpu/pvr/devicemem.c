@@ -426,7 +426,7 @@ static PVRSRV_ERROR AllocDeviceMem(IMG_HANDLE		hDevCookie,
 	return (PVRSRV_OK);
 }
 
-static PVRSRV_ERROR FreeDeviceMem2(PVRSRV_KERNEL_MEM_INFO *psMemInfo, IMG_BOOL bFromAllocator)
+static PVRSRV_ERROR FreeDeviceMem2(PVRSRV_KERNEL_MEM_INFO *psMemInfo, PVRSRV_FREE_CALLBACK_ORIGIN eCallbackOrigin)
 {
 	BM_HANDLE		hBuffer;
 
@@ -438,13 +438,21 @@ static PVRSRV_ERROR FreeDeviceMem2(PVRSRV_KERNEL_MEM_INFO *psMemInfo, IMG_BOOL b
 	hBuffer = psMemInfo->sMemBlk.hBuffer;
 
 	
-	if (bFromAllocator)
-		BM_Free(hBuffer, psMemInfo->ui32Flags);
-	else
-		BM_FreeExport(hBuffer, psMemInfo->ui32Flags);
+	switch(eCallbackOrigin)
+	{
+		case PVRSRV_FREE_CALLBACK_ORIGIN_ALLOCATOR:
+			BM_Free(hBuffer, psMemInfo->ui32Flags);
+			break;
+		case PVRSRV_FREE_CALLBACK_ORIGIN_IMPORTER:
+			BM_FreeExport(hBuffer, psMemInfo->ui32Flags);
+			break;
+		default:
+			break;
+	}
 
 	
-	if ((psMemInfo->pvSysBackupBuffer) && bFromAllocator)
+	if (psMemInfo->pvSysBackupBuffer &&
+		eCallbackOrigin == PVRSRV_FREE_CALLBACK_ORIGIN_ALLOCATOR)
 	{
 		
 		OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, psMemInfo->uAllocSize, psMemInfo->pvSysBackupBuffer, IMG_NULL);
@@ -716,9 +724,10 @@ static PVRSRV_ERROR FlushKernelOps(PVRSRV_SYNC_DATA *psSyncData)
 }
 #endif 
 
-static PVRSRV_ERROR FreeMemCallBackCommon(PVRSRV_KERNEL_MEM_INFO *psMemInfo,
-										  IMG_UINT32	ui32Param,
-										  IMG_BOOL	bFromAllocator)
+IMG_EXPORT
+PVRSRV_ERROR FreeMemCallBackCommon(PVRSRV_KERNEL_MEM_INFO *psMemInfo,
+								   IMG_UINT32	ui32Param,
+								   PVRSRV_FREE_CALLBACK_ORIGIN eCallbackOrigin)
 {
 	PVRSRV_ERROR eError = PVRSRV_OK;
 
@@ -728,39 +737,38 @@ static PVRSRV_ERROR FreeMemCallBackCommon(PVRSRV_KERNEL_MEM_INFO *psMemInfo,
 	psMemInfo->ui32RefCount--;
 
 	
-	if(((psMemInfo->ui32Flags & PVRSRV_MEM_EXPORTED) != 0) && (bFromAllocator == IMG_TRUE))
-	{
-#if defined (SUPPORT_SID_INTERFACE)
-		IMG_SID hMemInfo = 0;
-#else
-		IMG_HANDLE hMemInfo = IMG_NULL;
-#endif
-
-		
-		eError = PVRSRVFindHandle(KERNEL_HANDLE_BASE,
-								 &hMemInfo,
-								 psMemInfo,
-								 PVRSRV_HANDLE_TYPE_MEM_INFO);
-		if(eError != PVRSRV_OK)
-		{
-			PVR_DPF((PVR_DBG_ERROR, "FreeMemCallBackCommon: can't find exported meminfo in the global handle list"));
-			return eError;
-		}
-
-		
-		eError = PVRSRVReleaseHandle(KERNEL_HANDLE_BASE,
-									hMemInfo,
-									PVRSRV_HANDLE_TYPE_MEM_INFO);
-		if(eError != PVRSRV_OK)
-		{
-			PVR_DPF((PVR_DBG_ERROR, "FreeMemCallBackCommon: PVRSRVReleaseHandle failed for exported meminfo"));
-			return eError;
-		}
-	}
-
-	
 	if (psMemInfo->ui32RefCount == 0)
 	{
+		if((psMemInfo->ui32Flags & PVRSRV_MEM_EXPORTED) != 0)
+		{
+#if defined (SUPPORT_SID_INTERFACE)
+			IMG_SID hMemInfo = 0;
+#else
+			IMG_HANDLE hMemInfo = IMG_NULL;
+#endif
+
+			
+			eError = PVRSRVFindHandle(KERNEL_HANDLE_BASE,
+									 &hMemInfo,
+									 psMemInfo,
+									 PVRSRV_HANDLE_TYPE_MEM_INFO);
+			if(eError != PVRSRV_OK)
+			{
+				PVR_DPF((PVR_DBG_ERROR, "FreeMemCallBackCommon: can't find exported meminfo in the global handle list"));
+				return eError;
+			}
+
+			
+			eError = PVRSRVReleaseHandle(KERNEL_HANDLE_BASE,
+										hMemInfo,
+										PVRSRV_HANDLE_TYPE_MEM_INFO);
+			if(eError != PVRSRV_OK)
+			{
+				PVR_DPF((PVR_DBG_ERROR, "FreeMemCallBackCommon: PVRSRVReleaseHandle failed for exported meminfo"));
+				return eError;
+			}
+		}
+
 #if defined (PVRSRV_FLUSH_KERNEL_OPS_LAST_ONLY)
 		if (psMemInfo->psKernelSyncInfo)
 		{
@@ -796,7 +804,7 @@ static PVRSRV_ERROR FreeMemCallBackCommon(PVRSRV_KERNEL_MEM_INFO *psMemInfo,
 	
 	if (eError == PVRSRV_OK)
 	{
-		eError = FreeDeviceMem2(psMemInfo, bFromAllocator);
+		eError = FreeDeviceMem2(psMemInfo, eCallbackOrigin);
 	}
 
 	return eError;
@@ -810,7 +818,8 @@ static PVRSRV_ERROR FreeDeviceMemCallBack(IMG_PVOID  pvParam,
 	
 	PVR_UNREFERENCED_PARAMETER(bDummy);
 
-	return FreeMemCallBackCommon(psMemInfo, ui32Param, IMG_TRUE);
+	return FreeMemCallBackCommon(psMemInfo, ui32Param,
+								 PVRSRV_FREE_CALLBACK_ORIGIN_ALLOCATOR);
 }
 
 
@@ -1008,7 +1017,8 @@ static PVRSRV_ERROR UnwrapExtMemoryCallBack(IMG_PVOID  pvParam,
 	
 	PVR_UNREFERENCED_PARAMETER(bDummy);
 
-	return FreeMemCallBackCommon(psMemInfo, ui32Param, IMG_TRUE);
+	return FreeMemCallBackCommon(psMemInfo, ui32Param,
+								 PVRSRV_FREE_CALLBACK_ORIGIN_ALLOCATOR);
 }
 
 
@@ -1293,7 +1303,8 @@ static PVRSRV_ERROR UnmapDeviceMemoryCallBack(IMG_PVOID  pvParam,
 	}
 
 	
-	eError = FreeMemCallBackCommon(psMapData->psSrcMemInfo, 0, IMG_FALSE);
+	eError = FreeMemCallBackCommon(psMapData->psSrcMemInfo, 0,
+								   PVRSRV_FREE_CALLBACK_ORIGIN_IMPORTER);
 
 	OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof(RESMAN_MAP_DEVICE_MEM_DATA), psMapData, IMG_NULL);
 	
@@ -1535,7 +1546,8 @@ static PVRSRV_ERROR UnmapDeviceClassMemoryCallBack(IMG_PVOID  pvParam,
 
 	OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof(PVRSRV_DC_MAPINFO), psDCMapInfo, IMG_NULL);
 
-	return FreeMemCallBackCommon(psMemInfo, ui32Param, IMG_TRUE);
+	return FreeMemCallBackCommon(psMemInfo, ui32Param,
+								 PVRSRV_FREE_CALLBACK_ORIGIN_ALLOCATOR);
 }
 
 

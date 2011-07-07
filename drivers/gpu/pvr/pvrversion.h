@@ -22,28 +22,30 @@
  * Imagination Technologies Ltd. <gpl-support@imgtec.com>
  * Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK 
  *
- ******************************************************************************/
+*/ /**************************************************************************/
 
 #ifndef _PVRVERSION_H_
 #define _PVRVERSION_H_
 
-#include "staticversion.h"
+#define PVR_STR(X) #X
+#define PVR_STR2(X) PVR_STR(X)
 
-#define PVRVERSION_BRANCHNAME "pj:1.8.18"
-#define PVRVERSION_BUILD      791
-#define PVRVERSION_BSCONTROL  "Internal"
+#define PVRVERSION_MAJ               1
+#define PVRVERSION_MIN               8
+#define PVRVERSION_BRANCH            18
 
-#define PVRVERSION_STRING     "1.8.18.791"
+#define PVRVERSION_FAMILY           "eurasiacon.pj"
+#define PVRVERSION_BRANCHNAME       "1.8.18"
+#define PVRVERSION_BUILD             829
+#define PVRVERSION_BSCONTROL        "Unknown"
 
-#define PVRVERSION_FILE       "eurasiacon.pj"
+#define PVRVERSION_STRING           "1.8.18." PVR_STR2(PVRVERSION_BUILD)
+#define PVRVERSION_STRING_SHORT     "1.8.18." PVR_STR2(PVRVERSION_BUILD)
 
-#define COPYRIGHT_TXT         "Copyright (c) Imagination Technologies Ltd."
+#define COPYRIGHT_TXT               "Copyright (c) Imagination Technologies Ltd. All Rights Reserved."
 
-#define PVRVERSION_MM32B      "1.8.18.791"
+#define PVRVERSION_BUILD_HI          18
+#define PVRVERSION_BUILD_LO          829
+#define PVRVERSION_STRING_NUMERIC    PVR_STR2(PVRVERSION_MAJ) "." PVR_STR2(PVRVERSION_MIN) "." PVR_STR2(PVRVERSION_BUILD_HI) "." PVR_STR2(PVRVERSION_BUILD_LO)
 
-#define PVRVERSION_BUILD_LO	  791
-#define PVRVERSION_BUILD_HI	  18
-
-
-#endif 
-
+#endif /* _PVRVERSION_H_ */
