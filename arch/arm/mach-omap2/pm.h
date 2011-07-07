@@ -192,7 +192,7 @@ static inline int omap_tps6236x_init(void)
 {
 	return -EINVAL;
 }
-static inline nt omap_tps6236x_update(char *name, u16 old_chip_id,
+static inline int omap_tps6236x_update(char *name, u16 old_chip_id,
 		u16 new_chip_id)
 {
 	return -EINVAL;

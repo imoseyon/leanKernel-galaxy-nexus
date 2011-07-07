@@ -89,6 +89,8 @@ EXPORT_SYMBOL(omap_type);
 #define OMAP_TAP_DIE_ID_44XX_1	0x0208
 #define OMAP_TAP_DIE_ID_44XX_2	0x020c
 #define OMAP_TAP_DIE_ID_44XX_3	0x0210
+#define OMAP_TAP_PROD_ID_44XX_0	0x0214
+#define OMAP_TAP_PROD_ID_44XX_1	0x0218
 
 #define read_tap_reg(reg)	__raw_readl(tap_base  + (reg))
 
@@ -125,6 +127,16 @@ void omap_get_die_id(struct omap_die_id *odi)
 	odi->id_1 = read_tap_reg(OMAP_TAP_DIE_ID_1);
 	odi->id_2 = read_tap_reg(OMAP_TAP_DIE_ID_2);
 	odi->id_3 = read_tap_reg(OMAP_TAP_DIE_ID_3);
+}
+
+void omap_get_production_id(struct omap_die_id *odi)
+{
+	if (cpu_is_omap44xx()) {
+		odi->id_0 = read_tap_reg(OMAP_TAP_PROD_ID_44XX_0);
+		odi->id_1 = read_tap_reg(OMAP_TAP_PROD_ID_44XX_1);
+		odi->id_2 = 0;
+		odi->id_3 = 0;
+	}
 }
 
 static void __init omap24xx_check_revision(void)
