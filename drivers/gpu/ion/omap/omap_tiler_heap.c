@@ -105,6 +105,8 @@ int omap_tiler_alloc(struct ion_heap *heap,
 						    info->tiler_addrs);
 	if (IS_ERR_OR_NULL(info->tiler_handle)) {
 		ret = PTR_ERR(info->tiler_handle);
+		pr_err("%s: failure to allocate address space from tiler\n",
+		       __func__);
 		goto err_tiler_block_alloc;
 	}
 
@@ -115,14 +117,18 @@ int omap_tiler_alloc(struct ion_heap *heap,
 		if (addr == ION_CARVEOUT_ALLOCATE_FAIL) {
 			ret = -ENOMEM;
 			goto err_alloc;
+			pr_err("%s: failure to pages to back tiler "
+			       "address space\n", __func__);
 		}
 		info->phys_addrs[i] = addr;
 	}
 
 	ret = tiler_pin_block(info->tiler_handle, info->phys_addrs,
 			      info->n_phys_pages);
-	if (ret)
+	if (ret) {
+		pr_err("%s: failure to pin pages to tiler\n", __func__);
 		goto err_alloc;
+	}
 
 	data->stride = tiler_block_vstride(info->tiler_handle);
 
@@ -130,6 +136,8 @@ int omap_tiler_alloc(struct ion_heap *heap,
 	handle = ion_alloc(client, 0, 0, 1 << OMAP_ION_HEAP_TILER);
 	if (IS_ERR_OR_NULL(handle)) {
 		ret = PTR_ERR(handle);
+		pr_err("%s: failure to allocate handle to manage tiler"
+		       " allocation\n", __func__);
 		goto err;
 	}
 
