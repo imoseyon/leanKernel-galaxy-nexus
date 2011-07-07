@@ -259,49 +259,6 @@ static int omap_hsi_wakeup_disable(int hsi_port)
 	return ret;
 }
 
-/* Note : for hsi_idle_hwmod() and hsi_enable_hwmod() :*/
-/* we should normally use omap_hwmod_enable(), but this */
-/* function contains a mutex lock of the OMAP HWMOD mutex and there */
-/* is only one HWMOD mutex shared for the whole HWMOD table. */
-/* This is not compatible with the way HSI driver has to enable the */
-/* clocks (from atomic context), as the mutex can very likely be */
-/* locked by another HWMOD user. Thus we bypass the mutex usage. */
-/* The global mutex has been replaced by a separate mutex per HWMOD */
-/* entry, then on 2.6.38 by a separate spinlock. */
-/**
-* hsi_idle_hwmod - This function is a used to workaround the omap_hwmod layer
-*			which might sleep when omap_hwmod_idle() is called,
-*			and thus cannot be called from atomic context.
-*
-* @od - reference to the hsi omap_device.
-*
-* Note : a "normal" .deactivate_func shall be omap_device_idle_hwmods()
-*/
-static int hsi_idle_hwmod(struct omap_device *od)
-{
-	/* HSI omap_device only contain one od->hwmods[0], so no need to */
-	/* loop for all hwmods */
-	omap_hwmod_idle(od->hwmods[0]);
-		return 0;
-}
-
-/**
-* hsi_enable_hwmod - This function is a used to workaround the omap_hwmod layer
-*			which might sleep when omap_hwmod_enable() is called,
-*			and thus cannot be called from atomic context.
-*
-* @od - reference to the hsi omap_device.
-*
-* Note : a "normal" .activate_func shall be omap_device_enable_hwmods()
-*/
-static int hsi_enable_hwmod(struct omap_device *od)
-{
-	/* HSI omap_device only contain one od->hwmods[0], so no need to */
-	/* loop for all hwmods */
-	omap_hwmod_enable(od->hwmods[0]);
-	return 0;
-}
-
 /**
 * omap_hsi_prepare_suspend - Prepare HSI for suspend mode
 *
@@ -367,8 +324,8 @@ int omap_hsi_wakeup(int hsi_port)
  */
 static struct omap_device_pm_latency omap_hsi_latency[] = {
 	[0] = {
-	       .deactivate_func = hsi_idle_hwmod,
-	       .activate_func = hsi_enable_hwmod,
+	       .deactivate_func = omap_device_idle_hwmods,
+	       .activate_func = omap_device_enable_hwmods,
 	       .flags = OMAP_DEVICE_LATENCY_AUTO_ADJUST,
 	       },
 };
