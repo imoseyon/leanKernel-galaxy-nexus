@@ -343,7 +343,8 @@ static int gpio_irq_type(struct irq_data *d, unsigned type)
 
 	bank = irq_data_get_irq_chip_data(d);
 
-	if (bank->regs->leveldetect0 && (type &
+	/* OMAP1 allows only edge triggering */
+	if (!bank->regs->leveldetect0 && (type &
 			(IRQ_TYPE_LEVEL_LOW|IRQ_TYPE_LEVEL_HIGH)))
 		return -EINVAL;
 
