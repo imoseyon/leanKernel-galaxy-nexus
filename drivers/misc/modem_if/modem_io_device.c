@@ -102,7 +102,7 @@ static int get_hdlc_size(struct io_device *iod, char *buf)
 	return 0;
 }
 
-static void *get_header(struct io_device *iod, struct misc_data_io *misc_data,
+static void *get_header(struct io_device *iod, size_t count,
 			char *frame_header_buf)
 {
 	struct fmt_hdr *fmt_h;
@@ -113,7 +113,7 @@ static void *get_header(struct io_device *iod, struct misc_data_io *misc_data,
 	case IPC_FMT:
 		fmt_h = (struct fmt_hdr *)frame_header_buf;
 
-		fmt_h->len = misc_data->size + sizeof(struct fmt_hdr);
+		fmt_h->len = count + sizeof(struct fmt_hdr);
 		fmt_h->control = 0;
 
 		return (void *)frame_header_buf;
@@ -122,8 +122,8 @@ static void *get_header(struct io_device *iod, struct misc_data_io *misc_data,
 	case IPC_MULTI_RAW:
 		raw_h = (struct raw_hdr *)frame_header_buf;
 
-		raw_h->len = misc_data->size + sizeof(struct raw_hdr);
-		raw_h->channel = misc_data->id;
+		raw_h->len = count + sizeof(struct raw_hdr);
+		raw_h->channel = iod->id;
 		raw_h->control = 0;
 
 		return (void *)frame_header_buf;
@@ -131,9 +131,8 @@ static void *get_header(struct io_device *iod, struct misc_data_io *misc_data,
 	case IPC_RFS:
 		rfs_h = (struct rfs_hdr *)frame_header_buf;
 
-		rfs_h->len = misc_data->size + sizeof(struct raw_hdr);
-		rfs_h->cmd = misc_data->cmd;
-		rfs_h->id = misc_data->id;
+		rfs_h->len = count + sizeof(struct raw_hdr);
+		rfs_h->id = iod->id;
 
 		return (void *)frame_header_buf;
 
@@ -253,14 +252,21 @@ static int rx_hdlc_data_check(struct io_device *iod, char *buf, unsigned rest)
 	}
 
 	/* if recv packet size is larger than user space */
-	while (rest_len > MAX_RXDATA_SIZE) {
+	while ((rest_len > MAX_RXDATA_SIZE) && (rest > 0)) {
 		len = MAX_RXDATA_SIZE - skb->len;
+		len = min(len, (int)rest);
+		len = min(len, rest_len);
 		memcpy(skb_put(skb, len), buf, len);
 		buf += len;
 		done_len += len;
 		rest -= len;
 		rest_len -= len;
+
+		if (!rest_len)
+			break;
+
 		rx_iodev_skb(iod);
+		iod->skb_recv =  NULL;
 
 		alloc_size = min(rest_len, MAX_RXDATA_SIZE);
 		skb_new = alloc_skb(alloc_size, GFP_ATOMIC);
@@ -271,6 +277,7 @@ static int rx_hdlc_data_check(struct io_device *iod, char *buf, unsigned rest)
 
 	/* copy data to skb */
 	len = min(rest, alloc_size - skb->len);
+	len = min(len, rest_len);
 	pr_debug("[MODEM_IF] rest : %d, alloc_size : %d , len : %d (%d)\n",
 				rest, alloc_size, skb->len, __LINE__);
 
@@ -364,6 +371,9 @@ static int rx_hdlc_packet(struct io_device *iod, const char *data,
 
 	pr_debug("[MODEM_IF] RX_SIZE=%d\n", rest);
 
+	if (iod->h_data.flag_len)
+		goto data_check;
+
 next_frame:
 	err = len = rx_hdlc_head_check(iod, buf, rest);
 	if (err < 0)
@@ -376,6 +386,7 @@ next_frame:
 	if (rest <= 0)
 		goto exit;
 
+data_check:
 	err = len = rx_hdlc_data_check(iod, buf, rest);
 	if (err < 0)
 		goto exit;
@@ -384,7 +395,10 @@ next_frame:
 
 	buf += len;
 	rest -= len;
-	if (rest <= 0)
+
+	if (!rest && iod->h_data.flag_len)
+		return 0;
+	else if (rest <= 0)
 		goto exit;
 
 	err = len = rx_hdlc_tail_check(buf);
@@ -418,9 +432,11 @@ exit:
 	if (err < 0 && iod->skb_recv) {
 		dev_kfree_skb_any(iod->skb_recv);
 		iod->skb_recv = NULL;
+
+		/* clear headers */
+		memset(&iod->h_data, 0x00, sizeof(struct header_data));
 	}
-	/* clear headers */
-	memset(&iod->h_data, 0x00, sizeof(struct header_data));
+
 	return err;
 }
 
@@ -473,6 +489,7 @@ static int io_dev_recv_data_from_link_dev(struct io_device *iod,
 static void io_dev_modem_state_changed(struct io_device *iod,
 			enum modem_state state)
 {
+	iod->mc->phone_state = state;
 }
 
 static int misc_open(struct inode *inode, struct file *filp)
@@ -497,97 +514,11 @@ static unsigned int misc_poll(struct file *filp, struct poll_table_struct *wait)
 
 static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long _arg)
 {
-	void __user *arg = (void *) _arg;
 	struct io_device *iod = (struct io_device *)filp->private_data;
-	struct misc_data_io misc_data;
-	int frame_len = 0;
-	char frame_header_buf[sizeof(struct raw_hdr)];
-	struct sk_buff *skb;
 
 	pr_debug("[MODEM_IF] misc_ioctl : 0x%x\n", cmd);
 
 	switch (cmd) {
-	case IOCTL_MODEM_SEND:
-
-		/* TODO - check here flow control for only raw data */
-
-		if (copy_from_user(&misc_data, arg, sizeof(misc_data)) != 0)
-			return -EFAULT;
-
-		frame_len = misc_data.size + SIZE_OF_HDLC_START
-			+ get_header_size(iod) + SIZE_OF_HDLC_END;
-		skb = alloc_skb(frame_len, GFP_ATOMIC);
-		if (!skb) {
-			pr_err("[MODEM_IF] fail alloc skb (%d)\n", __LINE__);
-			return -ENOMEM;
-		}
-
-		switch (iod->format) {
-		case IPC_BOOT:
-			if (copy_from_user(skb_put(skb, misc_data.size),
-				misc_data.data, misc_data.size) != 0)
-				return -EFAULT;
-			break;
-
-		case IPC_RFS:
-			memcpy(skb_put(skb, SIZE_OF_HDLC_START), hdlc_start,
-					SIZE_OF_HDLC_START);
-			if (copy_from_user(skb_put(skb, misc_data.size),
-					misc_data.data, misc_data.size) != 0)
-				return -EFAULT;
-			memcpy(skb_put(skb, SIZE_OF_HDLC_END), hdlc_end,
-						SIZE_OF_HDLC_END);
-			break;
-
-		default:
-			memcpy(skb_put(skb, SIZE_OF_HDLC_START), hdlc_start,
-					SIZE_OF_HDLC_START);
-			memcpy(skb_put(skb, get_header_size(iod)),
-				get_header(iod, &misc_data, frame_header_buf),
-				get_header_size(iod));
-			if (copy_from_user(skb_put(skb, misc_data.size),
-					misc_data.data, misc_data.size) != 0)
-				return -EFAULT;
-			memcpy(skb_put(skb, SIZE_OF_HDLC_END), hdlc_end,
-						SIZE_OF_HDLC_END);
-			break;
-		}
-
-		/* send data with sk_buff, link device will put sk_buff
-		 * into the specific sk_buff_q and run work-q to send data
-		 */
-		return iod->link->send(iod->link, iod, skb);
-
-	case IOCTL_MODEM_RECV:
-		if (copy_from_user(&misc_data, arg, sizeof(misc_data)) != 0)
-			return -EFAULT;
-
-		skb = skb_dequeue(&iod->sk_rx_q);
-		if (!skb) {
-			pr_err("[MODEM_IF] no data from sk_rx_q\n");
-			return 0;
-		}
-
-		if (skb->len > MAX_RXDATA_SIZE) {
-			pr_err("[MODEM_IF] skb len is too big = %d!(%d)",
-					MAX_RXDATA_SIZE, __LINE__);
-			dev_kfree_skb_any(skb);
-			return -EFAULT;
-		}
-		misc_data.size = skb->len;
-		pr_debug("[MODEM_IF] skb len : %d\n", skb->len);
-
-		if (copy_to_user(misc_data.data, skb->data, skb->len) != 0)
-			return -EFAULT;
-		dev_kfree_skb_any(skb);
-
-		if (copy_to_user(arg, &misc_data, sizeof(misc_data)) != 0)
-			return -EFAULT;
-
-		pr_debug("[MODEM_IF] copy to user : %d\n", misc_data.size);
-
-		return misc_data.size;
-
 	case IOCTL_MODEM_ON:
 		pr_info("[MODEM_IF] misc_ioctl : IOCTL_MODEM_ON\n");
 		return iod->mc->ops.modem_on(iod->mc);
@@ -621,11 +552,96 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long _arg)
 	}
 }
 
+static ssize_t misc_write(struct file *filp, const char __user * buf,
+			size_t count, loff_t *ppos)
+{
+	struct io_device *iod = (struct io_device *)filp->private_data;
+	int frame_len = 0;
+	char frame_header_buf[sizeof(struct raw_hdr)];
+	struct sk_buff *skb;
+
+	/* TODO - check here flow control for only raw data */
+
+	frame_len = count + SIZE_OF_HDLC_START + get_header_size(iod)
+				+ SIZE_OF_HDLC_END;
+	skb = alloc_skb(frame_len, GFP_ATOMIC);
+	if (!skb) {
+		pr_err("[MODEM_IF] fail alloc skb (%d)\n", __LINE__);
+		return -ENOMEM;
+	}
+
+	switch (iod->format) {
+	case IPC_BOOT:
+		if (copy_from_user(skb_put(skb, count), buf, count) != 0)
+			return -EFAULT;
+		break;
+
+	case IPC_RFS:
+		memcpy(skb_put(skb, SIZE_OF_HDLC_START), hdlc_start,
+				SIZE_OF_HDLC_START);
+		if (copy_from_user(skb_put(skb, count), buf, count) != 0)
+			return -EFAULT;
+		memcpy(skb_put(skb, SIZE_OF_HDLC_END), hdlc_end,
+					SIZE_OF_HDLC_END);
+		break;
+
+	default:
+		memcpy(skb_put(skb, SIZE_OF_HDLC_START), hdlc_start,
+				SIZE_OF_HDLC_START);
+		memcpy(skb_put(skb, get_header_size(iod)),
+			get_header(iod, count, frame_header_buf),
+			get_header_size(iod));
+		if (copy_from_user(skb_put(skb, count), buf, count) != 0)
+			return -EFAULT;
+		memcpy(skb_put(skb, SIZE_OF_HDLC_END), hdlc_end,
+					SIZE_OF_HDLC_END);
+		break;
+	}
+
+	/* send data with sk_buff, link device will put sk_buff
+	 * into the specific sk_buff_q and run work-q to send data
+	 */
+	return iod->link->send(iod->link, iod, skb);
+}
+
+static ssize_t misc_read(struct file *filp, char *buf, size_t count,
+			loff_t *f_pos)
+{
+	struct io_device *iod = (struct io_device *)filp->private_data;
+	struct sk_buff *skb;
+	int pktsize = 0;
+
+	skb = skb_dequeue(&iod->sk_rx_q);
+	if (!skb) {
+		pr_err("[MODEM_IF] no data from sk_rx_q\n");
+		return 0;
+	}
+
+	if (skb->len > count) {
+		pr_err("[MODEM_IF] skb len is too big = %d,%d!(%d)",
+				count, skb->len, __LINE__);
+		dev_kfree_skb_any(skb);
+		return -EFAULT;
+	}
+	pr_debug("[MODEM_IF] skb len : %d\n", skb->len);
+
+	pktsize = skb->len;
+	if (copy_to_user(buf, skb->data, pktsize) != 0)
+		return -EFAULT;
+	dev_kfree_skb_any(skb);
+
+	pr_debug("[MODEM_IF] copy to user : %d\n", pktsize);
+
+	return pktsize;
+}
+
 static const struct file_operations misc_io_fops = {
 	.owner = THIS_MODULE,
 	.open = misc_open,
 	.poll = misc_poll,
 	.unlocked_ioctl = misc_ioctl,
+	.write = misc_write,
+	.read = misc_read,
 };
 
 static int vnet_open(struct net_device *ndev)

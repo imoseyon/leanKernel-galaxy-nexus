@@ -73,13 +73,6 @@ struct header_data {
 	char start; /*hdlc start header 0x7F*/
 };
 
-struct misc_data_io {
-	uint32_t size;
-	uint32_t id;
-	uint32_t cmd;
-	void *data;
-};
-
 struct vnet {
 	struct io_device *iod;
 };
