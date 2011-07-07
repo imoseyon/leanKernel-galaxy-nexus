@@ -83,6 +83,53 @@ static struct gpio tuna_hw_rev_gpios[] = {
 	{170, GPIOF_IN, "hw_rev4"},
 };
 
+static const char const *omap4_tuna_hw_name_maguro[] = {
+	[0x00] = "Toro Lunchbox #1",
+	[0x01] = "Maguro 1st Sample",
+	[0x02] = "Maguro 2nd Sample",
+	[0x05] = "Toro Pre-Lunchbox",
+};
+
+static const char const *omap4_tuna_hw_name_toro[] = {
+	[0x00] = "Toro Lunchbox #2",
+	[0x01] = "Toro 1st Sample",
+	[0x02] = "Toro 2nd Sample",
+};
+
+int omap4_tuna_get_revision(void)
+{
+	return tuna_hw_rev & TUNA_REV_MASK;
+}
+
+int omap4_tuna_get_type(void)
+{
+	return tuna_hw_rev & TUNA_TYPE_MASK;
+}
+
+
+static const char *omap4_tuna_hw_rev_name(void) {
+	const char *ret;
+	const char **names;
+	int num;
+	int rev;
+
+	if (omap4_tuna_get_type() == TUNA_TYPE_MAGURO) {
+		names = omap4_tuna_hw_name_maguro;
+		num = ARRAY_SIZE(omap4_tuna_hw_name_maguro);
+		ret = "Maguro unknown";
+	} else {
+		names = omap4_tuna_hw_name_toro;
+		num = ARRAY_SIZE(omap4_tuna_hw_name_toro);
+		ret = "Toro unknown";
+	}
+
+	rev = omap4_tuna_get_revision();
+	if (rev >= num || !names[rev])
+		return ret;
+
+	return names[rev];
+}
+
 static void omap4_tuna_init_hw_rev(void)
 {
 	int ret;
@@ -102,17 +149,9 @@ static void omap4_tuna_init_hw_rev(void)
 	for (i = 0; i < ARRAY_SIZE(tuna_hw_rev_gpios); i++)
 		tuna_hw_rev |= gpio_get_value(tuna_hw_rev_gpios[i].gpio) << i;
 
-	pr_info("Tuna HW revision: %02x\n", tuna_hw_rev);
-}
-
-int omap4_tuna_get_revision(void)
-{
-	return tuna_hw_rev & TUNA_REV_MASK;
-}
-
-int omap4_tuna_get_type(void)
-{
-	return tuna_hw_rev & TUNA_TYPE_MASK;
+	pr_info("Tuna HW revision: %02x (%s), cpu %s\n", tuna_hw_rev,
+		omap4_tuna_hw_rev_name(),
+		cpu_is_omap443x() ? "OMAP4430" : "OMAP4460");
 }
 
 bool omap4_tuna_final_gpios(void)
