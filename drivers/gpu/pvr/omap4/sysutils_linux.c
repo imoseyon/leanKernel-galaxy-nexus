@@ -40,6 +40,7 @@
 
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/opp.h>
 
 #if defined(SUPPORT_DRI_DRM_PLUGIN)
 #include <drm/drmP.h>
@@ -163,8 +164,24 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 
 #if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
 	{
-		
-		int res = pm_runtime_get_sync(&gpsPVRLDMDev->dev);
+		int res;
+		struct gpu_platform_data *pdata;
+
+		pdata = (struct gpu_platform_data *)gpsPVRLDMDev->dev.platform_data;
+
+		PVR_ASSERT(pdata->device_scale != IMG_NULL);
+		res = pdata->device_scale(&gpsPVRLDMDev->dev,
+				&gpsPVRLDMDev->dev,
+				psSysSpecData->ui32OvFreq);
+		if (res < 0)
+		{
+			PVR_DPF((PVR_DBG_ERROR, "EnableSGXClocks: Unable to scale SGX frequency (%d)", res));
+			/*FIXME: Need to try setting the frequency to normal mode here but
+			 * this is not supported currently.
+			 */
+		}
+
+		res = pm_runtime_get_sync(&gpsPVRLDMDev->dev);
 		if (res < 0)
 		{
 			PVR_DPF((PVR_DBG_ERROR, "EnableSGXClocks: pm_runtime_get_sync failed (%d)", -res));
@@ -201,10 +218,25 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 
 #if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
 	{
-		int res = pm_runtime_put_sync(&gpsPVRLDMDev->dev);
+		int res;
+		struct gpu_platform_data *pdata;
+
+		res = pm_runtime_put_sync(&gpsPVRLDMDev->dev);
 		if (res < 0)
 		{
 			PVR_DPF((PVR_DBG_ERROR, "DisableSGXClocks: pm_runtime_put_sync failed (%d)", -res));
+		}
+
+		pdata = (struct gpu_platform_data *)gpsPVRLDMDev->dev.platform_data;
+
+		PVR_ASSERT(pdata->device_scale != IMG_NULL);
+		res = pdata->device_scale(&gpsPVRLDMDev->dev,
+				&gpsPVRLDMDev->dev,
+				psSysSpecData->ui32LowPowerFreq);
+		if (res < 0)
+		{
+			PVR_DPF((PVR_DBG_ERROR, "DisableSGXclocks: Unable to scale SGX frequency (%d)", res));
+			/*FIXME: Need to handle this condition. */
 		}
 	}
 #endif
@@ -496,6 +528,85 @@ PVRSRV_ERROR SysPMRuntimeUnregister(void)
 #if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
 	pm_runtime_disable(&gpsPVRLDMDev->dev);
 #endif
+	return PVRSRV_OK;
+}
+
+PVRSRV_ERROR SysDvfsInitialize(SYS_SPECIFIC_DATA *psSysSpecificData)
+{
+	struct opp *opp;
+	unsigned long freq;
+	struct gpu_platform_data *pdata;
+	PVRSRV_ERROR err;
+
+	pdata = (struct gpu_platform_data *)gpsPVRLDMDev->dev.platform_data;
+
+	psSysSpecificData->ui32NumOvFeqs = pdata->ovfreqs;
+
+	/* Only zero or one overdrive frequency supported */
+	PVR_ASSERT(psSysSpecificData->ui32NumOvFeqs <= 1);
+
+	/* Start with highest frequency */
+	freq = ULONG_MAX;
+
+	rcu_read_lock();
+	opp = opp_find_freq_floor(&gpsPVRLDMDev->dev, &freq);
+	if (IS_ERR_OR_NULL(opp))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: No available OPPs", __FUNCTION__));
+		err = PVRSRV_ERROR_NOT_SUPPORTED;
+		goto exit_error;
+	}
+
+	if(psSysSpecificData->ui32NumOvFeqs)
+	{
+		/* This is the overdrive frequency */
+		psSysSpecificData->ui32OvFreq = freq;
+
+		/* Next lower frequency is the normal operating frequency */
+		freq--;
+		opp = opp_find_freq_floor(&gpsPVRLDMDev->dev, &freq);
+		if (IS_ERR_OR_NULL(opp))
+		{
+			PVR_DPF((PVR_DBG_ERROR, "%s: Couldn't find normal OPP", __FUNCTION__));
+			err = PVRSRV_ERROR_NOT_SUPPORTED;
+			goto exit_error;
+		}
+		psSysSpecificData->ui32NormalFreq = freq;
+	}
+	else
+	{
+		/* Highest frequency is the normal operating frequency */
+		psSysSpecificData->ui32NormalFreq = freq;
+
+		/* FIXME: This should be set to zero but initial DVFS
+		 * implementation uses only OvFreq and LowPowerFreq.
+		 */
+		psSysSpecificData->ui32OvFreq = freq;
+	}
+
+	/* Lowest supported frequency is for low power mode */
+	freq = 0;
+	opp = opp_find_freq_ceil(&gpsPVRLDMDev->dev, &freq);
+	if (IS_ERR_OR_NULL(opp))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Couldn't find low power OPP", __FUNCTION__));
+		err = PVRSRV_ERROR_NOT_SUPPORTED;
+		goto exit_error;
+	}
+	psSysSpecificData->ui32LowPowerFreq = freq;
+
+	err = PVRSRV_OK;
+
+exit_error:
+	rcu_read_unlock();
+	return err;
+}
+
+PVRSRV_ERROR SysDvfsDeinitialize(SYS_SPECIFIC_DATA *psSysSpecificData)
+{
+	psSysSpecificData->ui32OvFreq = 0;
+	psSysSpecificData->ui32NormalFreq = 0;
+	psSysSpecificData->ui32LowPowerFreq = 0;
 	return PVRSRV_OK;
 }
 

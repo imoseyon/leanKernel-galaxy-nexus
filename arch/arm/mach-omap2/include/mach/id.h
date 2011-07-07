@@ -18,5 +18,6 @@ struct omap_die_id {
 };
 
 void omap_get_die_id(struct omap_die_id *odi);
+void omap_get_production_id(struct omap_die_id *odi);
 
 #endif

@@ -117,6 +117,7 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData);
 #if defined(SGX_OCP_REGS_ENABLED) && defined(SGX_OCP_NO_INT_BYPASS)
 #define SYS_SPECIFIC_DATA_IRQ_ENABLED		0x00002000
 #endif
+#define SYS_SPECIFIC_DATA_DVFS_INIT			0x00004000
 
 #define	SYS_SPECIFIC_DATA_SET(psSysSpecData, flag) ((IMG_VOID)((psSysSpecData)->ui32SysSpecificData |= (flag)))
 
@@ -156,6 +157,10 @@ typedef struct _SYS_SPECIFIC_DATA_TAG_
 #if defined(PVR_OMAP_USE_DM_TIMER_API)
 	struct omap_dm_timer *psGPTimer;
 #endif
+	IMG_UINT32 ui32NumOvFeqs;
+	IMG_UINT32 ui32OvFreq;
+	IMG_UINT32 ui32NormalFreq;
+	IMG_UINT32 ui32LowPowerFreq;
 #endif	
 } SYS_SPECIFIC_DATA;
 
@@ -178,6 +183,9 @@ IMG_VOID UnwrapSystemPowerChange(SYS_SPECIFIC_DATA *psSysSpecData);
 
 PVRSRV_ERROR SysPMRuntimeRegister(void);
 PVRSRV_ERROR SysPMRuntimeUnregister(void);
+
+PVRSRV_ERROR SysDvfsInitialize(SYS_SPECIFIC_DATA *psSysSpecificData);
+PVRSRV_ERROR SysDvfsDeinitialize(SYS_SPECIFIC_DATA *psSysSpecificData);
 
 #else 
 

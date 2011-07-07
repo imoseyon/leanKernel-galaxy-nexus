@@ -30,6 +30,7 @@ static struct device *mpu_dev;
 static struct device *iva_dev;
 static struct device *l3_dev;
 static struct device *dsp_dev;
+static struct device *fdif_dev;
 
 struct device *omap2_get_mpuss_device(void)
 {
@@ -58,6 +59,13 @@ struct device *omap4_get_dsp_device(void)
 	return dsp_dev;
 }
 EXPORT_SYMBOL(omap4_get_dsp_device);
+
+struct device *omap4_get_fdif_device(void)
+{
+	WARN_ON_ONCE(!fdif_dev);
+	return fdif_dev;
+}
+EXPORT_SYMBOL(omap4_get_fdif_device);
 
 /* static int _init_omap_device(struct omap_hwmod *oh, void *user) */
 static int _init_omap_device(char *name, struct device **new_dev)
@@ -93,6 +101,7 @@ static void omap2_init_processor_devices(void)
 		_init_omap_device("l3_main_1", &l3_dev);
 		_init_omap_device("dsp", &dsp_dev);
 		_init_omap_device("iva", &iva_dev);
+		_init_omap_device("fdif", &fdif_dev);
 	} else {
 		_init_omap_device("l3_main", &l3_dev);
 	}

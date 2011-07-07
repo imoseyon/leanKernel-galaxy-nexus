@@ -81,8 +81,8 @@ int __init omap_pmic_update(struct omap_pmic_map *tmp_map, char *name,
 	while (tmp_map->name != NULL) {
 		if (!strcmp(tmp_map->name, name) &&
 				(tmp_map->omap_chip.oc & new_chip_id)) {
-			WARN("%s: this map already exists\n", __func__, name,
-						new_chip_id);
+			WARN(1, "%s: this map already exists:%s-%x\n",
+					__func__, name, new_chip_id);
 			return -1;
 		}
 		if (!strcmp(tmp_map->name, name) &&
@@ -94,4 +94,5 @@ int __init omap_pmic_update(struct omap_pmic_map *tmp_map, char *name,
 		tmp_map->omap_chip.oc = new_chip_id;
 		return 0;
 	}
+	return -ENOENT;
 }
