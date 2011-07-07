@@ -705,8 +705,9 @@ struct ion_client *ion_client_create(struct ion_device *dev,
 	return client;
 }
 
-void ion_client_destroy(struct ion_client *client)
+static void _ion_client_destroy(struct kref *kref)
 {
+	struct ion_client *client = container_of(kref, struct ion_client, ref);
 	struct ion_device *dev = client->dev;
 	struct rb_node *n;
 
@@ -729,12 +730,6 @@ void ion_client_destroy(struct ion_client *client)
 	kfree(client);
 }
 
-static void _ion_client_destroy(struct kref *kref)
-{
-	struct ion_client *client = container_of(kref, struct ion_client, ref);
-	ion_client_destroy(client);
-}
-
 static void ion_client_get(struct ion_client *client)
 {
 	kref_get(&client->ref);
@@ -743,6 +738,11 @@ static void ion_client_get(struct ion_client *client)
 static int ion_client_put(struct ion_client *client)
 {
 	return kref_put(&client->ref, _ion_client_destroy);
+}
+
+void ion_client_destroy(struct ion_client *client)
+{
+	ion_client_put(client);
 }
 
 static int ion_share_release(struct inode *inode, struct file* file)
@@ -1011,13 +1011,9 @@ static int ion_open(struct inode *inode, struct file *file)
 	struct ion_client *client;
 
 	pr_debug("%s: %d\n", __func__, __LINE__);
-	client = ion_client_lookup(dev, current->group_leader);
-	if (IS_ERR_OR_NULL(client)) {
-		/* XXX: consider replacing "user" with cmdline */
-		client = ion_client_create(dev, -1, "user");
-		if (IS_ERR_OR_NULL(client))
-			return PTR_ERR(client);
-	}
+	client = ion_client_create(dev, -1, "user");
+	if (IS_ERR_OR_NULL(client))
+		return PTR_ERR(client);
 	file->private_data = client;
 
 	return 0;
