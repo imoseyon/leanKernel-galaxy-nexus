@@ -365,8 +365,15 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_PM_RUNTIME);
 
-	
-
+	eError = SysDvfsInitialize(gpsSysSpecificData);
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to initialize DVFS"));
+		(IMG_VOID)SysDeinitialise(gpsSysData);
+		gpsSysData = IMG_NULL;
+		return eError;
+	}
+	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_DVFS_INIT);
 
 	eError = PVRSRVRegisterDevice(gpsSysData, SGXRegisterDevice,
 								  DEVICE_SGX_INTERRUPT, &gui32SGXDeviceID);
@@ -588,6 +595,17 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 		if (eError != PVRSRV_OK)
 		{
 			PVR_DPF((PVR_DBG_ERROR,"SysDeinitialise: failed to de-init the device"));
+			return eError;
+		}
+	}
+
+	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_DVFS_INIT))
+	{
+		eError = SysDvfsDeinitialize(gpsSysSpecificData);
+		if (eError != PVRSRV_OK)
+		{
+			PVR_DPF((PVR_DBG_ERROR,"SysDeinitialise: Failed to de-init DVFS"));
+			gpsSysData = IMG_NULL;
 			return eError;
 		}
 	}
