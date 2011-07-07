@@ -69,6 +69,7 @@ struct gpio_bank {
 	bool dbck_flag;
 	bool loses_context;
 	bool suspend_support;
+	bool saved_context;
 	int stride;
 	u32 width;
 	u32 ctx_loss_count;
@@ -1136,7 +1137,7 @@ static int __devinit omap_gpio_probe(struct platform_device *pdev)
 	bank->loses_context = pdata->loses_context;
 	bank->regs = pdata->regs;
 	bank->get_context_loss_count = pdata->get_context_loss_count;
-
+	bank->saved_context = 0;
 	if (bank->regs->set_dataout && bank->regs->clr_dataout)
 		bank->set_dataout = _set_gpio_dataout_reg;
 	else
@@ -1405,7 +1406,6 @@ void omap2_gpio_resume_after_idle(void)
 					__func__, bank->id);
 	}
 }
-
 void omap_gpio_save_context(struct gpio_bank *bank)
 {
 	bank->context.irqenable1 =
@@ -1425,10 +1425,13 @@ void omap_gpio_save_context(struct gpio_bank *bank)
 	bank->context.fallingdetect =
 			__raw_readl(bank->base + bank->regs->fallingdetect);
 	bank->context.dataout = __raw_readl(bank->base + bank->regs->dataout);
+	bank->saved_context = 1;
 }
 
 void omap_gpio_restore_context(struct gpio_bank *bank)
 {
+	if(!bank->saved_context)
+		return;
 	__raw_writel(bank->context.irqenable1,
 				bank->base + bank->regs->irqenable);
 	__raw_writel(bank->context.irqenable2,
