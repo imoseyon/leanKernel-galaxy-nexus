@@ -34,6 +34,7 @@
 #include <../drivers/omap_hsi/hsi_driver.h>
 #include "clock.h"
 #include "mux.h"
+#include "control.h"
 
 static int omap_hsi_wakeup_enable(struct hsi_dev *hsi_ctrl, int hsi_port);
 static int omap_hsi_wakeup_disable(struct hsi_dev *hsi_ctrl, int hsi_port);
@@ -46,6 +47,35 @@ static int omap_hsi_wakeup_disable(struct hsi_dev *hsi_ctrl, int hsi_port);
 
 
 #define OMAP_MUX_MODE_MASK	0x7
+
+
+/* */
+
+#define CA_WAKE_MUX_REG		(0x4a1000C2)
+static int omap_mux_read_signal(const char *muxname)
+{
+	u16 val = 0;
+	val = omap_readw(CA_WAKE_MUX_REG);
+	return val;
+}
+
+static int omap_mux_enable_wakeup(const char *muxname)
+{
+	u16 val = 0;
+	val = omap_readw(CA_WAKE_MUX_REG);
+	val |= OMAP44XX_PADCONF_WAKEUPENABLE0;
+	omap_writew(val, CA_WAKE_MUX_REG);
+	return 0;
+}
+
+static int omap_mux_disable_wakeup(const char *muxname)
+{
+	u16 val = 0;
+	val = omap_readw(CA_WAKE_MUX_REG);
+	val &= ~OMAP44XX_PADCONF_WAKEUPENABLE0;
+	omap_writew(val, CA_WAKE_MUX_REG);
+	return 0;
+}
 
 /*
  * NOTE: We abuse a little bit the struct port_ctx to use it also for
