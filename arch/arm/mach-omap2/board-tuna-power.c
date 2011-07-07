@@ -132,8 +132,8 @@ void __init omap4_tuna_power_init(void)
 		omap_twl_pmic_update("mpu", CHIP_IS_OMAP443X, 0x0);
 		omap_twl_pmic_update("core", CHIP_IS_OMAP443X, 0x0);
 		/* make 4460 map usable for 4430 */
-		omap_twl_pmic_update("core", CHIP_IS_OMAP446X, CHIP_IS_OMAP44XX);
-		omap_tps6236x_update("mpu", CHIP_IS_OMAP446X, CHIP_IS_OMAP44XX);
+		omap_twl_pmic_update("core", CHIP_IS_OMAP446X, CHIP_IS_OMAP443X);
+		omap_tps6236x_update("mpu", CHIP_IS_OMAP446X, CHIP_IS_OMAP443X);
 	}
 
 	if (omap4_tuna_get_revision() == TUNA_REV_PRE_LUNCHBOX) {
