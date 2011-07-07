@@ -38,7 +38,8 @@ struct hsi_event {
 	unsigned int count;
 };
 
-int if_hsi_init(unsigned int port, unsigned int *channels_map);
+int if_hsi_init(unsigned int port, unsigned int *channels_map,
+	      unsigned int num_channels);
 int if_hsi_exit(void);
 
 int if_hsi_start(int ch);
@@ -48,8 +49,9 @@ void if_hsi_send_break(int ch);
 void if_hsi_flush_rx(int ch);
 void if_hsi_flush_tx(int ch);
 void if_hsi_bootstrap(int ch);
-void if_hsi_set_wakeline(int ch, unsigned int state);
-void if_hsi_get_wakeline(int ch, unsigned int *state);
+void if_hsi_set_acwakeline(int ch, unsigned int state);
+void if_hsi_get_acwakeline(int ch, unsigned int *state);
+void if_hsi_get_cawakeline(int ch, unsigned int *state);
 int if_hsi_set_rx(int ch, struct hsi_rx_config *cfg);
 void if_hsi_get_rx(int ch, struct hsi_rx_config *cfg);
 int if_hsi_set_tx(int ch, struct hsi_tx_config *cfg);

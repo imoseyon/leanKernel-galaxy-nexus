@@ -24,7 +24,11 @@
 #include "hsi-if.h"
 
 /* how many char devices would be created at most */
-#define HSI_MAX_CHAR_DEVS	8
+#define HSI_MAX_CHAR_DEVS	16
+
+/* Max HSI channel id allowed to be handled as char device. */
+/* Current range [1, 16] */
+#define HSI_MAX_CHAR_DEV_ID	16
 
 void if_hsi_notify(int ch, struct hsi_event *ev);
 

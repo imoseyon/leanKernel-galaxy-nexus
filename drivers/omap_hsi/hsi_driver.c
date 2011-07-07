@@ -117,6 +117,7 @@ void hsi_restore_ctx(struct hsi_dev *hsi_ctrl)
 		hsi_outl(p->hst.channels, base, HSI_HST_CHANNELS_REG(port));
 		hsi_outl(p->hst.arb_mode, base, HSI_HST_ARBMODE_REG(port));
 
+		/* HSR */
 		if (!hsi_driver_device_is_hsi(pdev))
 			hsi_outl(p->hsr.frame_size, base,
 				HSI_HSR_FRAMESIZE_REG(port));
@@ -130,11 +131,10 @@ void hsi_restore_ctx(struct hsi_dev *hsi_ctrl)
 		hsi_fifo_mapping(hsi_ctrl, HSI_FIFO_MAPPING_DEFAULT);
 	}
 
-	/* Patch 110331 : Narasimha */
+	/* As a last step move HSR from MODE_VAL.SLEEP to the relevant mode. */
+	/* This will enable the ACREADY flow control mechanism. */
 	for (port = 1; port <= pdata->num_ports; port++) {
 		p = &pdata->ctx->pctx[port - 1];
-
-		/* HSR */
 		hsi_outl(p->hsr.mode, base, HSI_HSR_MODE_REG(port));
 	}
 }
@@ -202,8 +202,8 @@ static int __init reg_hsi_dev_ch(struct hsi_dev *hsi_ctrl, unsigned int p,
 		dev_set_name(&dev->device, "omap_hsi%d-p%u.c%u", dev->n_ctrl, p,
 			     ch);
 
-	pr_debug
-	    ("HSI DRIVER : reg_hsi_dev_ch, port %d, ch %d, hsi_ctrl->dev:0x%x,"
+	dev_dbg(hsi_ctrl->dev,
+		"reg_hsi_dev_ch, port %d, ch %d, hsi_ctrl->dev:0x%x,"
 		"&dev->device:0x%x\n",
 		p, ch, (unsigned int)hsi_ctrl->dev, (unsigned int)&dev->device);
 
@@ -262,12 +262,17 @@ void hsi_set_pm_default(struct hsi_dev *hsi_ctrl)
 
 	/* HSI_TODO : use the HWMOD API : omap_hwmod_set_slave_idlemode() */
 }
+
 void hsi_set_pm_force_hsi_on(struct hsi_dev *hsi_ctrl)
 {
+	/* Force HSI to ON by never acknowledging a PRCM idle request */
+	/* SIdleAck and MStandby are never asserted */
 	hsi_outl((HSI_AUTOIDLE | HSI_SIDLEMODE_NO |
 				 HSI_MIDLEMODE_NO),
 		hsi_ctrl->base, HSI_SYS_SYSCONFIG_REG);
 	hsi_outl(HSI_CLK_AUTOGATING_ON, hsi_ctrl->base, HSI_GDD_GCR_REG);
+
+	/* HSI_TODO : use the HWMOD API : omap_hwmod_set_slave_idlemode() */
 }
 
 int hsi_softreset(struct hsi_dev *hsi_ctrl)
@@ -633,6 +638,12 @@ void hsi_clocks_disable_channel(struct device *dev, u8 channel_number,
 	if (hsi_is_hst_controller_busy(hsi_ctrl))
 		dev_dbg(dev, "Disabling clocks with HST FSM not IDLE !\n");
 
+#ifdef K3_0_PORTING_HSI_MISSING_FEATURE
+	/* Allow Fclk to change */
+	if (dpll_cascading_blocker_release(dev) < 0)
+		dev_warn(dev, "Error releasing DPLL cascading constraint\n");
+#endif
+
 #ifndef USE_PM_RUNTIME_FOR_HSI
 	hsi_runtime_suspend(dev);
 	omap_device_idle(pd);
@@ -672,6 +683,12 @@ int hsi_clocks_enable_channel(struct device *dev, u8 channel_number,
 		dev_dbg(dev, "Clocks already enabled, skipping...\n");
 		return -EEXIST;
 	}
+
+#ifdef K3_0_PORTING_HSI_MISSING_FEATURE
+	/* Prevent Fclk change */
+	if (dpll_cascading_blocker_hold(dev) < 0)
+		dev_warn(dev, "Error holding DPLL cascading constraint\n");
+#endif
 
 #ifndef USE_PM_RUNTIME_FOR_HSI
 	omap_device_enable(pd);
@@ -756,7 +773,6 @@ static void hsi_controller_exit(struct hsi_dev *hsi_ctrl)
 	hsi_ports_exit(hsi_ctrl, hsi_ctrl->max_p);
 }
 
-
 /* HSI Platform Device probing & hsi_device registration */
 static int __init hsi_platform_device_probe(struct platform_device *pd)
 {
@@ -771,7 +787,7 @@ static int __init hsi_platform_device_probe(struct platform_device *pd)
 		hsi_driver_device_is_hsi(pd) ? "HSI" : "SSI");
 
 	if (!pdata) {
-		pr_err(LOG_NAME "No platform_data found on hsi device\n");
+		dev_err(&pd->dev, "No platform_data found on hsi device\n");
 		return -ENXIO;
 	}
 
@@ -830,10 +846,16 @@ static int __init hsi_platform_device_probe(struct platform_device *pd)
 	}
 
 	/* Allow HSI to wake up the platform */
-	device_init_wakeup(hsi_ctrl->dev, 1);
+	device_init_wakeup(hsi_ctrl->dev, true);
 
-	/* From here no need for HSI HW access */
-	hsi_clocks_disable(hsi_ctrl->dev, __func__);
+#ifdef K3_0_PORTING_HSI_MISSING_FEATURE
+	/* Set the HSI FCLK to default. */
+	err = omap_device_set_rate(hsi_ctrl->dev, hsi_ctrl->dev,
+					pdata->default_hsi_fclk);
+	if (err)
+		dev_err(&pd->dev, "Cannot set HSI FClk to default value: %ld\n",
+			pdata->default_hsi_fclk);
+#endif
 
 	/* From here no need for HSI HW access */
 	hsi_clocks_disable(hsi_ctrl->dev, __func__);
@@ -878,18 +900,47 @@ static int __exit hsi_platform_device_remove(struct platform_device *pd)
 #ifdef CONFIG_SUSPEND
 static int hsi_suspend_noirq(struct device *dev)
 {
+	struct hsi_platform_data *pdata = dev->platform_data;
+	struct platform_device *pd = to_platform_device(dev);
+	struct hsi_dev *hsi_ctrl = platform_get_drvdata(pd);
+
 	dev_dbg(dev, "%s\n", __func__);
 
-	/* HSI_TODO : missing the SUSPEND feature */
+	/* If HSI is enabled, CAWAKE IO wakeup has been disabled and */
+	/* we don't want to re-enable it here. HSI interrupt shall be */
+	/* generated normally because HSI HW is ON. */
+	if (hsi_ctrl->clock_enabled) {
+		dev_info(dev, "Platform Suspend while HSI active\n");
+		return 0;
+	}
+
+	/* Perform HSI board specific action before platform suspend */
+	if (pdata->board_suspend)
+		pdata->board_suspend(0, device_may_wakeup(dev));
 
 	return 0;
 }
 
 static int hsi_resume_noirq(struct device *dev)
 {
+	struct hsi_platform_data *pdata = dev->platform_data;
+
 	dev_dbg(dev, "%s\n", __func__);
 
-	/* HSI_TODO : missing the SUSPEND feature */
+	/* This function shall not schedule the tasklet, because it is */
+	/* redundant with what is already done in the PRCM interrupt handler. */
+	/* HSI IO checking in PRCM int handler is done when waking up from : */
+	/* - Device OFF mode (wake up from suspend) */
+	/* - L3INIT in RET (Idle mode) */
+	/* hsi_resume_noirq is called only when system wakes up from suspend. */
+	/* So HSI IO checking in PRCM int handler and hsi_resume_noirq are */
+	/* redundant. We need to choose which one will schedule the tasklet */
+	/* Since HSI IO checking in PRCM int handler covers more cases, it is */
+	/* the winner. */
+
+	/* Perform (optional) HSI board specific action after platform wakeup */
+	if (pdata->board_resume)
+		pdata->board_resume(0);
 
 	return 0;
 }
@@ -917,7 +968,9 @@ int hsi_runtime_resume(struct device *dev)
 	/* Restore context */
 	hsi_restore_ctx(hsi_ctrl);
 
-	pdata->wakeup_disable(hsi_ctrl, 0);
+	/* When HSI is ON, no need for IO wakeup mechanism */
+	pdata->wakeup_disable(0);
+
 	/* HSI device is now fully operational and _must_ be able to */
 	/* complete I/O operations */
 
@@ -948,15 +1001,17 @@ int hsi_runtime_suspend(struct device *dev)
 
 	hsi_ctrl->clock_enabled = false;
 
+	/* Put HSR into SLEEP mode to force ACREADY to low while HSI is idle */
 	for (port = 1; port <= pdata->num_ports; port++) {
 		hsi_outl_and(HSI_HSR_MODE_MODE_VAL_SLEEP, hsi_ctrl->base,
 						HSI_HSR_MODE_REG(port));
 	}
 
+	/* HSI is going to INA/RET/OFF, it needs IO wakeup mechanism enabled */
 	if (device_may_wakeup(dev))
-		pdata->wakeup_enable(hsi_ctrl, 0);
+		pdata->wakeup_enable(0);
 	else
-		pdata->wakeup_disable(hsi_ctrl, 0);
+		pdata->wakeup_disable(0);
 
 	/* HSI is now ready to be put in low power state */
 
@@ -1044,10 +1099,15 @@ static int __init hsi_driver_init(void)
 {
 	int err = 0;
 
-	pr_info("HSI DRIVER Version " HSI_DRIVER_VERSION "\n");
+	pr_info(LOG_NAME "HSI DRIVER Version " HSI_DRIVER_VERSION "\n");
 
 	/* Register the (virtual) HSI bus */
-	hsi_bus_init();
+	err = hsi_bus_init();
+	if (err < 0) {
+		pr_err(LOG_NAME "HSI bus_register err %d\n", err);
+		return err;
+	}
+
 	err = hsi_debug_init();
 	if (err < 0) {
 		pr_err(LOG_NAME "HSI Debugfs failed %d\n", err);
@@ -1075,7 +1135,7 @@ static void __exit hsi_driver_exit(void)
 	hsi_debug_exit();
 	hsi_bus_exit();
 
-	pr_info("HSI DRIVER removed\n");
+	pr_info(LOG_NAME "HSI DRIVER removed\n");
 }
 
 module_init(hsi_driver_init);
