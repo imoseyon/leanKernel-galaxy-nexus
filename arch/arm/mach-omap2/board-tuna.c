@@ -335,14 +335,6 @@ static struct omap_musb_board_data musb_board_data = {
 	.power			= 100,
 };
 
-static struct twl4030_usb_data omap4_usbphy_data = {
-	.phy_init	= omap4430_phy_init,
-	.phy_exit	= omap4430_phy_exit,
-	.phy_power	= omap4430_phy_power,
-	.phy_set_clock	= omap4430_phy_set_clk,
-	.phy_suspend	= omap4430_phy_suspend,
-};
-
 static struct omap2_hsmmc_info mmc[] = {
 	{
 		.mmc		= 1,
@@ -521,7 +513,6 @@ static struct twl4030_platform_data tuna_twldata = {
 	.vaux2		= &tuna_vaux2,
 	.vaux3		= &tuna_vaux3,
 	.clk32kg	= &tuna_clk32kg,
-	.usb		= &omap4_usbphy_data,
 
 	/* children */
 	.codec		= &twl6040_codec,
