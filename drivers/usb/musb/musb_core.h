@@ -497,6 +497,7 @@ struct musb {
 	struct usb_gadget	g;			/* the gadget */
 	struct usb_gadget_driver *gadget_driver;	/* its driver */
 #endif
+	bool			is_ac_charger:1;
 
 	/*
 	 * FIXME: Remove this flag.
