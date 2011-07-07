@@ -44,16 +44,16 @@
 
 #include "hsi-char.h"
 
-#define DRIVER_VERSION  "0.2.0"
+#define DRIVER_VERSION  "0.2.1"
 #define HSI_CHAR_DEVICE_NAME  "hsi_char"
 
 static unsigned int port = 1;
 module_param(port, uint, 1);
 MODULE_PARM_DESC(port, "HSI port to be probed");
 
-static unsigned int channels_map[HSI_MAX_CHAR_DEVS] = { 1 };
-
-module_param_array(channels_map, uint, NULL, 0);
+static unsigned int num_channels;
+static unsigned int channels_map[HSI_MAX_CHAR_DEVS] = { 0 };
+module_param_array(channels_map, uint, &num_channels, 0);
 MODULE_PARM_DESC(channels_map, "HSI channels to be probed");
 
 dev_t hsi_char_dev;
@@ -368,10 +368,15 @@ static long  hsi_char_ioctl(struct file *file,
 		if (copy_from_user(&state, (void __user *)arg, sizeof(state)))
 			ret = -EFAULT;
 		else
-			if_hsi_set_wakeline(ch, state);
+			if_hsi_set_acwakeline(ch, state);
 		break;
 	case CS_GET_ACWAKELINE:
-		if_hsi_get_wakeline(ch, &state);
+		if_hsi_get_acwakeline(ch, &state);
+		if (copy_to_user((void __user *)arg, &state, sizeof(state)))
+			ret = -EFAULT;
+		break;
+	case CS_GET_CAWAKELINE:
+		if_hsi_get_cawakeline(ch, &state);
 		if (copy_to_user((void __user *)arg, &state, sizeof(state)))
 			ret = -EFAULT;
 		break;
@@ -416,17 +421,24 @@ static long  hsi_char_ioctl(struct file *file,
 static int hsi_char_open(struct inode *inode, struct file *file)
 {
 	int ret = 0, ch = iminor(inode);
+	int i;
 
-	pr_debug("%s, ch = %d, channels_map[%d] = %d\n", __func__, ch, ch,
-		 channels_map[ch]);
+	for (i = 0; i < HSI_MAX_CHAR_DEVS; i++)
+		if ((channels_map[i] - 1) == ch)
+			break;
 
-	if (!channels_map[ch])
+	if (i == HSI_MAX_CHAR_DEVS) {
+		pr_err("HSI char open: Channel %d not found\n", ch);
 		return -ENODEV;
+	}
+
+	pr_debug("HSI char open: opening channel %d\n", ch);
 
 	spin_lock_bh(&hsi_char_data[ch].lock);
 
 	if (hsi_char_data[ch].opened) {
 		spin_unlock_bh(&hsi_char_data[ch].lock);
+		pr_err("HSI char open: Channel %d already opened\n", ch);
 		return -EBUSY;
 	}
 
@@ -491,6 +503,7 @@ static int __init hsi_char_init(void)
 	int ret, i;
 
 	pr_info("HSI character device version " DRIVER_VERSION "\n");
+	pr_info("HSI char driver: %d channels mapped\n", num_channels);
 
 	for (i = 0; i < HSI_MAX_CHAR_DEVS; i++) {
 		init_waitqueue_head(&hsi_char_data[i].rx_wait);
@@ -504,7 +517,7 @@ static int __init hsi_char_init(void)
 
 	/*printk(KERN_DEBUG "%s, devname = %s\n", __func__, devname); */
 
-	ret = if_hsi_init(port, channels_map);
+	ret = if_hsi_init(port, channels_map, num_channels);
 	if (ret)
 		return ret;
 
@@ -517,7 +530,11 @@ static int __init hsi_char_init(void)
 	}
 
 	cdev_init(&hsi_char_cdev, &hsi_char_fops);
-	cdev_add(&hsi_char_cdev, hsi_char_dev, HSI_MAX_CHAR_DEVS);
+	ret = cdev_add(&hsi_char_cdev, hsi_char_dev, HSI_MAX_CHAR_DEVS);
+	if (ret < 0) {
+		pr_err("HSI character device: Failed to add char device\n");
+		return ret;
+	}
 
 	return 0;
 }

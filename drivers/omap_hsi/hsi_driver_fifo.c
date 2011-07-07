@@ -40,7 +40,8 @@ int hsi_fifo_get_id(struct hsi_dev *hsi_ctrl, unsigned int channel,
 	int fifo_index = 0;
 	int err = 0;
 
-	if (unlikely(channel >= HSI_CHANNELS_MAX || port < 1 || port > 2)) {
+	if (unlikely((channel >= HSI_CHANNELS_MAX) || (port < 1) ||
+						      (port > 2))) {
 		err = -EINVAL;
 		goto fifo_id_bk;
 	}

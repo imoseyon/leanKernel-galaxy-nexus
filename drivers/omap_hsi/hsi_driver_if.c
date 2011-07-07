@@ -289,6 +289,7 @@ int hsi_open(struct hsi_device *dev)
 		return -EBUSY;
 	}
 
+	/* Restart with flags cleaned up */
 	ch->flags = HSI_CH_OPEN;
 
 	hsi_driver_enable_interrupt(port, HSI_CAWAKEDETECTED | HSI_ERROROCCURED
@@ -322,7 +323,7 @@ int hsi_write(struct hsi_device *dev, u32 *addr, unsigned int size)
 	int err;
 
 	if (unlikely(!dev)) {
-		pr_err("Null dev pointer in hsi_write\n");
+		pr_err(LOG_NAME "Null dev pointer in hsi_write\n");
 		return -EINVAL;
 	}
 
@@ -404,7 +405,7 @@ int hsi_read(struct hsi_device *dev, u32 *addr, unsigned int size)
 	int err;
 
 	if (unlikely(!dev)) {
-		pr_err("Null dev pointer in hsi_read\n");
+		pr_err(LOG_NAME "Null dev pointer in hsi_read\n");
 		return -EINVAL;
 	}
 
@@ -486,7 +487,14 @@ int __hsi_write_cancel(struct hsi_channel *ch)
  * hsi_write_cancel - Cancel pending write request.
  * @dev - hsi device channel where to cancel the pending write.
  *
- * write_done() callback will not be called after sucess of this function.
+ * write_done() callback will not be called after success of this function.
+ *
+ * Return: -ENXIO : No DMA channel found for specified HSI channel
+ *	   -ECANCELED : write cancel success, data not transfered to TX FIFO
+ *	   0 : transfer is already over, data already transfered to TX FIFO
+ *
+ * Note: whatever returned value, write callback will not be called after
+ *	 write cancel.
  */
 int hsi_write_cancel(struct hsi_device *dev)
 {
@@ -534,7 +542,15 @@ int __hsi_read_cancel(struct hsi_channel *ch)
  * hsi_read_cancel - Cancel pending read request.
  * @dev - hsi device channel where to cancel the pending read.
  *
- * read_done() callback will not be called after sucess of this function.
+ * read_done() callback will not be called after success of this function.
+ *
+ * Return: -ENXIO : No DMA channel found for specified HSI channel
+ *	   -ECANCELED : read cancel success, data not available at expected
+ *			address.
+ *	   0 : transfer is already over, data already available at expected
+ *	       address.
+ *
+ * Note: whatever returned value, read callback will not be called after cancel.
  */
 int hsi_read_cancel(struct hsi_device *dev)
 {

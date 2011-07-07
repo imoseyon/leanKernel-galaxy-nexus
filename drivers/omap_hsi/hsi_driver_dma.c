@@ -53,6 +53,8 @@ bool hsi_is_dma_read_int_pending(struct hsi_dev *hsi_ctrl)
 	status_reg &= hsi_inl(base, HSI_SYS_GDD_MPU_IRQ_ENABLE_REG);
 	if (!status_reg)
 		return false;
+
+	/* Scan all enabled DMA channels */
 	for (gdd_lch = 0; gdd_lch < hsi_ctrl->gdd_chan_count; gdd_lch++) {
 		if (!(status_reg & HSI_GDD_LCH(gdd_lch)))
 			continue;
@@ -136,6 +138,10 @@ int hsi_driver_write_dma(struct hsi_channel *hsi_channel, u32 * data,
 	sync = hsi_sync_table[HSI_SYNC_WRITE][port - 1][channel];
 
 	src_addr = dma_map_single(hsi_ctrl->dev, data, size * 4, DMA_TO_DEVICE);
+	if (unlikely(dma_mapping_error(hsi_ctrl->dev, src_addr))) {
+		dev_err(hsi_ctrl->dev, "Failed to create DMA write mapping.\n");
+		return -ENOMEM;
+	}
 
 	tmp = HSI_SRC_SINGLE_ACCESS0 |
 	    HSI_SRC_MEMORY_PORT |
@@ -168,6 +174,8 @@ int hsi_driver_write_dma(struct hsi_channel *hsi_channel, u32 * data,
 	/* SSI CSSA register always takes a 32-bit address */
 	hsi_outl(src_addr, base, HSI_GDD_CSSA_REG(lch));
 	hsi_outw(size, base, HSI_GDD_CEN_REG(lch));
+
+	/* TODO : Need to clean interrupt status here to avoid spurious int */
 
 	hsi_outl_or(HSI_GDD_LCH(lch), base, HSI_SYS_GDD_MPU_IRQ_ENABLE_REG);
 	hsi_outw_or(HSI_CCR_ENABLE, base, HSI_GDD_CCR_REG(lch));
@@ -213,7 +221,7 @@ int hsi_driver_read_dma(struct hsi_channel *hsi_channel, u32 * data,
 	/* When DMA is used for Rx, disable the Rx Interrupt.
 	 * (else DATAAVAILLABLE event would get triggered on first
 	 * received data word)
-	 * (By default, Rx interrupt is active for polling feature)
+	 * (Rx interrupt might be active for polling feature)
 	 */
 #if 0
 	if (omap_readl(0x4A05A810)) {
@@ -235,6 +243,10 @@ int hsi_driver_read_dma(struct hsi_channel *hsi_channel, u32 * data,
 
 	dest_addr = dma_map_single(hsi_ctrl->dev, data, count * 4,
 				  DMA_FROM_DEVICE);
+	if (unlikely(dma_mapping_error(hsi_ctrl->dev, dest_addr))) {
+		dev_err(hsi_ctrl->dev, "Failed to create DMA read mapping.\n");
+		return -ENOMEM;
+	}
 
 	tmp = HSI_DST_SINGLE_ACCESS0 |
 	    HSI_DST_MEMORY_PORT |
@@ -268,12 +280,28 @@ int hsi_driver_read_dma(struct hsi_channel *hsi_channel, u32 * data,
 	hsi_outl(dest_addr, base, HSI_GDD_CDSA_REG(lch));
 	hsi_outw(count, base, HSI_GDD_CEN_REG(lch));
 
+	/* TODO : Need to clean interrupt status here to avoid spurious int */
+
 	hsi_outl_or(HSI_GDD_LCH(lch), base, HSI_SYS_GDD_MPU_IRQ_ENABLE_REG);
 	hsi_outw_or(HSI_CCR_ENABLE, base, HSI_GDD_CCR_REG(lch));
 
 	return 0;
 }
 
+/**
+ * hsi_driver_cancel_write_dma - Cancel an ongoing GDD [DMA] write for the
+ *				specified hsi channel.
+ * @hsi_ch - pointer to the hsi_channel to cancel DMA write.
+ *
+ * hsi_controller lock must be held before calling this function.
+ *
+ * Return: -ENXIO : No DMA channel found for specified HSI channel
+ *	   -ECANCELED : DMA cancel success, data not transfered to TX FIFO
+ *	   0 : DMA transfer is already over, data already transfered to TX FIFO
+ *
+ * Note: whatever returned value, write callback will not be called after
+ *       write cancel.
+ */
 int hsi_driver_cancel_write_dma(struct hsi_channel *hsi_ch)
 {
 	int lch = hsi_ch->write_data.lch;
@@ -283,6 +311,9 @@ int hsi_driver_cancel_write_dma(struct hsi_channel *hsi_ch)
 	u16 ccr, gdd_csr;
 	long buff_offset;
 	u32 status_reg;
+	dma_addr_t dma_h;
+	size_t size;
+
 	dev_err(&hsi_ch->dev->device, "hsi_driver_cancel_write_dma( "
 				"channel %d\n", hsi_ch->channel_number);
 
@@ -300,11 +331,19 @@ int hsi_driver_cancel_write_dma(struct hsi_channel *hsi_ch)
 	status_reg = hsi_inl(hsi_ctrl->base, HSI_SYS_GDD_MPU_IRQ_STATUS_REG);
 	status_reg &= hsi_inl(hsi_ctrl->base, HSI_SYS_GDD_MPU_IRQ_ENABLE_REG);
 	hsi_outw_and(~HSI_CCR_ENABLE, hsi_ctrl->base, HSI_GDD_CCR_REG(lch));
+
+	/* Clear CSR register by reading it, as it is cleared automaticaly */
+	/* by HW after SW read. */
 	gdd_csr = hsi_inw(hsi_ctrl->base, HSI_GDD_CSR_REG(lch));
 	hsi_outl_and(~HSI_GDD_LCH(lch), hsi_ctrl->base,
 			HSI_SYS_GDD_MPU_IRQ_ENABLE_REG);
 	hsi_outl(HSI_GDD_LCH(lch), hsi_ctrl->base,
 			HSI_SYS_GDD_MPU_IRQ_STATUS_REG);
+
+	/* Unmap DMA region */
+	dma_h = hsi_inl(hsi_ctrl->base, HSI_GDD_CSSA_REG(lch));
+	size = hsi_inw(hsi_ctrl->base, HSI_GDD_CEN_REG(lch)) * 4;
+	dma_unmap_single(hsi_ctrl->dev, dma_h, size, DMA_TO_DEVICE);
 
 	buff_offset = hsi_hst_bufstate_f_reg(hsi_ctrl, port, channel);
 	if (buff_offset >= 0)
@@ -315,24 +354,42 @@ int hsi_driver_cancel_write_dma(struct hsi_channel *hsi_ch)
 	return status_reg & HSI_GDD_LCH(lch) ? 0 : -ECANCELED;
 }
 
+/**
+ * hsi_driver_cancel_read_dma - Cancel an ongoing GDD [DMA] read for the
+ *				specified hsi channel.
+ * @hsi_ch - pointer to the hsi_channel to cancel DMA read.
+ *
+ * hsi_controller lock must be held before calling this function.
+ *
+ * Return: -ENXIO : No DMA channel found for specified HSI channel
+ *	   -ECANCELED : DMA cancel success, data not available at expected
+ *	                address.
+ *	   0 : DMA transfer is already over, data already available at
+ *	       expected address.
+ *
+ * Note: whatever returned value, read callback will not be called after cancel.
+ */
 int hsi_driver_cancel_read_dma(struct hsi_channel *hsi_ch)
 {
 	int lch = hsi_ch->read_data.lch;
 	struct hsi_dev *hsi_ctrl = hsi_ch->hsi_port->hsi_controller;
 	u16 ccr, gdd_csr;
 	u32 status_reg;
+	dma_addr_t dma_h;
+	size_t size;
+
 	dev_err(&hsi_ch->dev->device, "hsi_driver_cancel_read_dma "
 				"channel %d\n", hsi_ch->channel_number);
+
+	/* Re-enable interrupts for polling if needed */
+	if (hsi_ch->flags & HSI_CH_RX_POLL)
+		hsi_driver_enable_read_interrupt(hsi_ch, NULL);
 
 	if (lch < 0) {
 		dev_err(&hsi_ch->dev->device, "No DMA channel found for HSI "
 			"channel %d\n", hsi_ch->channel_number);
 		return -ENXIO;
 	}
-	/* DMA transfer is over, re-enable default mode
-	 * (Interrupts for polling feature)
-	 */
-	hsi_driver_enable_read_interrupt(hsi_ch, NULL);
 
 	ccr = hsi_inw(hsi_ctrl->base, HSI_GDD_CCR_REG(lch));
 	if (!(ccr & HSI_CCR_ENABLE)) {
@@ -344,11 +401,19 @@ int hsi_driver_cancel_read_dma(struct hsi_channel *hsi_ch)
 	status_reg = hsi_inl(hsi_ctrl->base, HSI_SYS_GDD_MPU_IRQ_STATUS_REG);
 	status_reg &= hsi_inl(hsi_ctrl->base, HSI_SYS_GDD_MPU_IRQ_ENABLE_REG);
 	hsi_outw_and(~HSI_CCR_ENABLE, hsi_ctrl->base, HSI_GDD_CCR_REG(lch));
+
+	/* Clear CSR register by reading it, as it is cleared automaticaly */
+	/* by HW after SW read */
 	gdd_csr = hsi_inw(hsi_ctrl->base, HSI_GDD_CSR_REG(lch));
 	hsi_outl_and(~HSI_GDD_LCH(lch), hsi_ctrl->base,
 		HSI_SYS_GDD_MPU_IRQ_ENABLE_REG);
 	hsi_outl(HSI_GDD_LCH(lch), hsi_ctrl->base,
 		HSI_SYS_GDD_MPU_IRQ_STATUS_REG);
+
+	/* Unmap DMA region - Access to the buffer is now safe */
+	dma_h = hsi_inl(hsi_ctrl->base, HSI_GDD_CDSA_REG(lch));
+	size = hsi_inw(hsi_ctrl->base, HSI_GDD_CEN_REG(lch)) * 4;
+	dma_unmap_single(hsi_ctrl->dev, dma_h, size, DMA_FROM_DEVICE);
 
 	hsi_reset_ch_read(hsi_ch);
 	return status_reg & HSI_GDD_LCH(lch) ? 0 : -ECANCELED;
@@ -422,6 +487,7 @@ static void do_hsi_gdd_lch(struct hsi_dev *hsi_ctrl, unsigned int gdd_lch)
 
 	hsi_outl_and(~HSI_GDD_LCH(gdd_lch), base,
 		     HSI_SYS_GDD_MPU_IRQ_ENABLE_REG);
+	/* Warning : CSR register is cleared automaticaly by HW after SW read */
 	gdd_csr = hsi_inw(base, HSI_GDD_CSR_REG(gdd_lch));
 
 	if (!(gdd_csr & HSI_CSR_TOUT)) {
@@ -434,10 +500,6 @@ static void do_hsi_gdd_lch(struct hsi_dev *hsi_ctrl, unsigned int gdd_lch)
 					 DMA_FROM_DEVICE);
 			ch = hsi_ctrl_get_ch(hsi_ctrl, port, channel);
 			hsi_reset_ch_read(ch);
-			/* DMA transfer is over, re-enable default mode
-			 * (interrupts for polling feature)
-			 */
-			hsi_driver_enable_read_interrupt(ch, NULL);
 
 			dev_dbg(hsi_ctrl->dev, "Calling ch %d read callback "
 					"(size %d).\n", channel,  size/4);
@@ -465,6 +527,9 @@ static void do_hsi_gdd_lch(struct hsi_dev *hsi_ctrl, unsigned int gdd_lch)
 						fifo, fifo_words_avail,
 						HSI_HSR_FIFO_SIZE);
 			}
+			/* Re-enable interrupts for polling if needed */
+			if (ch->flags & HSI_CH_RX_POLL)
+				hsi_driver_enable_read_interrupt(ch, NULL);
 		} else {	/* Write path */
 			dma_h = hsi_inl(base, HSI_GDD_CSSA_REG(gdd_lch));
 			size = hsi_inw(base, HSI_GDD_CEN_REG(gdd_lch)) * 4;
@@ -483,6 +548,7 @@ static void do_hsi_gdd_lch(struct hsi_dev *hsi_ctrl, unsigned int gdd_lch)
 		dev_err(hsi_ctrl->dev, "Time-out overflow Error on GDD transfer"
 			" on gdd channel %d\n", gdd_lch);
 		spin_unlock(&hsi_ctrl->lock);
+		/* TODO : need to perform a DMA soft reset */
 		hsi_port_event_handler(&hsi_ctrl->hsi_port[port - 1],
 				       HSI_EVENT_ERROR, NULL);
 		spin_lock(&hsi_ctrl->lock);
@@ -511,6 +577,7 @@ static u32 hsi_process_dma_event(struct hsi_dev *hsi_ctrl)
 		}
 	}
 
+	/* Acknowledge interrupt for DMA channel */
 	hsi_outl(lch_served, base, HSI_SYS_GDD_MPU_IRQ_STATUS_REG);
 
 
@@ -571,6 +638,6 @@ int __init hsi_gdd_init(struct hsi_dev *hsi_ctrl, const char *irq_name)
 
 void hsi_gdd_exit(struct hsi_dev *hsi_ctrl)
 {
-	tasklet_disable(&hsi_ctrl->hsi_gdd_tasklet);
+	tasklet_kill(&hsi_ctrl->hsi_gdd_tasklet);
 	free_irq(hsi_ctrl->gdd_irq, hsi_ctrl);
 }

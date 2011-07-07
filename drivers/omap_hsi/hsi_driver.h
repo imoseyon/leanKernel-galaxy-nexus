@@ -204,14 +204,21 @@ struct hsi_dev { /* HSI_TODO:  should be later renamed into hsi_controller*/
 #endif
 	struct device *dev;
 };
+
+/**
+ * struct hsi_platform_data - Board specific data
+*/
 struct hsi_platform_data {
 	void (*set_min_bus_tput) (struct device *dev, u8 agent_id,
 						unsigned long r);
 	int (*device_enable) (struct platform_device *pdev);
 	int (*device_shutdown) (struct platform_device *pdev);
 	int (*device_idle) (struct platform_device *pdev);
-	int (*wakeup_enable) (struct hsi_dev *hsi_ctrl, int hsi_port);
-	int (*wakeup_disable) (struct hsi_dev *hsi_ctrl, int hsi_port);
+	int (*wakeup_enable) (int hsi_port);
+	int (*wakeup_disable) (int hsi_port);
+	int (*wakeup_is_from_hsi) (void);
+	int (*board_suspend)(int hsi_port, bool dev_may_wakeup);
+	int (*board_resume)(int hsi_port);
 	u8 num_ports;
 	struct ctrl_ctx *ctx;
 	u8 hsi_gdd_chan_count;
@@ -220,7 +227,7 @@ struct hsi_platform_data {
 
 /* HSI Bus */
 extern struct bus_type hsi_bus_type;
-void do_hsi_tasklet(unsigned long hsi_port);
+
 int hsi_port_event_handler(struct hsi_port *p, unsigned int event, void *arg);
 int hsi_bus_init(void);
 void hsi_bus_exit(void);
