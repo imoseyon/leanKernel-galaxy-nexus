@@ -36,8 +36,8 @@
 #include "mux.h"
 #include "control.h"
 
-static int omap_hsi_wakeup_enable(struct hsi_dev *hsi_ctrl, int hsi_port);
-static int omap_hsi_wakeup_disable(struct hsi_dev *hsi_ctrl, int hsi_port);
+static int omap_hsi_wakeup_enable(int hsi_port);
+static int omap_hsi_wakeup_disable(int hsi_port);
 #define OMAP_HSI_PLATFORM_DEVICE_DRIVER_NAME	"omap_hsi"
 #define OMAP_HSI_PLATFORM_DEVICE_NAME		"omap_hsi.0"
 #define OMAP_HSI_HWMOD_NAME			"hsi"
@@ -119,6 +119,8 @@ static struct hsi_platform_data omap_hsi_platform_data = {
 	.device_shutdown = omap_device_shutdown,
 	.wakeup_enable = omap_hsi_wakeup_enable,
 	.wakeup_disable = omap_hsi_wakeup_disable,
+	.wakeup_is_from_hsi = omap_hsi_is_io_wakeup_from_hsi,
+	.board_suspend = omap_hsi_prepare_suspend,
 };
 
 
@@ -161,43 +163,100 @@ static struct hsi_dev *hsi_get_hsi_controller_data(struct platform_device *pd)
 
 	return hsi_ctrl;
 }
+
+/**
+* omap_hsi_is_io_pad_hsi - Indicates if IO Pad has been muxed for HSI CAWAKE
+*
+* Return value :* 0 if CAWAKE Padconf has not been found or CAWAKE not muxed for
+*		CAWAKE
+*		* else 1
+*/
 static int omap_hsi_is_io_pad_hsi(void)
 {
-#if 0
 	u16 val;
+
+	/* Check for IO pad */
 	val = omap_mux_read_signal(OMAP_HSI_PADCONF_CAWAKE_PIN);
 	if (val == -ENODEV)
 		return 0;
+
+	/* Continue only if CAWAKE is muxed */
 	if ((val & OMAP_MUX_MODE_MASK) != OMAP_HSI_PADCONF_CAWAKE_MODE)
 		return 0;
-#endif
+
 	return 1;
 }
-static int omap_hsi_wakeup_enable(struct hsi_dev *hsi_ctrl, int hsi_port)
+
+/**
+* omap_hsi_is_io_wakeup_from_hsi - Indicates an IO wakeup from HSI CAWAKE
+*
+* Return value :* 0 if CAWAKE Padconf has not been found or no IOWAKEUP event
+*		occured for CAWAKE
+*		* else 1
+* TODO : return value should indicate the HSI port which has awaken
+*/
+int omap_hsi_is_io_wakeup_from_hsi(void)
 {
-	dev_dbg(hsi_ctrl->dev, "%s\n", __func__);
-	if (omap_hsi_is_io_pad_hsi())
-		{}
-#if 0
-		omap_mux_disable_wakeup(OMAP_HSI_PADCONF_CAWAKE_PIN);
-#endif
-	else
-		dev_warn(hsi_ctrl->dev, "Trying to enable HSI IO wakeup on non "
-					"HSI board\n");
+	u16 val;
+
+	/* Check for IO pad wakeup */
+	val = omap_mux_read_signal(OMAP_HSI_PADCONF_CAWAKE_PIN);
+	if (val == -ENODEV)
+		return 0;
+
+	/* Continue only if CAWAKE is muxed */
+	if ((val & OMAP_MUX_MODE_MASK) != OMAP_HSI_PADCONF_CAWAKE_MODE)
+		return 0;
+
+	if (val & OMAP44XX_PADCONF_WAKEUPEVENT0)
+	return 1;
+
 	return 0;
 }
-static int omap_hsi_wakeup_disable(struct hsi_dev *hsi_ctrl, int hsi_port)
+
+/**
+* omap_hsi_wakeup_enable - Enable HSI wakeup feature from RET/OFF mode
+*
+* @hsi_port - reference to the HSI port onto which enable wakeup feature.
+*
+* Return value :* 0 if CAWAKE has been configured to wakeup platform
+*		* -ENODEV if CAWAKE is not muxed on padconf
+*/
+static int omap_hsi_wakeup_enable(int hsi_port)
 {
-	dev_dbg(hsi_ctrl->dev, "%s\n", __func__);
+	int ret = -ENODEV;
+
 	if (omap_hsi_is_io_pad_hsi())
-		{}
-#if 0
-		omap_mux_disable_wakeup(OMAP_HSI_PADCONF_CAWAKE_PIN);
-#endif
+		ret = omap_mux_enable_wakeup(OMAP_HSI_PADCONF_CAWAKE_PIN);
 	else
-		dev_warn(hsi_ctrl->dev, "Trying to disable HSI IO wakeup on non"
-					" HSI board\n");
-	return 0;
+		pr_debug("Trying to enable HSI IO wakeup on non HSI board\n");
+
+
+	/* TODO: handle hsi_port param and use it to find the correct Pad */
+	return ret;
+}
+
+/**
+* omap_hsi_wakeup_disable - Disable HSI wakeup feature from RET/OFF mode
+*
+* @hsi_port - reference to the HSI port onto which disable wakeup feature.
+*
+* Return value :* 0 if CAWAKE has been configured to not wakeup platform
+*		* -ENODEV if CAWAKE is not muxed on padconf
+*/
+static int omap_hsi_wakeup_disable(int hsi_port)
+{
+	int ret = -ENODEV;
+
+	if (omap_hsi_is_io_pad_hsi())
+		ret = omap_mux_disable_wakeup(OMAP_HSI_PADCONF_CAWAKE_PIN);
+	else
+		pr_debug("Trying to disable HSI IO wakeup on non HSI board\n");
+
+
+	/* TODO: handle hsi_port param and use it to find the correct Pad */
+
+	return ret;
 }
 
 /* Note : for hsi_idle_hwmod() and hsi_enable_hwmod() :*/
@@ -221,7 +280,7 @@ static int omap_hsi_wakeup_disable(struct hsi_dev *hsi_ctrl, int hsi_port)
 static int hsi_idle_hwmod(struct omap_device *od)
 {
 	/* HSI omap_device only contain one od->hwmods[0], so no need to */
-
+	/* loop for all hwmods */
 	omap_hwmod_idle(od->hwmods[0]);
 		return 0;
 }
@@ -239,126 +298,67 @@ static int hsi_enable_hwmod(struct omap_device *od)
 {
 	/* HSI omap_device only contain one od->hwmods[0], so no need to */
 	/* loop for all hwmods */
-
 	omap_hwmod_enable(od->hwmods[0]);
-
 	return 0;
 }
 
 /**
-* omap_hsi_prepare_suspend - Prepare HSI for suspend mode (OFF)
+* omap_hsi_prepare_suspend - Prepare HSI for suspend mode
 *
-* Return value : -ENODEV if HSI controller has not been found, else 0.
+* Return value :* 0 if CAWAKE padconf has been configured properly
+*		* -ENODEV if CAWAKE is not muxed on padconf.
 *
 */
-int omap_hsi_prepare_suspend(void)
+int omap_hsi_prepare_suspend(int hsi_port, bool dev_may_wakeup)
 {
-	struct platform_device *pdev;
-	struct hsi_dev *hsi_ctrl;
-	u16 val = 0;
+	int ret;
 
-	pdev = hsi_get_hsi_platform_device();
-	hsi_ctrl = hsi_get_hsi_controller_data(pdev);
-
-	if (!hsi_ctrl)
-		return -ENODEV;
-
-	 if (hsi_ctrl->clock_enabled) {
-		dev_info(hsi_ctrl->dev, "Platform Suspend while HSI active\n");
-		return 0;
-	}
-#if 0
-	 val = omap_mux_read_signal(OMAP_HSI_PADCONF_CAWAKE_PIN);
-#endif
-	 if (val == -ENODEV)
-		return -ENODEV;
-
-	 if ((val & OMAP_MUX_MODE_MASK) != OMAP_HSI_PADCONF_CAWAKE_MODE)
-		return 0;
-
-
-	if (device_may_wakeup(&pdev->dev))
-		omap_hsi_wakeup_enable(hsi_ctrl, 0);
+	if (dev_may_wakeup)
+		ret = omap_hsi_wakeup_enable(hsi_port);
 	else
-		omap_hsi_wakeup_disable(hsi_ctrl, 0);
+		ret = omap_hsi_wakeup_disable(hsi_port);
 
-	return 0;
+	return ret;
 }
 
 /**
-* omap_hsi_prepare_idle - Prepare HSI for idle to low power
+* omap_hsi_wakeup - Prepare HSI for wakeup from suspend mode (RET/OFF)
 *
-* Return value : -ENODEV if HSI controller has not been found, else 0.
-*
+* Return value : 1 if IO wakeup source is HSI
+*		 0 if IO wakeup source is not HSI.
 */
-int omap_hsi_prepare_idle(void)
+int omap_hsi_wakeup(int hsi_port)
 {
-	struct platform_device *pdev;
-	struct hsi_dev *hsi_ctrl;
+	static struct platform_device *pdev;
+	static struct hsi_dev *hsi_ctrl;
 
+	if (!pdev) {
 	pdev = hsi_get_hsi_platform_device();
-	hsi_ctrl = hsi_get_hsi_controller_data(pdev);
-
-	if (!hsi_ctrl)
+		if (!pdev)
 		return -ENODEV;
-
-	/* If hsi_clocks_disable_channel() is used, it prevents board to */
-	/* enter sleep, due to the checks of HSI controller status. */
-	/* This is why we call directly the omap_device_xxx() function here */
-	hsi_runtime_suspend(hsi_ctrl->dev);
-	omap_device_idle(pdev);
-
-	return 0;
 }
 
-int omap_hsi_is_io_wakeup_from_hsi(void)
-{
-#if 0
-	u16 val;
-	val = omap_mux_read_signal(OMAP_HSI_PADCONF_CAWAKE_PIN);
-	if (val == -ENODEV)
-		return 0;
-	if ((val & OMAP_MUX_MODE_MASK) != OMAP_HSI_PADCONF_CAWAKE_MODE)
-		return 0;
-	if (val & OMAP44XX_PADCONF_WAKEUPEVENT0)
-		return 1;
-#endif
-	return 0;
-}
-/**
-* omap_hsi_resume_idle - Prepare HSI for wakeup from low power
-*
-* Return value :* -ENODEV if HSI platform device or HSI controller or CAWAKE
-*		  Padconf has not been found
-*		* -EPERM if HSI is not allowed to wakeup the platform.
-*		* else 0.
-*
-*/
-extern int shceduled_already_flag;
-int omap_hsi_wakeup(void)
-{
-	struct platform_device *pdev;
-	struct hsi_dev *hsi_ctrl;
-
-	pdev = hsi_get_hsi_platform_device();
-	if (!pdev)
-		return -ENODEV;
 	if (!device_may_wakeup(&pdev->dev)) {
 		dev_info(&pdev->dev, "Modem not allowed to wakeup platform");
 		return -EPERM;
 	}
+
+	if (!hsi_ctrl) {
 	hsi_ctrl = hsi_get_hsi_controller_data(pdev);
 	if (!hsi_ctrl)
 		return -ENODEV;
+	}
 
-	/* Check for IO pad wakeup */
+	dev_dbg(hsi_ctrl->dev, "Modem wakeup detected from HSI CAWAKE Pad");
+
 	/* CAWAKE falling or rising edge detected */
 	hsi_ctrl->hsi_port->cawake_off_event = true;
-	if (shceduled_already_flag == 0) {
 		tasklet_hi_schedule(&hsi_ctrl->hsi_port->hsi_tasklet);
+
+	/* Disable interrupt until Bottom Half has cleared */
+	/* the IRQ status register */
 		disable_irq_nosync(hsi_ctrl->hsi_port->irq);
-		shceduled_already_flag = 1;
-	}
+
 	 return 0;
 }
 
