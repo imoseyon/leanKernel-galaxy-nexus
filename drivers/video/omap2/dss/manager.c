@@ -551,6 +551,7 @@ struct overlay_cache_data {
 
 	bool manual_update;
 	enum omap_overlay_zorder zorder;
+	struct omap_dss_cconv_coefs cconv;
 };
 
 struct manager_cache_data {
@@ -1069,6 +1070,8 @@ static int configure_overlay(enum omap_plane plane)
 	dispc_set_zorder(plane, c->zorder);
 	dispc_enable_zorder(plane, 1);
 	dispc_setup_plane_fifo(plane, c->fifo_low, c->fifo_high);
+	if (plane != OMAP_DSS_GFX)
+		_dispc_setup_color_conv_coef(plane, &c->cconv);
 
 	dispc_enable_plane(plane, 1);
 
@@ -1632,6 +1635,7 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 		oc->max_x_decim = ovl->info.max_x_decim;
 		oc->min_y_decim = ovl->info.min_y_decim;
 		oc->max_y_decim = ovl->info.max_y_decim;
+		oc->cconv = ovl->info.cconv;
 
 		oc->replication =
 			dss_use_replication(dssdev, ovl->info.color_mode);
