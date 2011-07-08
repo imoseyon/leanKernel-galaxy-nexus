@@ -123,7 +123,7 @@ static int _pwrdm_register(struct powerdomain *pwrdm)
 
 	/* Initialize priority ordered list for wakeup latency constraint */
 	spin_lock_init(&pwrdm->wakeuplat_lock);
-	plist_head_init(&pwrdm->wakeuplat_dev_list, &pwrdm->wakeuplat_lock);
+	plist_head_init(&pwrdm->wakeuplat_dev_list);
 
 	/* res_mutex protects res_list add and del ops */
 	mutex_init(&pwrdm->wakeuplat_mutex);

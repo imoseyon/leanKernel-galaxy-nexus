@@ -1115,8 +1115,7 @@ int __init omap_dvfs_register_device(struct device *dev, char *voltdm_name,
 
 		/* Init the plist */
 		spin_lock_init(&dvfs_info->user_lock);
-		plist_head_init(&dvfs_info->vdd_user_list,
-					&dvfs_info->user_lock);
+		plist_head_init(&dvfs_info->vdd_user_list);
 		/* Init the device list */
 		INIT_LIST_HEAD(&dvfs_info->dev_list);
 
@@ -1149,7 +1148,7 @@ int __init omap_dvfs_register_device(struct device *dev, char *voltdm_name,
 
 	/* Initialize priority ordered list */
 	spin_lock_init(&temp_dev->user_lock);
-	plist_head_init(&temp_dev->freq_user_list, &temp_dev->user_lock);
+	plist_head_init(&temp_dev->freq_user_list);
 
 	temp_dev->dev = dev;
 	temp_dev->clk = clk;
