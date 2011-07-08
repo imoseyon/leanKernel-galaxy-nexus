@@ -68,23 +68,6 @@ static int charger_is_charging(void)
 	return !gpio_get_value(GPIO_CHARGING_N);
 }
 
-static const __initdata struct resource charger_resources[] = {
-	{
-		.name = "ac",
-		.start = OMAP_GPIO_IRQ(GPIO_TA_NCONNECTED),
-		.end = OMAP_GPIO_IRQ(GPIO_TA_NCONNECTED),
-		.flags = IORESOURCE_IRQ |
-			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
-	},
-	{
-		.name = "usb",
-		.start = OMAP_GPIO_IRQ(GPIO_TA_NCONNECTED),
-		.end = OMAP_GPIO_IRQ(GPIO_TA_NCONNECTED),
-		.flags = IORESOURCE_IRQ |
-			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
-	}
-};
-
 static char *tuna_charger_supplied_to[] = {
 	"battery",
 };
@@ -92,13 +75,12 @@ static char *tuna_charger_supplied_to[] = {
 static const __initdata struct pda_power_pdata charger_pdata = {
 	.init = charger_init,
 	.exit = charger_exit,
-	.is_ac_online = charger_is_ac_online,
-	.is_usb_online = charger_is_ac_online,
 	.set_charge = charger_set_charge,
 	.wait_for_status = 500,
 	.wait_for_charger = 500,
 	.supplied_to = tuna_charger_supplied_to,
 	.num_supplicants = ARRAY_SIZE(tuna_charger_supplied_to),
+	.use_otg_notifier = true,
 };
 
 static struct max17040_platform_data max17043_pdata = {
@@ -149,8 +131,9 @@ void __init omap4_tuna_power_init(void)
 	omap_mux_init_gpio(charger_gpios[2].gpio, OMAP_PIN_OUTPUT);
 
 	pdev = platform_device_register_resndata(NULL, "pda-power", -1,
-		charger_resources, ARRAY_SIZE(charger_resources),
-		&charger_pdata, sizeof(charger_pdata));
+		NULL, 0, &charger_pdata, sizeof(charger_pdata));
+	if (IS_ERR_OR_NULL(pdev))
+		pr_err("cannot register pda-power\n");
 
 	i2c_register_board_info(4, max17043_i2c, ARRAY_SIZE(max17043_i2c));
 
