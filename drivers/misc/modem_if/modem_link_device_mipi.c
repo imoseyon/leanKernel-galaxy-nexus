@@ -133,9 +133,7 @@ static int mipi_hsi_send(struct link_device *ld, struct io_device *iod,
 	/* en queue skb data */
 	skb_queue_tail(txq, skb);
 
-	if (!work_pending(&ld->tx_work))
-		queue_work(ld->tx_wq, &ld->tx_work);
-
+	queue_work(ld->tx_wq, &ld->tx_work);
 	return skb->len;
 }
 
@@ -498,6 +496,7 @@ static u32 if_hsi_create_cmd(u32 cmd_type, int ch, void *arg)
 static void if_hsi_cmd_work(struct work_struct *work)
 {
 	int ret;
+	unsigned long int flags;
 	struct mipi_link_device *mipi_ld =
 			container_of(work, struct mipi_link_device, cmd_work);
 	struct if_hsi_channel *channel =
@@ -506,18 +505,23 @@ static void if_hsi_cmd_work(struct work_struct *work)
 
 	pr_debug("[MIPI-HSI] cmd_work\n");
 
-	if (!list_empty(&mipi_ld->list_of_hsi_cmd)) {
-		if (!wake_lock_active(&mipi_ld->wlock)) {
-			wake_lock(&mipi_ld->wlock);
-			pr_debug("[MIPI-HSI] wake_lock\n");
-		}
-		if_hsi_set_wakeline(channel, 1);
-	} else
-		return;
+	if (!wake_lock_active(&mipi_ld->wlock)) {
+		wake_lock(&mipi_ld->wlock);
+		pr_debug("[MIPI-HSI] wake_lock\n");
+	}
+	if_hsi_set_wakeline(channel, 1);
 
 	do {
-		hsi_cmd = list_entry(mipi_ld->list_of_hsi_cmd.next,
+		spin_lock_irqsave(&mipi_ld->list_cmd_lock, flags);
+		if (!list_empty(&mipi_ld->list_of_hsi_cmd)) {
+			hsi_cmd = list_entry(mipi_ld->list_of_hsi_cmd.next,
 					struct if_hsi_command, list);
+			list_del(&hsi_cmd->list);
+			spin_unlock_irqrestore(&mipi_ld->list_cmd_lock, flags);
+		} else {
+			spin_unlock_irqrestore(&mipi_ld->list_cmd_lock, flags);
+			break;
+		}
 		pr_debug("[MIPI-HSI] take command : %08x\n", hsi_cmd->command);
 
 		ret = if_hsi_write(channel, &hsi_cmd->command, 4);
@@ -528,9 +532,8 @@ static void if_hsi_cmd_work(struct work_struct *work)
 		}
 		pr_debug("[MIPI-HSI] SEND CMD : %08x\n", hsi_cmd->command);
 
-		list_del(&hsi_cmd->list);
 		kfree(hsi_cmd);
-	} while (!list_empty(&mipi_ld->list_of_hsi_cmd));
+	} while (true);
 
 	if_hsi_set_wakeline(channel, 0);
 }
@@ -538,6 +541,7 @@ static void if_hsi_cmd_work(struct work_struct *work)
 static int if_hsi_send_command(struct mipi_link_device *mipi_ld,
 			u32 cmd_type, int ch, u32 param)
 {
+	unsigned long int flags;
 	struct if_hsi_command *hsi_cmd;
 
 	hsi_cmd = kmalloc(sizeof(struct if_hsi_command), GFP_ATOMIC);
@@ -550,11 +554,12 @@ static int if_hsi_send_command(struct mipi_link_device *mipi_ld,
 	hsi_cmd->command = if_hsi_create_cmd(cmd_type, ch, &param);
 	pr_debug("[MIPI-HSI] made command : %08x\n", hsi_cmd->command);
 
+	spin_lock_irqsave(&mipi_ld->list_cmd_lock, flags);
 	list_add_tail(&hsi_cmd->list, &mipi_ld->list_of_hsi_cmd);
+	spin_unlock_irqrestore(&mipi_ld->list_cmd_lock, flags);
 
 	pr_debug("[MIPI-HSI] queue_work : cmd_work\n");
-	if (!work_pending(&mipi_ld->cmd_work))
-		queue_work(mipi_ld->mipi_wq, &mipi_ld->cmd_work);
+	queue_work(mipi_ld->mipi_wq, &mipi_ld->cmd_work);
 
 	return 0;
 }
@@ -684,6 +689,7 @@ static int if_hsi_rx_cmd_handle(struct mipi_link_device *mipi_ld, u32 cmd,
 
 		default:
 			pr_err("[MIPI-HSI] wrong state : %08x\n", cmd);
+			return -1;
 		}
 
 	case HSI_LL_MSG_ACK:
@@ -1294,6 +1300,7 @@ struct link_device *mipi_create_link_device(struct platform_device *pdev)
 
 	INIT_LIST_HEAD(&mipi_ld->list_of_io_devices);
 	INIT_LIST_HEAD(&mipi_ld->list_of_hsi_cmd);
+	spin_lock_init(&mipi_ld->list_cmd_lock);
 	skb_queue_head_init(&mipi_ld->ld.sk_fmt_tx_q);
 	skb_queue_head_init(&mipi_ld->ld.sk_raw_tx_q);
 

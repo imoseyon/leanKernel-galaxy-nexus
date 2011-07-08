@@ -125,6 +125,7 @@ struct mipi_link_device {
 	/* mipi specific link data */
 	struct if_hsi_channel hsi_channles[HSI_MAX_CHANNELS];
 	struct list_head list_of_hsi_cmd;
+	spinlock_t list_cmd_lock;
 
 	struct workqueue_struct *mipi_wq;
 	struct work_struct cmd_work;
