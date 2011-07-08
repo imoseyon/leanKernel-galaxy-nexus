@@ -22,6 +22,22 @@
 struct voltagedomain;
 
 /**
+ * struct setup_time_ramp_params - ramp time parameters
+ * @pre_scaler_to_sysclk_cycles: The array represents correlation of prescaler
+ *	to the number of system clock cycles, for which rampdown counter is
+ *	incremented or decremented in PRM_VOLTSETUP_XXX_RET_SLEEP registers.
+ *	This is to handle variances in defined values due to conditions such
+ *	as "Errata Id: i623: Retention/Sleep Voltage Transitions Ramp Time"
+ * @pre_scaler_to_sysclk_cycles_count: number of entries available
+ *
+ * Add parameters that allow us to compute the ramp time for the device
+ */
+struct setup_time_ramp_params {
+	u16 *pre_scaler_to_sysclk_cycles;
+	u8 pre_scaler_to_sysclk_cycles_count;
+};
+
+/**
  * struct omap_vc_common - per-VC register/bitfield data
  * @cmd_on_mask: ON bitmask in PRM_VC_CMD_VAL* register
  * @valid: VALID bitmask in PRM_VC_BYPASS_VAL register
@@ -38,6 +54,7 @@ struct voltagedomain;
  * @i2c_cfg_reg: I2C configuration register offset
  * @i2c_cfg_hsen_mask: high-speed mode bit field mask in I2C config register
  * @i2c_mcode_mask: MCODE field mask for I2C config register
+ * @setup_time_params: setup time parameters
  *
  * XXX One of cmd_on_mask and cmd_on_shift are not needed
  * XXX VALID should probably be a shift, not a mask
@@ -60,6 +77,7 @@ struct omap_vc_common {
 	u8 i2c_cfg_reg;
 	u8 i2c_cfg_hsen_mask;
 	u8 i2c_mcode_mask;
+	struct setup_time_ramp_params *setup_time_params;
 };
 
 /**
@@ -97,7 +115,7 @@ struct omap_vc_channel {
 	u16 volt_reg_addr;
 	u16 cmd_reg_addr;
 	u8 cfg_channel;
-	u16 setup_time;
+	u32 setup_time;
 	bool i2c_high_speed;
 
 	/* register access data */

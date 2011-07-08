@@ -26,6 +26,12 @@
 
 #include "vc.h"
 
+static u16 pre_scaler_to_sysclk_cycles_44xx[] = {16, 64, 128, 512};
+static struct setup_time_ramp_params omap4_vc_setuptime_params = {
+	.pre_scaler_to_sysclk_cycles = pre_scaler_to_sysclk_cycles_44xx,
+	.pre_scaler_to_sysclk_cycles_count = 4,
+};
+
 /*
  * VC data common to 44xx chips
  * XXX This stuff presumably belongs in the vc3xxx.c or vc.c file.
@@ -48,6 +54,7 @@ static const struct omap_vc_common omap4_vc_common = {
 	.i2c_cfg_reg = OMAP4_PRM_VC_CFG_I2C_MODE_OFFSET,
 	.i2c_cfg_hsen_mask = OMAP4430_HSMODEEN_MASK,
 	.i2c_mcode_mask	 = OMAP4430_HSMCODE_MASK,
+	.setup_time_params = &omap4_vc_setuptime_params,
 };
 
 /* VC auto transition settings for OMAP4. */
