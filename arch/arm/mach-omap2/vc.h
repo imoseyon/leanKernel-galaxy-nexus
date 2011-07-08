@@ -62,6 +62,20 @@ struct omap_vc_common {
 	u8 i2c_mcode_mask;
 };
 
+/**
+ * struct omap_vc_auto_trans - describe the auto transition for the domain
+ * @reg:		register to modify (usually PRM_VOLTCTRL)
+ * @sleep_val:		value to set for enabling sleep transition
+ * @retention_val:	value to set for enabling retention transition
+ * @off_val:		value to set for enabling off transition
+ */
+struct omap_vc_auto_trans {
+	u8 reg;
+	u8 sleep_val;
+	u8 retention_val;
+	u8 off_val;
+};
+
 /* omap_vc_channel.flags values */
 #define OMAP_VC_CHANNEL_DEFAULT BIT(0)
 #define OMAP_VC_CHANNEL_CFG_MUTANT BIT(1)
@@ -72,6 +86,8 @@ struct omap_vc_common {
  * @common: pointer to VC common data for this platform
  * @smps_sa_mask: i2c slave address bitmask in the PRM_VC_SMPS_SA register
  * @smps_volra_mask: VOLRA* bitmask in the PRM_VC_VOL_RA register
+ * @auto_trans: Auto transition information
+ * @auto_trans_mask: Auto transition mask for this channel
  */
 struct omap_vc_channel {
 	u8 flags;
@@ -91,6 +107,9 @@ struct omap_vc_channel {
 	u32 smps_cmdra_mask;
 	u8 cmdval_reg;
 	u8 cfg_channel_sa_shift;
+
+	const struct omap_vc_auto_trans *auto_trans;
+	u32 auto_trans_mask;
 };
 
 extern struct omap_vc_channel omap3_vc_mpu;
@@ -107,6 +126,15 @@ int omap_vc_pre_scale(struct voltagedomain *voltdm,
 void omap_vc_post_scale(struct voltagedomain *voltdm,
 			unsigned long target_volt,
 			u8 target_vsel, u8 current_vsel);
+
+/* Auto transition flags for users */
+#define OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE		0
+#define OMAP_VC_CHANNEL_AUTO_TRANSITION_SLEEP		1
+#define OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION	2
+#define OMAP_VC_CHANNEL_AUTO_TRANSITION_OFF		3
+/* For silicon data to mark unsupported transition */
+#define OMAP_VC_CHANNEL_AUTO_TRANSITION_UNSUPPORTED	0xff
+int omap_vc_set_auto_trans(struct voltagedomain *voltdm, u8 flag);
 int omap_vc_bypass_scale_voltage(struct voltagedomain *voltdm,
 				 unsigned long target_volt);
 int omap_vc_bypass_send_i2c_msg(struct voltagedomain *voltdm,

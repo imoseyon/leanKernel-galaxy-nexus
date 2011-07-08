@@ -49,6 +49,18 @@ static struct omap_vc_common omap3_vc_common = {
 	.i2c_mcode_mask	 = OMAP3430_MCODE_MASK,
 };
 
+/*
+ * VC auto transition settings for OMAP3. On OMAP3, we just have a single
+ * device wide state that is achieved on core, so we shall use this data
+ * only for core domain transition
+ */
+static const struct omap_vc_auto_trans omap3_vc_auto_trans = {
+	.reg = OMAP3_PRM_VOLTCTRL_OFFSET,
+	.sleep_val =  OMAP3430_AUTO_SLEEP_MASK,
+	.retention_val = OMAP3430_AUTO_RET_MASK,
+	.off_val = OMAP3430_AUTO_OFF_MASK,
+};
+
 struct omap_vc_channel omap3_vc_mpu = {
 	.common = &omap3_vc_common,
 	.cmdval_reg = OMAP3_PRM_VC_CMD_VAL_0_OFFSET,
@@ -65,4 +77,8 @@ struct omap_vc_channel omap3_vc_core = {
 	.smps_volra_mask = OMAP3430_VOLRA1_MASK,
 	.smps_cmdra_mask = OMAP3430_CMDRA1_MASK,
 	.cfg_channel_sa_shift = OMAP3430_PRM_VC_SMPS_SA_SA1_SHIFT,
+
+	.auto_trans = &omap3_vc_auto_trans,
+	.auto_trans_mask = OMAP3430_AUTO_OFF_MASK | OMAP3430_AUTO_RET_MASK |
+				OMAP3430_AUTO_SLEEP_MASK,
 };

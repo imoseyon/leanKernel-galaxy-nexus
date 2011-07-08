@@ -50,6 +50,14 @@ static const struct omap_vc_common omap4_vc_common = {
 	.i2c_mcode_mask	 = OMAP4430_HSMCODE_MASK,
 };
 
+/* VC auto transition settings for OMAP4. */
+static const struct omap_vc_auto_trans omap4_vc_auto_trans = {
+	.reg = OMAP4_PRM_VOLTCTRL_OFFSET,
+	.sleep_val = OMAP4430_AUTO_CTRL_VDD_SLEEP_MASK,
+	.retention_val = OMAP4430_AUTO_CTRL_VDD_RET_MASK,
+	.off_val = OMAP_VC_CHANNEL_AUTO_TRANSITION_UNSUPPORTED,
+};
+
 /* VC instance data for each controllable voltage line */
 struct omap_vc_channel omap4_vc_mpu = {
 	.flags = OMAP_VC_CHANNEL_DEFAULT | OMAP_VC_CHANNEL_CFG_MUTANT,
@@ -59,6 +67,9 @@ struct omap_vc_channel omap4_vc_mpu = {
 	.smps_volra_mask = OMAP4430_VOLRA_VDD_MPU_L_MASK,
 	.smps_cmdra_mask = OMAP4430_CMDRA_VDD_MPU_L_MASK,
 	.cfg_channel_sa_shift = OMAP4430_SA_VDD_MPU_L_SHIFT,
+
+	.auto_trans = &omap4_vc_auto_trans,
+	.auto_trans_mask = OMAP4430_AUTO_CTRL_VDD_MPU_L_MASK,
 };
 
 struct omap_vc_channel omap4_vc_iva = {
@@ -68,6 +79,9 @@ struct omap_vc_channel omap4_vc_iva = {
 	.smps_volra_mask = OMAP4430_VOLRA_VDD_IVA_L_MASK,
 	.smps_cmdra_mask = OMAP4430_CMDRA_VDD_IVA_L_MASK,
 	.cfg_channel_sa_shift = OMAP4430_SA_VDD_IVA_L_SHIFT,
+
+	.auto_trans = &omap4_vc_auto_trans,
+	.auto_trans_mask = OMAP4430_AUTO_CTRL_VDD_IVA_L_MASK,
 };
 
 struct omap_vc_channel omap4_vc_core = {
@@ -77,5 +91,8 @@ struct omap_vc_channel omap4_vc_core = {
 	.smps_volra_mask = OMAP4430_VOLRA_VDD_CORE_L_MASK,
 	.smps_cmdra_mask = OMAP4430_CMDRA_VDD_CORE_L_MASK,
 	.cfg_channel_sa_shift = OMAP4430_SA_VDD_CORE_L_SHIFT,
+
+	.auto_trans = &omap4_vc_auto_trans,
+	.auto_trans_mask = OMAP4430_AUTO_CTRL_VDD_CORE_L_MASK,
 };
 

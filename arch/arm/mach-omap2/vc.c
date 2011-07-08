@@ -132,6 +132,66 @@ int omap_vc_pre_scale(struct voltagedomain *voltdm,
 	return 0;
 }
 
+/**
+ * omap_vc_set_auto_trans() - set auto transition parameters for a domain
+ * @voltdm:	voltage domain we are interested in
+ * @flag:	which state should we program this to
+ */
+int omap_vc_set_auto_trans(struct voltagedomain *voltdm, u8 flag)
+{
+	struct omap_vc_channel *vc;
+	const struct omap_vc_auto_trans *auto_trans;
+	u8 val = OMAP_VC_CHANNEL_AUTO_TRANSITION_UNSUPPORTED;
+
+	if (!voltdm) {
+		pr_err("%s: NULL Voltage domain!\n", __func__);
+		return -ENOENT;
+	}
+	vc = voltdm->vc;
+	if (!vc) {
+		pr_err("%s: NULL VC Voltage domain %s!\n", __func__,
+		       voltdm->name);
+		return -ENOENT;
+	}
+
+	auto_trans = vc->auto_trans;
+	if (!auto_trans) {
+		pr_debug("%s: No auto trans %s!\n", __func__, voltdm->name);
+		return 0;
+	}
+
+	/* Handle value and masks per silicon data */
+	switch (flag) {
+	case OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE:
+		val = 0x0;
+		break;
+	case OMAP_VC_CHANNEL_AUTO_TRANSITION_SLEEP:
+		val = auto_trans->sleep_val;
+		break;
+	case OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION:
+		val = auto_trans->retention_val;
+		break;
+	case OMAP_VC_CHANNEL_AUTO_TRANSITION_OFF:
+		val = auto_trans->off_val;
+		break;
+	default:
+		pr_err("%s: Voltdm %s invalid flag %d\n", __func__,
+		       voltdm->name, flag);
+		return -EINVAL;
+	}
+
+	if (val == OMAP_VC_CHANNEL_AUTO_TRANSITION_UNSUPPORTED) {
+		pr_err("%s: transition to %d on %s is NOT supported\n",
+		       __func__, flag, voltdm->name);
+		return -EINVAL;
+	}
+
+	/* All ready - set it and move on.. */
+	voltdm->rmw(vc->auto_trans_mask, val << __ffs(vc->auto_trans_mask),
+		    auto_trans->reg);
+	return 0;
+}
+
 void omap_vc_post_scale(struct voltagedomain *voltdm,
 			unsigned long target_volt,
 			u8 target_vsel, u8 current_vsel)
