@@ -383,6 +383,9 @@ int set_dss_mgr_info(struct dss2_mgr_info *mi)
 	info.trans_key = mi->trans_key;
 	info.trans_key_type = mi->trans_key_type;
 
+	info.cpr_coefs = mi->cpr_coefs;
+	info.cpr_enable = mi->cpr_enabled;
+
 	return mgr->set_manager_info(mgr, &info);
 }
 

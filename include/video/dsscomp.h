@@ -99,6 +99,12 @@ struct omap_dss_cconv_coefs {
 	u16 full_range;
 } __attribute__ ((aligned(4)));
 
+struct omap_dss_cpr_coefs {
+	s16 rr, rg, rb;
+	s16 gr, gg, gb;
+	s16 br, bg, bb;
+};
+
 #endif
 
 /*
@@ -369,10 +375,13 @@ struct dss2_mgr_info {
 
 	enum omap_dss_trans_key_type trans_key_type;
 	__u32 trans_key;
+	struct omap_dss_cpr_coefs cpr_coefs;
+
 	__u8 trans_enabled;	/* bool */
 
 	__u8 interlaced;		/* bool */
 	__u8 alpha_blending;	/* bool - overrides trans_enabled */
+	__u8 cpr_enabled;	/* bool */
 } __attribute__ ((aligned(4)));
 
 /*
