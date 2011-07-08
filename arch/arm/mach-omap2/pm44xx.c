@@ -38,6 +38,9 @@
 #include "cm-regbits-44xx.h"
 #include "cminst44xx.h"
 
+#include "smartreflex.h"
+#include "dvfs.h"
+#include "voltage.h"
 
 struct power_state {
 	struct powerdomain *pwrdm;
@@ -51,6 +54,8 @@ struct power_state {
 static LIST_HEAD(pwrst_list);
 static struct powerdomain *mpu_pwrdm, *cpu0_pwrdm;
 static struct powerdomain *core_pwrdm, *per_pwrdm;
+
+static struct voltagedomain *mpu_voltdm, *iva_voltdm, *core_voltdm;
 
 #define MAX_IOPAD_LATCH_TIME 1000
 void omap4_trigger_ioctrl(void)
@@ -79,6 +84,7 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state)
 	int cpu0_next_state = PWRDM_POWER_ON;
 	int per_next_state = PWRDM_POWER_ON;
 	int core_next_state = PWRDM_POWER_ON;
+	int mpu_next_state = PWRDM_POWER_ON;
 
 	pwrdm_clear_all_prev_pwrst(cpu0_pwrdm);
 	pwrdm_clear_all_prev_pwrst(mpu_pwrdm);
@@ -88,14 +94,33 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state)
 	cpu0_next_state = pwrdm_read_next_pwrst(cpu0_pwrdm);
 	per_next_state = pwrdm_read_next_pwrst(per_pwrdm);
 	core_next_state = pwrdm_read_next_pwrst(core_pwrdm);
+	mpu_next_state = pwrdm_read_next_pwrst(mpu_pwrdm);
+
+	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
+		if (omap_dvfs_is_scaling(mpu_voltdm)) {
+			mpu_next_state = PWRDM_POWER_INACTIVE;
+			pwrdm_set_next_pwrst(mpu_pwrdm, mpu_next_state);
+		} else {
+			omap_sr_disable_reset_volt(mpu_voltdm);
+		}
+	}
 
 	if (core_next_state < PWRDM_POWER_ON) {
-		omap_uart_prepare_idle(0);
-		omap_uart_prepare_idle(1);
-		omap_uart_prepare_idle(2);
-		omap_uart_prepare_idle(3);
-		omap2_gpio_prepare_for_idle(0);
-		omap4_trigger_ioctrl();
+		if (omap_dvfs_is_scaling(core_voltdm) ||
+		    omap_dvfs_is_scaling(iva_voltdm)) {
+			core_next_state = PWRDM_POWER_ON;
+			pwrdm_set_next_pwrst(core_pwrdm, core_next_state);
+		} else {
+			omap_sr_disable_reset_volt(iva_voltdm);
+			omap_sr_disable_reset_volt(core_voltdm);
+
+			omap_uart_prepare_idle(0);
+			omap_uart_prepare_idle(1);
+			omap_uart_prepare_idle(2);
+			omap_uart_prepare_idle(3);
+			omap2_gpio_prepare_for_idle(0);
+			omap4_trigger_ioctrl();
+		}
 	}
 
 	omap4_enter_lowpower(cpu, power_state);
@@ -106,7 +131,12 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state)
 		omap_uart_resume_idle(1);
 		omap_uart_resume_idle(2);
 		omap_uart_resume_idle(3);
+		omap_sr_enable(iva_voltdm);
+		omap_sr_enable(core_voltdm);
 	}
+
+	if (mpu_next_state < PWRDM_POWER_INACTIVE)
+		omap_sr_enable(mpu_voltdm);
 
 	return;
 }
@@ -396,6 +426,25 @@ static int __init omap4_pm_init(void)
 
 	pr_info("OMAP4 PM: Static dependency added between MPUSS <-> EMIF"
 		" MPUSS <-> L4_PER/CFG and MPUSS <-> L3_MAIN_1.\n");
+
+	/* Get handles for VDD's for enabling/disabling SR */
+	mpu_voltdm = voltdm_lookup("mpu");
+	if (!mpu_voltdm) {
+		pr_err("%s: Failed to get voltdm for VDD MPU\n", __func__);
+		goto err2;
+	}
+
+	iva_voltdm = voltdm_lookup("iva");
+	if (!iva_voltdm) {
+		pr_err("%s: Failed to get voltdm for VDD IVA\n", __func__);
+		goto err2;
+	}
+
+	core_voltdm = voltdm_lookup("core");
+	if (!core_voltdm) {
+		pr_err("%s: Failed to get voltdm for VDD CORE\n", __func__);
+		goto err2;
+	}
 
 	ret = omap4_mpuss_init();
 	if (ret) {
