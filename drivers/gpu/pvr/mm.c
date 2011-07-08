@@ -1140,8 +1140,11 @@ NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags,
                            );
 #endif
 
+    
+
     psLinuxMemArea->eAreaType = LINUX_MEM_AREA_ION;
     psLinuxMemArea->uData.sIONTilerAlloc.pCPUPhysAddrs = (IMG_CPU_PHYADDR *)pu32PageAddrs;
+    psLinuxMemArea->uData.sIONTilerAlloc.psIONClient = psEnvPerProc->psIONClient;
     psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle = sAllocData.handle;
     psLinuxMemArea->ui32ByteSize = ui32Bytes;
     psLinuxMemArea->ui32AreaFlags = ui32AreaFlags;
@@ -1170,22 +1173,15 @@ err_free:
 IMG_VOID
 FreeIONLinuxMemArea(LinuxMemArea *psLinuxMemArea)
 {
-    PVRSRV_ENV_PER_PROCESS_DATA *psEnvPerProc;
-
 #if 0 && defined(DEBUG_LINUX_MEM_AREAS)
     
     DebugLinuxMemAreaRecordRemove(psLinuxMemArea);
 #endif
 
-    psEnvPerProc = PVRSRVFindPerProcessPrivateData();
-    if(!psEnvPerProc)
-    {
-        PVR_DPF((PVR_DBG_ERROR, "%s: Failed to look-up envperproc data", __func__));
-        return;
-    }
-
-    ion_free(psEnvPerProc->psIONClient,
+    ion_free(psLinuxMemArea->uData.sIONTilerAlloc.psIONClient,
              psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle);
+
+    
 
     
     psLinuxMemArea->uData.sIONTilerAlloc.pCPUPhysAddrs = IMG_NULL;

@@ -80,27 +80,14 @@ PVRSRVExportFDToIONHandle(int fd, struct ion_client **client)
 		goto err_fput;
 	}
 
-	if(client)
-	{
-		PVRSRV_ENV_PER_PROCESS_DATA *psEnvPerProc;
-
-		psEnvPerProc = PVRSRVPerProcessPrivateData(psPrivateData->ui32OpenPID);
-		if(!psEnvPerProc)
-		{
-			PVR_DPF((PVR_DBG_ERROR, "%s: Failed to look up per-process data",
-									__func__));
-			goto err_fput;
-		}
-
-		*client = psEnvPerProc->psIONClient;
-	}
-
 	psLinuxMemArea = (LinuxMemArea *)psKernelMemInfo->sMemBlk.hOSMemHandle;
 
 	BUG_ON(psLinuxMemArea == IMG_NULL);
 	BUG_ON(psLinuxMemArea->eAreaType != LINUX_MEM_AREA_ION);
 
 	psIONHandle = psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle;
+	if(client)
+		*client = psLinuxMemArea->uData.sIONTilerAlloc.psIONClient;
 
 err_fput:
 	fput(psFile);

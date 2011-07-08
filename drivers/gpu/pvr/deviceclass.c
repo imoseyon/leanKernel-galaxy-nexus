@@ -1609,11 +1609,13 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 									FreePrivateData,
 									psCallbackData);
 
-	OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP,
+	if (ppsCompiledSyncInfos != ppsSyncInfos)
+	{
+		OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP,
 			  sizeof(PVRSRV_KERNEL_SYNC_INFO *) * ui32NumCompiledSyncInfos,
 			  (IMG_VOID *)ppsCompiledSyncInfos,
 			  IMG_NULL);
-
+	}
 	if(eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"PVRSRVSwapToDCBuffer2KM: Failed to get space in queue"));
@@ -1667,6 +1669,8 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 				  IMG_NULL);
 		goto Exit;
 	}
+	
+	psCallbackData = IMG_NULL;
 
 	
 
@@ -1706,7 +1710,10 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 	}
 
 Exit:
-	OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof(CALLBACK_DATA), psCallbackData, IMG_NULL);
+	if (psCallbackData)
+	{
+		OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof(CALLBACK_DATA), psCallbackData, IMG_NULL);
+	}
 	if(eError == PVRSRV_ERROR_CANNOT_GET_QUEUE_SPACE)
 	{
 		eError = PVRSRV_ERROR_RETRY;
