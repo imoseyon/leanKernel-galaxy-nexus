@@ -103,6 +103,8 @@ int dsscomp_gralloc_queue_ioctl(struct dsscomp_setup_mgr_data *d);
 int set_dss_ovl_info(struct dss2_ovl_info *oi);
 int set_dss_mgr_info(struct dss2_mgr_info *mi);
 struct omap_overlay_manager *find_dss_mgr(int display_ix);
+void swap_rb_in_ovl_info(struct dss2_ovl_info *oi);
+void swap_rb_in_mgr_info(struct dss2_mgr_info *mi);
 
 /*
  * Debug functions

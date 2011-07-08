@@ -347,6 +347,17 @@ done:
 	return ovl->set_overlay_info(ovl, &info);
 }
 
+void swap_rb_in_ovl_info(struct dss2_ovl_info *oi)
+{
+	/* we need to swap YUV color matrix if we are swapping R and B */
+	if (oi->cfg.color_mode &
+	    (OMAP_DSS_COLOR_NV12 | OMAP_DSS_COLOR_YUV2 | OMAP_DSS_COLOR_UYVY)) {
+		swap(oi->cfg.cconv.ry, oi->cfg.cconv.by);
+		swap(oi->cfg.cconv.rcr, oi->cfg.cconv.bcr);
+		swap(oi->cfg.cconv.rcb, oi->cfg.cconv.bcb);
+	}
+}
+
 struct omap_overlay_manager *find_dss_mgr(int display_ix)
 {
 	struct omap_overlay_manager *mgr;
@@ -387,6 +398,21 @@ int set_dss_mgr_info(struct dss2_mgr_info *mi)
 	info.cpr_enable = mi->cpr_enabled;
 
 	return mgr->set_manager_info(mgr, &info);
+}
+
+void swap_rb_in_mgr_info(struct dss2_mgr_info *mi)
+{
+	const struct omap_dss_cpr_coefs c = { 256, 0, 0, 0, 256, 0, 0, 0, 256 };
+
+	/* set default CPR */
+	if (!mi->cpr_enabled)
+		mi->cpr_coefs = c;
+	mi->cpr_enabled = true;
+
+	/* swap red and blue */
+	swap(mi->cpr_coefs.rr, mi->cpr_coefs.br);
+	swap(mi->cpr_coefs.rg, mi->cpr_coefs.bg);
+	swap(mi->cpr_coefs.rb, mi->cpr_coefs.bb);
 }
 
 /*

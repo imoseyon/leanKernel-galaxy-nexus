@@ -382,6 +382,7 @@ struct dss2_mgr_info {
 	__u8 interlaced;		/* bool */
 	__u8 alpha_blending;	/* bool - overrides trans_enabled */
 	__u8 cpr_enabled;	/* bool */
+	__u8 swap_rb;		/* bool - swap red and blue */
 } __attribute__ ((aligned(4)));
 
 /*

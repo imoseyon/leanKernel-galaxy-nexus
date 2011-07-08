@@ -153,6 +153,13 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 	comp->frm.mode = DSSCOMP_SETUP_DISPLAY;
 	comp->must_apply = true;
 
+	/* swap red & blue if requested */
+	if (d->mgr.swap_rb) {
+		swap_rb_in_mgr_info(&d->mgr);
+		for (i = 0; i < d->num_ovls; i++)
+			swap_rb_in_ovl_info(d->ovls + i);
+	}
+
 	/* NOTE: none of the dsscomp sets should fail as composition is new */
 	r = dsscomp_set_mgr(comp, &d->mgr);
 	if (r)

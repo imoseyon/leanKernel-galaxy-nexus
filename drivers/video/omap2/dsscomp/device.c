@@ -89,6 +89,13 @@ static long setup_mgr(struct dsscomp_dev *cdev,
 	if (IS_ERR(comp))
 		return PTR_ERR(comp);
 
+	/* swap red & blue if requested */
+	if (d->mgr.swap_rb) {
+		swap_rb_in_mgr_info(&d->mgr);
+		for (i = 0; i < d->num_ovls; i++)
+			swap_rb_in_ovl_info(d->ovls + i);
+	}
+
 	r = dsscomp_set_mgr(comp, &d->mgr);
 
 	for (i = 0; i < d->num_ovls; i++) {
