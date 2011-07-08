@@ -323,7 +323,7 @@ int set_dss_ovl_info(struct dss2_ovl_info *oi)
 	info.out_wb = 0;
 #endif
 
-	/* :TODO: copy color conversion - this needs ovl support */
+	info.cconv = cfg->cconv;
 
 done:
 #if 0
