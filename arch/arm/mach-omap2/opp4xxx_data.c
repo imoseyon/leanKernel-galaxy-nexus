@@ -142,7 +142,10 @@ static struct omap_opp_def __initdata omap443x_opp_def_list[] = {
 	/* DSP OPP3 - OPPTB */
 	OPP_INITIALIZER("dsp", "dpll_iva_m4x2_ck", "iva", false, 496000000, OMAP4430_VDD_IVA_OPPTURBO_UV),
 
-	/* TODO: add aess */
+	/* ABE OPP1 - OPP50 */
+	OPP_INITIALIZER("aess", "abe_clk", "iva", true, 98304000, OMAP4430_VDD_IVA_OPP50_UV),
+	/* ABE OPP2 - OPP100 */
+	OPP_INITIALIZER("aess", "abe_clk", "iva", true, 196608000, OMAP4430_VDD_IVA_OPP100_UV),
 };
 
 #define OMAP4460_VDD_MPU_OPP50_UV		1025000
@@ -271,7 +274,10 @@ static struct omap_opp_def __initdata omap446x_opp_def_list[] = {
 	/* DSP OPP3 - OPPTB */
 	OPP_INITIALIZER("dsp", "dpll_iva_m4x2_ck", "iva", false, 496000000, OMAP4460_VDD_IVA_OPPTURBO_UV),
 
-	/* TODO: add aess */
+	/* ABE OPP1 - OPP50 */
+	OPP_INITIALIZER("aess", "abe_clk", "iva", true, 98304000, OMAP4460_VDD_IVA_OPP50_UV),
+	/* ABE OPP2 - OPP100 */
+	OPP_INITIALIZER("aess", "abe_clk", "iva", true, 196608000, OMAP4460_VDD_IVA_OPP100_UV),
 };
 
 /**
