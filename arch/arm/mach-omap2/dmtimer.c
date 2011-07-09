@@ -27,6 +27,9 @@
 #include <plat/omap_device.h>
 #include <plat/cpu.h>
 #include <plat/omap_hwmod.h>
+#include <plat/omap-pm.h>
+
+#include "powerdomain.h"
 
 static u8 __initdata system_timer_id;
 
@@ -91,6 +94,16 @@ static int omap2_dm_timer_set_src(struct platform_device *pdev, int source)
 	return ret;
 }
 
+#ifdef CONFIG_PM
+static int omap_timer_get_context_loss(struct device *dev)
+{
+	return omap_pm_get_dev_context_loss_count(dev);
+}
+
+#else
+#define omap_gpio_get_context_loss NULL
+#endif
+
 struct omap_device_pm_latency omap2_dmtimer_latency[] = {
 	{
 		.deactivate_func = omap_device_idle_hwmods,
@@ -119,6 +132,7 @@ static int __init omap_timer_init(struct omap_hwmod *oh, void *unused)
 	struct dmtimer_platform_data *pdata;
 	struct omap_device *od;
 	struct omap_secure_timer_dev_attr *secure_timer_dev_attr;
+	struct powerdomain *pwrdm;
 
 	/*
 	 * Extract the IDs from name field in hwmod database
@@ -148,6 +162,14 @@ static int __init omap_timer_init(struct omap_hwmod *oh, void *unused)
 	}
 	pdata->set_timer_src = omap2_dm_timer_set_src;
 	pdata->timer_ip_type = oh->class->rev;
+	pwrdm = omap_hwmod_get_pwrdm(oh);
+	if (!pwrdm) {
+		pr_debug("%s: could not find pwrdm for (%s) in omap hwmod!\n",
+			__func__, oh->name);
+		return -EINVAL;
+	}
+	pdata->loses_context = pwrdm_can_ever_lose_context(pwrdm);
+	pdata->get_context_loss_count = omap_timer_get_context_loss;
 
 	od = omap_device_build(name, id, oh, pdata, sizeof(*pdata),
 			omap2_dmtimer_latency,
