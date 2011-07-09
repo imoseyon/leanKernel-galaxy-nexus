@@ -94,14 +94,14 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state)
 		omap_uart_prepare_idle(1);
 		omap_uart_prepare_idle(2);
 		omap_uart_prepare_idle(3);
-		//omap2_gpio_prepare_for_idle(0);
+		omap2_gpio_prepare_for_idle(0);
 		omap4_trigger_ioctrl();
 	}
 
 	omap4_enter_lowpower(cpu, power_state);
 
 	if (core_next_state < PWRDM_POWER_ON) {
-		//omap2_gpio_resume_after_idle();
+		omap2_gpio_resume_after_idle();
 		omap_uart_resume_idle(0);
 		omap_uart_resume_idle(1);
 		omap_uart_resume_idle(2);
