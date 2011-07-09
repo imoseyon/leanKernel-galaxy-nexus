@@ -72,7 +72,7 @@ static int rpres_iss_shutdown(struct platform_device *pdev)
 	return ret;
 }
 
-static int rpres_scale_ivahd(struct platform_device *pdev, long val)
+static int rpres_scale_dev(struct platform_device *pdev, long val)
 {
 	return omap_device_scale(&pdev->dev, &pdev->dev, val);
 }
@@ -99,7 +99,7 @@ static struct rpres_ops ivahd_ops = {
 	.stop = omap_device_shutdown,
 	.set_lat = rpres_set_dev_lat,
 	.set_bw = rpres_set_l3_bw,
-	.scale_dev = rpres_scale_ivahd,
+	.scale_dev = rpres_scale_dev,
 };
 
 static struct rpres_ops fdif_ops = {
@@ -107,6 +107,7 @@ static struct rpres_ops fdif_ops = {
 	.stop = omap_device_shutdown,
 	.set_lat = rpres_set_dev_lat,
 	.set_bw = rpres_set_l3_bw,
+	.scale_dev = rpres_scale_dev,
 };
 
 static struct rpres_ops gen_ops = {
