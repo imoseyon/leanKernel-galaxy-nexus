@@ -39,6 +39,7 @@
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/slab.h>
+#include <linux/pm_runtime.h>
 #include <linux/err.h>
 #include <linux/platform_device.h>
 
@@ -335,7 +336,7 @@ void omap_dm_timer_enable(struct omap_dm_timer *timer)
 	if (timer->enabled)
 		return;
 
-	clk_enable(timer->fclk);
+	pm_runtime_get_sync(&timer->pdev->dev);
 
 	timer->enabled = 1;
 }
@@ -346,7 +347,7 @@ void omap_dm_timer_disable(struct omap_dm_timer *timer)
 	if (!timer->enabled)
 		return;
 
-	clk_disable(timer->fclk);
+	pm_runtime_put_sync(&timer->pdev->dev);
 
 	timer->enabled = 0;
 }
@@ -682,6 +683,10 @@ static int __devinit omap_dm_timer_probe(struct platform_device *pdev)
 	timer->id = pdev->id;
 	timer->irq = irq->start;
 	timer->pdev = pdev;
+
+	 /* Skip pm_runtime_enable during early boot and for OMAP1 */
+	if (!pdata->is_early_init && !pdata->needs_manual_reset)
+		pm_runtime_enable(&pdev->dev);
 
 	/* add the timer element to the list */
 	spin_lock_irqsave(&dm_timer_lock, flags);
