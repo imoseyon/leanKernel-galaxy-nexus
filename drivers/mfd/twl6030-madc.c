@@ -283,6 +283,11 @@ static struct platform_driver twl6030_madc_driver = {
 
 static int __init twl6030_madc_init(void)
 {
+	if (twl_i2c_write_u8(TWL_MODULE_MADC, TWL6030_MADC_SCALER_EN_CH2,
+			TWL6030_MADC_CTRL))
+		dev_err(twl6030_madc->dev, "unable to write to register 0x%X\n",
+			TWL6030_MADC_CTRL);
+
 	return platform_driver_register(&twl6030_madc_driver);
 }
 
