@@ -35,6 +35,8 @@
 
 #include <linux/mutex.h>
 #include <linux/completion.h>
+#include <linux/workqueue.h>
+#include <linux/notifier.h>
 
 /**
  * The following enums and structures define the binary format of the images
@@ -111,6 +113,10 @@ struct rproc;
 struct rproc_ops {
 	int (*start)(struct rproc *rproc, u64 bootaddr);
 	int (*stop)(struct rproc *rproc);
+	int (*suspend)(struct rproc *rproc, bool force);
+	int (*resume)(struct rproc *rproc);
+	int (*iommu_init)(struct rproc *, int (*)(struct rproc *, u64, u32));
+	int (*iommu_exit)(struct rproc *);
 };
 
 /*
@@ -133,6 +139,29 @@ enum rproc_state {
 	RPROC_RUNNING,
 	RPROC_LOADING,
 	RPROC_CRASHED,
+};
+
+/*
+ * enum rproc_event - remote processor events
+ *
+ * @RPROC_ERROR: Fatal error has happened on the remote processor.
+ *
+ * @RPROC_PRE_SUSPEND: users can register for that event in order to cancel
+ *		       autosuspend, they just need to return an error in the
+ *		       callback function.
+ *
+ * @RPROC_POS_SUSPEND: users can register for that event in order to release
+ *		       resources not needed when the remote processor is
+ *		       sleeping or if they need to save some context.
+ *
+ * @RPROC_RESUME: users should use this event to revert what was done in the
+ *		  POS_SUSPEND event.
+ */
+enum rproc_event {
+	RPROC_ERROR,
+	RPROC_PRE_SUSPEND,
+	RPROC_POS_SUSPEND,
+	RPROC_RESUME,
 };
 
 #define RPROC_MAX_NAME	100
@@ -158,6 +187,8 @@ enum rproc_state {
  * @trace_len0: length of main trace buffer of the remote processor
  * @trace_len1: length of the second (and optional) trace buffer
  * @firmware_loading_complete: flags e/o asynchronous firmware loading
+ * @mmufault_work: work in charge of notifing mmufault
+ * @nb_error: notify block for fatal errors
  */
 struct rproc {
 	struct list_head next;
@@ -175,12 +206,33 @@ struct rproc {
 	char *trace_buf0, *trace_buf1;
 	int trace_len0, trace_len1;
 	struct completion firmware_loading_complete;
+	struct work_struct mmufault_work;
+	struct blocking_notifier_head nb_error;
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+	unsigned sus_timeout;
+	bool force_suspend;
+	bool need_resume;
+	struct blocking_notifier_head nb_presus;
+	struct blocking_notifier_head nb_possus;
+	struct blocking_notifier_head nb_resume;
+	struct mutex pm_lock;
+#endif
 };
 
 struct rproc *rproc_get(const char *);
 void rproc_put(struct rproc *);
+int rproc_event_register(struct rproc *, struct notifier_block *, int);
+int rproc_event_unregister(struct rproc *, struct notifier_block *, int);
 int rproc_register(struct device *, const char *, const struct rproc_ops *,
-		const char *, const struct rproc_mem_entry *, struct module *);
+		const char *, const struct rproc_mem_entry *, struct module *,
+		unsigned int timeout);
 int rproc_unregister(const char *);
+void rproc_last_busy(struct rproc *);
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+extern const struct dev_pm_ops rproc_gen_pm_ops;
+#define GENERIC_RPROC_PM_OPS	(&rproc_gen_pm_ops)
+#else
+#define GENERIC_RPROC_PM_OPS	NULL
+#endif
 
 #endif /* REMOTEPROC_H */

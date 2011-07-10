@@ -25,6 +25,11 @@
 #include <plat/remoteproc.h>
 #include <plat/dsp.h>
 #include <plat/io.h>
+#include "cm2_44xx.h"
+#include "cm-regbits-44xx.h"
+
+#define OMAP4430_CM_M3_M3_CLKCTRL (OMAP4430_CM2_BASE + OMAP4430_CM2_CORE_INST \
+		+ OMAP4_CM_DUCATI_DUCATI_CLKCTRL_OFFSET)
 
 #define L4_PERIPHERAL_L4CFG	(L4_44XX_BASE)
 #define IPU_PERIPHERAL_L4CFG	0xAA000000
@@ -102,14 +107,18 @@ static struct omap_rproc_pdata omap4_rproc_data[] = {
 		.oh_name	= "ipu_c0",
 		.oh_name_opt	= "ipu_c1",
 		.memory_maps	= ipu_memory_maps,
+		.idle_addr	= OMAP4430_CM_M3_M3_CLKCTRL,
+		.idle_mask	= OMAP4430_STBYST_MASK,
+		.suspend_addr	= 0xb98f02d8,
+		.suspend_mask	= ~0,
+		.sus_timeout	= 5000,
+		.sus_mbox_name	= "mailbox-1",
 	},
 };
 
 static struct omap_device_pm_latency omap_rproc_latency[] = {
 	{
-		.deactivate_func = omap_device_idle_hwmods,
-		.activate_func = omap_device_enable_hwmods,
-		.flags = OMAP_DEVICE_LATENCY_AUTO_ADJUST,
+		OMAP_RPROC_DEFAULT_PM_LATENCY,
 	},
 };
 
