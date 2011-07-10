@@ -178,7 +178,6 @@ static u32 omap2_iommu_fault_isr(struct iommu *obj, u32 *ra)
 		errs |= OMAP_IOMMU_ERR_TBLWALK_FAULT;
 	if (stat & MMU_IRQ_MULTIHITFAULT)
 		errs |= OMAP_IOMMU_ERR_MULTIHIT_FAULT;
-	iommu_write_reg(obj, stat, MMU_IRQSTATUS);
 
 	return errs;
 }

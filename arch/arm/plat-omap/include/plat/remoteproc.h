@@ -37,6 +37,19 @@ struct omap_rproc_pdata {
 	const char *firmware;
 	const struct rproc_ops *ops;
 	const struct rproc_mem_entry *memory_maps;
+	u32 idle_addr;
+	u32 idle_mask;
+	u32 suspend_addr;
+	u32 suspend_mask;
+	unsigned sus_timeout;
+	char *sus_mbox_name;
 };
+
+int omap_rproc_deactivate(struct omap_device *od);
+int omap_rproc_activate(struct omap_device *od);
+#define OMAP_RPROC_DEFAULT_PM_LATENCY \
+	.deactivate_func = omap_rproc_deactivate, \
+	.activate_func = omap_rproc_activate, \
+	.flags = OMAP_DEVICE_LATENCY_AUTO_ADJUST
 
 #endif /* _PLAT_REMOTEPROC_H */
