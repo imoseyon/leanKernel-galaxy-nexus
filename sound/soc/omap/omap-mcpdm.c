@@ -78,6 +78,8 @@ struct omap_mcpdm {
 	u32 up_channels;
 	int dl_active;
 	int ul_active;
+	int active;
+	int abe_enabled;
 	int abe_mode[2];
 
 	/* DC offset */
@@ -416,7 +418,11 @@ static int omap_mcpdm_dai_startup(struct snd_pcm_substream *substream,
 	mutex_lock(&mcpdm->mutex);
 
 	if (!dai->active) {
-		pm_runtime_get_sync(mcpdm->dev);
+		if (!mcpdm->active) {
+			pm_runtime_get_sync(mcpdm->dev);
+			mcpdm->active = 1;
+		}
+
 		omap_mcpdm_set_offset(mcpdm);
 
 		/* Enable McPDM watch dog for ES above ES 1.0 to avoid saturation */
@@ -453,21 +459,25 @@ static void playback_work(struct work_struct *work)
 	mutex_lock(&mcpdm->mutex);
 
 	if (!mcpdm->dl_active) {
-
 		/* ABE playback stop handled by delayed work */
 		if (mcpdm->abe_mode[SNDRV_PCM_STREAM_PLAYBACK]) {
-			omap_abe_port_disable(mcpdm->abe, mcpdm->dl_port);
-			udelay(250);
-			omap_mcpdm_stop(mcpdm, SNDRV_PCM_STREAM_PLAYBACK);
+			if (mcpdm->abe_enabled) {
+				omap_abe_port_disable(mcpdm->abe, mcpdm->dl_port);
+				udelay(250);
+				omap_mcpdm_stop(mcpdm, SNDRV_PCM_STREAM_PLAYBACK);
+				abe_dsp_shutdown();
+				abe_dsp_pm_put();
+			}
 			omap_mcpdm_playback_close(mcpdm);
-			abe_dsp_shutdown();
-			abe_dsp_pm_put();
+			mcpdm->abe_enabled = 0;
 		} else
 			omap_mcpdm_playback_close(mcpdm);
 	}
 
-	if (!mcpdm->dl_active && !mcpdm->ul_active)
+	if (!omap_mcpdm_active(mcpdm)) {
 		pm_runtime_put_sync(mcpdm->dev);
+		mcpdm->active = 0;
+	}
 
 	mutex_unlock(&mcpdm->mutex);
 }
@@ -486,8 +496,10 @@ static void omap_mcpdm_dai_shutdown(struct snd_pcm_substream *substream,
 			omap_mcpdm_capture_close(mcpdm);
 
 			/* power down if McPDM is not running */
-			if (!omap_mcpdm_active(mcpdm))
+			if (!omap_mcpdm_active(mcpdm)) {
 				pm_runtime_put_sync(mcpdm->dev);
+				mcpdm->active = 0;
+			}
 		}
 	} else {
 		if (!--mcpdm->dl_active)
@@ -559,11 +571,13 @@ static int omap_mcpdm_prepare(struct snd_pcm_substream *substream,
 	if (dai->id < MCPDM_ABE_DAI_DL1)
 		return 0;
 
+	mutex_lock(&mcpdm->mutex);
+
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 
 		/* Check if ABE McPDM DL is already started */
 		if (omap_abe_port_is_enabled(mcpdm->abe, mcpdm->dl_port))
-			return 0;
+			goto out;
 
 		abe_dsp_pm_get();
 
@@ -573,9 +587,13 @@ static int omap_mcpdm_prepare(struct snd_pcm_substream *substream,
 		/* wait 250us for ABE tick */
 		udelay(250);
 
+		mcpdm->abe_enabled = 1;
+
 		omap_mcpdm_start(mcpdm, SNDRV_PCM_STREAM_PLAYBACK);
 	}
 
+out:
+	mutex_unlock(&mcpdm->mutex);
 	return 0;
 }
 
