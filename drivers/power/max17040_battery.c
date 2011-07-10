@@ -183,10 +183,16 @@ static void max17040_get_status(struct i2c_client *client)
 
 static void max17040_update(struct max17040_chip *chip)
 {
+	int prev_status = chip->status;
+	int prev_soc = chip->soc;
+
 	max17040_get_vcell(chip->client);
 	max17040_get_soc(chip->client);
 	max17040_get_online(chip->client);
 	max17040_get_status(chip->client);
+	if ((chip->soc != prev_soc) || (chip->status != prev_status))
+		power_supply_changed(&chip->battery);
+
 }
 
 static void max17040_work(struct work_struct *work)
