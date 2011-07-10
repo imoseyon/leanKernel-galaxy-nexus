@@ -174,8 +174,9 @@ static int __init omap_l2_cache_init(void)
 	 * Undocumented bit 25 is set for better performance.
 	 */
 	if (cpu_is_omap446x())
-		por_ctrl |= ((1 << L2X0_PREFETCH_DATA_PREFETCH_SHIFT) |
-			(1 << L2X0_PREFETCH_DOUBLE_LINEFILL_SHIFT) |
+		por_ctrl |= 1 << L2X0_PREFETCH_DOUBLE_LINEFILL_SHIFT;
+
+	por_ctrl |= ((1 << L2X0_PREFETCH_DATA_PREFETCH_SHIFT) |
 			(1 << 25));
 
 	if (cpu_is_omap446x() || (omap_rev() >= OMAP4430_REV_ES2_2)) {
