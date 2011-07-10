@@ -183,13 +183,6 @@ static int __init omap_l2_cache_init(void)
 		omap_smc1(0x113, por_ctrl);
 	}
 
-	if (cpu_is_omap446x()) {
-		writel_relaxed(0xa5a5, l2cache_base + 0x900);
-		writel_relaxed(0xa5a5, l2cache_base + 0x908);
-		writel_relaxed(0xa5a5, l2cache_base + 0x904);
-		writel_relaxed(0xa5a5, l2cache_base + 0x90C);
-	}
-
 	/*
 	 * FIXME: Temporary WA for OMAP4460 stability issue.
 	 * Lock-down specific L2 cache ways which  makes effective
