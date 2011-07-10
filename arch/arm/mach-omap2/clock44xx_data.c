@@ -3543,7 +3543,7 @@ static struct virt_l3_ck_deps omap4_virt_l3_clk_deps[NO_OF_L3_OPPS] = {
 	{ /* OPP 100 */
 		.core_m2_rate = DPLL_CORE_M2_OPP100_RATE,
 		.core_m3_rate = DPLL_CORE_M3_OPP100_RATE,
-		.core_m6_rate = DPLL_CORE_M3_OPP100_RATE,
+		.core_m6_rate = DPLL_CORE_M6_OPP100_RATE,
 		.core_m7_rate = DPLL_CORE_M7_OPP100_RATE,
 		.per_m3_rate = DPLL_PER_M3_OPP100_RATE,
 		.per_m6_rate = DPLL_PER_M6_OPP100_RATE,
