@@ -150,6 +150,19 @@
 #define AHCLKXE		BIT(15)
 
 /*
+ * OMAP_MCASP_TXSTAT_REG - Transmit Status Register Bits
+ */
+#define TXSTAT_XUNDRN	(0x1 << 0)
+#define TXSTAT_XSYNCERR	(0x1 << 1)
+#define TXSTAT_XCKFAIL	(0x1 << 2)
+#define TXSTAT_XDMSLOT	(0x1 << 3)
+#define TXSTAT_XLAST	(0x1 << 4)
+#define TXSTAT_XDATA	(0x1 << 5)
+#define TXSTAT_XSTAFRM	(0x1 << 6)
+#define TXSTAT_XDMAERR	(0x1 << 7)
+#define TXSTAT_XERR	(0x1 << 8)
+
+/*
  * OMAP_MCASP_XRSRCTL_BASE_REG -  Serializer Control Register Bits
  */
 #define MODE(val)	(val)
@@ -259,20 +272,43 @@ static int mcasp_lookup_clkdiv(struct omap_mcasp *mcasp, unsigned int rate,
 	return -EINVAL;
 }
 
-static void mcasp_start_tx(struct omap_mcasp *mcasp)
+static int mcasp_start_tx(struct omap_mcasp *mcasp)
 {
+	int i;
 	mcasp_set_ctl_reg(mcasp->base + OMAP_MCASP_GBLCTL_REG, TXHCLKRST);
 	mcasp_set_ctl_reg(mcasp->base + OMAP_MCASP_GBLCTL_REG, TXCLKRST);
 	mcasp_set_ctl_reg(mcasp->base + OMAP_MCASP_GBLCTL_REG, TXSERCLR);
+
+	/* Wait until the DMA has loaded the first sample into TXBUF before we
+	 * let the TX state machine and frame sync generator out of reset. */
+	i = 0;
+	while (1) {
+		u32 reg = mcasp_get_reg(mcasp->base + OMAP_MCASP_TXSTAT_REG);
+		if (!(reg & TXSTAT_XDATA))
+			break;
+
+		if (++i > 1000) {
+			printk(KERN_ERR "Timeout waiting for DMA to load first"
+					" sample of audio.\n");
+			return -ETIMEDOUT;
+		}
+
+		udelay(1);
+	}
+
 	mcasp_set_ctl_reg(mcasp->base + OMAP_MCASP_GBLCTL_REG, TXSMRST);
 	mcasp_set_ctl_reg(mcasp->base + OMAP_MCASP_GBLCTL_REG, TXFSRST);
 	mcasp_clr_bits(mcasp->base + OMAP_MCASP_TXEVTCTL_REG, TXDATADMADIS);
+
+	return 0;
 }
 
-static void omap_mcasp_start(struct omap_mcasp *mcasp, int stream)
+static int omap_mcasp_start(struct omap_mcasp *mcasp, int stream)
 {
 	if (stream == SNDRV_PCM_STREAM_PLAYBACK)
-		mcasp_start_tx(mcasp);
+		return mcasp_start_tx(mcasp);
+
+	return -EINVAL;
 }
 
 static void mcasp_stop_tx(struct omap_mcasp *mcasp)
@@ -426,7 +462,7 @@ static int omap_mcasp_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		omap_mcasp_start(mcasp, substream->stream);
+		ret = omap_mcasp_start(mcasp, substream->stream);
 		break;
 
 	case SNDRV_PCM_TRIGGER_SUSPEND:
