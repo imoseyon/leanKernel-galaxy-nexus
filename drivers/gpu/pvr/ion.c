@@ -41,6 +41,8 @@
 #include <linux/file.h>
 #include <linux/fs.h>
 
+extern struct ion_client *gpsIONClient;
+
 struct ion_handle *
 PVRSRVExportFDToIONHandle(int fd, struct ion_client **client)
 {
@@ -87,7 +89,7 @@ PVRSRVExportFDToIONHandle(int fd, struct ion_client **client)
 
 	psIONHandle = psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle;
 	if(client)
-		*client = psLinuxMemArea->uData.sIONTilerAlloc.psIONClient;
+		*client = gpsIONClient;
 
 err_fput:
 	fput(psFile);

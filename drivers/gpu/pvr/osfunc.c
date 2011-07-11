@@ -2761,9 +2761,18 @@ static unsigned long AllocPagesAreaToPhys(LinuxMemArea *psLinuxMemArea,
 	return page_to_pfn(pPage) << PAGE_SHIFT;
 }
 
+static unsigned long IONAreaToPhys(LinuxMemArea *psLinuxMemArea,
+								   IMG_VOID *pvRangeAddrStart,
+								   IMG_UINT32 ui32PageNumOffset,
+								   IMG_UINT32 ui32PageNum)
+{
+	IMG_CPU_PHYADDR CpuPAddr;
+	CpuPAddr = psLinuxMemArea->uData.sIONTilerAlloc.pCPUPhysAddrs[ui32PageNumOffset + ui32PageNum];
+	return CpuPAddr.uiAddr;
+}
+
 #endif 
 
-#ifndef __mips__
 static
 IMG_VOID *FindMMapBaseVAddr(struct list_head *psMMapOffsetStructList,
 							IMG_VOID *pvRangeAddrStart, IMG_UINT32 ui32Length)
@@ -2788,6 +2797,8 @@ IMG_VOID *FindMMapBaseVAddr(struct list_head *psMMapOffsetStructList,
 	return IMG_NULL;
 }
 
+extern PVRSRV_LINUX_MUTEX g_sMMapMutex;
+
 static
 IMG_BOOL CheckExecuteCacheOp(IMG_HANDLE hOSMemHandle,
 							 IMG_VOID *pvRangeAddrStart,
@@ -2807,8 +2818,10 @@ IMG_BOOL CheckExecuteCacheOp(IMG_HANDLE hOSMemHandle,
 
 	PVR_ASSERT(psLinuxMemArea != IMG_NULL);
 
-	ui32AreaLength = psLinuxMemArea->ui32ByteSize;
+	LinuxLockMutex(&g_sMMapMutex);
+
 	psMMapOffsetStructList = &psLinuxMemArea->sMMapOffsetStructList;
+	ui32AreaLength = psLinuxMemArea->ui32ByteSize;
 
 	PVR_ASSERT(ui32Length <= ui32AreaLength);
 
@@ -2838,8 +2851,6 @@ IMG_BOOL CheckExecuteCacheOp(IMG_HANDLE hOSMemHandle,
 			else
 			{
 				
-				
-
 				pvMinVAddr = FindMMapBaseVAddr(psMMapOffsetStructList,
 											   pvRangeAddrStart, ui32Length);
 				if(!pvMinVAddr)
@@ -2866,7 +2877,6 @@ IMG_BOOL CheckExecuteCacheOp(IMG_HANDLE hOSMemHandle,
 			if (psLinuxMemArea->uData.sExternalKV.bPhysContig == IMG_TRUE)
 			{
 				PVR_DPF((PVR_DBG_WARNING, "%s: Attempt to flush contiguous external memory", __func__));
-
 				goto err_blocked;
 			}
 
@@ -2874,11 +2884,8 @@ IMG_BOOL CheckExecuteCacheOp(IMG_HANDLE hOSMemHandle,
 			if (psLinuxMemArea->uData.sExternalKV.pvExternalKV != IMG_NULL)
 			{
 				PVR_DPF((PVR_DBG_WARNING, "%s: Attempt to flush external memory with a kernel virtual address", __func__));
-
 				goto err_blocked;
 			}
-
-			
 
 			pvMinVAddr = FindMMapBaseVAddr(psMMapOffsetStructList,
 										   pvRangeAddrStart, ui32Length);
@@ -2895,7 +2902,21 @@ IMG_BOOL CheckExecuteCacheOp(IMG_HANDLE hOSMemHandle,
 		}
 
 		case LINUX_MEM_AREA_ION:
-			
+		{
+			pvMinVAddr = FindMMapBaseVAddr(psMMapOffsetStructList,
+										   pvRangeAddrStart, ui32Length);
+			if(!pvMinVAddr)
+				goto err_blocked;
+
+			pfnInnerCacheOp(pvRangeAddrStart, pvRangeAddrStart + ui32Length);
+
+#if defined(CONFIG_OUTER_CACHE)
+			ui32PageNumOffset = ((ui32AreaOffset & PAGE_MASK) + (pvRangeAddrStart - pvMinVAddr)) >> PAGE_SHIFT;
+			pfnMemAreaToPhys = IONAreaToPhys;
+#endif
+			break;
+		}
+
 		case LINUX_MEM_AREA_ALLOC_PAGES:
 		{
 			pvMinVAddr = FindMMapBaseVAddr(psMMapOffsetStructList,
@@ -2915,6 +2936,8 @@ IMG_BOOL CheckExecuteCacheOp(IMG_HANDLE hOSMemHandle,
 		default:
 			PVR_DBG_BREAK;
 	}
+
+	LinuxUnLockMutex(&g_sMMapMutex);
 
 #if defined(CONFIG_OUTER_CACHE)
 	PVR_ASSERT(pfnMemAreaToPhys != IMG_NULL);
@@ -2956,10 +2979,9 @@ err_blocked:
 							  "%p-%p (type %d)", __func__,
 			 pvRangeAddrStart, pvRangeAddrStart + ui32Length,
 			 psLinuxMemArea->eAreaType));
+	LinuxUnLockMutex(&g_sMMapMutex);
 	return IMG_FALSE;
 }
-
-#endif
 
 #if defined(__i386__)
 

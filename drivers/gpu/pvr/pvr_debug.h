@@ -87,11 +87,7 @@ extern "C" {
 IMG_IMPORT IMG_VOID IMG_CALLCONV PVRSRVDebugAssertFail(const IMG_CHAR *pszFile,
 													   IMG_UINT32 ui32Line);
 
-			#if defined(PVR_DBG_BREAK_ASSERT_FAIL)
-				#define PVR_DBG_BREAK	PVRSRVDebugAssertFail("PVR_DBG_BREAK", 0)
-			#else
-				#define PVR_DBG_BREAK
-			#endif
+			#define PVR_DBG_BREAK	PVRSRVDebugAssertFail(__FILE__, __LINE__)
 
 #else  /* defined(PVRSRV_NEED_PVR_ASSERT) */
 

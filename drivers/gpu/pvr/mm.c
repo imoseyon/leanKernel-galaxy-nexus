@@ -68,7 +68,8 @@ typedef enum {
     DEBUG_MEM_ALLOC_TYPE_IOREMAP,
     DEBUG_MEM_ALLOC_TYPE_IO,
     DEBUG_MEM_ALLOC_TYPE_KMEM_CACHE,
-    DEBUG_MEM_ALLOC_TYPE_COUNT
+    DEBUG_MEM_ALLOC_TYPE_COUNT,
+    DEBUG_MEM_ALLOC_TYPE_ION
 }DEBUG_MEM_ALLOC_TYPE;
 
 typedef struct _DEBUG_MEM_ALLOC_REC
@@ -1083,22 +1084,16 @@ FreeAllocPagesLinuxMemArea(LinuxMemArea *psLinuxMemArea)
 #include <linux/ion.h>
 #include <linux/omap_ion.h>
 
+extern struct ion_client *gpsIONClient;
+
 LinuxMemArea *
 NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags,
                    IMG_PVOID pvPrivData, IMG_UINT32 ui32PrivDataLength)
 {
     struct omap_ion_tiler_alloc_data sAllocData;
-    PVRSRV_ENV_PER_PROCESS_DATA *psEnvPerProc;
     LinuxMemArea *psLinuxMemArea = IMG_NULL;
     u32 *pu32PageAddrs;
     int iNumPages;
-
-    psEnvPerProc = PVRSRVFindPerProcessPrivateData();
-    if(!psEnvPerProc)
-    {
-        PVR_DPF((PVR_DBG_ERROR, "%s: Failed to look-up envperproc data", __func__));
-        goto err_out;
-    }
 
     psLinuxMemArea = LinuxMemAreaStructAlloc();
     if(!psLinuxMemArea)
@@ -1111,14 +1106,14 @@ NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags,
     BUG_ON(ui32PrivDataLength != offsetof(struct omap_ion_tiler_alloc_data, handle));
     memcpy(&sAllocData, pvPrivData, offsetof(struct omap_ion_tiler_alloc_data, handle));
 
-    if(omap_ion_tiler_alloc(psEnvPerProc->psIONClient, &sAllocData) < 0)
+    if(omap_ion_tiler_alloc(gpsIONClient, &sAllocData) < 0)
     {
         PVR_DPF((PVR_DBG_ERROR, "%s: Failed to allocate via ion_tiler", __func__));
         goto err_free;
     }
 
-    if(omap_tiler_pages(psEnvPerProc->psIONClient, sAllocData.handle,
-                        &iNumPages, &pu32PageAddrs) < 0)
+    if(omap_tiler_pages(gpsIONClient, sAllocData.handle, &iNumPages,
+						&pu32PageAddrs) < 0)
     {
       	PVR_DPF((PVR_DBG_ERROR, "%s: Failed to compute tiler pages", __func__));
        	goto err_free;
@@ -1127,10 +1122,9 @@ NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags,
     
     BUG_ON(ui32Bytes != iNumPages * PAGE_SIZE);
 
-#if 0 && defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
-    
+#if defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
     DebugMemAllocRecordAdd(DEBUG_MEM_ALLOC_TYPE_ION,
-                           pvPageList,
+                           sAllocData.handle,
                            0,
                            0,
                            NULL,
@@ -1140,11 +1134,8 @@ NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags,
                            );
 #endif
 
-    
-
     psLinuxMemArea->eAreaType = LINUX_MEM_AREA_ION;
     psLinuxMemArea->uData.sIONTilerAlloc.pCPUPhysAddrs = (IMG_CPU_PHYADDR *)pu32PageAddrs;
-    psLinuxMemArea->uData.sIONTilerAlloc.psIONClient = psEnvPerProc->psIONClient;
     psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle = sAllocData.handle;
     psLinuxMemArea->ui32ByteSize = ui32Bytes;
     psLinuxMemArea->ui32AreaFlags = ui32AreaFlags;
@@ -1156,8 +1147,7 @@ NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags,
         psLinuxMemArea->bNeedsCacheInvalidate = IMG_TRUE;
     }
 
-#if 0 && defined(DEBUG_LINUX_MEM_AREAS)
-    
+#if defined(DEBUG_LINUX_MEM_AREAS)
     DebugLinuxMemAreaRecordAdd(psLinuxMemArea, ui32AreaFlags);
 #endif
 
@@ -1173,24 +1163,21 @@ err_free:
 IMG_VOID
 FreeIONLinuxMemArea(LinuxMemArea *psLinuxMemArea)
 {
-#if 0 && defined(DEBUG_LINUX_MEM_AREAS)
-    
+#if defined(DEBUG_LINUX_MEM_AREAS)
     DebugLinuxMemAreaRecordRemove(psLinuxMemArea);
 #endif
 
-    ion_free(psLinuxMemArea->uData.sIONTilerAlloc.psIONClient,
-             psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle);
+    ion_free(gpsIONClient, psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle);
 
-    
+#if defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
+    DebugMemAllocRecordRemove(DEBUG_MEM_ALLOC_TYPE_ION,
+                              psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle,
+                              __FILE__, __LINE__);
+#endif
 
     
     psLinuxMemArea->uData.sIONTilerAlloc.pCPUPhysAddrs = IMG_NULL;
     psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle = IMG_NULL;
-
-#if 0 && defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
-    
-    DebugMemAllocRecordRemove(DEBUG_MEM_ALLOC_TYPE_ALLOC_PAGES, pvPageList, __FILE__, __LINE__);
-#endif
 
     LinuxMemAreaStructFree(psLinuxMemArea);
 }

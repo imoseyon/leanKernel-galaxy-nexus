@@ -77,7 +77,7 @@
 #error "The mmap code requires PVR_SECURE_HANDLES"
 #endif
 
-static PVRSRV_LINUX_MUTEX g_sMMapMutex;
+PVRSRV_LINUX_MUTEX g_sMMapMutex;
 
 static LinuxKMemCache *g_psMemmapCache = NULL;
 static LIST_HEAD(g_sMMapAreaList);
@@ -745,8 +745,10 @@ static struct vm_operations_struct MMapIOOps =
 int
 PVRMMap(struct file* pFile, struct vm_area_struct* ps_vma)
 {
-    IMG_UINT32 ui32ByteSize;
+    LinuxMemArea *psFlushMemArea = IMG_NULL;
     PKV_OFFSET_STRUCT psOffsetStruct;
+    IMG_UINT32 ui32ByteSize;
+    IMG_VOID *pvBase;
     int iRetVal = 0;
 
     PVR_UNREFERENCED_PARAMETER(pFile);
@@ -768,11 +770,11 @@ PVRMMap(struct file* pFile, struct vm_area_struct* ps_vma)
         LinuxUnLockMutex(&g_sMMapMutex);
 
 #if !defined(SUPPORT_DRI_DRM_EXT)
-	
+        
         return drm_mmap(pFile, ps_vma);
 #else
-	
-	return -ENOENT;
+        
+        return -ENOENT;
 #endif
 #else
         PVR_UNREFERENCED_PARAMETER(pFile);
@@ -784,6 +786,7 @@ PVRMMap(struct file* pFile, struct vm_area_struct* ps_vma)
 #endif
         goto unlock_and_return;
     }
+
     list_del(&psOffsetStruct->sMMapItem);
     psOffsetStruct->bOnMMapList = IMG_FALSE;
 
@@ -816,14 +819,14 @@ PVRMMap(struct file* pFile, struct vm_area_struct* ps_vma)
             
             break;
         case PVRSRV_HAP_WRITECOMBINE:
-	    ps_vma->vm_page_prot = PGPROT_WC(ps_vma->vm_page_prot);
+            ps_vma->vm_page_prot = PGPROT_WC(ps_vma->vm_page_prot);
             break;
         case PVRSRV_HAP_UNCACHED:
             ps_vma->vm_page_prot = PGPROT_UC(ps_vma->vm_page_prot);
             break;
         default:
             PVR_DPF((PVR_DBG_ERROR, "%s: unknown cache type", __FUNCTION__));
-	    iRetVal = -EINVAL;
+            iRetVal = -EINVAL;
 	    goto unlock_and_return;
     }
     
@@ -843,35 +846,38 @@ PVRMMap(struct file* pFile, struct vm_area_struct* ps_vma)
     
     if(psOffsetStruct->psLinuxMemArea->bNeedsCacheInvalidate)
     {
-        IMG_UINT32 ui32RealByteSize, ui32ByteOffset;
-        IMG_VOID *pvBase;
+        IMG_UINT32 ui32ByteOffset, ui32DummyByteSize;
 
         DetermineUsersSizeAndByteOffset(psOffsetStruct->psLinuxMemArea,
-                                        &ui32RealByteSize,
+                                        &ui32DummyByteSize,
                                         &ui32ByteOffset);
 
-        ui32RealByteSize = psOffsetStruct->psLinuxMemArea->ui32ByteSize;
         pvBase = (IMG_VOID *)ps_vma->vm_start + ui32ByteOffset;
+        psFlushMemArea = psOffsetStruct->psLinuxMemArea;
 
-        OSInvalidateCPUCacheRangeKM(psOffsetStruct->psLinuxMemArea,
-                                    pvBase, ui32RealByteSize);
         psOffsetStruct->psLinuxMemArea->bNeedsCacheInvalidate = IMG_FALSE;
     }
 
     
     MMapVOpenNoLock(ps_vma);
-    
+
     PVR_DPF((PVR_DBG_MESSAGE, "%s: Mapped area at offset 0x%08lx\n",
              __FUNCTION__, ps_vma->vm_pgoff));
-    
+
 unlock_and_return:
     if (iRetVal != 0 && psOffsetStruct != IMG_NULL)
     {
-	DestroyOffsetStruct(psOffsetStruct);
+        DestroyOffsetStruct(psOffsetStruct);
     }
 
     LinuxUnLockMutex(&g_sMMapMutex);
-    
+
+    if(psFlushMemArea)
+    {
+        OSInvalidateCPUCacheRangeKM(psFlushMemArea, pvBase,
+									psFlushMemArea->ui32ByteSize);
+    }
+
     return iRetVal;
 }
 

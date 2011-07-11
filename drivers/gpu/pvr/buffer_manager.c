@@ -919,9 +919,9 @@ BM_CreateContext(PVRSRV_DEVICE_NODE			*psDeviceNode,
 		goto cleanup;
 	}
 
-	if(psDeviceNode->pfnMMUInitialise(psDeviceNode,
+	if((IMG_NULL != psDeviceNode->pfnMMUInitialise) && (psDeviceNode->pfnMMUInitialise(psDeviceNode,
 										&pBMContext->psMMUContext,
-										psPDDevPAddr) != PVRSRV_OK)
+										psPDDevPAddr) != PVRSRV_OK))
 	{
 		PVR_DPF((PVR_DBG_ERROR, "BM_CreateContext: MMUInitialise failed"));
 		goto cleanup;
