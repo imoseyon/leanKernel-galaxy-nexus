@@ -308,7 +308,19 @@ static int rx_iodev_skb_raw(struct io_device *iod)
 		skb->dev = ndev;
 		ndev->stats.rx_packets++;
 		ndev->stats.rx_bytes += skb->len;
-		skb->protocol = htons(ETH_P_IP);
+
+		/* check the version of IP */
+		switch ((*skb->data) & 0xf0) {
+		case 0x40:
+			skb->protocol = htons(ETH_P_IP);
+			break;
+		case 0x60:
+			skb->protocol = htons(ETH_P_IPV6);
+			break;
+		default:
+			dev_kfree_skb_any(skb);
+			return -EINVAL;
+		}
 
 		err = netif_rx(skb);
 		if (err != NET_RX_SUCCESS)
