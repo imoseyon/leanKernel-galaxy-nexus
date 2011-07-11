@@ -211,7 +211,7 @@ static ssize_t mpu_read(struct file *file,
 		wait_event_interruptible(mpu->mpu_event_wait, mpu->event);
 
 	if (!mpu->event || !buf
-	    || count < sizeof(mpu->mpu_pm_event) + sizeof(unsigned long))
+	    || count < sizeof(mpu->mpu_pm_event))
 		return 0;
 
 	err = copy_to_user(buf, &mpu->mpu_pm_event, sizeof(mpu->mpu_pm_event));
