@@ -67,6 +67,8 @@ void omap4_dpllmx_deny_gatectrl(struct clk *clk);
 int omap4460_mpu_dpll_set_rate(struct clk *clk, unsigned long rate);
 long omap4460_mpu_dpll_round_rate(struct clk *clk, unsigned long rate);
 unsigned long omap4460_mpu_dpll_recalc(struct clk *clk);
+long omap4_dpll_regm4xen_round_rate(struct clk *clk, unsigned long target_rate);
+unsigned long omap4_dpll_regm4xen_recalc(struct clk *clk);
 
 #ifdef CONFIG_OMAP_RESET_CLOCKS
 void omap2_clk_disable_unused(struct clk *clk);
