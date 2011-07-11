@@ -26,6 +26,12 @@
 
 #include "vc.h"
 
+static u16 pre_scaler_to_sysclk_cycles_44xx[] = {16, 64, 128, 512};
+static struct setup_time_ramp_params omap4_vc_setuptime_params = {
+	.pre_scaler_to_sysclk_cycles = pre_scaler_to_sysclk_cycles_44xx,
+	.pre_scaler_to_sysclk_cycles_count = 4,
+};
+
 /*
  * VC data common to 44xx chips
  * XXX This stuff presumably belongs in the vc3xxx.c or vc.c file.
@@ -48,6 +54,15 @@ static const struct omap_vc_common omap4_vc_common = {
 	.i2c_cfg_reg = OMAP4_PRM_VC_CFG_I2C_MODE_OFFSET,
 	.i2c_cfg_hsen_mask = OMAP4430_HSMODEEN_MASK,
 	.i2c_mcode_mask	 = OMAP4430_HSMCODE_MASK,
+	.setup_time_params = &omap4_vc_setuptime_params,
+};
+
+/* VC auto transition settings for OMAP4. */
+static const struct omap_vc_auto_trans omap4_vc_auto_trans = {
+	.reg = OMAP4_PRM_VOLTCTRL_OFFSET,
+	.sleep_val = OMAP4430_AUTO_CTRL_VDD_SLEEP_MASK,
+	.retention_val = OMAP4430_AUTO_CTRL_VDD_RET_MASK,
+	.off_val = OMAP_VC_CHANNEL_AUTO_TRANSITION_UNSUPPORTED,
 };
 
 /* VC instance data for each controllable voltage line */
@@ -59,6 +74,9 @@ struct omap_vc_channel omap4_vc_mpu = {
 	.smps_volra_mask = OMAP4430_VOLRA_VDD_MPU_L_MASK,
 	.smps_cmdra_mask = OMAP4430_CMDRA_VDD_MPU_L_MASK,
 	.cfg_channel_sa_shift = OMAP4430_SA_VDD_MPU_L_SHIFT,
+
+	.auto_trans = &omap4_vc_auto_trans,
+	.auto_trans_mask = OMAP4430_AUTO_CTRL_VDD_MPU_L_MASK,
 };
 
 struct omap_vc_channel omap4_vc_iva = {
@@ -68,6 +86,9 @@ struct omap_vc_channel omap4_vc_iva = {
 	.smps_volra_mask = OMAP4430_VOLRA_VDD_IVA_L_MASK,
 	.smps_cmdra_mask = OMAP4430_CMDRA_VDD_IVA_L_MASK,
 	.cfg_channel_sa_shift = OMAP4430_SA_VDD_IVA_L_SHIFT,
+
+	.auto_trans = &omap4_vc_auto_trans,
+	.auto_trans_mask = OMAP4430_AUTO_CTRL_VDD_IVA_L_MASK,
 };
 
 struct omap_vc_channel omap4_vc_core = {
@@ -77,5 +98,8 @@ struct omap_vc_channel omap4_vc_core = {
 	.smps_volra_mask = OMAP4430_VOLRA_VDD_CORE_L_MASK,
 	.smps_cmdra_mask = OMAP4430_CMDRA_VDD_CORE_L_MASK,
 	.cfg_channel_sa_shift = OMAP4430_SA_VDD_CORE_L_SHIFT,
+
+	.auto_trans = &omap4_vc_auto_trans,
+	.auto_trans_mask = OMAP4430_AUTO_CTRL_VDD_CORE_L_MASK,
 };
 

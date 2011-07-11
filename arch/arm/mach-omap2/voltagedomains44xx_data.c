@@ -36,18 +36,30 @@
 
 static const struct omap_vfsm_instance omap4_vdd_mpu_vfsm = {
 	.voltsetup_reg = OMAP4_PRM_VOLTSETUP_MPU_RET_SLEEP_OFFSET,
+	.voltsetup_mask =	OMAP4430_RAMP_DOWN_PRESCAL_MASK |
+				OMAP4430_RAMP_DOWN_COUNT_MASK |
+				OMAP4430_RAMP_UP_PRESCAL_MASK |
+				OMAP4430_RAMP_UP_COUNT_MASK,
 };
 
 static struct omap_vdd_info omap4_vdd_mpu_info;
 
 static const struct omap_vfsm_instance omap4_vdd_iva_vfsm = {
 	.voltsetup_reg = OMAP4_PRM_VOLTSETUP_IVA_RET_SLEEP_OFFSET,
+	.voltsetup_mask =	OMAP4430_RAMP_DOWN_PRESCAL_MASK |
+				OMAP4430_RAMP_DOWN_COUNT_MASK |
+				OMAP4430_RAMP_UP_PRESCAL_MASK |
+				OMAP4430_RAMP_UP_COUNT_MASK,
 };
 
 static struct omap_vdd_info omap4_vdd_iva_info;
 
 static const struct omap_vfsm_instance omap4_vdd_core_vfsm = {
 	.voltsetup_reg = OMAP4_PRM_VOLTSETUP_CORE_RET_SLEEP_OFFSET,
+	.voltsetup_mask =	OMAP4430_RAMP_DOWN_PRESCAL_MASK |
+				OMAP4430_RAMP_DOWN_COUNT_MASK |
+				OMAP4430_RAMP_UP_PRESCAL_MASK |
+				OMAP4430_RAMP_UP_COUNT_MASK,
 };
 
 static struct omap_vdd_info omap4_vdd_core_info;
@@ -102,6 +114,14 @@ static struct voltagedomain *voltagedomains_omap4[] __initdata = {
 	NULL,
 };
 
+/*
+ * Handle Mutant pre_scalar to sysclk cycles map:
+ * Due to "Errata Id: i623: Retention/Sleep Voltage Transitions Ramp Time"
+ * on OMAP4430 specifically, the maps is 64, 256, 512, 2048 cycles.
+ * Handle this condition dynamically from version detection logic
+ */
+static u16 pre_scaler_to_sysclk_cycles_443x[] = {64, 256, 512, 2048};
+
 static const char *sys_clk_name __initdata = "sys_clkin_ck";
 
 void __init omap44xx_voltagedomains_init(void)
@@ -114,6 +134,13 @@ void __init omap44xx_voltagedomains_init(void)
 	 * for the currently-running IC
 	 */
 	if (cpu_is_omap443x()) {
+		struct setup_time_ramp_params *params =
+			omap4_vc_core.common->setup_time_params;
+
+		if (params) {
+			params->pre_scaler_to_sysclk_cycles =
+				pre_scaler_to_sysclk_cycles_443x;
+		}
 		omap4_vdd_mpu_info.volt_data = omap443x_vdd_mpu_volt_data;
 		omap4_vdd_iva_info.volt_data = omap443x_vdd_iva_volt_data;
 		omap4_vdd_core_info.volt_data = omap443x_vdd_core_volt_data;

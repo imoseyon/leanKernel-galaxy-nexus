@@ -274,8 +274,8 @@ static struct clk dpll_abe_ck = {
 	.dpll_data	= &dpll_abe_dd,
 	.init		= &omap2_init_dpll_parent,
 	.ops		= &clkops_omap3_noncore_dpll_ops,
-	.recalc		= &omap3_dpll_recalc,
-	.round_rate	= &omap2_dpll_round_rate,
+	.recalc		= &omap4_dpll_regm4xen_recalc,
+	.round_rate	= &omap4_dpll_regm4xen_round_rate,
 	.set_rate	= &omap3_noncore_dpll_set_rate,
 };
 
@@ -525,7 +525,7 @@ static struct clk dpll_core_m5x2_ck = {
 	.ops		= &clkops_omap4_dpllmx_ops,
 	.recalc		= &omap2_clksel_recalc,
 	.round_rate	= &omap2_clksel_round_rate,
-	.set_rate	= &omap2_clksel_set_rate,
+	.set_rate	= &omap4_core_dpll_m5x2_set_rate,
 };
 
 static struct clk virt_l3_ck = {
@@ -3543,7 +3543,7 @@ static struct virt_l3_ck_deps omap4_virt_l3_clk_deps[NO_OF_L3_OPPS] = {
 	{ /* OPP 100 */
 		.core_m2_rate = DPLL_CORE_M2_OPP100_RATE,
 		.core_m3_rate = DPLL_CORE_M3_OPP100_RATE,
-		.core_m6_rate = DPLL_CORE_M3_OPP100_RATE,
+		.core_m6_rate = DPLL_CORE_M6_OPP100_RATE,
 		.core_m7_rate = DPLL_CORE_M7_OPP100_RATE,
 		.per_m3_rate = DPLL_PER_M3_OPP100_RATE,
 		.per_m6_rate = DPLL_PER_M6_OPP100_RATE,

@@ -31,6 +31,7 @@
 #define L1_OFFSET0				0xd30
 #define L1_OFFSET1				0xd34
 #define OMAP_TYPE_OFFSET			0xd38
+#define L2X0_LOCKDOWN_OFFSET0			0xd3c
 
 /* CPUx Wakeup Non-Secure Physical Address offsets in SAR_BANK3 */
 #define CPU0_WAKEUP_NS_PA_ADDR_OFFSET		0xa04
