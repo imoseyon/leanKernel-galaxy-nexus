@@ -2594,10 +2594,16 @@ wl_cfg80211_set_bitrate_mask(struct wiphy *wiphy, struct net_device *dev,
 
 static s32 wl_cfg80211_resume(struct wiphy *wiphy)
 {
+	struct wl_priv *wl = WL_PRIV_GET();
 	s32 err = 0;
 
-	CHECK_SYS_UP();
-	wl_invoke_iscan(WL_PRIV_GET());
+	if (unlikely(!test_bit(WL_STATUS_READY, &wl->status))) {
+		WL_INFO(("device is not ready : status (%d)\n",
+			(int)wl->status));
+		return 0;
+	}
+
+	wl_invoke_iscan(wl);
 
 	return err;
 }
@@ -2611,7 +2617,11 @@ static s32 wl_cfg80211_suspend(struct wiphy *wiphy)
 	struct wl_priv *wl = WL_PRIV_GET();
 	s32 err = 0;
 
-	CHECK_SYS_UP();
+	if (unlikely(!test_bit(WL_STATUS_READY, &wl->status))) {
+		WL_INFO(("device is not ready : status (%d)\n",
+			(int)wl->status));
+		return 0;
+	}
 
 	set_bit(WL_STATUS_SCAN_ABORTING, &wl->status);
 	wl_term_iscan(wl);
@@ -4882,8 +4892,8 @@ static s32 wl_event_handler(void *data)
 			break;
 		e = wl_deq_event(wl);
 		if (unlikely(!e)) {
-			WL_ERR(("eqeue empty..\n"));
-			BUG();
+			WL_ERR(("equeue empty..\n"));
+			return 0;
 		}
 		WL_DBG(("event type (%d), if idx: %d\n", e->etype, e->emsg.ifidx));
 		netdev = dhd_idx2net((struct dhd_pub *)(wl->pub), e->emsg.ifidx);

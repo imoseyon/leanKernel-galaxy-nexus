@@ -24,7 +24,7 @@
  *	ON		ON		ON
  *	ON(Inactive)	OFF		ON(Inactive)
  *	OFF		OFF		CSWR
- *	OFF		OFF		OSWR (*TBD)
+ *	OFF		OFF		OSWR
  *	OFF		OFF		OFF
  *	----------------------------------------------
  *
@@ -59,7 +59,11 @@
 
 #include "omap4-sar-layout.h"
 #include "pm.h"
-#include "powerdomain.h"
+#include "prcm_mpu44xx.h"
+#include "prminst44xx.h"
+#include "prcm44xx.h"
+#include "prm44xx.h"
+#include "prm-regbits-44xx.h"
 
 #ifdef CONFIG_SMP
 
@@ -254,11 +258,12 @@ static void save_gic_wakeupgen_secure(void)
 {
 	u32 ret;
 	ret = omap4_secure_dispatcher(HAL_SAVEGIC_INDEX,
-					FLAG_IRQFIQ_MASK | FLAG_START_CRITICAL,
+					FLAG_START_CRITICAL,
 					0, 0, 0, 0, 0);
 	if (!ret)
 		pr_debug("GIC and Wakeupgen context save failed\n");
 }
+
 
 /*
  * API to save Secure RAM using secure API
@@ -268,10 +273,48 @@ static void save_secure_ram(void)
 {
 	u32 ret;
 	ret = omap4_secure_dispatcher(HAL_SAVESECURERAM_INDEX,
-					FLAG_IRQFIQ_MASK | FLAG_START_CRITICAL,
+					FLAG_START_CRITICAL,
 					1, omap4_secure_ram_phys, 0, 0, 0);
 	if (!ret)
 		pr_debug("Secure ram context save failed\n");
+}
+
+/* Helper functions for MPUSS OSWR */
+static inline u32 mpuss_read_prev_logic_pwrst(void)
+{
+	u32 reg;
+
+	reg = omap4_prminst_read_inst_reg(OMAP4430_PRM_PARTITION,
+		OMAP4430_PRM_MPU_INST, OMAP4_RM_MPU_MPU_CONTEXT_OFFSET);
+	reg &= OMAP4430_LOSTCONTEXT_DFF_MASK;
+	return reg;
+}
+
+static inline void mpuss_clear_prev_logic_pwrst(void)
+{
+	u32 reg;
+
+	reg = omap4_prminst_read_inst_reg(OMAP4430_PRM_PARTITION,
+		OMAP4430_PRM_MPU_INST, OMAP4_RM_MPU_MPU_CONTEXT_OFFSET);
+	omap4_prminst_write_inst_reg(reg, OMAP4430_PRM_PARTITION,
+		OMAP4430_PRM_MPU_INST, OMAP4_RM_MPU_MPU_CONTEXT_OFFSET);
+}
+
+static inline void cpu_clear_prev_logic_pwrst(unsigned int cpu_id)
+{
+	u32 reg;
+
+	if (cpu_id) {
+		reg = omap4_prcm_mpu_read_inst_reg(OMAP4430_PRCM_MPU_CPU1_INST,
+					OMAP4_RM_CPU1_CPU1_CONTEXT_OFFSET);
+		omap4_prcm_mpu_write_inst_reg(reg, OMAP4430_PRCM_MPU_CPU1_INST,
+					OMAP4_RM_CPU1_CPU1_CONTEXT_OFFSET);
+	} else {
+		reg = omap4_prcm_mpu_read_inst_reg(OMAP4430_PRCM_MPU_CPU0_INST,
+					OMAP4_RM_CPU0_CPU0_CONTEXT_OFFSET);
+		omap4_prcm_mpu_write_inst_reg(reg, OMAP4430_PRCM_MPU_CPU0_INST,
+					OMAP4_RM_CPU0_CPU0_CONTEXT_OFFSET);
+	}
 }
 
 /*
@@ -339,29 +382,44 @@ int omap4_enter_lowpower(unsigned int cpu, unsigned int power_state)
 	 * GIC lost during MPU OFF and OSWR
 	 */
 	pwrdm_clear_all_prev_pwrst(mpuss_pd);
-	if (pwrdm_read_next_pwrst(mpuss_pd) == PWRDM_POWER_RET) {
+	mpuss_clear_prev_logic_pwrst();
+	switch (pwrdm_read_next_pwrst(mpuss_pd)) {
+	case PWRDM_POWER_RET:
+		/*
+		 * MPUSS OSWR - Complete logic lost + L2$ retained.
+		 * MPUSS CSWR - Complete logic retained + L2$ retained.
+		 */
 		if (pwrdm_read_logic_retst(mpuss_pd) == PWRDM_POWER_OFF) {
-			if (omap_type() != OMAP2_DEVICE_TYPE_GP) {
-				save_gic_wakeupgen_secure();
-			} else {
+			if (omap_type() == OMAP2_DEVICE_TYPE_GP) {
 				omap_wakeupgen_save();
 				gic_save_context();
+			} else {
+				save_gic_wakeupgen_secure();
 			}
+			save_state = 2;
 		}
-	}
-	if (pwrdm_read_next_pwrst(mpuss_pd) == PWRDM_POWER_OFF) {
-	if (omap_type() != OMAP2_DEVICE_TYPE_GP) {
-			save_secure_ram();
+		break;
+	case PWRDM_POWER_OFF:
+		 /* MPUSS OFF - logic lost + L2$ lost */
+		if (omap_type() == OMAP2_DEVICE_TYPE_GP) {
+			omap_wakeupgen_save();
+			gic_save_context();
+		} else {
 			save_gic_wakeupgen_secure();
-	} else {
-		omap_wakeupgen_save();
-		gic_save_context();
-	}
+			save_secure_ram();
+		}
 		save_state = 3;
+		break;
+	case PWRDM_POWER_ON:
+	case PWRDM_POWER_INACTIVE:
+		/* No need to save MPUSS context */
+	default:
+		;
 	}
 
 cpu_prepare:
 	clear_cpu_prev_pwrst(cpu);
+	cpu_clear_prev_logic_pwrst(cpu);
 	set_cpu_next_pwrst(cpu, power_state);
 	scu_pwrst_prepare(cpu, power_state);
 
@@ -381,14 +439,34 @@ cpu_prepare:
 	wakeup_cpu = hard_smp_processor_id();
 	set_cpu_next_pwrst(wakeup_cpu, PWRDM_POWER_ON);
 
-	/* If !master cpu return to hotplug-path */
-	if (wakeup_cpu)
+	/*
+	 * If !master cpu return to hotplug-path.
+	 *
+	 * GIC distributor control register has changed between
+	 * CortexA9 r1pX and r2pX. The Control Register secure
+	 * banked version is now composed of 2 bits:
+	 * bit 0 == Secure Enable
+	 * bit 1 == Non-Secure Enable
+	 * The Non-Secure banked register has not changed
+	 * Because the ROM Code is based on the r1pX GIC, the CPU1
+	 * GIC restoration will cause a problem to CPU0 Non-Secure SW.
+	 * The workaround must be:
+	 * 1) Before doing the CPU1 wakeup, CPU0 must disable
+	 * the GIC distributor
+	 * 2) CPU1 must re-enable the GIC distributor on
+	 * it's wakeup path.
+	 */
+	if (wakeup_cpu) {
+		if (!cpu_is_omap443x())
+			gic_dist_enable();
 		goto ret;
+	}
 
-	/* Check MPUSS previous power state and enable GIC if needed */
-	if (pwrdm_read_prev_pwrst(mpuss_pd) == PWRDM_POWER_OFF) {
-		/* Clear SAR BACKUP status */
-		__raw_writel(0x0, sar_base + SAR_BACKUP_STATUS_OFFSET);
+	/* Check if MPUSS lost it's logic */
+	if (mpuss_read_prev_logic_pwrst()) {
+		/* Clear SAR BACKUP status on GP devices */
+		if (omap_type() == OMAP2_DEVICE_TYPE_GP)
+			__raw_writel(0x0, sar_base + SAR_BACKUP_STATUS_OFFSET);
 		/* Enable GIC distributor and inteface on CPU0*/
 		gic_cpu_enable();
 		gic_dist_enable();
@@ -412,6 +490,9 @@ static void save_l2x0_auxctrl(void)
 
 	val = __raw_readl(l2x0_base + L2X0_AUX_CTRL);
 	__raw_writel(val, sar_base + L2X0_AUXCTRL_OFFSET);
+	/* Save L2X0 LOCKDOWN_OFFSET0 during SAR */
+	val = readl_relaxed(l2x0_base + 0x900);
+	writel_relaxed(val, sar_base + L2X0_LOCKDOWN_OFFSET0);
 #endif
 }
 
@@ -444,6 +525,7 @@ int __init omap4_mpuss_init(void)
 
 	/* Clear CPU previous power domain state */
 	pwrdm_clear_all_prev_pwrst(pm_info->pwrdm);
+	cpu_clear_prev_logic_pwrst(0);
 
 	/* Initialise CPU0 power domain state to ON */
 	pwrdm_set_next_pwrst(pm_info->pwrdm, PWRDM_POWER_ON);
@@ -473,6 +555,7 @@ int __init omap4_mpuss_init(void)
 
 	/* Clear CPU previous power domain state */
 	pwrdm_clear_all_prev_pwrst(pm_info->pwrdm);
+	cpu_clear_prev_logic_pwrst(1);
 
 	/* Initialise CPU1 power domain state to ON */
 	pwrdm_set_next_pwrst(pm_info->pwrdm, PWRDM_POWER_ON);
@@ -495,6 +578,7 @@ int __init omap4_mpuss_init(void)
 
 	/* Clear CPU previous power domain state */
 	pwrdm_clear_all_prev_pwrst(mpuss_pd);
+	mpuss_clear_prev_logic_pwrst();
 
 	/*
 	 * Find out how many interrupts are supported.
