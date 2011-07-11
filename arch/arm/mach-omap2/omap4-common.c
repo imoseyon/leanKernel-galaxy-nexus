@@ -97,7 +97,9 @@ void gic_cpu_disable(void)
 
 void gic_dist_enable(void)
 {
-	__raw_writel(0x1, gic_dist_base_addr + GIC_DIST_CTRL);
+	if (cpu_is_omap443x() ||
+		!(__raw_readl(gic_dist_base_addr + GIC_DIST_CTRL) & 0x1))
+			__raw_writel(0x1, gic_dist_base_addr + GIC_DIST_CTRL);
 }
 void gic_dist_disable(void)
 {
@@ -128,6 +130,7 @@ static int __init omap_l2_cache_init(void)
 	u32 aux_ctrl = 0;
 	u32 por_ctrl = 0;
 	u32 lockdown = 0;
+	bool mpu_prefetch_disable_errata = false;
 
 	/*
 	 * To avoid code running on other OMAPs in
@@ -135,6 +138,12 @@ static int __init omap_l2_cache_init(void)
 	 */
 	if (!cpu_is_omap44xx())
 		return -ENODEV;
+
+#ifdef CONFIG_OMAP_ALLOW_OSWR
+	/* TODO: add revision info once verified */
+	if (cpu_is_omap446x())
+		mpu_prefetch_disable_errata = true;
+#endif
 
 	/* Static mapping, never released */
 	l2cache_base = ioremap(OMAP44XX_L2CACHE_BASE, SZ_4K);
@@ -159,8 +168,10 @@ static int __init omap_l2_cache_init(void)
 	 */
 	aux_ctrl |= ((0x3 << L2X0_AUX_CTRL_WAY_SIZE_SHIFT) |
 		(1 << L2X0_AUX_CTRL_SHARE_OVERRIDE_SHIFT) |
-		(1 << L2X0_AUX_CTRL_DATA_PREFETCH_SHIFT) |
 		(1 << L2X0_AUX_CTRL_EARLY_BRESP_SHIFT));
+
+	if (!mpu_prefetch_disable_errata)
+		aux_ctrl |= (1 << L2X0_AUX_CTRL_DATA_PREFETCH_SHIFT);
 
 	omap_smc1(0x109, aux_ctrl);
 
@@ -172,20 +183,14 @@ static int __init omap_l2_cache_init(void)
 	 * Undocumented bit 25 is set for better performance.
 	 */
 	if (cpu_is_omap446x())
-		por_ctrl |= ((1 << L2X0_PREFETCH_DATA_PREFETCH_SHIFT) |
-			(1 << L2X0_PREFETCH_DOUBLE_LINEFILL_SHIFT) |
-			(1 << 25));
+		por_ctrl |= 1 << L2X0_PREFETCH_DOUBLE_LINEFILL_SHIFT;
+	por_ctrl |= 1 << 25;
+	if (!mpu_prefetch_disable_errata)
+		por_ctrl |= 1 << L2X0_PREFETCH_DATA_PREFETCH_SHIFT;
 
 	if (cpu_is_omap446x() || (omap_rev() >= OMAP4430_REV_ES2_2)) {
 		por_ctrl |= L2X0_POR_OFFSET_VALUE;
 		omap_smc1(0x113, por_ctrl);
-	}
-
-	if (cpu_is_omap446x()) {
-		writel_relaxed(0xa5a5, l2cache_base + 0x900);
-		writel_relaxed(0xa5a5, l2cache_base + 0x908);
-		writel_relaxed(0xa5a5, l2cache_base + 0x904);
-		writel_relaxed(0xa5a5, l2cache_base + 0x90C);
 	}
 
 	/*

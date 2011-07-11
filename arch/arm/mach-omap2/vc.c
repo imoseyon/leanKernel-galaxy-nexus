@@ -1,6 +1,7 @@
 #include <linux/kernel.h>
 #include <linux/delay.h>
 #include <linux/init.h>
+#include <linux/clk.h>
 
 #include <plat/cpu.h>
 
@@ -9,6 +10,8 @@
 #include "prm-regbits-34xx.h"
 #include "prm-regbits-44xx.h"
 #include "prm44xx.h"
+
+#define OMAP_VC_I2C_ACK_DELAY 3
 
 /**
  * struct omap_vc_channel_cfg - describe the cfg_channel bitfield
@@ -129,6 +132,66 @@ int omap_vc_pre_scale(struct voltagedomain *voltdm,
 
 	omap_vp_update_errorgain(voltdm, target_volt);
 
+	return 0;
+}
+
+/**
+ * omap_vc_set_auto_trans() - set auto transition parameters for a domain
+ * @voltdm:	voltage domain we are interested in
+ * @flag:	which state should we program this to
+ */
+int omap_vc_set_auto_trans(struct voltagedomain *voltdm, u8 flag)
+{
+	struct omap_vc_channel *vc;
+	const struct omap_vc_auto_trans *auto_trans;
+	u8 val = OMAP_VC_CHANNEL_AUTO_TRANSITION_UNSUPPORTED;
+
+	if (!voltdm) {
+		pr_err("%s: NULL Voltage domain!\n", __func__);
+		return -ENOENT;
+	}
+	vc = voltdm->vc;
+	if (!vc) {
+		pr_err("%s: NULL VC Voltage domain %s!\n", __func__,
+		       voltdm->name);
+		return -ENOENT;
+	}
+
+	auto_trans = vc->auto_trans;
+	if (!auto_trans) {
+		pr_debug("%s: No auto trans %s!\n", __func__, voltdm->name);
+		return 0;
+	}
+
+	/* Handle value and masks per silicon data */
+	switch (flag) {
+	case OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE:
+		val = 0x0;
+		break;
+	case OMAP_VC_CHANNEL_AUTO_TRANSITION_SLEEP:
+		val = auto_trans->sleep_val;
+		break;
+	case OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION:
+		val = auto_trans->retention_val;
+		break;
+	case OMAP_VC_CHANNEL_AUTO_TRANSITION_OFF:
+		val = auto_trans->off_val;
+		break;
+	default:
+		pr_err("%s: Voltdm %s invalid flag %d\n", __func__,
+		       voltdm->name, flag);
+		return -EINVAL;
+	}
+
+	if (val == OMAP_VC_CHANNEL_AUTO_TRANSITION_UNSUPPORTED) {
+		pr_err("%s: transition to %d on %s is NOT supported\n",
+		       __func__, flag, voltdm->name);
+		return -EINVAL;
+	}
+
+	/* All ready - set it and move on.. */
+	voltdm->rmw(vc->auto_trans_mask, val << __ffs(vc->auto_trans_mask),
+		    auto_trans->reg);
 	return 0;
 }
 
@@ -353,6 +416,84 @@ static void __init omap_vc_i2c_init(struct voltagedomain *voltdm)
 	initialized = true;
 }
 
+/**
+ * omap_vc_setup_lp_time() - configure the voltage ramp time for low states.
+ * @voltdm:	voltagedomain we are interested in.
+ *
+ * The ramp times are calculated based on the worst case voltage drop,
+ * which is the difference of on_volt and the ret_volt. This time is used
+ * for computing the duration necessary for low power states such as retention.
+ */
+static int __init omap_vc_setup_lp_time(struct voltagedomain *voltdm)
+{
+	u32 volt_drop = 0, volt_ramptime = 0, volt_rampcount;
+	u32 sys_clk_mhz = 0, sysclk_cycles = 0, max_latency_for_prescaler = 0;
+	struct clk *sys_ck;
+	u8 pre_scaler = 0;
+	struct omap_voltdm_pmic *pmic = voltdm->pmic;
+	struct omap_vc_channel *vc = voltdm->vc;
+	const struct setup_time_ramp_params *params;
+
+	params = vc->common->setup_time_params;
+	/* If the VC data does not have params for us, return PMIC's value */
+	if (!params)
+		return pmic->volt_setup_time;
+	if (!params->pre_scaler_to_sysclk_cycles_count)
+		return pmic->volt_setup_time;
+
+	/* No of sys_clk cycles for pre_scaler 0 */
+	sysclk_cycles = params->pre_scaler_to_sysclk_cycles[0];
+
+	sys_ck = clk_get(NULL, "sys_clkin_ck");
+	if (IS_ERR_OR_NULL(sys_ck)) {
+		WARN_ONCE(1, "%s: unable to get sys_clkin_ck (voldm %s)\n",
+			__func__, voltdm->name);
+		return pmic->volt_setup_time;
+	}
+	sys_clk_mhz = clk_get_rate(sys_ck) / 1000000;
+	clk_put(sys_ck);
+
+	/*
+	 *  If we chose prescaler 0x0, then we have a limit on the maximum
+	 *  latency for which we can chose a correct count. This is because,
+	 *  the count field is limited to 6 bits and max value can be 63 and
+	 *  for prescaler 0, ramp up/down counter is incremented every
+	 *  64 system clock cycles.
+	 *  for eg, max latency for prescaler for 38.4Mhz sys clk would be
+	 *  105 = (63 * 64) / 38.4
+	 */
+	max_latency_for_prescaler = (63 * sysclk_cycles) / sys_clk_mhz;
+
+	volt_drop = pmic->on_volt - pmic->ret_volt;
+	volt_ramptime = DIV_ROUND_UP(volt_drop, pmic->slew_rate);
+	volt_ramptime += OMAP_VC_I2C_ACK_DELAY;
+
+	if (volt_ramptime < max_latency_for_prescaler)
+		pre_scaler = 0x0;
+	else
+		pre_scaler = 0x1;
+
+	/*
+	 * IF we mess up values, then try to have some form of recovery using
+	 * PMIC's value.
+	 */
+	if (pre_scaler > params->pre_scaler_to_sysclk_cycles_count) {
+		pr_err("%s: prescaler idx %d > available %d on domain %s\n",
+		       __func__, pre_scaler,
+		       params->pre_scaler_to_sysclk_cycles_count, voltdm->name);
+		return pmic->volt_setup_time;
+	}
+
+	sysclk_cycles = params->pre_scaler_to_sysclk_cycles[pre_scaler];
+
+	volt_rampcount = ((volt_ramptime * sys_clk_mhz) / sysclk_cycles) + 1;
+
+	return (pre_scaler << OMAP4430_RAMP_DOWN_PRESCAL_SHIFT) |
+	    (pre_scaler << OMAP4430_RAMP_UP_PRESCAL_SHIFT) |
+	    (volt_rampcount << OMAP4430_RAMP_DOWN_COUNT_SHIFT) |
+	    (volt_rampcount << OMAP4430_RAMP_UP_COUNT_SHIFT);
+}
+
 void __init omap_vc_init_channel(struct voltagedomain *voltdm)
 {
 	struct omap_vc_channel *vc = voltdm->vc;
@@ -382,7 +523,8 @@ void __init omap_vc_init_channel(struct voltagedomain *voltdm)
 	vc->i2c_slave_addr = voltdm->pmic->i2c_slave_addr;
 	vc->volt_reg_addr = voltdm->pmic->volt_reg_addr;
 	vc->cmd_reg_addr = voltdm->pmic->cmd_reg_addr;
-	vc->setup_time = voltdm->pmic->volt_setup_time;
+	/* Calculate the RET voltage setup time and update volt_setup_time */
+	vc->setup_time = omap_vc_setup_lp_time(voltdm);
 
 	if ((vc->flags & OMAP_VC_CHANNEL_DEFAULT) &&
 		((vc->i2c_slave_addr == USE_DEFAULT_CHANNEL_I2C_PARAM) ||
@@ -451,4 +593,3 @@ void __init omap_vc_init_channel(struct voltagedomain *voltdm)
 	else if (cpu_is_omap44xx())
 		omap4_vc_init_channel(voltdm);
 }
-

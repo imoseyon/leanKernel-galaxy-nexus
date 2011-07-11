@@ -139,8 +139,10 @@ static void _update_logic_membank_counters(struct powerdomain *pwrdm)
 	u8 prev_logic_pwrst, prev_mem_pwrst;
 
 	prev_logic_pwrst = pwrdm_read_prev_logic_pwrst(pwrdm);
+
+	/* Fake logic off counter */
 	if ((pwrdm->pwrsts_logic_ret == PWRSTS_OFF_RET) &&
-	    (prev_logic_pwrst == PWRDM_POWER_OFF))
+		(pwrdm_read_logic_retst(pwrdm) == PWRDM_POWER_OFF))
 		pwrdm->ret_logic_off_counter++;
 
 	for (i = 0; i < pwrdm->banks; i++) {

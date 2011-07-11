@@ -31,6 +31,38 @@
 #define CR_VALUE_OFFSET				0x08
 #define SCU_POWER_SECURE_INDEX			0x108
 
+
+/*
+ * Macro to check cpu omap: XXX: TOBE UPDATED WHEN WE DISABLE THE WORKAROUND!
+ * we use ARM rev to detect the device
+ */
+.macro IS_CPU_OMAP4460
+	mrc	p15, 0, r0, c0, c0, 0
+	and	r0, #0xf
+	cmp	r0, #0xa
+.endm
+
+/*
+ * Macro to call PPA svc when MMU is OFF
+ * Caller must setup r0 and r3 before calling this macro
+ * @r0: PPA service ID
+ * @r3: Pointer to params
+*/
+.macro LM_CALL_PPA_SERVICE_PA
+	mov	r1, #0x0        @ Process ID
+	mov	r2, #0x4	@ Flag
+	mov	r6, #0xff
+	mov	r12, #0x00      @ Secure Service ID
+	dsb
+	smc     #0
+.endm
+
+POR_params:
+.word 1, 5
+
+POR_4460_params:
+.word 1, 0x42000009
+
 /*
  * =============================
  * == CPU suspend entry point ==
@@ -326,11 +358,33 @@ ENTRY(omap4_cpu_resume)
 	and	r0, #0x0f
 	cmp	r0, #1
 	beq	skip_l2en			@ Skip if already enabled
+
+check_por:
+	ldr	r0, =OMAP44XX_SAR_RAM_BASE  @ Check DEVICE type
+	ldr	r1, [r0, #OMAP_TYPE_OFFSET]
+	cmp	r1, #0x1                   @ Check for HS device
+	bne	skip_por
+	ldr	r0, =PPA_SERVICE_PL310_POR @ Setup PPA HAL call
+	IS_CPU_OMAP4460
+	ite	eq
+	adreq	r3, POR_4460_params
+	adrne	r3, POR_params
+	LM_CALL_PPA_SERVICE_PA
+skip_por:
 	ldr	r3, =OMAP44XX_SAR_RAM_BASE
 	ldr	r0, [r3, #L2X0_AUXCTRL_OFFSET]
 	ldr	r12, =0x109			@ Setup L2 AUXCTRL value
 	dsb
 	smc	#0
+
+	ldr	r2, =OMAP44XX_L2CACHE_BASE
+	ldr	r4, =OMAP44XX_SAR_RAM_BASE
+	ldr	r9, [r4, #L2X0_LOCKDOWN_OFFSET0]
+	str	r9, [r2, #L2X0_LOCKDOWN_WAY_D0]
+	str	r9, [r2, #L2X0_LOCKDOWN_WAY_D1]
+	str	r9, [r2, #L2X0_LOCKDOWN_WAY_I0]
+	str	r9, [r2, #L2X0_LOCKDOWN_WAY_I1]
+
 	dsb
 	mov	r0, #0x1
 	ldr	r12, =0x102			@ Enable L2 Cache controller
