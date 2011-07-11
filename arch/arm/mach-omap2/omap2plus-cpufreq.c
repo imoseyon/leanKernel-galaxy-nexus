@@ -40,6 +40,16 @@
 
 #include "dvfs.h"
 
+#ifdef CONFIG_SMP
+struct lpj_info {
+	unsigned long	ref;
+	unsigned int	freq;
+};
+
+static DEFINE_PER_CPU(struct lpj_info, lpj_ref);
+static struct lpj_info global_lpj_ref;
+#endif
+
 static struct cpufreq_frequency_table *freq_table;
 static atomic_t freq_table_users = ATOMIC_INIT(0);
 static struct clk *mpu_clk;
@@ -98,37 +108,19 @@ static int omap_target(struct cpufreq_policy *policy,
 	if (freqs.old == freqs.new && policy->cur == freqs.new)
 		return ret;
 
-	if (!is_smp()) {
-		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
-		goto set_freq;
-	}
-
 	/* notifiers */
 	for_each_cpu(i, policy->cpus) {
 		freqs.cpu = i;
 		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 	}
 
-set_freq:
 #ifdef CONFIG_CPU_FREQ_DEBUG
 	pr_info("cpufreq-omap: transition: %u --> %u\n", freqs.old, freqs.new);
 #endif
 
 	ret = omap_device_scale(mpu_dev, mpu_dev, freqs.new * 1000);
 
-	/*
-	 * Generic CPUFREQ driver jiffy update is under !SMP. So jiffies
-	 * won't get updated when UP machine cpufreq build with
-	 * CONFIG_SMP enabled. Below code is added only to manage that
-	 * scenario
-	 */
 	freqs.new = omap_getspeed(policy->cpu);
-	if (!is_smp()) {
-		loops_per_jiffy =
-			 cpufreq_scale(loops_per_jiffy, freqs.old, freqs.new);
-		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
-		goto skip_lpj;
-	}
 
 #ifdef CONFIG_SMP
 	/*
@@ -136,10 +128,24 @@ set_freq:
 	 * cpufreq driver. So, update the per-CPU loops_per_jiffy value
 	 * on frequency transition. We need to update all dependent CPUs.
 	 */
-	for_each_cpu(i, policy->cpus)
+	for_each_cpu(i, policy->cpus) {
+		struct lpj_info *lpj = &per_cpu(lpj_ref, i);
+		if (!lpj->freq) {
+			lpj->ref = per_cpu(cpu_data, i).loops_per_jiffy;
+			lpj->freq = freqs.old;
+		}
+
 		per_cpu(cpu_data, i).loops_per_jiffy =
-			cpufreq_scale(per_cpu(cpu_data, i).loops_per_jiffy,
-					freqs.old, freqs.new);
+			cpufreq_scale(lpj->ref, lpj->freq, freqs.new);
+	}
+
+	/* And don't forget to adjust the global one */
+	if (!global_lpj_ref.freq) {
+		global_lpj_ref.ref = loops_per_jiffy;
+		global_lpj_ref.freq = freqs.old;
+	}
+	loops_per_jiffy = cpufreq_scale(global_lpj_ref.ref, global_lpj_ref.freq,
+					freqs.new);
 #endif
 
 	/* notifiers */
@@ -148,7 +154,6 @@ set_freq:
 		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
 	}
 
-skip_lpj:
 	return ret;
 }
 
