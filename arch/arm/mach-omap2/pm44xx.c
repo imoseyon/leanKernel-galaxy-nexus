@@ -128,10 +128,6 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state)
 			omap_vc_set_auto_trans(iva_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
 
-			omap_uart_prepare_idle(0);
-			omap_uart_prepare_idle(1);
-			omap_uart_prepare_idle(2);
-			omap_uart_prepare_idle(3);
 			omap2_gpio_prepare_for_idle(0);
 			omap4_trigger_ioctrl();
 		}
@@ -146,10 +142,6 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state)
 		omap_vc_set_auto_trans(iva_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE);
 		omap2_gpio_resume_after_idle();
-		omap_uart_resume_idle(0);
-		omap_uart_resume_idle(1);
-		omap_uart_resume_idle(2);
-		omap_uart_resume_idle(3);
 		omap_sr_enable(iva_voltdm);
 		omap_sr_enable(core_voltdm);
 	}
@@ -204,7 +196,6 @@ static int omap4_pm_suspend(void)
 	 * domain CSWR is not supported by hardware.
 	 * More details can be found in OMAP4430 TRM section 4.3.4.2.
 	 */
-	omap_uart_prepare_suspend();
 	omap4_enter_sleep(0, PWRDM_POWER_OFF);
 
 	/* Restore next powerdomain state */
@@ -376,13 +367,6 @@ static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 					OMAP4_PRM_IRQSTATUS_MPU_OFFSET);
 
 	return IRQ_HANDLED;
-}
-
-int omap4_can_sleep(void)
-{
-	if (!omap_uart_can_sleep())
-		return -1;
-	return 0;
 }
 
 /**
