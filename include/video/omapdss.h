@@ -41,6 +41,8 @@
 #define DISPC_IRQ_WAKEUP		(1 << 16)
 #define DISPC_IRQ_SYNC_LOST2		(1 << 17)
 #define DISPC_IRQ_VSYNC2		(1 << 18)
+#define DISPC_IRQ_VID3_END_WIN		(1 << 19)
+#define DISPC_IRQ_VID3_FIFO_UNDERFLOW	(1 << 20)
 #define DISPC_IRQ_ACBIAS_COUNT_STAT2	(1 << 21)
 #define DISPC_IRQ_FRAMEDONE2		(1 << 22)
 
@@ -60,7 +62,8 @@ enum omap_display_type {
 enum omap_plane {
 	OMAP_DSS_GFX	= 0,
 	OMAP_DSS_VIDEO1	= 1,
-	OMAP_DSS_VIDEO2	= 2
+	OMAP_DSS_VIDEO2	= 2,
+	OMAP_DSS_VIDEO3 = 3,
 };
 
 enum omap_channel {
@@ -166,6 +169,7 @@ enum omap_dss_overlay_managers {
 enum omap_dss_rotation_type {
 	OMAP_DSS_ROT_DMA = 0,
 	OMAP_DSS_ROT_VRFB = 1,
+	OMAP_DSS_ROT_TILER = 2,
 };
 
 /* clockwise rotation angle */
@@ -194,6 +198,13 @@ enum omap_dss_clk_source {
 						 * OMAP4: PLL1_CLK2 */
 	OMAP_DSS_CLK_SRC_DSI2_PLL_HSDIV_DISPC,	/* OMAP4: PLL2_CLK1 */
 	OMAP_DSS_CLK_SRC_DSI2_PLL_HSDIV_DSI,	/* OMAP4: PLL2_CLK2 */
+};
+
+enum omap_overlay_zorder {
+	OMAP_DSS_OVL_ZORDER_0   = 0,
+	OMAP_DSS_OVL_ZORDER_1   = 1,
+	OMAP_DSS_OVL_ZORDER_2   = 2,
+	OMAP_DSS_OVL_ZORDER_3   = 3,
 };
 
 /* RFBI */
@@ -308,6 +319,24 @@ extern const struct omap_video_timings omap_dss_pal_timings;
 extern const struct omap_video_timings omap_dss_ntsc_timings;
 #endif
 
+enum omapdss_completion_status {
+	DSS_COMPLETION_PROGRAMMED = 0,
+	DSS_COMPLETION_DISPLAYED = 4,
+	DSS_COMPLETION_CHANGED_SET,
+	DSS_COMPLETION_CHANGED_CACHE,
+	DSS_COMPLETION_RELEASED = 8,
+	DSS_COMPLETION_ECLIPSED_SET,
+	DSS_COMPLETION_ECLIPSED_CACHE,
+	DSS_COMPLETION_ECLIPSED_SHADOW,
+	DSS_COMPLETION_TORN,
+};
+
+struct omapdss_ovl_cb {
+	/* optional callback method */
+	void (*fn)(void *data, int id, int status);
+	void *data;
+};
+
 struct omap_overlay_info {
 	bool enabled;
 
@@ -328,6 +357,10 @@ struct omap_overlay_info {
 	u16 out_height;	/* if 0, out_height == height */
 	u8 global_alpha;
 	u8 pre_mult_alpha;
+	enum omap_overlay_zorder zorder;
+	u16 min_x_decim, max_x_decim, min_y_decim, max_y_decim;
+
+	struct omapdss_ovl_cb cb;
 };
 
 struct omap_overlay {
@@ -367,6 +400,8 @@ struct omap_overlay_manager_info {
 	bool trans_enabled;
 
 	bool alpha_enabled;
+
+	struct omapdss_ovl_cb cb;
 };
 
 struct omap_overlay_manager {

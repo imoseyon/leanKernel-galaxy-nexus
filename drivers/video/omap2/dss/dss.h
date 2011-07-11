@@ -398,6 +398,9 @@ void dispc_setup_plane_fifo(enum omap_plane plane, u32 low, u32 high);
 void dispc_enable_fifomerge(bool enable);
 void dispc_set_burst_size(enum omap_plane plane,
 		enum omap_burst_size burst_size);
+void dispc_set_zorder(enum omap_plane plane,
+			enum omap_overlay_zorder zorder);
+void dispc_enable_zorder(enum omap_plane plane, bool enable);
 
 void dispc_set_plane_ba0(enum omap_plane plane, u32 paddr);
 void dispc_set_plane_ba1(enum omap_plane plane, u32 paddr);
@@ -414,11 +417,20 @@ int dispc_setup_plane(enum omap_plane plane,
 		      u16 out_width, u16 out_height,
 		      enum omap_color_mode color_mode,
 		      bool ilace,
+		      int x_decim, int y_decim, bool five_taps,
 		      enum omap_dss_rotation_type rotation_type,
 		      u8 rotation, bool mirror,
 		      u8 global_alpha, u8 pre_mult_alpha,
 		      enum omap_channel channel,
 		      u32 puv_addr);
+int dispc_scaling_decision(u16 width, u16 height,
+		u16 out_width, u16 out_height,
+		enum omap_plane plane,
+		enum omap_color_mode color_mode,
+		enum omap_channel channel, u8 rotation,
+		u16 min_x_decim, u16 max_x_decim,
+		u16 min_y_decim, u16 max_y_decim,
+		u16 *x_decim, u16 *y_decim, bool *three_tap);
 
 bool dispc_go_busy(enum omap_channel channel);
 void dispc_go(enum omap_channel channel);
@@ -534,5 +546,12 @@ static inline void dss_collect_irq_stats(u32 irqstatus, unsigned *irq_arr)
 	}
 }
 #endif
+
+/* callback is optional */
+static inline void dss_ovl_cb(struct omapdss_ovl_cb *cb, int id, int status)
+{
+	if (cb->fn)
+		cb->fn(cb->data, id, status);
+}
 
 #endif
