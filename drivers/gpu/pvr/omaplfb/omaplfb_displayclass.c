@@ -817,9 +817,9 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 	PVRSRV_KERNEL_MEM_INFO **ppsMemInfos =
 		(PVRSRV_KERNEL_MEM_INFO **)ppvMemInfos;
 	struct tiler_pa_info *apsTilerPAs[5];
-	IMG_UINT32 i;
+	IMG_UINT32 i, k;
 
-	for(i = 0; i < ui32NumMemInfos && i < ARRAY_SIZE(apsTilerPAs); i++)
+	for(i = k = 0; i < ui32NumMemInfos && i < ARRAY_SIZE(apsTilerPAs); i++, k++)
 	{
 		struct tiler_pa_info *psTilerInfo;
 		LinuxMemArea *psLinuxMemArea;
@@ -829,7 +829,20 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 		psLinuxMemArea = ppsMemInfos[i]->sMemBlk.hOSMemHandle;
 		ui32NumPages = (psLinuxMemArea->ui32ByteSize + PAGE_SIZE - 1) >> PAGE_SHIFT;
 
-		apsTilerPAs[i] = NULL;
+		apsTilerPAs[k] = NULL;
+
+		/* NV12 buffers do not need meminfos */
+		if (psDssData->ovls[k].cfg.color_mode == OMAP_DSS_COLOR_NV12) {
+			/* must have still 2 meminfos in array */
+			BUG_ON(i + 1 >= ui32NumMemInfos);
+			psDssData->ovls[k].ba = (u32)LinuxMemAreaToCpuPAddr(psLinuxMemArea, 0).uiAddr;
+
+			i++;
+			psLinuxMemArea = ppsMemInfos[i]->sMemBlk.hOSMemHandle;
+			psDssData->ovls[k].uv = (u32)LinuxMemAreaToCpuPAddr(psLinuxMemArea, 0).uiAddr;
+
+			continue;
+		}
 
 		psTilerInfo = kzalloc(sizeof(*psTilerInfo), GFP_KERNEL);
 		if(!psTilerInfo)
@@ -854,8 +867,8 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 		}
 
 		
-		psDssData->ovls[i].ba = (u32)ppsMemInfos[i]->pvLinAddrKM;
-		apsTilerPAs[i] = psTilerInfo;
+		psDssData->ovls[k].ba = (u32)ppsMemInfos[i]->pvLinAddrKM;
+		apsTilerPAs[k] = psTilerInfo;
 	}
 
 	BUG_ON(psDssData->num_ovls == 0);
@@ -864,7 +877,7 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 						  (void *)psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete,
 						  (void *)hCmdCookie);
 
-	for(i = 0; i < ui32NumMemInfos && i < ARRAY_SIZE(apsTilerPAs); i++)
+	for(i = 0; i < k; i++)
 	{
 		tiler_pa_free(apsTilerPAs[i]);
 	}
