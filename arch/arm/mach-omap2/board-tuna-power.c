@@ -32,7 +32,7 @@
 #define GPIO_CHARGING_N		83
 #define GPIO_TA_NCONNECTED	142
 #define GPIO_CHARGE_N		13
-#define CHG_CUR_ADJ		102
+#define GPIO_CHG_CUR_ADJ	102
 
 #define TPS62361_GPIO   7
 
@@ -40,7 +40,7 @@ static struct gpio charger_gpios[] = {
 	{ .gpio = GPIO_CHARGING_N, .flags = GPIOF_IN, .label = "charging_n" },
 	{ .gpio = GPIO_TA_NCONNECTED, .flags = GPIOF_IN, .label = "charger_n" },
 	{ .gpio = GPIO_CHARGE_N, .flags = GPIOF_OUT_INIT_HIGH, .label = "charge_n" },
-	{ .gpio = CHG_CUR_ADJ, .flags = GPIOF_OUT_INIT_LOW, .label = "charge_cur_adj" },
+	{ .gpio = GPIO_CHG_CUR_ADJ, .flags = GPIOF_OUT_INIT_LOW, .label = "charge_cur_adj" },
 };
 
 static int charger_init(struct device *dev)
@@ -55,10 +55,11 @@ static void charger_exit(struct device *dev)
 
 static void charger_set_charge(int state)
 {
+	gpio_set_value(GPIO_CHG_CUR_ADJ, !!(state & PDA_POWER_CHARGE_AC));
 	gpio_set_value(GPIO_CHARGE_N, !state);
 }
 
-static int charger_is_ac_online(void)
+static int charger_is_online(void)
 {
 	return !gpio_get_value(GPIO_TA_NCONNECTED);
 }
@@ -84,7 +85,7 @@ static const __initdata struct pda_power_pdata charger_pdata = {
 };
 
 static struct max17040_platform_data max17043_pdata = {
-	.charger_online = charger_is_ac_online,
+	.charger_online = charger_is_online,
 	.charger_enable = charger_is_charging,
 };
 
@@ -129,6 +130,7 @@ void __init omap4_tuna_power_init(void)
 	omap_mux_init_gpio(charger_gpios[0].gpio, OMAP_PIN_INPUT);
 	omap_mux_init_gpio(charger_gpios[1].gpio, OMAP_PIN_INPUT);
 	omap_mux_init_gpio(charger_gpios[2].gpio, OMAP_PIN_OUTPUT);
+	omap_mux_init_gpio(charger_gpios[3].gpio, OMAP_PIN_OUTPUT);
 
 	pdev = platform_device_register_resndata(NULL, "pda-power", -1,
 		NULL, 0, &charger_pdata, sizeof(charger_pdata));
