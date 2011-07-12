@@ -257,6 +257,11 @@ static int musb_otg_notifications(struct notifier_block *nb,
 		}
 		break;
 
+	case USB_EVENT_CHARGER:
+		dev_dbg(musb->controller, "Dedicated charger connect\n");
+		musb->is_ac_charger = true;
+		break;
+
 	case USB_EVENT_VBUS:
 		dev_dbg(musb->controller, "VBUS Connect\n");
 
@@ -268,6 +273,13 @@ static int musb_otg_notifications(struct notifier_block *nb,
 		break;
 
 	case USB_EVENT_NONE:
+		if (musb->is_ac_charger) {
+			dev_dbg(musb->controller,
+				"Dedicated charger disconnect\n");
+			musb->is_ac_charger = false;
+			break;
+		}
+
 		dev_dbg(musb->controller, "VBUS Disconnect\n");
 
 #ifdef CONFIG_USB_GADGET_MUSB_HDRC

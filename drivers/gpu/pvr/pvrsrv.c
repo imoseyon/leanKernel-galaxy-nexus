@@ -935,8 +935,8 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVGetMiscInfoKM(PVRSRV_MISC_INFO *psMiscInfo)
 		
 		psMiscInfo->aui32DDKVersion[0] = PVRVERSION_MAJ;
 		psMiscInfo->aui32DDKVersion[1] = PVRVERSION_MIN;
-		psMiscInfo->aui32DDKVersion[2] = PVRVERSION_BRANCH;
-		psMiscInfo->aui32DDKVersion[3] = PVRVERSION_BUILD;
+		psMiscInfo->aui32DDKVersion[2] = PVRVERSION_BUILD_HI;
+		psMiscInfo->aui32DDKVersion[3] = PVRVERSION_BUILD_LO;
 
 		pszStr = psMiscInfo->pszMemoryStr;
 		ui32StrLen = psMiscInfo->ui32MemoryStrLen;

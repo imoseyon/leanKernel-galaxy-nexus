@@ -45,6 +45,8 @@ extern "C" {
 	PVRSRV_SYNC_OBJECT	*psDstSync;			
 	PVRSRV_SYNC_OBJECT	*psSrcSync;			
 	IMG_UINT32			ui32AllocSize;		
+	PFN_QUEUE_COMMAND_COMPLETE	pfnCommandComplete;	
+	IMG_HANDLE					hCallbackData;		
  }COMMAND_COMPLETE_DATA, *PCOMMAND_COMPLETE_DATA;
 
 #if !defined(USE_CODE)
@@ -76,7 +78,9 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVInsertCommandKM(PVRSRV_QUEUE_INFO	*psQueue,
 												PVRSRV_KERNEL_SYNC_INFO	*apsDstSync[],
 												IMG_UINT32			ui32SrcSyncCount,
 												PVRSRV_KERNEL_SYNC_INFO	*apsSrcSync[],
-												IMG_SIZE_T			ui32DataByteSize );
+												IMG_SIZE_T			ui32DataByteSize,
+												PFN_QUEUE_COMMAND_COMPLETE pfnCommandComplete,
+												IMG_HANDLE			hCallbackData);
 
 IMG_IMPORT
 PVRSRV_ERROR IMG_CALLCONV PVRSRVGetQueueSpaceKM(PVRSRV_QUEUE_INFO *psQueue,

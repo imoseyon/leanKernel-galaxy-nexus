@@ -146,6 +146,35 @@ typedef struct DISPLAYCLASS_FLIP_COMMAND_TAG
 
 } DISPLAYCLASS_FLIP_COMMAND;
 
+
+typedef struct DISPLAYCLASS_FLIP_COMMAND2_TAG
+{
+	
+	IMG_HANDLE hExtDevice;
+
+	
+	IMG_HANDLE hExtSwapChain;
+
+	
+	IMG_HANDLE hUnused;
+
+	
+	IMG_UINT32 ui32SwapInterval;
+
+	
+	IMG_PVOID  pvPrivData;
+
+	
+	IMG_UINT32 ui32PrivDataLength;
+
+	
+	IMG_VOID **ppvMemInfos;
+
+	
+	IMG_UINT32 ui32NumMemInfos;
+
+} DISPLAYCLASS_FLIP_COMMAND2;
+
 #define DC_FLIP_COMMAND		0
 
 #define DC_STATE_NO_FLUSH_COMMANDS		0

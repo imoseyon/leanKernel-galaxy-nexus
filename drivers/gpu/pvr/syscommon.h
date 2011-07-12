@@ -102,6 +102,10 @@ typedef struct _SYS_DATA_TAG_
 
 
 
+#if defined (CUSTOM_DISPLAY_SEGMENT)
+PVRSRV_ERROR SysGetDisplaySegmentAddress (IMG_VOID *pvDevInfo, IMG_VOID *pvPhysicalAddress, IMG_UINT32 *pui32Length);
+#endif
+
 PVRSRV_ERROR SysInitialise(IMG_VOID);
 PVRSRV_ERROR SysFinalise(IMG_VOID);
 

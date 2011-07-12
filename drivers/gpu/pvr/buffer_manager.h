@@ -156,6 +156,8 @@ BM_Alloc (IMG_HANDLE			hDevMemHeap,
 			IMG_SIZE_T			uSize,
 			IMG_UINT32			*pui32Flags,
 			IMG_UINT32			uDevVAddrAlignment,
+			IMG_PVOID			pvPrivData,
+			IMG_UINT32			ui32PrivDataLength,
 			BM_HANDLE			*phBuf);
 
 IMG_BOOL

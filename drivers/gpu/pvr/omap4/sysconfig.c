@@ -40,11 +40,10 @@ SYS_DATA  gsSysData;
 static SYS_SPECIFIC_DATA gsSysSpecificData;
 SYS_SPECIFIC_DATA *gpsSysSpecificData;
 
-static IMG_UINT32	gui32SGXDeviceID;
-static SGX_DEVICE_MAP	gsSGXDeviceMap;
-static PVRSRV_DEVICE_NODE *gpsSGXDevNode;
+static IMG_UINT32			gui32SGXDeviceID;
+static SGX_DEVICE_MAP		gsSGXDeviceMap;
+static PVRSRV_DEVICE_NODE	*gpsSGXDevNode;
 
-#define DEVICE_SGX_INTERRUPT (1 << 0)
 
 #if defined(NO_HARDWARE) || defined(SGX_OCP_REGS_ENABLED)
 static IMG_CPU_VIRTADDR gsSGXRegsCPUVAddr;
@@ -483,6 +482,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 	}
 #endif 
 
+
 	return PVRSRV_OK;
 }
 
@@ -518,7 +518,6 @@ PVRSRV_ERROR SysFinalise(IMG_VOID)
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_LISR);
 #endif 
-
 #if defined(__linux__)
 	
 	gpsSysData->pszVersionString = SysCreateVersionString();
@@ -547,6 +546,8 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 {
 	PVRSRV_ERROR eError;
 
+	PVR_UNREFERENCED_PARAMETER(psSysData);
+
 	if(gpsSysData->pvSOCTimerRegisterKM)
 	{
 		OSUnReservePhys(gpsSysData->pvSOCTimerRegisterKM,
@@ -555,10 +556,11 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 						gpsSysData->hSOCTimerRegisterOSMemHandle);
 	}
 
+
 #if defined(SYS_USING_INTERRUPTS)
 	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_LISR))
 	{
-		eError = OSUninstallDeviceLISR(psSysData);
+		eError = OSUninstallDeviceLISR(gpsSysData);
 		if (eError != PVRSRV_OK)
 		{
 			PVR_DPF((PVR_DBG_ERROR,"SysDeinitialise: OSUninstallDeviceLISR failed"));
@@ -569,7 +571,7 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 
 	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_MISR))
 	{
-		eError = OSUninstallMISR(psSysData);
+		eError = OSUninstallMISR(gpsSysData);
 		if (eError != PVRSRV_OK)
 		{
 			PVR_DPF((PVR_DBG_ERROR,"SysDeinitialise: OSUninstallMISR failed"));
@@ -762,7 +764,6 @@ IMG_VOID SysRemoveExternalDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
 	PVR_UNREFERENCED_PARAMETER(psDeviceNode);
 }
 
-
 IMG_UINT32 SysGetInterruptSource(SYS_DATA			*psSysData,
 								 PVRSRV_DEVICE_NODE	*psDeviceNode)
 {
@@ -780,9 +781,8 @@ IMG_UINT32 SysGetInterruptSource(SYS_DATA			*psSysData,
 IMG_VOID SysClearInterrupts(SYS_DATA* psSysData, IMG_UINT32 ui32ClearBits)
 {
 	PVR_UNREFERENCED_PARAMETER(ui32ClearBits);
-#if defined(NO_HARDWARE)
 	PVR_UNREFERENCED_PARAMETER(psSysData);
-#else
+#if !defined(NO_HARDWARE)
 #if defined(SGX_OCP_NO_INT_BYPASS)
 	OSWriteHWReg(gpvOCPRegsLinAddr, EUR_CR_OCP_IRQSTATUS_2, 0x1);
 #endif
