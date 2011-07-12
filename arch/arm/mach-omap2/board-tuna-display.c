@@ -67,6 +67,155 @@ static void tuna_oled_set_power(bool enable)
 		regulator_disable(tuna_oled_reg);
 }
 
+static const u8 tuna_oled_cmd_init_pre[] = {
+	0xF0,
+	0x5A,
+	0x5A,
+};
+
+static const u8 tuna_oled_cmd_sleep_out[] = {
+	0x11,
+};
+
+static const u8 tuna_oled_cmd_init_panel[] = {
+	0xF8, /* Panel Condition Set */
+	0x3D, /* DOTC[0:1], GTCON[2:4], SS, DOTC_H[6:7] */
+	0x35, /* FLTE[0:7] */
+	0x00,
+	0x00,
+	0x00,
+	0x8D,
+	0x00,
+	0x4C, /* SCTE[0:7] */
+	0x6E,
+	0x10,
+	0x27,
+	0x7D, /* INTE[0:7] */
+	0x3F, /* INWE[0:7] */
+	0x10,
+	0x00,
+	0x00,
+	0x20,
+	0x04, /* E_FLWE_H[0:7] */
+	0x08, /* E_SCTE[0:7] */
+	0x6E, /* E_SCWE[0:7] */
+	0x00,
+	0x00,
+	0x00,
+	0x02,
+	0x08,
+	0x08,
+	0x23,
+	0x23,
+	0xC0,
+	0xC8, /* CLK2_CON[0:2], CLK1_CON[3:5], CLK2_DC, CLK1_DC */
+	0x08, /* INT2_CON[0:2], INT1_CON[3:5], INT2_DC, INT1_DC */
+	0x48, /* BICTLB_CON[0:2], BICTL_CON[3:5], BICTLB_DC, BICTL_DC */
+	0xC1,
+	0x00,
+	0xC3, /* EM_FLM_CON[0:2], ACL_FLM_CON[3:5], EM_FLM_DC, ACL_FLM_DC */
+	0xFF, /* EM_CLK1B_CON[0:2], EM_CLK1_CON[3:5], EM_CLK1B_DC, EM_CLK1_DC */
+	0xFF, /* EM_CLK2B_CON[0:2], EM_CLK2_CON[3:5], EM_CLK2B_DC, EM_CLK2_DC */
+	0xC8, /* EM_INT2_CON[0:2], EM_INT1_CON[3:5], EM_INT2_DC, EM_INT1_DC */
+};
+
+static const u8 tuna_oled_cmd_init_display[] = {
+	0xF2, /* Display Condition set */
+	0x80, /* Display area */
+	0x03, /* VBP : 3 HsYNC */
+	0x0D, /* VFP : 13HSYNC */
+};
+
+static const struct s6e8aa0_sequence_entry tuna_oled_seq_display_set[] = {
+	{
+		.cmd = tuna_oled_cmd_init_pre,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_pre),
+	},
+	{
+		.cmd = tuna_oled_cmd_sleep_out,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_sleep_out),
+	},
+	{
+		.cmd = tuna_oled_cmd_init_panel,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_panel),
+	},
+	{
+		.cmd = tuna_oled_cmd_init_display,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_display),
+	},
+};
+
+static const u8 tuna_oled_cmd_gamma_ltps_update[] = {
+	0xF7,
+	0x03, /* Gamma/LTPS update */
+};
+
+static const u8 tuna_oled_cmd_init_post0[] = {
+	0xF6,
+	0x00,
+	0x02,
+	0x00,
+};
+
+static const u8 tuna_oled_cmd_init_post1[] = {
+	0xB6,
+	0x0C,
+	0x02,
+	0x03,
+	0x32,
+	0xFF,
+	0x44,
+	0x44,
+	0xC0,
+	0x00,
+};
+
+static const u8 tuna_oled_cmd_init_post2[] = {
+	0xD9,
+	0x14,
+	0x40,
+	0x0C,
+	0xCB,
+	0xCE,
+	0x6E,
+	0xC4,
+	0x07, /* COLUMN_CHOP, FRAME_CHOP, LINE_CHOP, CHOP_EN */
+	0x40,
+	0x40,
+	0xD0, /* ELVSS -4.9V */
+	0x00,
+	0x60,
+	0x19,
+};
+
+static const u8 tuna_oled_cmd_display_on[] = {
+	0x29,
+};
+
+static const struct s6e8aa0_sequence_entry tuna_oled_seq_etc_set[] = {
+	{
+		.cmd = tuna_oled_cmd_gamma_ltps_update,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_gamma_ltps_update),
+	},
+	{
+		.cmd = tuna_oled_cmd_init_post0,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_post0),
+	},
+	{
+		.cmd = tuna_oled_cmd_init_post1,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_post1),
+	},
+	{
+		.cmd = tuna_oled_cmd_init_post2,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_post2),
+		.msleep = 120,
+	},
+	{
+		.cmd = tuna_oled_cmd_display_on,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_display_on),
+	},
+};
+
 static const struct s6e8aa0_gamma_entry tuna_oled_gamma_table[] = {
 	{       BV_0, { 4500000, 4500000, 4500000, }, },
 	{          1, { 4294200, 4407600, 4210200, }, },
@@ -164,6 +313,10 @@ static const struct s6e8aa0_gamma_entry tuna_oled_gamma_table[] = {
 static struct panel_s6e8aa0_data tuna_oled_data = {
 	.reset_gpio	= TUNA_GPIO_MLCD_RST,
 	.set_power	= tuna_oled_set_power,
+	.seq_display_set = tuna_oled_seq_display_set,
+	.seq_display_set_size = ARRAY_SIZE(tuna_oled_seq_display_set),
+	.seq_etc_set = tuna_oled_seq_etc_set,
+	.seq_etc_set_size = ARRAY_SIZE(tuna_oled_seq_etc_set),
 	.gamma_table = tuna_oled_gamma_table,
 	.gamma_table_size = ARRAY_SIZE(tuna_oled_gamma_table),
 	.factory_v255_regs = {
