@@ -748,7 +748,7 @@ PVRMMap(struct file* pFile, struct vm_area_struct* ps_vma)
     LinuxMemArea *psFlushMemArea = IMG_NULL;
     PKV_OFFSET_STRUCT psOffsetStruct;
     IMG_UINT32 ui32ByteSize;
-    IMG_VOID *pvBase;
+    IMG_VOID *pvBase = IMG_NULL;
     int iRetVal = 0;
 
     PVR_UNREFERENCED_PARAMETER(pFile);
