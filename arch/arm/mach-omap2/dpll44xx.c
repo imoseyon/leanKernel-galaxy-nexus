@@ -112,53 +112,6 @@ int omap4_core_dpll_m2_set_rate(struct clk *clk, unsigned long rate)
 	return 0;
 }
 
-/**
- * omap4_core_dpll_m5_set_rate - set CORE DPLL M5 divider
- * @clk: struct clk * of DPLL to set
- * @rate: rounded target rate
- *
- * Programs the CM shadow registers to update CORE DPLL M5
- * divider. M5 divider is used to clock l3 and GPMC. GPMC
- * reconfiguration on frequency change is managed through a
- * hardware sequencer using shadow registers.
- * Returns -EINVAL/-1 on error and 0 on success.
- */
-int omap4_core_dpll_m5x2_set_rate(struct clk *clk, unsigned long rate)
-{
-	int i = 0;
-	u32 validrate = 0, shadow_freq_cfg2 = 0, new_div = 0;
-
-	if (!clk || !rate)
-		return -EINVAL;
-
-	validrate = omap2_clksel_round_rate_div(clk, rate, &new_div);
-	if (validrate != rate)
-		return -EINVAL;
-
-	/*
-	 * FREQ_UPDATE sequence:
-	 * - DPLL_CORE_M5_DIV with new value of M5 post-divider on L3 clock generation path
-	 * - CLKSEL_L3=1 (unchanged)
-	 * - CLKSEL_CORE=0 (unchanged)
-	 * - GPMC_FREQ_UPDATE=1
-	 */
-
-	shadow_freq_cfg2 = (new_div << OMAP4430_DPLL_CORE_M5_DIV_SHIFT) |
-						(1 << OMAP4430_CLKSEL_L3_SHADOW_SHIFT) |
-						(1 << OMAP4430_FREQ_UPDATE_SHIFT);
-
-	__raw_writel(shadow_freq_cfg2, OMAP4430_CM_SHADOW_FREQ_CONFIG2);
-
-	/* wait for the configuration to be applied */
-	omap_test_timeout(((__raw_readl(OMAP4430_CM_SHADOW_FREQ_CONFIG2)
-				& OMAP4430_GPMC_FREQ_UPDATE_MASK) == 0),
-				MAX_FREQ_UPDATE_TIMEOUT, i);
-
-	/* Update the clock change */
-	clk->rate = validrate;
-
-	return 0;
-}
 
 /**
  * omap4_prcm_freq_update - set freq_update bit
