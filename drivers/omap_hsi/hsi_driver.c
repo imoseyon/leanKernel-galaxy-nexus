@@ -647,7 +647,11 @@ void hsi_clocks_disable_channel(struct device *dev, u8 channel_number,
 	/* HSI_TODO : this can probably be changed
 	 * to return pm_runtime_put(dev);
 	 */
+	/*
 	pm_runtime_put_sync(dev);
+	 */
+	hsi_runtime_suspend(dev);
+	omap_device_idle(pd);
 }
 
 /**
@@ -685,7 +689,12 @@ int hsi_clocks_enable_channel(struct device *dev, u8 channel_number,
 		dev_warn(dev, "Error holding DPLL cascading constraint\n");
 #endif
 
+        /*
 	return pm_runtime_get_sync(dev);
+	 */
+	omap_device_enable(pd);
+	hsi_runtime_resume(dev);
+	return 0;
 }
 
 static int __init hsi_controller_init(struct hsi_dev *hsi_ctrl,
