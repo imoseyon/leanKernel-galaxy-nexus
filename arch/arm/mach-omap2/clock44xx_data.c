@@ -525,7 +525,7 @@ static struct clk dpll_core_m5x2_ck = {
 	.ops		= &clkops_omap4_dpllmx_ops,
 	.recalc		= &omap2_clksel_recalc,
 	.round_rate	= &omap2_clksel_round_rate,
-	.set_rate	= &omap4_core_dpll_m5x2_set_rate,
+	.set_rate	= &omap2_clksel_set_rate,
 };
 
 static struct clk virt_l3_ck = {
