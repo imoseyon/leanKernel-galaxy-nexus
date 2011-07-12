@@ -654,8 +654,25 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 		.be_id = OMAP_ABE_DAI_PDM_VIB,
 	},
 	{
-		.name = OMAP_ABE_BE_BT_VX,
-		.stream_name = "BT",
+		.name = OMAP_ABE_BE_BT_VX_UL,
+		.stream_name = "BT Capture",
+
+		/* ABE components - MCBSP1 - BT-VX */
+		.cpu_dai_name = "omap-mcbsp-dai.0",
+		.platform_name = "aess",
+
+		/* Bluetooth */
+		.codec_dai_name = "Bluetooth",
+
+		.no_pcm = 1, /* don't create ALSA pcm for this */
+		.no_codec = 1, /* TODO: have a dummy CODEC */
+		.be_hw_params_fixup = mcbsp_be_hw_params_fixup,
+		.ops = &sdp4430_mcbsp_ops,
+		.be_id = OMAP_ABE_DAI_BT_VX,
+	},
+	{
+		.name = OMAP_ABE_BE_BT_VX_DL,
+		.stream_name = "BT Playback",
 
 		/* ABE components - MCBSP1 - BT-VX */
 		.cpu_dai_name = "omap-mcbsp-dai.0",
