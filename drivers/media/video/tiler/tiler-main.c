@@ -1148,6 +1148,7 @@ struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg)
 	pa->num_pg = num_pg;
 	return pa;
 }
+EXPORT_SYMBOL(user_block_to_pa);
 
 /* allocate area from container and pin memory */
 static s32 pin_any_block(enum tiler_fmt fmt, u32 width, u32 height,
