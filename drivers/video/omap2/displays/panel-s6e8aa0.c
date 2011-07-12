@@ -109,12 +109,6 @@ struct s6e8aa0_data {
 	struct panel_s6e8aa0_data *pdata;
 };
 
-const u8 s6e8aa0_init_pre[] = {
-	0xF0,
-	0x5A,
-	0x5A,
-};
-
 const u8 s6e8aa0_mtp_unlock[] = {
 	0xF1,
 	0x5A,
@@ -126,98 +120,6 @@ const u8 s6e8aa0_mtp_lock[] = {
 	0xA5,
 	0xA5,
 };
-
-const u8 s6e8aa0_init_panel[] = {
-	0xF8,
-	0x25,
-	0x34,
-	0x00,
-	0x00,
-	0x00,
-	0x8D,
-	0x00,
-	0x43,
-	0x6E,
-	0x10,
-	0x27,
-	0x00,
-	0x00,
-	0x10,
-	0x00,
-	0x00,
-	0x20,
-	0x02,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0x02,
-	0x08,
-	0x08,
-	0x23,
-	0x23,
-	0xC0,
-	0xC1,
-	0x01,
-	0x81,
-	0xC1,
-	0x00,
-	0xC8,
-	0xC1,
-	0xD3,
-	0x01,
-};
-
-const u8 s6e8aa0_init_display[] = {
-	0xF2,
-	0x80,
-	0x03,
-	0x0D,
-};
-
-const u8 s6e8aa0_init_post0[] = {
-	0xF6,
-	0x00,
-	0x02,
-	0x00,
-};
-
-const u8 s6e8aa0_init_post1[] = {
-	0xB6,
-	0x0C,
-	0x02,
-	0x03,
-	0x32,
-	0xFF,
-	0x44,
-	0x44,
-	0xC0,
-	0x00,
-};
-
-const u8 s6e8aa0_init_post2[] = {
-	0xD9,
-	0x14,
-	0x40,
-	0x0C,
-	0xCB,
-	0xCE,
-	0x6E,
-	0xC4,
-	0x0F,
-	0x40,
-	0x40,
-	0xCE,
-	0x00,
-	0x60,
-	0x19,
-};
-
-static int s6e8aa0_write(struct omap_dss_device *dssdev, u8 val)
-{
-	return dsi_vc_dcs_write(dssdev, 1, &val, 1);
-}
 
 static int s6e8aa0_write_reg(struct omap_dss_device *dssdev, u8 reg, u8 val)
 {
@@ -243,6 +145,18 @@ static int s6e8aa0_read_block(struct omap_dss_device *dssdev,
 			      u8 cmd, u8 *data, int len)
 {
 	return dsi_vc_dcs_read(dssdev, 1, cmd, data, len);
+}
+
+static void s6e8aa0_write_sequence(struct omap_dss_device *dssdev,
+	const struct s6e8aa0_sequence_entry *seq, int seq_len)
+{
+	while (seq_len--) {
+		if (seq->cmd_len)
+			s6e8aa0_write_block(dssdev, seq->cmd, seq->cmd_len);
+		if (seq->msleep)
+			msleep(seq->msleep);
+		seq++;
+	}
 }
 
 /***********************
@@ -635,7 +549,8 @@ static int s6e8aa0_probe(struct omap_dss_device *dssdev)
 
 	s6->bl = props.brightness;
 
-	if (!s6->pdata->gamma_table) {
+	if (!s6->pdata->seq_display_set || !s6->pdata->seq_etc_set
+		|| !s6->pdata->gamma_table) {
 		dev_err(&dssdev->dev, "Invalid platform data\n");
 		ret = -EINVAL;
 		goto err;
@@ -696,27 +611,19 @@ static void s6e8aa0_remove(struct omap_dss_device *dssdev)
 static void s6e8aa0_config(struct omap_dss_device *dssdev)
 {
 	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
+	struct panel_s6e8aa0_data *pdata = s6->pdata;
 	if (!s6->color_mult[0]) {
 		s6e8aa0_read_mtp_info(s6);
 		s6e8aa0_adjust_brightness_from_mtp(s6);
 	}
-	s6e8aa0_write_block(dssdev, s6e8aa0_init_pre, ARRAY_SIZE(s6e8aa0_init_pre));
 
-	s6e8aa0_write(dssdev, 0x11);
+	s6e8aa0_write_sequence(dssdev, pdata->seq_display_set,
+			       pdata->seq_display_set_size);
 
-	s6e8aa0_write_block(dssdev, s6e8aa0_init_panel, ARRAY_SIZE(s6e8aa0_init_panel));
-	s6e8aa0_write_block(dssdev, s6e8aa0_init_display, ARRAY_SIZE(s6e8aa0_init_display));
 	s6e8aa0_update_brightness(dssdev);
 
-	s6e8aa0_write_reg(dssdev, 0xF7, 0x01);
-
-	s6e8aa0_write_block(dssdev, s6e8aa0_init_post0, ARRAY_SIZE(s6e8aa0_init_post0));
-	s6e8aa0_write_block(dssdev, s6e8aa0_init_post1, ARRAY_SIZE(s6e8aa0_init_post1));
-	s6e8aa0_write_block(dssdev, s6e8aa0_init_post2, ARRAY_SIZE(s6e8aa0_init_post1));
-
-	msleep(250); //XXX: find minimum time
-
-	s6e8aa0_write(dssdev, 0x29);
+	s6e8aa0_write_sequence(dssdev, pdata->seq_etc_set,
+			       pdata->seq_etc_set_size);
 }
 
 static int s6e8aa0_power_on(struct omap_dss_device *dssdev)
@@ -969,7 +876,7 @@ static struct omap_dss_driver s6e8aa0_driver = {
 
 static int __init s6e8aa0_init(void)
 {
-	omap_dss_register_driver(&s6e8aa0_driver);;
+	omap_dss_register_driver(&s6e8aa0_driver);
 	return 0;
 }
 

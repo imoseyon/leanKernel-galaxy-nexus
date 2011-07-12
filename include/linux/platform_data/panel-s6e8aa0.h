@@ -22,6 +22,12 @@
 #ifndef __LINUX_PLATFORM_DATA_PANEL_S6E8AA0_H
 #define __LINUX_PLATFORM_DATA_PANEL_S6E8AA0_H
 
+struct s6e8aa0_sequence_entry {
+	const u8 *cmd;
+	int cmd_len;
+	unsigned int msleep;
+};
+
 enum {
 	BV_0	=        0x0,
 	BV_1	=   0x13E456,
@@ -57,6 +63,11 @@ struct s6e8aa0_color_adj {
 struct panel_s6e8aa0_data {
 	int	reset_gpio;
 	void	(* set_power)(bool enable);
+
+	const struct s6e8aa0_sequence_entry *seq_display_set;
+	int seq_display_set_size;
+	const struct s6e8aa0_sequence_entry *seq_etc_set;
+	int seq_etc_set_size;
 
 	u16 factory_v255_regs[3];
 	struct s6e8aa0_color_adj color_adj;
