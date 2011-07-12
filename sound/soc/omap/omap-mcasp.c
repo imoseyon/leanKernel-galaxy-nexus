@@ -254,22 +254,105 @@ static inline void mcasp_set_ctl_reg(void __iomem *regs, u32 val)
 		printk(KERN_ERR "GBLCTL write error\n");
 }
 
-static int mcasp_lookup_clkdiv(struct omap_mcasp *mcasp, unsigned int rate,
-						u32 *ahclkxdiv, u32 *aclkxdiv)
+static void mcasp_clk_on(struct omap_mcasp *mcasp)
 {
-	unsigned int i, rate_bit;
+	if (mcasp->clk_active)
+		return;
+	if (!omap_hwmod_enable_clocks(mcasp->oh))
+		mcasp->clk_active = 1;
+}
 
-	rate_bit = snd_pcm_rate_to_rate_bit(rate);
+static void mcasp_clk_off(struct omap_mcasp *mcasp)
+{
+	if (!mcasp->clk_active)
+		return;
+	omap_hwmod_disable_clocks(mcasp->oh);
+	mcasp->clk_active = 0;
+}
 
-	for (i = 0; i < mcasp->num_configs; i++) {
-		if (mcasp->configs[i].sampling_rate == rate_bit) {
-			*aclkxdiv = mcasp->configs[i].aclkxdiv;
-			*ahclkxdiv = mcasp->configs[i].ahclkxdiv;
-			return 0;
-		}
+static int mcasp_compute_clock_dividers(long fclk_rate, int tgt_sample_rate,
+			int *out_div_lo, int *out_div_hi)
+{
+	/* Given a particular functional clock rate and a target audio sample
+	 * rate, determine the proper values for the ACLKXCTL and AHCLKXCTL, the
+	 * dividers which produce the high frequency transmit master clock and
+	 * the transmit clock.
+	 */
+	long divisor;
+	int i;
+	BUG_ON(!out_div_lo);
+	BUG_ON(!out_div_hi);
+
+	/* Start by making sure the fclk is divisible by 128 (the number of
+	 * clocks present in a single S/PDIF frame.
+	 */
+	if (fclk_rate & 0x7F)
+		return -EINVAL;
+
+	fclk_rate >>= 7;
+
+	/* Next, make sure that our target Fs divides fClk/128 */
+	if  (fclk_rate % tgt_sample_rate)
+		return -EINVAL;
+
+	divisor = fclk_rate / tgt_sample_rate;
+
+	/* At this point, divisor holds the product of the two divider values we
+	 * need to use for ACLKXCTL and AHCLKXCTL.  ACLKXCTL holds a 5 bit
+	 * divider [1, 32], while AHCLKXCTL holds a 12 bit divider [1, 4096].
+	 * We need to make sure that we can factor divisor into two integers
+	 * which will fit into these divider registers.  Find the largest 5-bit
+	 * + 1 value which divides divisor and use that as our smaller divider.
+	 * After removing this factor from divisor, if the result is <= 4096,
+	 * then we have succeeded and will be able to produce the target sample
+	 * rate.
+	 */
+	for (i = 32; (i > 1) && (divisor % i); --i)
+		; /* no body */
+
+	/* Make sure to subtract one, registers hold the value of the divider
+	 * minus one (IOW, to divide by 5, the register gets programmed with the
+	 * value 4. */
+	*out_div_lo = i - 1;
+	*out_div_hi = (divisor / i) - 1;
+
+	return (*out_div_hi <= 4096) ? 0 : -EINVAL;
+}
+
+static int mcasp_compute_playback_rates(long fclk_rate)
+{
+	static const int rate_table[][2] = {
+		{ 5512, SNDRV_PCM_RATE_5512 },
+		{ 8000, SNDRV_PCM_RATE_8000 },
+		{ 11025, SNDRV_PCM_RATE_11025 },
+		{ 16000, SNDRV_PCM_RATE_16000 },
+		{ 22050, SNDRV_PCM_RATE_22050 },
+		{ 32000, SNDRV_PCM_RATE_32000 },
+		{ 44100, SNDRV_PCM_RATE_44100 },
+		{ 48000, SNDRV_PCM_RATE_48000 },
+		{ 64000, SNDRV_PCM_RATE_64000 },
+		{ 88200, SNDRV_PCM_RATE_88200 },
+		{ 96000, SNDRV_PCM_RATE_96000 },
+		{ 176400, SNDRV_PCM_RATE_176400 },
+		{ 192000, SNDRV_PCM_RATE_192000 },
+	};
+	int i, res;
+
+	if (!fclk_rate)
+		return 0;
+
+	res = 0;
+	for (i = 0; i < ARRAY_SIZE(rate_table); ++i) {
+		int lo, hi;
+
+		if (!mcasp_compute_clock_dividers(fclk_rate,
+					rate_table[i][0],
+					&lo,
+					&hi))
+			res |= rate_table[i][1];
 	}
 
-	return -EINVAL;
+	return res;
 }
 
 static int mcasp_start_tx(struct omap_mcasp *mcasp)
@@ -330,6 +413,8 @@ static int omap_mcasp_startup(struct snd_pcm_substream *substream,
 	struct platform_device *pdev;
 	struct omap_mcasp *mcasp = snd_soc_dai_get_drvdata(dai);
 
+	mcasp_clk_on(mcasp);
+
 	pdev = to_platform_device(mcasp->dev);
 
 	if (!mcasp->active++)
@@ -352,24 +437,15 @@ static void omap_mcasp_shutdown(struct snd_pcm_substream *substream,
 
 	if (!--mcasp->active)
 		pm_runtime_put_sync(&pdev->dev);
+
+	mcasp_clk_off(mcasp);
 }
 
 /* S/PDIF */
 static int omap_hw_dit_param(struct omap_mcasp *mcasp, unsigned int rate)
 {
 	u32 aclkxdiv, ahclkxdiv;
-
-	/* To support a particular sampling rate we need to ensure that
-	 * the McASP functional clock is at the expected frequency. So
-	 * make sure the current McASP functional clock frequency is what
-	 * we expect.
-	 */
-	if (clk_get_rate(mcasp->fclk) != mcasp->fclk_rate) {
-		dev_err(mcasp->dev, "%s: %s (%ld) != %ld\n",
-		       __func__, mcasp->fclk->name, clk_get_rate(mcasp->fclk),
-		       mcasp->fclk_rate);
-		return -EINVAL;
-	}
+	int res;
 
 	/* Set TX frame synch : DIT Mode, 1 bit width, internal, rising edge */
 	mcasp_set_reg(mcasp->base + OMAP_MCASP_TXFMCTL_REG,
@@ -391,11 +467,15 @@ static int omap_hw_dit_param(struct omap_mcasp *mcasp, unsigned int rate)
 	 * setting. Lookup the appropriate dividers for the sampling
 	 * frequency that we are playing.
 	 */
-	if (mcasp_lookup_clkdiv(mcasp, rate, &ahclkxdiv, &aclkxdiv)) {
+	res = mcasp_compute_clock_dividers(clk_get_rate(mcasp->fclk),
+				rate,
+				&aclkxdiv,
+				&ahclkxdiv);
+	if (res) {
 		dev_err(mcasp->dev,
 			"%s: No valid McASP config for sampling rate (%d)!\n",
 			__func__, rate);
-		return -EINVAL;
+		return res;
 	}
 
 	mcasp_set_bits(mcasp->base + OMAP_MCASP_AHCLKXCTL_REG,
@@ -500,10 +580,10 @@ static struct snd_soc_dai_driver omap_mcasp_dai[] = {
 
 static __devinit int omap_mcasp_probe(struct platform_device *pdev)
 {
-	struct omap_mcasp_platform_data *pdata;
 	struct omap_mcasp *mcasp;
 	struct omap_hwmod *oh;
-	int i, ret = 0;
+	long fclk_rate;
+	int ret = 0;
 
 	oh = omap_hwmod_lookup("omap-mcasp-dai");
 	if (oh == NULL) {
@@ -514,6 +594,7 @@ static __devinit int omap_mcasp_probe(struct platform_device *pdev)
 	mcasp = kzalloc(sizeof(struct omap_mcasp), GFP_KERNEL);
 	if (!mcasp)
 		return	-ENOMEM;
+	mcasp->oh = oh;
 
 	mcasp->base = omap_hwmod_get_mpu_rt_va(oh);
 	if (!mcasp->base) {
@@ -526,18 +607,20 @@ static __devinit int omap_mcasp_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err;
 	}
+	mcasp_clk_on(mcasp);
+	fclk_rate = clk_get_rate(mcasp->fclk);
 
-	pdata = pdev->dev.platform_data;
 	platform_set_drvdata(pdev, mcasp);
-
 	mcasp->dev = &pdev->dev;
-	mcasp->fclk_rate = pdata->mcasp_fclk_rate;
-	mcasp->configs = pdata->mcasp_configs;
-	mcasp->num_configs = pdata->num_configs;
 
-	for (i = 0; i < mcasp->num_configs; i++)
-		omap_mcasp_dai[0].playback.rates |=
-				mcasp->configs[i].sampling_rate;
+	omap_mcasp_dai[0].playback.rates =
+		mcasp_compute_playback_rates(fclk_rate);
+	if (!omap_mcasp_dai[0].playback.rates) {
+		dev_err(&pdev->dev, "no valid sample rates can be produce from"
+				" a %ld Hz fClk\n", fclk_rate);
+		ret = -ENODEV;
+		goto err;
+	}
 
 	ret = snd_soc_register_dai(&pdev->dev, omap_mcasp_dai);
 
@@ -545,9 +628,12 @@ static __devinit int omap_mcasp_probe(struct platform_device *pdev)
 		goto err;
 
 	pm_runtime_enable(&pdev->dev);
+	mcasp_clk_off(mcasp);
 
 	return 0;
 err:
+	if (mcasp && mcasp->fclk)
+		mcasp_clk_off(mcasp);
 	kfree(mcasp);
 
 	return ret;
@@ -558,6 +644,7 @@ static __devexit int omap_mcasp_remove(struct platform_device *pdev)
 	struct omap_mcasp *mcasp = dev_get_drvdata(&pdev->dev);
 
 	snd_soc_unregister_dai(&pdev->dev);
+	mcasp_clk_off(mcasp);
 	clk_put(mcasp->fclk);
 
 	kfree(mcasp);
