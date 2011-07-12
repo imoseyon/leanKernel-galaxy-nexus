@@ -68,7 +68,8 @@ typedef enum {
     DEBUG_MEM_ALLOC_TYPE_IOREMAP,
     DEBUG_MEM_ALLOC_TYPE_IO,
     DEBUG_MEM_ALLOC_TYPE_KMEM_CACHE,
-    DEBUG_MEM_ALLOC_TYPE_COUNT
+    DEBUG_MEM_ALLOC_TYPE_COUNT,
+    DEBUG_MEM_ALLOC_TYPE_ION
 }DEBUG_MEM_ALLOC_TYPE;
 
 typedef struct _DEBUG_MEM_ALLOC_REC
@@ -1076,6 +1077,112 @@ FreeAllocPagesLinuxMemArea(LinuxMemArea *psLinuxMemArea)
     LinuxMemAreaStructFree(psLinuxMemArea);
 }
 
+#if defined(CONFIG_ION_OMAP)
+
+#include "env_perproc.h"
+
+#include <linux/ion.h>
+#include <linux/omap_ion.h>
+
+extern struct ion_client *gpsIONClient;
+
+LinuxMemArea *
+NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags,
+                   IMG_PVOID pvPrivData, IMG_UINT32 ui32PrivDataLength)
+{
+    struct omap_ion_tiler_alloc_data sAllocData;
+    LinuxMemArea *psLinuxMemArea = IMG_NULL;
+    u32 *pu32PageAddrs;
+    int iNumPages;
+
+    psLinuxMemArea = LinuxMemAreaStructAlloc();
+    if(!psLinuxMemArea)
+    {
+        PVR_DPF((PVR_DBG_ERROR, "%s: Failed to allocate LinuxMemArea struct", __func__));
+        goto err_out;
+    }
+
+    
+    BUG_ON(ui32PrivDataLength != offsetof(struct omap_ion_tiler_alloc_data, handle));
+    memcpy(&sAllocData, pvPrivData, offsetof(struct omap_ion_tiler_alloc_data, handle));
+
+    if(omap_ion_tiler_alloc(gpsIONClient, &sAllocData) < 0)
+    {
+        PVR_DPF((PVR_DBG_ERROR, "%s: Failed to allocate via ion_tiler", __func__));
+        goto err_free;
+    }
+
+    if(omap_tiler_pages(gpsIONClient, sAllocData.handle, &iNumPages,
+						&pu32PageAddrs) < 0)
+    {
+      	PVR_DPF((PVR_DBG_ERROR, "%s: Failed to compute tiler pages", __func__));
+       	goto err_free;
+    }	
+
+    
+    BUG_ON(ui32Bytes != iNumPages * PAGE_SIZE);
+
+#if defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
+    DebugMemAllocRecordAdd(DEBUG_MEM_ALLOC_TYPE_ION,
+                           sAllocData.handle,
+                           0,
+                           0,
+                           NULL,
+                           PAGE_ALIGN(ui32Bytes),
+                           "unknown",
+                           0
+                           );
+#endif
+
+    psLinuxMemArea->eAreaType = LINUX_MEM_AREA_ION;
+    psLinuxMemArea->uData.sIONTilerAlloc.pCPUPhysAddrs = (IMG_CPU_PHYADDR *)pu32PageAddrs;
+    psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle = sAllocData.handle;
+    psLinuxMemArea->ui32ByteSize = ui32Bytes;
+    psLinuxMemArea->ui32AreaFlags = ui32AreaFlags;
+    INIT_LIST_HEAD(&psLinuxMemArea->sMMapOffsetStructList);
+
+    
+    if(ui32AreaFlags & (PVRSRV_HAP_WRITECOMBINE | PVRSRV_HAP_UNCACHED))
+    {
+        psLinuxMemArea->bNeedsCacheInvalidate = IMG_TRUE;
+    }
+
+#if defined(DEBUG_LINUX_MEM_AREAS)
+    DebugLinuxMemAreaRecordAdd(psLinuxMemArea, ui32AreaFlags);
+#endif
+
+err_out:
+    return psLinuxMemArea;
+
+err_free:
+    LinuxMemAreaStructFree(psLinuxMemArea);
+    goto err_out;
+}
+
+
+IMG_VOID
+FreeIONLinuxMemArea(LinuxMemArea *psLinuxMemArea)
+{
+#if defined(DEBUG_LINUX_MEM_AREAS)
+    DebugLinuxMemAreaRecordRemove(psLinuxMemArea);
+#endif
+
+    ion_free(gpsIONClient, psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle);
+
+#if defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
+    DebugMemAllocRecordRemove(DEBUG_MEM_ALLOC_TYPE_ION,
+                              psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle,
+                              __FILE__, __LINE__);
+#endif
+
+    
+    psLinuxMemArea->uData.sIONTilerAlloc.pCPUPhysAddrs = IMG_NULL;
+    psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle = IMG_NULL;
+
+    LinuxMemAreaStructFree(psLinuxMemArea);
+}
+
+#endif 
 
 struct page*
 LinuxMemAreaOffsetToPage(LinuxMemArea *psLinuxMemArea,
@@ -1278,14 +1385,17 @@ LinuxMemAreaDeepFree(LinuxMemArea *psLinuxMemArea)
         case LINUX_MEM_AREA_IOREMAP:
             FreeIORemapLinuxMemArea(psLinuxMemArea);
             break;
-	case LINUX_MEM_AREA_EXTERNAL_KV:
-	    FreeExternalKVLinuxMemArea(psLinuxMemArea);
-	    break;
+        case LINUX_MEM_AREA_EXTERNAL_KV:
+            FreeExternalKVLinuxMemArea(psLinuxMemArea);
+            break;
         case LINUX_MEM_AREA_IO:
             FreeIOLinuxMemArea(psLinuxMemArea);
             break;
         case LINUX_MEM_AREA_SUB_ALLOC:
             FreeSubLinuxMemArea(psLinuxMemArea);
+            break;
+        case LINUX_MEM_AREA_ION:
+            FreeIONLinuxMemArea(psLinuxMemArea);
             break;
         default:
             PVR_DPF((PVR_DBG_ERROR, "%s: Unknown are type (%d)\n",
@@ -1490,6 +1600,13 @@ LinuxMemAreaToCpuPAddr(LinuxMemArea *psLinuxMemArea, IMG_UINT32 ui32ByteOffset)
             CpuPAddr.uiAddr = VMallocToPhys(pCpuVAddr);
             break;
         }
+        case LINUX_MEM_AREA_ION:
+        {
+            IMG_UINT32 ui32PageIndex = PHYS_TO_PFN(ui32ByteOffset);
+            CpuPAddr = psLinuxMemArea->uData.sIONTilerAlloc.pCPUPhysAddrs[ui32PageIndex];
+            CpuPAddr.uiAddr += ADDR_TO_PAGE_OFFSET(ui32ByteOffset);
+            break;
+        }
         case LINUX_MEM_AREA_ALLOC_PAGES:
         {
             struct page *page;
@@ -1529,16 +1646,17 @@ LinuxMemAreaPhysIsContig(LinuxMemArea *psLinuxMemArea)
         case LINUX_MEM_AREA_IO:
             return IMG_TRUE;
 
-	case LINUX_MEM_AREA_EXTERNAL_KV:
-	    return psLinuxMemArea->uData.sExternalKV.bPhysContig;
+        case LINUX_MEM_AREA_EXTERNAL_KV:
+            return psLinuxMemArea->uData.sExternalKV.bPhysContig;
 
+        case LINUX_MEM_AREA_ION:
         case LINUX_MEM_AREA_VMALLOC:
         case LINUX_MEM_AREA_ALLOC_PAGES:
-	    return IMG_FALSE;
+            return IMG_FALSE;
 
         case LINUX_MEM_AREA_SUB_ALLOC:
              
-	    return LinuxMemAreaPhysIsContig(psLinuxMemArea->uData.sSubAlloc.psParentLinuxMemArea);
+            return LinuxMemAreaPhysIsContig(psLinuxMemArea->uData.sSubAlloc.psParentLinuxMemArea);
 
         default:
             PVR_DPF((PVR_DBG_ERROR, "%s: Unknown LinuxMemArea type (%d)\n",
@@ -1567,6 +1685,8 @@ LinuxMemAreaTypeToString(LINUX_MEM_AREA_TYPE eMemAreaType)
             return "LINUX_MEM_AREA_SUB_ALLOC";
         case LINUX_MEM_AREA_ALLOC_PAGES:
             return "LINUX_MEM_AREA_ALLOC_PAGES";
+        case LINUX_MEM_AREA_ION:
+            return "LINUX_MEM_AREA_ION";
         default:
             PVR_ASSERT(0);
     }

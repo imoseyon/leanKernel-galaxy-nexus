@@ -22,30 +22,15 @@
  * Imagination Technologies Ltd. <gpl-support@imgtec.com>
  * Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK 
  *
-*/ /**************************************************************************/
+ *****************************************************************************/
 
-#ifndef _PVRVERSION_H_
-#define _PVRVERSION_H_
+#ifndef __IMG_LINUX_ION_H__
+#define __IMG_LINUX_ION_H__
 
-#define PVR_STR(X) #X
-#define PVR_STR2(X) PVR_STR(X)
+#include <linux/ion.h>
+#include <linux/omap_ion.h>
 
-#define PVRVERSION_MAJ               1
-#define PVRVERSION_MIN               8
-#define PVRVERSION_BRANCH            18
+struct ion_handle *PVRSRVExportFDToIONHandle(int fd,
+											 struct ion_client **client);
 
-#define PVRVERSION_FAMILY           "eurasiacon.pj"
-#define PVRVERSION_BRANCHNAME       "1.8.18"
-#define PVRVERSION_BUILD             844
-#define PVRVERSION_BSCONTROL        "Unknown"
-
-#define PVRVERSION_STRING           "1.8.18." PVR_STR2(PVRVERSION_BUILD)
-#define PVRVERSION_STRING_SHORT     "1.8.18." PVR_STR2(PVRVERSION_BUILD)
-
-#define COPYRIGHT_TXT               "Copyright (c) Imagination Technologies Ltd. All Rights Reserved."
-
-#define PVRVERSION_BUILD_HI          18
-#define PVRVERSION_BUILD_LO          844
-#define PVRVERSION_STRING_NUMERIC    PVR_STR2(PVRVERSION_MAJ) "." PVR_STR2(PVRVERSION_MIN) "." PVR_STR2(PVRVERSION_BUILD_HI) "." PVR_STR2(PVRVERSION_BUILD_LO)
-
-#endif /* _PVRVERSION_H_ */
+#endif /* __IMG_LINUX_ION_H__ */

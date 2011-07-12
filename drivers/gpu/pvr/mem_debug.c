@@ -41,8 +41,6 @@ extern "C"
 
 	
 
-	
-
 
 
 
@@ -187,7 +185,6 @@ extern "C"
 			return eError;
 		}
 
-		
 		OSMemSet((IMG_CHAR *)(*ppvCpuVAddr) + TEST_BUFFER_PADDING_STATUS, 0xBB, ui32Size);
 		OSMemSet((IMG_CHAR *)(*ppvCpuVAddr) + ui32Size + TEST_BUFFER_PADDING_STATUS, 0xB2, TEST_BUFFER_PADDING_AFTER);
 
@@ -247,4 +244,4 @@ extern "C"
 
 #endif 
 
-#endif        
+#endif 

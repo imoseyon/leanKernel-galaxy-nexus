@@ -503,7 +503,9 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVInsertCommandKM(PVRSRV_QUEUE_INFO	*psQueue,
 												PVRSRV_KERNEL_SYNC_INFO	*apsDstSync[],
 												IMG_UINT32			ui32SrcSyncCount,
 												PVRSRV_KERNEL_SYNC_INFO	*apsSrcSync[],
-												IMG_SIZE_T			ui32DataByteSize )
+												IMG_SIZE_T			ui32DataByteSize,
+												PFN_QUEUE_COMMAND_COMPLETE pfnCommandComplete,
+												IMG_HANDLE			hCallbackData)
 {
 	PVRSRV_ERROR 	eError;
 	PVRSRV_COMMAND	*psCommand;
@@ -544,6 +546,9 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVInsertCommandKM(PVRSRV_QUEUE_INFO	*psQueue,
 	psCommand->pvData			= (PVRSRV_SYNC_OBJECT*)(((IMG_UINTPTR_T)psCommand->psSrcSync)
 								+ (ui32SrcSyncCount * sizeof(PVRSRV_SYNC_OBJECT)));
 	psCommand->uDataSize		= ui32DataByteSize;
+
+	psCommand->pfnCommandComplete = pfnCommandComplete;
+	psCommand->hCallbackData = hCallbackData;
 
 	PVR_TTRACE(PVRSRV_TRACE_GROUP_QUEUE, PVRSRV_TRACE_CLASS_CMD_START, QUEUE_TOKEN_INSERTKM);
 	PVR_TTRACE_UI32(PVRSRV_TRACE_GROUP_QUEUE, PVRSRV_TRACE_CLASS_NONE,
@@ -731,6 +736,8 @@ PVRSRV_ERROR PVRSRVProcessCommand(SYS_DATA			*psSysData,
 				ui32CCBOffset));
 	}
 
+	psCmdCompleteData->pfnCommandComplete = psCommand->pfnCommandComplete;
+	psCmdCompleteData->hCallbackData = psCommand->hCallbackData;
 
 	
 	psCmdCompleteData->ui32SrcSyncCount = psCommand->ui32SrcSyncCount;
@@ -914,6 +921,11 @@ IMG_VOID PVRSRVCommandCompleteKM(IMG_HANDLE	hCmdCookie,
 
 	PVR_TTRACE(PVRSRV_TRACE_GROUP_QUEUE, PVRSRV_TRACE_CLASS_CMD_COMP_END,
 			QUEUE_TOKEN_COMMAND_COMPLETE);
+
+	if (psCmdCompleteData->pfnCommandComplete)
+	{
+		psCmdCompleteData->pfnCommandComplete(psCmdCompleteData->hCallbackData);
+	}
 
 	
 	psCmdCompleteData->bInUse = IMG_FALSE;

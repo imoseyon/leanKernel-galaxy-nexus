@@ -22,8 +22,7 @@
  * Imagination Technologies Ltd. <gpl-support@imgtec.com>
  * Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK 
  *
- ******************************************************************************/
-
+*****************************************************************************/
 #ifndef __SGXSCRIPT_H__
 #define __SGXSCRIPT_H__
 
@@ -77,5 +76,8 @@ typedef struct _SGX_INIT_SCRIPTS_
 }
 #endif
 
-#endif 
+#endif /* __SGXSCRIPT_H__ */
 
+/*****************************************************************************
+ End of file (sgxscript.h)
+*****************************************************************************/

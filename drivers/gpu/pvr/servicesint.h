@@ -179,6 +179,8 @@ typedef struct _PVRSRV_COMMAND
 	IMG_SIZE_T			uDataSize;		
 	IMG_UINT32			ui32ProcessID;		
 	IMG_VOID			*pvData;			
+	PFN_QUEUE_COMMAND_COMPLETE  pfnCommandComplete;	
+	IMG_HANDLE					hCallbackData;		
 }PVRSRV_COMMAND, *PPVRSRV_COMMAND;
 
 
@@ -300,6 +302,21 @@ typedef struct PVRSRV_CLIENT_DEVICECLASS_INFO_TAG
 #endif
 	IMG_HANDLE	hServices;
 } PVRSRV_CLIENT_DEVICECLASS_INFO;
+
+
+typedef enum
+{
+	PVRSRV_FREE_CALLBACK_ORIGIN_ALLOCATOR,
+	PVRSRV_FREE_CALLBACK_ORIGIN_IMPORTER,
+	PVRSRV_FREE_CALLBACK_ORIGIN_EXTERNAL,
+}
+PVRSRV_FREE_CALLBACK_ORIGIN;
+
+
+IMG_IMPORT
+PVRSRV_ERROR FreeMemCallBackCommon(PVRSRV_KERNEL_MEM_INFO *psMemInfo,
+                                   IMG_UINT32 ui32Param,
+                                   PVRSRV_FREE_CALLBACK_ORIGIN eCallbackOrigin);
 
 
 #ifdef INLINE_IS_PRAGMA

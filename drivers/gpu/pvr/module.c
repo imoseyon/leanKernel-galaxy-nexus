@@ -123,6 +123,13 @@ module_param(gPVRDebugLevel, uint, 0644);
 MODULE_PARM_DESC(gPVRDebugLevel, "Sets the level of debug output (default 0x7)");
 #endif 
 
+#if defined(CONFIG_ION_OMAP)
+#include <linux/ion.h>
+#include <linux/omap_ion.h>
+extern struct ion_device *omap_ion_device;
+struct ion_client *gpsIONClient;
+#endif 
+
  
 EXPORT_SYMBOL(PVRGetDisplayClassJTable);
 EXPORT_SYMBOL(PVRGetBufferClassJTable);
@@ -267,6 +274,18 @@ static int __devinit PVRSRVDriverProbe(LDM_DEV *pDevice, const struct pci_device
 		}
 	}
 
+#if defined(CONFIG_ION_OMAP)
+	gpsIONClient = ion_client_create(omap_ion_device,
+									 1 << ION_HEAP_TYPE_CARVEOUT |
+									 1 << OMAP_ION_HEAP_TYPE_TILER,
+									 "pvr");
+	if (IS_ERR_OR_NULL(gpsIONClient))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "PVRSRVDriverProbe: Couldn't create ion client"));
+		return PTR_ERR(gpsIONClient);
+	}
+#endif 
+
 	return 0;
 }
 
@@ -281,6 +300,11 @@ static void __devexit PVRSRVDriverRemove(LDM_DEV *pDevice)
 	SYS_DATA *psSysData;
 
 	PVR_TRACE(("PVRSRVDriverRemove(pDevice=%p)", pDevice));
+
+#if defined(CONFIG_ION_OMAP)
+	ion_client_destroy(gpsIONClient);
+	gpsIONClient = IMG_NULL;
+#endif
 
 	SysAcquireData(&psSysData);
 	
@@ -484,6 +508,7 @@ static int PVRSRVRelease(struct inode unref__ * pInode, struct file *pFile)
 #endif
 {
 	PVRSRV_FILE_PRIVATE_DATA *psPrivateData;
+	int err = 0;
 
 	LinuxLockMutex(&gPVRSRVLock);
 
@@ -497,6 +522,31 @@ static int PVRSRVRelease(struct inode unref__ * pInode, struct file *pFile)
 #if defined(SUPPORT_DRI_DRM) && defined(PVR_SECURE_DRM_AUTH_EXPORT)
 		list_del(&psPrivateData->sDRMAuthListItem);
 #endif
+
+		if(psPrivateData->hKernelMemInfo)
+		{
+			PVRSRV_KERNEL_MEM_INFO *psKernelMemInfo;
+
+			
+			if(PVRSRVLookupHandle(KERNEL_HANDLE_BASE,
+								  (IMG_PVOID *)&psKernelMemInfo,
+								  psPrivateData->hKernelMemInfo,
+								  PVRSRV_HANDLE_TYPE_MEM_INFO) != PVRSRV_OK)
+			{
+				PVR_DPF((PVR_DBG_ERROR, "%s: Failed to look up export handle", __FUNCTION__));
+				err = -EFAULT;
+				goto err_unlock;
+			}
+
+			
+			if(FreeMemCallBackCommon(psKernelMemInfo, 0,
+									 PVRSRV_FREE_CALLBACK_ORIGIN_EXTERNAL) != PVRSRV_OK)
+			{
+				PVR_DPF((PVR_DBG_ERROR, "%s: FreeMemCallBackCommon failed", __FUNCTION__));
+				err = -EFAULT;
+				goto err_unlock;
+			}
+		}
 
 		
 		gui32ReleasePID = psPrivateData->ui32OpenPID;
@@ -512,10 +562,12 @@ static int PVRSRVRelease(struct inode unref__ * pInode, struct file *pFile)
 #endif
 	}
 
+err_unlock:
 	LinuxUnLockMutex(&gPVRSRVLock);
-
-#if !defined(SUPPORT_DRI_DRM)
-	return 0;
+#if defined(SUPPORT_DRI_DRM)
+	return;
+#else
+	return err;
 #endif
 }
 

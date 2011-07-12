@@ -213,11 +213,20 @@ static void WorkQueueHandler(struct work_struct *psWork)
 
 OMAPLFB_ERROR OMAPLFBCreateSwapQueue(OMAPLFB_SWAPCHAIN *psSwapChain)
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
 	
-	psSwapChain->psWorkQueue = alloc_ordered_workqueue(DEVNAME, WQ_NON_REENTRANT | WQ_FREEZABLE | WQ_HIGHPRI);
+	psSwapChain->psWorkQueue = alloc_ordered_workqueue(DEVNAME, WQ_FREEZABLE | WQ_MEM_RECLAIM);
+#else
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36))
+	psSwapChain->psWorkQueue = create_freezable_workqueue(DEVNAME);
+#else
+	
+	psSwapChain->psWorkQueue = __create_workqueue(DEVNAME, 1, 1, 1);
+#endif
+#endif
 	if (psSwapChain->psWorkQueue == NULL)
 	{
-		printk(KERN_ERR DRIVER_PREFIX ": %s: Device %u: create_singlethreaded_workqueue failed\n", __FUNCTION__, psSwapChain->uiFBDevID);
+		printk(KERN_ERR DRIVER_PREFIX ": %s: Device %u: Couldn't create workqueue\n", __FUNCTION__, psSwapChain->uiFBDevID);
 
 		return (OMAPLFB_ERROR_INIT_FAILURE);
 	}
@@ -241,7 +250,7 @@ void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 	int res;
 	unsigned long ulYResVirtual;
 
-	console_lock();
+	OMAPLFB_CONSOLE_LOCK();
 
 	sFBVar = psDevInfo->psLINFBInfo->var;
 
@@ -277,27 +286,7 @@ void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 		}
 	}
 #endif
-
-	{
-	#include <video/dsscomp.h>
-	#include <plat/dsscomp.h>
-
-	struct omapfb_info *ofbi = FB2OFB(psDevInfo->psLINFBInfo);
-	struct omap_overlay_manager *manager;
-	struct omap_overlay *overlay;
-
-	dsscomp_t comp;
-	u32 sync_id;
-
-	overlay = ofbi->overlays[OMAP_DSS_GFX];
-	manager = overlay->manager;
-
-	sync_id = dsscomp_first_sync_id(manager);
-	comp = dsscomp_find(manager, sync_id);
-	dsscomp_apply(comp);
-	}
-
-	console_unlock();
+	OMAPLFB_CONSOLE_UNLOCK();
 }
 
 #if !defined(PVR_OMAPLFB_DRM_FB) || defined(DEBUG)
@@ -575,7 +564,7 @@ OMAPLFB_BOOL OMAPLFBSetUpdateMode(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_UPDATE_MOD
 	res = psDSSDrv->set_update_mode(psDSSDev, eDSSMode);
 	if (res != 0)
 	{
-		DEBUG_PRINTK((KERN_WARNING DRIVER_PREFIX ": %s: Device %u: set_update_mode (%s) failed (%d)\n", __FUNCTION__, psDevInfo->uiFBDevID, ""/*OMAPLFBDSSUpdateModeToString(eDSSMode)*/, res));
+		DEBUG_PRINTK((KERN_WARNING DRIVER_PREFIX ": %s: Device %u: set_update_mode (%s) failed (%d)\n", __FUNCTION__, psDevInfo->uiFBDevID, OMAPLFBDSSUpdateModeToString(eDSSMode), res));
 	}
 
 	return (res == 0);
@@ -711,9 +700,9 @@ OMAPLFB_ERROR OMAPLFBUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo)
 {
 	int res;
 
-	console_lock();
+	OMAPLFB_CONSOLE_LOCK();
 	res = fb_blank(psDevInfo->psLINFBInfo, 0);
-	console_unlock();
+	OMAPLFB_CONSOLE_UNLOCK();
 	if (res != 0 && res != -EINVAL)
 	{
 		printk(KERN_ERR DRIVER_PREFIX
@@ -728,9 +717,9 @@ OMAPLFB_ERROR OMAPLFBUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo)
 
 static void OMAPLFBBlankDisplay(OMAPLFB_DEVINFO *psDevInfo)
 {
-	console_lock();
+	OMAPLFB_CONSOLE_LOCK();
 	fb_blank(psDevInfo->psLINFBInfo, 1);
-	console_unlock();
+	OMAPLFB_CONSOLE_UNLOCK();
 }
 
 static void OMAPLFBEarlySuspendHandler(struct early_suspend *h)
@@ -961,9 +950,9 @@ int PVR_DRM_MAKENAME(DISPLAY_CONTROLLER, _Ioctl)(struct drm_device unref__ *dev,
 				flush_workqueue(psDevInfo->psSwapChain->psWorkQueue);
 			}
 
-			acquire_console_sem();
+			OMAPLFB_CONSOLE_LOCK();
 			ret = fb_blank(psDevInfo->psLINFBInfo, iFBMode);
-			release_console_sem();
+			OMAPLFB_CONSOLE_UNLOCK();
 
 			OMAPLFBCreateSwapChainUnLock(psDevInfo);
 

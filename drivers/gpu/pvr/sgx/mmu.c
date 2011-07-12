@@ -445,10 +445,12 @@ _AllocPageTableMemory (MMU_HEAP *pMMUHeap,
 	{
 		
 		if (OSAllocPages(PVRSRV_HAP_WRITECOMBINE | PVRSRV_HAP_KERNEL_ONLY,
-						   pMMUHeap->ui32PTSize,
-						   SGX_MMU_PAGE_SIZE,
-						   (IMG_VOID **)&psPTInfoList->PTPageCpuVAddr,
-						   &psPTInfoList->hPTPageOSMemHandle) != PVRSRV_OK)
+						 pMMUHeap->ui32PTSize,
+						 SGX_MMU_PAGE_SIZE,
+						 IMG_NULL,
+						 0,
+						 (IMG_VOID **)&psPTInfoList->PTPageCpuVAddr,
+						 &psPTInfoList->hPTPageOSMemHandle) != PVRSRV_OK)
 		{
 			PVR_DPF((PVR_DBG_ERROR, "_AllocPageTableMemory: ERROR call to OSAllocPages failed"));
 			return IMG_FALSE;
@@ -482,6 +484,8 @@ _AllocPageTableMemory (MMU_HEAP *pMMUHeap,
 					IMG_NULL,
 					0,
 					SGX_MMU_PAGE_SIZE,
+					0,
+					IMG_NULL,
 					0,
 					&(sSysPAddr.uiAddr))!= IMG_TRUE)
 		{
@@ -1273,10 +1277,12 @@ MMU_Initialise (PVRSRV_DEVICE_NODE *psDeviceNode, MMU_CONTEXT **ppsMMUContext, I
 	if(psDeviceNode->psLocalDevMemArena == IMG_NULL)
 	{
 		if (OSAllocPages(PVRSRV_HAP_WRITECOMBINE | PVRSRV_HAP_KERNEL_ONLY,
-							SGX_MMU_PAGE_SIZE,
-							SGX_MMU_PAGE_SIZE,
-							&pvPDCpuVAddr,
-							&hPDOSMemHandle) != PVRSRV_OK)
+						 SGX_MMU_PAGE_SIZE,
+						 SGX_MMU_PAGE_SIZE,
+						 IMG_NULL,
+						 0,
+						 &pvPDCpuVAddr,
+						 &hPDOSMemHandle) != PVRSRV_OK)
 		{
 			PVR_DPF((PVR_DBG_ERROR, "MMU_Initialise: ERROR call to OSAllocPages failed"));
 			return PVRSRV_ERROR_FAILED_TO_ALLOC_PAGES;
@@ -1304,10 +1310,12 @@ MMU_Initialise (PVRSRV_DEVICE_NODE *psDeviceNode, MMU_CONTEXT **ppsMMUContext, I
 		{
 			
 			if (OSAllocPages(PVRSRV_HAP_WRITECOMBINE | PVRSRV_HAP_KERNEL_ONLY,
-								SGX_MMU_PAGE_SIZE,
-								SGX_MMU_PAGE_SIZE,
-								&psDevInfo->pvDummyPTPageCpuVAddr,
-								&psDevInfo->hDummyPTPageOSMemHandle) != PVRSRV_OK)
+							 SGX_MMU_PAGE_SIZE,
+							 SGX_MMU_PAGE_SIZE,
+							 IMG_NULL,
+							 0,
+							 &psDevInfo->pvDummyPTPageCpuVAddr,
+							 &psDevInfo->hDummyPTPageOSMemHandle) != PVRSRV_OK)
 			{
 				PVR_DPF((PVR_DBG_ERROR, "MMU_Initialise: ERROR call to OSAllocPages failed"));
 				return PVRSRV_ERROR_FAILED_TO_ALLOC_PAGES;
@@ -1327,10 +1335,12 @@ MMU_Initialise (PVRSRV_DEVICE_NODE *psDeviceNode, MMU_CONTEXT **ppsMMUContext, I
 
 			
 			if (OSAllocPages(PVRSRV_HAP_WRITECOMBINE | PVRSRV_HAP_KERNEL_ONLY,
-								SGX_MMU_PAGE_SIZE,
-								SGX_MMU_PAGE_SIZE,
-								&psDevInfo->pvDummyDataPageCpuVAddr,
-								&psDevInfo->hDummyDataPageOSMemHandle) != PVRSRV_OK)
+							 SGX_MMU_PAGE_SIZE,
+							 SGX_MMU_PAGE_SIZE,
+							 IMG_NULL,
+							 0,
+							 &psDevInfo->pvDummyDataPageCpuVAddr,
+							 &psDevInfo->hDummyDataPageOSMemHandle) != PVRSRV_OK)
 			{
 				PVR_DPF((PVR_DBG_ERROR, "MMU_Initialise: ERROR call to OSAllocPages failed"));
 				return PVRSRV_ERROR_FAILED_TO_ALLOC_PAGES;
@@ -1355,10 +1365,12 @@ MMU_Initialise (PVRSRV_DEVICE_NODE *psDeviceNode, MMU_CONTEXT **ppsMMUContext, I
 			IMG_UINT32 j;
 			
 			if (OSAllocPages(PVRSRV_HAP_WRITECOMBINE | PVRSRV_HAP_KERNEL_ONLY,
-								SGX_MMU_PAGE_SIZE,
-								SGX_MMU_PAGE_SIZE,
-								&psDevInfo->pvBRN31620DummyPageCpuVAddr,
-								&psDevInfo->hBRN31620DummyPageOSMemHandle) != PVRSRV_OK)
+							 SGX_MMU_PAGE_SIZE,
+							 SGX_MMU_PAGE_SIZE,
+							 IMG_NULL,
+							 0,
+							 &psDevInfo->pvBRN31620DummyPageCpuVAddr,
+							 &psDevInfo->hBRN31620DummyPageOSMemHandle) != PVRSRV_OK)
 			{
 				PVR_DPF((PVR_DBG_ERROR, "MMU_Initialise: ERROR call to OSAllocPages failed"));
 				return PVRSRV_ERROR_FAILED_TO_ALLOC_PAGES;
@@ -1386,10 +1398,12 @@ MMU_Initialise (PVRSRV_DEVICE_NODE *psDeviceNode, MMU_CONTEXT **ppsMMUContext, I
 
 			
 			if (OSAllocPages(PVRSRV_HAP_WRITECOMBINE | PVRSRV_HAP_KERNEL_ONLY,
-								SGX_MMU_PAGE_SIZE,
-								SGX_MMU_PAGE_SIZE,
-								&psDevInfo->pvBRN31620DummyPTCpuVAddr,
-								&psDevInfo->hBRN31620DummyPTOSMemHandle) != PVRSRV_OK)
+							 SGX_MMU_PAGE_SIZE,
+							 SGX_MMU_PAGE_SIZE,
+							 IMG_NULL,
+							 0,
+							 &psDevInfo->pvBRN31620DummyPTCpuVAddr,
+							 &psDevInfo->hBRN31620DummyPTOSMemHandle) != PVRSRV_OK)
 			{
 				PVR_DPF((PVR_DBG_ERROR, "MMU_Initialise: ERROR call to OSAllocPages failed"));
 				return PVRSRV_ERROR_FAILED_TO_ALLOC_PAGES;
@@ -1423,6 +1437,8 @@ MMU_Initialise (PVRSRV_DEVICE_NODE *psDeviceNode, MMU_CONTEXT **ppsMMUContext, I
 					IMG_NULL,
 					0,
 					SGX_MMU_PAGE_SIZE,
+					0,
+					IMG_NULL,
 					0,
 					&(sSysPAddr.uiAddr))!= IMG_TRUE)
 		{
@@ -1459,6 +1475,8 @@ MMU_Initialise (PVRSRV_DEVICE_NODE *psDeviceNode, MMU_CONTEXT **ppsMMUContext, I
 						0,
 						SGX_MMU_PAGE_SIZE,
 						0,
+						IMG_NULL,
+						0,
 						&(sSysPAddr.uiAddr))!= IMG_TRUE)
 			{
 				PVR_DPF((PVR_DBG_ERROR, "MMU_Initialise: ERROR call to RA_Alloc failed"));
@@ -1485,6 +1503,8 @@ MMU_Initialise (PVRSRV_DEVICE_NODE *psDeviceNode, MMU_CONTEXT **ppsMMUContext, I
 						IMG_NULL,
 						0,
 						SGX_MMU_PAGE_SIZE,
+						0,
+						IMG_NULL,
 						0,
 						&(sSysPAddr.uiAddr))!= IMG_TRUE)
 			{
@@ -1519,6 +1539,8 @@ MMU_Initialise (PVRSRV_DEVICE_NODE *psDeviceNode, MMU_CONTEXT **ppsMMUContext, I
 						0,
 						SGX_MMU_PAGE_SIZE,
 						0,
+						IMG_NULL,
+						0,
 						&(sSysPAddr.uiAddr))!= IMG_TRUE)
 			{
 				PVR_DPF((PVR_DBG_ERROR, "MMU_Initialise: ERROR call to RA_Alloc failed"));
@@ -1552,6 +1574,8 @@ MMU_Initialise (PVRSRV_DEVICE_NODE *psDeviceNode, MMU_CONTEXT **ppsMMUContext, I
 						IMG_NULL,
 						0,
 						SGX_MMU_PAGE_SIZE,
+						0,
+						IMG_NULL,
 						0,
 						&(sSysPAddr.uiAddr))!= IMG_TRUE)
 			{
@@ -2476,6 +2500,8 @@ MMU_Alloc (MMU_HEAP *pMMUHeap,
 							0,
 							uDevVAddrAlignment,
 							0,
+							IMG_NULL,
+							0,
 							&uiAddr);
 		if(!bStatus)
 		{
@@ -3157,6 +3183,8 @@ PVRSRV_ERROR MMU_BIFResetPDAlloc(PVRSRV_SGXDEV_INFO *psDevInfo)
 		eError = OSAllocPages(PVRSRV_HAP_WRITECOMBINE | PVRSRV_HAP_KERNEL_ONLY,
 						      3 * SGX_MMU_PAGE_SIZE,
 						      SGX_MMU_PAGE_SIZE,
+							  IMG_NULL,
+							  0,
 						      (IMG_VOID **)&pui8MemBlock,
 						      &hOSMemHandle);
 		if (eError != PVRSRV_OK)
@@ -3187,6 +3215,8 @@ PVRSRV_ERROR MMU_BIFResetPDAlloc(PVRSRV_SGXDEV_INFO *psDevInfo)
 					IMG_NULL,
 					0,
 					SGX_MMU_PAGE_SIZE,
+					0,
+					IMG_NULL,
 					0,
 					&(sMemBlockSysPAddr.uiAddr)) != IMG_TRUE)
 		{
@@ -3284,10 +3314,12 @@ PVRSRV_ERROR WorkaroundBRN22997Alloc(PVRSRV_DEVICE_NODE	*psDeviceNode)
 	{
 		
 		eError = OSAllocPages(PVRSRV_HAP_WRITECOMBINE | PVRSRV_HAP_KERNEL_ONLY,
-						   SGX_MMU_PAGE_SIZE,
-						   SGX_MMU_PAGE_SIZE,
-						   (IMG_VOID **)&pui32PT,
-						   &hPTPageOSMemHandle);
+							  SGX_MMU_PAGE_SIZE,
+							  SGX_MMU_PAGE_SIZE,
+							  IMG_NULL,
+							  0,
+							  (IMG_VOID **)&pui32PT,
+							  &hPTPageOSMemHandle);
 		if (eError != PVRSRV_OK)
 		{
 			PVR_DPF((PVR_DBG_ERROR, "WorkaroundBRN22997: ERROR call to OSAllocPages failed"));
@@ -3296,10 +3328,12 @@ PVRSRV_ERROR WorkaroundBRN22997Alloc(PVRSRV_DEVICE_NODE	*psDeviceNode)
 		ui32PTOffset = 0;
 
 		eError = OSAllocPages(PVRSRV_HAP_WRITECOMBINE | PVRSRV_HAP_KERNEL_ONLY,
-						   SGX_MMU_PAGE_SIZE,
-						   SGX_MMU_PAGE_SIZE,
-						   (IMG_VOID **)&pui32PD,
-						   &hPDPageOSMemHandle);
+							  SGX_MMU_PAGE_SIZE,
+							  SGX_MMU_PAGE_SIZE,
+							  IMG_NULL,
+							  0,
+							  (IMG_VOID **)&pui32PD,
+							  &hPDPageOSMemHandle);
 		if (eError != PVRSRV_OK)
 		{
 			PVR_DPF((PVR_DBG_ERROR, "WorkaroundBRN22997: ERROR call to OSAllocPages failed"));
@@ -3343,6 +3377,8 @@ PVRSRV_ERROR WorkaroundBRN22997Alloc(PVRSRV_DEVICE_NODE	*psDeviceNode)
 					IMG_NULL,
 					0,
 					SGX_MMU_PAGE_SIZE,
+					0,
+					IMG_NULL,
 					0,
 					&(psDevInfo->sBRN22997SysPAddr.uiAddr))!= IMG_TRUE)
 		{
