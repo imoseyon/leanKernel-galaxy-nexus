@@ -95,11 +95,10 @@ static int cmc221_boot_off(struct modem_ctl *mc)
 
 static int cmc221_get_active(struct modem_ctl *mc)
 {
-	pr_info("%s\n", __func__);
 	if (!mc->gpio_phone_active || !mc->gpio_cp_reset)
 		return -ENXIO;
 
-	pr_info("cp %d phone %d\n",
+	pr_debug("cp %d phone %d\n",
 			gpio_get_value(mc->gpio_cp_reset),
 			gpio_get_value(mc->gpio_phone_active));
 
@@ -171,7 +170,6 @@ static void cmc221_get_ops(struct modem_ctl *mc)
 	mc->ops.modem_reset = cmc221_reset;
 	mc->ops.modem_boot_on = cmc221_boot_on;
 	mc->ops.modem_boot_off = cmc221_boot_off;
-	pr_info("[MODEM_IF] cmc221_get_ops() done\n");
 }
 
 int cmc221_init_modemctl_device(void *data)
@@ -197,13 +195,9 @@ int cmc221_init_modemctl_device(void *data)
 	enable_irq_wake(mc->irq_phone_active);
 	/*disable_irq(mc->irq_phone_active);*/
 
-	pr_info("[MODEM_IF] init_modemctl_device() done : %d\n", ret);
 	return ret;
 
 irq_fail:
 	kfree(mc);
 	return ret;
-
 }
-
-

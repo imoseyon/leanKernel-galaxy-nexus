@@ -211,7 +211,7 @@ static int usb_tx_urb_with_skb(struct usb_link_device *usb_ld,
 			pm_runtime_put(&usbdev->dev);
 			return -1;
 		}
-		pr_info("wait_q done (runtime_status=%d)\n",
+		pr_debug("wait_q done (runtime_status=%d)\n",
 				usbdev->dev.power.runtime_status);
 		SET_SLAVE_WAKEUP(usb_ld->pdata, 0);
 	}
@@ -339,7 +339,7 @@ static int if_usb_suspend(struct usb_interface *intf, pm_message_t message)
 	pr_debug("%s: cnt=%d\n", __func__, usb_ld->suspend_count);
 
 	if (!usb_ld->suspend_count++) {
-		pr_info("%s\n", __func__);
+		pr_debug("%s\n", __func__);
 
 		for (i = 0; i < IF_USB_DEVNUM_MAX; i++)
 			usb_kill_urb(usb_ld->devdata[i].urb);
@@ -357,7 +357,7 @@ static int if_usb_resume(struct usb_interface *intf)
 	pr_debug("%s: cnt=%d\n", __func__, usb_ld->suspend_count);
 
 	if (!--usb_ld->suspend_count) {
-		pr_info("%s\n", __func__);
+		pr_debug("%s\n", __func__);
 
 		for (i = 0; i < IF_USB_DEVNUM_MAX; i++) {
 			ret = usb_rx_submit(usb_ld, &usb_ld->devdata[i],
@@ -376,7 +376,7 @@ static int if_usb_reset_resume(struct usb_interface *intf)
 {
 	int ret;
 
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 	ret = if_usb_resume(intf);
 	return ret;
 }
@@ -454,8 +454,6 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 	int dev_id;
 	int err;
 
-	pr_info("%s IN\n", __func__);
-
 	/* To detect usb device order probed */
 	dev_id = intf->cur_altsetting->desc.bInterfaceNumber;
 
@@ -470,12 +468,10 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 
 	usb_ld->usbdev = usbdev;
 	usb_ld->driver_info = (unsigned long)id->driver_info;
-	pr_info("%s: check 0x%p usbdev\n", __func__, usbdev);
 
 	pm_runtime_set_autosuspend_delay(&usbdev->dev, 1000);
 	schedule_delayed_work(&usb_ld->pm_runtime_work,
 				msecs_to_jiffies(10000));
-	pr_info("%s, set autosuspend\n", __func__);
 	usb_ld->if_usb_connected = 1;
 	usb_ld->flow_suspend = 0;
 
@@ -489,7 +485,6 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 	usb_get_dev(usbdev);
 
 	for (i = 0; i < IF_USB_DEVNUM_MAX; i++) {
-		pr_info("%s: set interface data for %d\n", __func__, i);
 		data_intf = usb_ifnum_to_if(usbdev, i);
 
 		/* remap endpoint of RAW to no.1 for LTE modem */
@@ -547,10 +542,8 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 
 		usb_ld->devdata[i].disconnected = 0;
 	}
-	pr_info("%s successfully done\n", __func__);
 
 	/* temporary call reset_resume */
-	pr_info(">>>> force resume <<<\n");
 	if_usb_reset_resume(data_intf);
 
 	SET_HOST_ACTIVE(usb_ld->pdata, 1);
@@ -579,7 +572,7 @@ static irqreturn_t usb_resume_irq(int irq, void *data)
 	int val = gpio_get_value(usb_ld->pdata->gpio_host_wakeup);
 	static unsigned int i;
 
-	pr_info("< H-WUP %d\n", val);
+	pr_debug("< H-WUP %d\n", val);
 
 	if (i == 0) {
 		pr_err("==> ignore first interrupt :(\n");
@@ -648,8 +641,6 @@ static int if_usb_init(struct link_device *ld)
 	}
 	init_waitqueue_head(&usb_ld->l2_wait);
 
-	pr_info("if_usb_init() done : %d, usb_ld (0x%p)\n",
-								ret, usb_ld);
 	return ret;
 }
 
@@ -717,7 +708,6 @@ struct link_device *usb_create_link_device(void *data)
 	if (ret)
 		return NULL;
 
-	pr_info("[MODEM_IF] %s : create_io_device DONE\n", usb_ld->ld.name);
 	return (void *)ld;
 }
 

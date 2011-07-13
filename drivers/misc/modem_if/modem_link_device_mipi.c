@@ -285,7 +285,7 @@ static int if_hsi_open_channel(struct if_hsi_channel *channel)
 	channel->send_step = STEP_IDLE;
 	channel->recv_step = STEP_IDLE;
 
-	pr_info("[MIPI-HSI] hsi_open Done : %d\n", channel->channel_id);
+	pr_debug("[MIPI-HSI] hsi_open Done : %d\n", channel->channel_id);
 	return 0;
 }
 
@@ -318,7 +318,7 @@ static int if_hsi_close_channel(struct if_hsi_channel *channel)
 	channel->send_step = STEP_CLOSED;
 	channel->recv_step = STEP_CLOSED;
 
-	pr_info("[MIPI-HSI] hsi_close Done : %d\n", channel->channel_id);
+	pr_debug("[MIPI-HSI] hsi_close Done : %d\n", channel->channel_id);
 	return 0;
 }
 
@@ -431,9 +431,8 @@ static int hsi_init_handshake(struct mipi_link_device *mipi_ld, int mode)
 
 		hsi_ioctl(mipi_ld->hsi_channles[HSI_FLASHLESS_CHANNEL].dev,
 			HSI_IOCTL_SET_ACREADY_NORMAL, NULL);
-		pr_debug("[MIPI-HSI] ACREADY_NORMAL\n");
 
-		pr_info("[MIPI-HSI] hsi_init_handshake Done : FLASHLESS_BOOT\n");
+		pr_debug("[MIPI-HSI] hsi_init_handshake Done : FLASHLESS_BOOT\n");
 		return 0;
 
 	default:
@@ -1209,7 +1208,7 @@ static int __devinit if_hsi_probe(struct hsi_device *dev)
 					0);
 	}
 
-	pr_info("[MIPI-HSI] if_hsi_probe() done. ch : %d\n", dev->n_ch);
+	pr_debug("[MIPI-HSI] if_hsi_probe() done. ch : %d\n", dev->n_ch);
 	return 0;
 }
 
@@ -1247,7 +1246,6 @@ static int if_hsi_init(struct link_device *ld)
 
 	setup_timer(&mipi_ld->hsi_acwake_down_timer, if_hsi_acwake_down_func,
 				(unsigned long)mipi_ld);
-	pr_info("[MIPI-HSI] setup_timer done\n");
 
 	/* TODO - allocate rx buff */
 	mipi_ld->hsi_channles[HSI_CONTROL_CHANNEL].rx_data =
@@ -1281,7 +1279,6 @@ static int if_hsi_init(struct link_device *ld)
 		return -ENOMEM;
 	}
 
-	pr_info("[MIPI-HSI] if_hsi_init() done : %d\n", ret);
 	return 0;
 }
 
@@ -1328,7 +1325,6 @@ struct link_device *mipi_create_link_device(struct platform_device *pdev)
 	if (ret)
 		return NULL;
 
-	pr_info("[MODEM_IF] %s : create_io_device DONE\n", mipi_ld->ld.name);
 	return ld;
 }
 

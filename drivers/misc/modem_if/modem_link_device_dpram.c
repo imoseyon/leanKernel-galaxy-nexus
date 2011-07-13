@@ -460,10 +460,9 @@ static int dpram_write(struct dpram_link_device *dpld,
 		return -EINVAL;
 	}
 
-	pr_info("WRITE: len[%d] free_space[%d] head[%u] tail[%u] out_buff_size =%lu\n",
+	pr_debug("WRITE: len[%d] free_space[%d] head[%u] tail[%u] out_buff_size =%lu\n",
 			len, free_space, head, tail, device->out_buff_size);
 
-	pr_debug("%s, head: %d, tail: %d\n", __func__, head, tail);
 	if (head < tail) {
 		/* +++++++++ head ---------- tail ++++++++++ */
 		memcpy((device->out_buff_addr + head), buf, len);
@@ -686,7 +685,7 @@ static int if_dpram_init(struct platform_device *pdev, struct link_device *ld)
 
 	enable_irq_wake(ld->irq);
 
-	pr_info("[DPRAM] if_dpram_init() done : %d\n", ret);
+	pr_debug("[DPRAM] if_dpram_init() done : %d\n", ret);
 	return ret;
 }
 

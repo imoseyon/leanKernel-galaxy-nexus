@@ -49,7 +49,7 @@ static int cbp71_on(struct modem_ctl *mc)
 
 	/* Wait here until the PHONE is up.
 	* Waiting as the this called from IOCTL->UM thread */
-	pr_info("[MODEM_IF] power control waiting for INT_MASK_CMD_PIF_INIT_DONE\n");
+	pr_debug("[MODEM_IF] power control waiting for INT_MASK_CMD_PIF_INIT_DONE\n");
 
 	/* 1HZ = 1 clock tick, 100 default */
 	dpram_ld->clear_interrupt(dpram_ld);
@@ -77,7 +77,6 @@ static int cbp71_on(struct modem_ctl *mc)
 		return -ENXIO;
 	}
 
-	pr_info("[MODEM_IF] complete cbp71_on\n");
 	mc->phone_state = STATE_BOOTING;
 
 	return 0;
@@ -168,8 +167,6 @@ static void cbp71_get_ops(struct modem_ctl *mc)
 	mc->ops.modem_reset = cbp71_reset;
 	mc->ops.modem_boot_on = cbp71_boot_on;
 	mc->ops.modem_boot_off = cbp71_boot_off;
-
-	pr_info("[MODEM_IF] cbp71_get_ops() done\n");
 }
 
 int cbp71_init_modemctl_device(struct modem_ctl *mc)
@@ -194,8 +191,6 @@ int cbp71_init_modemctl_device(struct modem_ctl *mc)
 		free_irq(mc->irq_phone_active, mc);
 		return ret;
 	}
-
-	pr_info("[MODEM_IF] init_modemctl_device() done : %d\n", ret);
 
 	return ret;
 }

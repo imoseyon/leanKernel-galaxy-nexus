@@ -168,8 +168,6 @@ static void xmm6260_get_ops(struct modem_ctl *mc)
 	mc->ops.modem_reset = xmm6260_reset;
 	mc->ops.modem_boot_on = xmm6260_boot_on;
 	mc->ops.modem_boot_off = xmm6260_boot_off;
-
-	pr_info("[MODEM_IF] xmm6260_get_ops() done\n");
 }
 
 int xmm6260_init_modemctl_device(struct modem_ctl *mc)
@@ -180,16 +178,14 @@ int xmm6260_init_modemctl_device(struct modem_ctl *mc)
 	ret = request_irq(mc->irq_phone_active, phone_active_irq_handler,
 				IRQF_NO_SUSPEND | IRQF_TRIGGER_HIGH,
 				"phone_active", mc);
-	if (ret)
-		pr_err("[MODEM_IF] failed to irq_phone_active request_irq:%d\n"
-					, ret);
+	if (ret) {
+		pr_err("[MODEM_IF] %s: failed to request_irq:%d\n", __func__, ret);
+		return ret;
+	}
 
 	ret = enable_irq_wake(mc->irq_phone_active);
 	if (ret)
-		pr_err("[MODEM_IF] failed to irq_phone_active enable_irq_wake : %d\n",
-					ret);
+		pr_err("[MODEM_IF] %s: failed to enable_irq_wake:%d\n", __func__, ret);
 
-	pr_info("[MODEM_IF] init_modemctl_device() done\n");
-	return 0;
+	return ret;
 }
-

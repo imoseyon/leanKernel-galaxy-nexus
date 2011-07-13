@@ -115,12 +115,12 @@ struct usb_link_device {
 #define SET_SLAVE_WAKEUP(_pdata, _value)			\
 do {								\
 	gpio_set_value(_pdata->gpio_slave_wakeup, _value);	\
-	pr_info("> S-WUP %s\n", _value ? "1" : "0");	\
+	pr_debug("> S-WUP %s\n", _value ? "1" : "0");	\
 } while (0)
 
 #define SET_HOST_ACTIVE(_pdata, _value)			\
 do {								\
 	gpio_set_value(_pdata->gpio_host_active, _value);	\
-	pr_info("> H-ACT %s\n", _value ? "1" : "0");	\
+	pr_debug("> H-ACT %s\n", _value ? "1" : "0");	\
 } while (0)
 

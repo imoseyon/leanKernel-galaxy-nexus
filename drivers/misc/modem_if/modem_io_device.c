@@ -532,31 +532,31 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long _arg)
 
 	switch (cmd) {
 	case IOCTL_MODEM_ON:
-		pr_info("[MODEM_IF] misc_ioctl : IOCTL_MODEM_ON\n");
+		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_ON\n");
 		return iod->mc->ops.modem_on(iod->mc);
 
 	case IOCTL_MODEM_OFF:
-		pr_info("[MODEM_IF] misc_ioctl : IOCTL_MODEM_OFF\n");
+		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_OFF\n");
 		return iod->mc->ops.modem_off(iod->mc);
 
 	case IOCTL_MODEM_RESET:
-		pr_info("[MODEM_IF] misc_ioctl : IOCTL_MODEM_RESET\n");
+		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_RESET\n");
 		return iod->mc->ops.modem_reset(iod->mc);
 
 	case IOCTL_MODEM_BOOT_ON:
-		pr_info("[MODEM_IF] misc_ioctl : IOCTL_MODEM_BOOT_ON\n");
+		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_BOOT_ON\n");
 		return iod->mc->ops.modem_boot_on(iod->mc);
 
 	case IOCTL_MODEM_BOOT_OFF:
-		pr_info("[MODEM_IF] misc_ioctl : IOCTL_MODEM_BOOT_OFF\n");
+		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_BOOT_OFF\n");
 		return iod->mc->ops.modem_boot_off(iod->mc);
 
 	case IOCTL_MODEM_START:
-		pr_info("[MODEM_IF] misc_ioctl : IOCTL_MODEM_START\n");
+		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_START\n");
 		return iod->link->init_comm(iod->link, iod);
 
 	case IOCTL_MODEM_STATUS:
-		pr_info("[MODEM_IF] misc_ioctl : IOCTL_MODEM_START\n");
+		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_START\n");
 		return iod->mc->phone_state;
 
 	default:
@@ -779,7 +779,7 @@ int init_io_device(struct io_device *iod)
 		return -EINVAL;
 	}
 
-	pr_info("[MODEM_IF] %s(%d) : init_io_device() done : %d\n",
+	pr_debug("[MODEM_IF] %s(%d) : init_io_device() done : %d\n",
 				iod->name, iod->io_typ, ret);
 	return ret;
 }
