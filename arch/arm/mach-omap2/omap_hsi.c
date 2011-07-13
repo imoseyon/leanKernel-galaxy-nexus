@@ -49,9 +49,11 @@ static int omap_hsi_wakeup_disable(int hsi_port);
 #define OMAP_MUX_MODE_MASK	0x7
 
 
-/* */
-
+/* Hack till correct hwmod-mux api gets used */
 #define CA_WAKE_MUX_REG		(0x4a1000C2)
+#define OMAP44XX_PADCONF_WAKEUPENABLE0 (1 << 14)
+#define OMAP44XX_PADCONF_WAKEUPEVENT0  (1 << 15)
+
 static int omap_mux_read_signal(const char *muxname)
 {
 	u16 val = 0;
