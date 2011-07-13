@@ -45,14 +45,12 @@ struct s6e8aa0_gamma_entry {
 };
 
 struct s6e8aa0_gamma_adj_points {
-	const u32 v0;
 	const u32 v1;
 	const u32 v15;
 	const u32 v35;
 	const u32 v59;
 	const u32 v87;
 	const u32 v171;
-	const u32 v255;
 };
 
 struct s6e8aa0_color_adj {

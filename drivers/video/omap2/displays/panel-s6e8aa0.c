@@ -77,14 +77,12 @@ static struct omap_video_timings s6e8aa0_timings = {
 };
 
 static const struct s6e8aa0_gamma_adj_points default_gamma_adj_points = {
-	.v0 = BV_0,
 	.v1 = BV_1,
 	.v15 = BV_15,
 	.v35 = BV_35,
 	.v59 = BV_59,
 	.v87 = BV_87,
 	.v171 = BV_171,
-	.v255 = BV_255,
 };
 
 struct s6e8aa0_gamma_reg_offsets {
@@ -276,22 +274,15 @@ static u32 s6e8aa0_gamma_lookup(struct s6e8aa0_data *s6,
 	u32 ret;
 	u64 tmp;
 	struct panel_s6e8aa0_data *pdata = s6->pdata;
-	const struct s6e8aa0_gamma_adj_points *bv = s6->gamma_adj_points;
 
-	if (!val) {
-		b = 0;
-	} else {
-		tmp = bv->v255 - bv->v0;
-		tmp *= brightness;
-		do_div(tmp, 255);
+	tmp = val;
+	tmp *= brightness;
+	do_div(tmp, 255);
 
-		tmp *= s6->color_mult[c];
-		do_div(tmp, 0xffffffff);
+	tmp *= s6->color_mult[c];
+	do_div(tmp, 0xffffffff);
 
-		tmp *= (val - bv->v0);
-		do_div(tmp, bv->v255 - bv->v0);
-		b = tmp + bv->v0;
-	}
+	b = tmp;
 
 	for (i = 0; i < pdata->gamma_table_size; i++) {
 		bl = bh;
@@ -399,7 +390,7 @@ static void s6e8aa0_setup_gamma_regs(struct s6e8aa0_data *s6, u8 gamma_regs[])
 		}
 		gamma_regs[gamma_reg_index(c, V1)] = adj;
 
-		v[V255] = s6e8aa0_gamma_lookup(s6, brightness, bv->v255, c);
+		v[V255] = s6e8aa0_gamma_lookup(s6, brightness, BV_255, c);
 		adj = v255_to_v255adj(v[V255], v0);
 		adj -= s6->gamma_reg_offsets.v[c][V255];
 		if (adj > V255_ADJ_MAX) {
@@ -625,7 +616,7 @@ static void seq_print_gamma_regs(struct seq_file *m, const u8 gamma_regs[])
 		vt[V59] = s6e8aa0_gamma_lookup(s6, brightness, bv->v59, c);
 		vt[V87] = s6e8aa0_gamma_lookup(s6, brightness, bv->v87, c);
 		vt[V171] = s6e8aa0_gamma_lookup(s6, brightness, bv->v171, c);
-		vt[V255] = s6e8aa0_gamma_lookup(s6, brightness, bv->v255, c);
+		vt[V255] = s6e8aa0_gamma_lookup(s6, brightness, BV_255, c);
 
 		adj[V1] = gamma_regs[gamma_reg_index(c, V1)];
 		v[V1] = v1adj_to_v1(adj[V1] + offset->v[c][V1], v0);
