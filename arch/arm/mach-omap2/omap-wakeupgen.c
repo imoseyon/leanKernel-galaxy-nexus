@@ -100,9 +100,8 @@ static inline int _wakeupgen_get_irq_info(u32 irq, u32 *bit_posn, u8 *reg_index)
 	return 0;
 }
 
-static void _wakeupgen_clear(unsigned int irq)
+static void _wakeupgen_clear(unsigned int irq, unsigned int cpu)
 {
-	unsigned int cpu = smp_processor_id();
 	u32 val, bit_number;
 	u8 i;
 
@@ -114,9 +113,8 @@ static void _wakeupgen_clear(unsigned int irq)
 	wakeupgen_writel(val, i, cpu);
 }
 
-static void _wakeupgen_set(unsigned int irq)
+static void _wakeupgen_set(unsigned int irq, unsigned int cpu)
 {
-	unsigned int cpu = smp_processor_id();
 	u32 val, bit_number;
 	u8 i;
 
@@ -149,8 +147,11 @@ static void _wakeupgen_restore_masks(unsigned int cpu)
  */
 static void wakeupgen_mask(struct irq_data *d)
 {
+	unsigned int cpu;
+
 	spin_lock(&wakeupgen_lock);
-	_wakeupgen_clear(d->irq);
+	for_each_cpu(cpu, d->affinity)
+		_wakeupgen_clear(d->irq, cpu);
 	spin_unlock(&wakeupgen_lock);
 }
 
@@ -159,31 +160,13 @@ static void wakeupgen_mask(struct irq_data *d)
  */
 static void wakeupgen_unmask(struct irq_data *d)
 {
+	unsigned int cpu;
 
 	spin_lock(&wakeupgen_lock);
-	_wakeupgen_set(d->irq);
+	for_each_cpu(cpu, d->affinity)
+		_wakeupgen_set(d->irq, cpu);
 	spin_unlock(&wakeupgen_lock);
 }
-
-#ifdef CONFIG_PM
-/*
- * Architecture specific set_wake extension
- */
-static int wakeupgen_set_wake(struct irq_data *d, unsigned int on)
-{
-	spin_lock(&wakeupgen_lock);
-	if (on)
-		_wakeupgen_set(d->irq);
-	else
-		_wakeupgen_clear(d->irq);
-	spin_unlock(&wakeupgen_lock);
-
-	return 0;
-}
-
-#else
-#define wakeupgen_set_wake	NULL
-#endif
 
 /**
  * omap_wakeupgen_irqmask_all() -  Mask or unmask interrupts
@@ -241,7 +224,7 @@ int __init omap_wakeupgen_init(void)
 	 */
 	gic_arch_extn.irq_mask = wakeupgen_mask;
 	gic_arch_extn.irq_unmask = wakeupgen_unmask;
-	gic_arch_extn.irq_set_wake = wakeupgen_set_wake;
+	gic_arch_extn.flags = IRQCHIP_MASK_ON_SUSPEND;
 
 	return 0;
 }
