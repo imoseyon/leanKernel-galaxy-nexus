@@ -433,9 +433,10 @@ OMAP_MCBSP_PLATFORM_DEVICE(5);
 static void omap_init_audio(void)
 {
 	struct omap_hwmod *oh_hdmi;
-	struct omap_device *od_hdmi;
+	struct omap_device *od_hdmi, *od_hdmi_codec;
 	char *oh_hdmi_name = "dss_hdmi";
 	char *dev_hdmi_name = "hdmi-audio-dai";
+	char *dev_hdmi_codec_name = "omap-hdmi-codec";
 
 	if (cpu_is_omap44xx()) {
 		oh_hdmi = omap_hwmod_lookup(oh_hdmi_name);
@@ -446,6 +447,12 @@ static void omap_init_audio(void)
 			NULL, 0, false);
 		WARN(IS_ERR(od_hdmi), "%s: could not build omap_device for %s\n",
 			__func__, dev_hdmi_name);
+
+		od_hdmi_codec = omap_device_build(dev_hdmi_codec_name,
+					-1, oh_hdmi, NULL, 0, NULL, 0, false);
+
+		WARN(IS_ERR(od_hdmi_codec), "%s: could not build omap_device for %s\n",
+			__func__, dev_hdmi_codec_name);
 
 		platform_device_register(&omap4_hdmi_audio);
 	}
