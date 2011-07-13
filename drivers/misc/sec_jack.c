@@ -40,6 +40,7 @@ struct sec_jack_info {
 	struct sec_jack_platform_data *pdata;
 	struct delayed_work jack_detect_work;
 	struct work_struct buttons_work;
+	struct work_struct detect_work;
 	struct workqueue_struct *queue;
 	struct input_dev *input_dev;
 	struct wake_lock det_wake_lock;
@@ -260,9 +261,19 @@ static void determine_jack_type(struct sec_jack_info *hi)
 /* thread run whenever the headset detect state changes (either insertion
  * or removal).
  */
-static irqreturn_t sec_jack_detect_irq_thread(int irq, void *dev_id)
+static irqreturn_t sec_jack_detect_irq(int irq, void *dev_id)
 {
 	struct sec_jack_info *hi = dev_id;
+
+	queue_work(hi->queue, &hi->detect_work);
+
+	return IRQ_HANDLED;
+}
+
+void sec_jack_detect_work(struct work_struct *work)
+{
+	struct sec_jack_info *hi =
+		container_of(work, struct sec_jack_info, detect_work);
 	struct sec_jack_platform_data *pdata = hi->pdata;
 	int time_left_ms = DET_CHECK_TIME_MS;
 	unsigned npolarity = !hi->pdata->det_active_high;
@@ -277,14 +288,13 @@ static irqreturn_t sec_jack_detect_irq_thread(int irq, void *dev_id)
 		if (!(gpio_get_value(hi->pdata->det_gpio) ^ npolarity)) {
 			/* jack not detected. */
 			handle_jack_not_inserted(hi);
-			return IRQ_HANDLED;
+			return;
 		}
 		msleep(10);
 		time_left_ms -= 10;
 	}
 	/* jack presence was detected the whole time, figure out which type */
 	determine_jack_type(hi);
-	return IRQ_HANDLED;
 }
 
 /* thread run whenever the button of headset is pressed or released */
@@ -380,12 +390,14 @@ static int sec_jack_probe(struct platform_device *pdev)
 	wake_lock_init(&hi->det_wake_lock, WAKE_LOCK_SUSPEND, "sec_jack_det");
 
 	INIT_WORK(&hi->buttons_work, sec_jack_buttons_work);
+	INIT_WORK(&hi->detect_work, sec_jack_detect_work);
 	hi->queue = create_singlethread_workqueue("sec_jack_wq");
 	if (hi->queue == NULL) {
 		ret = -ENOMEM;
 		pr_err("%s: Failed to create workqueue\n", __func__);
 		goto err_create_wq_failed;
 	}
+	queue_work(hi->queue, &hi->detect_work);
 
 	hi->det_irq = gpio_to_irq(pdata->det_gpio);
 
@@ -403,8 +415,7 @@ static int sec_jack_probe(struct platform_device *pdev)
 		pr_err("%s : Failed to register_handler\n", __func__);
 		goto err_register_input_handler;
 	}
-	ret = request_threaded_irq(hi->det_irq, NULL,
-				   sec_jack_detect_irq_thread,
+	ret = request_irq(hi->det_irq, sec_jack_detect_irq,
 				   IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING |
 				   IRQF_ONESHOT, "sec_headset_detect", hi);
 	if (ret) {
