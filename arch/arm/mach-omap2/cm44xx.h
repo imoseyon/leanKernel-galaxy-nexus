@@ -27,6 +27,8 @@
 # ifndef __ASSEMBLER__
 
 extern int omap4_cm_wait_module_ready(void __iomem *clkctrl_reg);
+extern void omap4_dpll_prepare_off(void);
+extern void omap4_dpll_resume_off(void);
 
 # endif
 #endif
