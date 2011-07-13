@@ -39,11 +39,6 @@
 #include <linux/gpio.h>
 #include <linux/fb.h>
 #include <linux/omapfb.h>
-#if defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI) || \
-	defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI_MODULE)
-#include <sound/soc.h>
-#include <sound/pcm_params.h>
-#endif
 
 #include "dss.h"
 #include "dss_features.h"
@@ -636,6 +631,16 @@ static void hdmi_power_off(struct omap_dss_device *dssdev)
 	hdmi.deep_color = HDMI_DEEP_COLOR_24BIT;
 }
 
+int omapdss_hdmi_get_pixel_clock(void)
+{
+	return PICOS2KHZ(hdmi.cfg.timings.pixclock);
+}
+
+int omapdss_hdmi_get_mode(void)
+{
+	return hdmi.mode;
+}
+
 void omapdss_hdmi_set_deepcolor(int val)
 {
 	hdmi.deep_color = val;
@@ -791,214 +796,6 @@ void omapdss_hdmi_display_disable(struct omap_dss_device *dssdev)
 	mutex_unlock(&hdmi.lock);
 }
 
-#if defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI) || \
-	defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI_MODULE)
-
-static int hdmi_audio_hw_params(struct snd_pcm_substream *substream,
-				    struct snd_pcm_hw_params *params,
-				    struct snd_soc_dai *dai)
-{
-	struct hdmi_audio_format audio_format;
-	struct hdmi_audio_dma audio_dma;
-	struct hdmi_core_audio_config core_cfg;
-	struct hdmi_core_infoframe_audio aud_if_cfg;
-	int err, n, cts;
-	enum hdmi_core_audio_sample_freq sample_freq;
-	struct hdmi_ip_data *ip_data = &hdmi.hdmi_data;
-	u32 pclk = PICOS2KHZ(hdmi.cfg.timings.pixclock);
-
-	switch (params_format(params)) {
-	case SNDRV_PCM_FORMAT_S16_LE:
-		core_cfg.i2s_cfg.word_max_length =
-			HDMI_AUDIO_I2S_MAX_WORD_20BITS;
-		core_cfg.i2s_cfg.word_length = HDMI_AUDIO_I2S_CHST_WORD_16_BITS;
-		core_cfg.i2s_cfg.in_length_bits =
-			HDMI_AUDIO_I2S_INPUT_LENGTH_16;
-		core_cfg.i2s_cfg.justification = HDMI_AUDIO_JUSTIFY_LEFT;
-		audio_format.samples_per_word = HDMI_AUDIO_ONEWORD_TWOSAMPLES;
-		audio_format.sample_size = HDMI_AUDIO_SAMPLE_16BITS;
-		audio_format.justification = HDMI_AUDIO_JUSTIFY_LEFT;
-		audio_dma.transfer_size = 0x10;
-		break;
-	case SNDRV_PCM_FORMAT_S24_LE:
-		core_cfg.i2s_cfg.word_max_length =
-			HDMI_AUDIO_I2S_MAX_WORD_24BITS;
-		core_cfg.i2s_cfg.word_length = HDMI_AUDIO_I2S_CHST_WORD_24_BITS;
-		core_cfg.i2s_cfg.in_length_bits =
-			HDMI_AUDIO_I2S_INPUT_LENGTH_24;
-		audio_format.samples_per_word = HDMI_AUDIO_ONEWORD_ONESAMPLE;
-		audio_format.sample_size = HDMI_AUDIO_SAMPLE_24BITS;
-		audio_format.justification = HDMI_AUDIO_JUSTIFY_RIGHT;
-		core_cfg.i2s_cfg.justification = HDMI_AUDIO_JUSTIFY_RIGHT;
-		audio_dma.transfer_size = 0x20;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	switch (params_rate(params)) {
-	case 32000:
-		sample_freq = HDMI_AUDIO_FS_32000;
-		break;
-	case 44100:
-		sample_freq = HDMI_AUDIO_FS_44100;
-		break;
-	case 48000:
-		sample_freq = HDMI_AUDIO_FS_48000;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	err = hdmi_ti_4xxx_config_audio_acr(ip_data, params_rate(params),
-							&n, &cts, pclk);
-	if (err < 0)
-		return err;
-
-	/* Audio wrapper config */
-	audio_format.stereo_channels = HDMI_AUDIO_STEREO_ONECHANNEL;
-	audio_format.active_chnnls_msk = 0x03;
-	audio_format.type = HDMI_AUDIO_TYPE_LPCM;
-	audio_format.sample_order = HDMI_AUDIO_SAMPLE_LEFT_FIRST;
-	/* Disable start/stop signals of IEC 60958 blocks */
-	audio_format.en_sig_blk_strt_end = HDMI_AUDIO_BLOCK_SIG_STARTEND_OFF;
-
-	audio_dma.block_size = 0xC0;
-	audio_dma.mode = HDMI_AUDIO_TRANSF_DMA;
-	audio_dma.fifo_threshold = 0x20; /* in number of samples */
-
-	hdmi_ti_4xxx_wp_audio_config_dma(ip_data, &audio_dma);
-	hdmi_ti_4xxx_wp_audio_config_format(ip_data, &audio_format);
-
-	/*
-	 * I2S config
-	 */
-	core_cfg.i2s_cfg.en_high_bitrate_aud = false;
-	/* Only used with high bitrate audio */
-	core_cfg.i2s_cfg.cbit_order = false;
-	/* Serial data and word select should change on sck rising edge */
-	core_cfg.i2s_cfg.sck_edge_mode = HDMI_AUDIO_I2S_SCK_EDGE_RISING;
-	core_cfg.i2s_cfg.vbit = HDMI_AUDIO_I2S_VBIT_FOR_PCM;
-	/* Set I2S word select polarity */
-	core_cfg.i2s_cfg.ws_polarity = HDMI_AUDIO_I2S_WS_POLARITY_LOW_IS_LEFT;
-	core_cfg.i2s_cfg.direction = HDMI_AUDIO_I2S_MSB_SHIFTED_FIRST;
-	/* Set serial data to word select shift. See Phillips spec. */
-	core_cfg.i2s_cfg.shift = HDMI_AUDIO_I2S_FIRST_BIT_SHIFT;
-	/* Enable one of the four available serial data channels */
-	core_cfg.i2s_cfg.active_sds = HDMI_AUDIO_I2S_SD0_EN;
-
-	/* Core audio config */
-	core_cfg.freq_sample = sample_freq;
-	core_cfg.n = n;
-	core_cfg.cts = cts;
-	if (dss_has_feature(FEAT_HDMI_CTS_SWMODE)) {
-		core_cfg.aud_par_busclk = 0;
-		core_cfg.cts_mode = HDMI_AUDIO_CTS_MODE_SW;
-		core_cfg.use_mclk = false;
-	} else {
-		core_cfg.aud_par_busclk = (((128 * 31) - 1) << 8);
-		core_cfg.cts_mode = HDMI_AUDIO_CTS_MODE_HW;
-		core_cfg.use_mclk = true;
-		core_cfg.mclk_mode = HDMI_AUDIO_MCLK_128FS;
-	}
-	core_cfg.layout = HDMI_AUDIO_LAYOUT_2CH;
-	core_cfg.en_spdif = false;
-	/* Use sample frequency from channel status word */
-	core_cfg.fs_override = true;
-	/* Enable ACR packets */
-	core_cfg.en_acr_pkt = true;
-	/* Disable direct streaming digital audio */
-	core_cfg.en_dsd_audio = false;
-	/* Use parallel audio interface */
-	core_cfg.en_parallel_aud_input = true;
-
-	hdmi_ti_4xxx_core_audio_config(ip_data, &core_cfg);
-
-	/*
-	 * Configure packet
-	 * info frame audio see doc CEA861-D page 74
-	 */
-	aud_if_cfg.db1_coding_type = HDMI_INFOFRAME_AUDIO_DB1CT_FROM_STREAM;
-	aud_if_cfg.db1_channel_count = 2;
-	aud_if_cfg.db2_sample_freq = HDMI_INFOFRAME_AUDIO_DB2SF_FROM_STREAM;
-	aud_if_cfg.db2_sample_size = HDMI_INFOFRAME_AUDIO_DB2SS_FROM_STREAM;
-	aud_if_cfg.db4_channel_alloc = 0x00;
-	aud_if_cfg.db5_downmix_inh = false;
-	aud_if_cfg.db5_lsv = 0;
-
-	hdmi_ti_4xxx_core_audio_infoframe_config(ip_data, &aud_if_cfg);
-	return 0;
-}
-
-static int hdmi_audio_trigger(struct snd_pcm_substream *substream, int cmd,
-				struct snd_soc_dai *dai)
-{
-	int err = 0;
-	struct hdmi_ip_data *ip_data = &hdmi.hdmi_data;
-
-	switch (cmd) {
-	case SNDRV_PCM_TRIGGER_START:
-	case SNDRV_PCM_TRIGGER_RESUME:
-	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		/*
-		 * switch to no-idle to avoid DSS_L3_ICLK clock
-		 * to be shutdown during audio activity (as per TRM)
-		 */
-		omap_hwmod_set_slave_idlemode(hdmi.oh,
-			HWMOD_IDLEMODE_NO);
-		hdmi_ti_4xxx_audio_enable(ip_data, 1);
-		break;
-
-	case SNDRV_PCM_TRIGGER_STOP:
-	case SNDRV_PCM_TRIGGER_SUSPEND:
-	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		hdmi_ti_4xxx_audio_enable(ip_data, 0);
-		/*
-		 * switch back to smart-idle & wakeup capable
-		 * after audio activity stops
-		 */
-		omap_hwmod_set_slave_idlemode(hdmi.oh,
-			HWMOD_IDLEMODE_SMART_WKUP);
-		break;
-	default:
-		err = -EINVAL;
-	}
-	return err;
-}
-
-static int hdmi_audio_startup(struct snd_pcm_substream *substream,
-				  struct snd_soc_dai *dai)
-{
-	if (!hdmi.mode) {
-		pr_err("Current video settings do not support audio.\n");
-		return -EIO;
-	}
-	return 0;
-}
-
-static struct snd_soc_codec_driver hdmi_audio_codec_drv = {
-};
-
-static struct snd_soc_dai_ops hdmi_audio_codec_ops = {
-	.hw_params = hdmi_audio_hw_params,
-	.trigger = hdmi_audio_trigger,
-	.startup = hdmi_audio_startup,
-};
-
-static struct snd_soc_dai_driver hdmi_codec_dai_drv = {
-		.name = "hdmi-audio-codec",
-		.playback = {
-			.channels_min = 2,
-			.channels_max = 2,
-			.rates = SNDRV_PCM_RATE_32000 |
-				SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000,
-			.formats = SNDRV_PCM_FMTBIT_S16_LE |
-				SNDRV_PCM_FMTBIT_S24_LE,
-		},
-		.ops = &hdmi_audio_codec_ops,
-};
-#endif
-
 static int hdmi_get_clocks(struct platform_device *pdev)
 {
 	struct clk *clk;
@@ -1080,28 +877,12 @@ static int omapdss_hdmihw_probe(struct platform_device *pdev)
 
 	hdmi_panel_init();
 
-#if defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI) || \
-	defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI_MODULE)
-
-	/* Register ASoC codec DAI */
-	r = snd_soc_register_codec(&pdev->dev, &hdmi_audio_codec_drv,
-					&hdmi_codec_dai_drv, 1);
-	if (r) {
-		DSSERR("can't register ASoC HDMI audio codec\n");
-		return r;
-	}
-#endif
 	return 0;
 }
 
 static int omapdss_hdmihw_remove(struct platform_device *pdev)
 {
 	hdmi_panel_exit();
-
-#if defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI) || \
-	defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI_MODULE)
-	snd_soc_unregister_codec(&pdev->dev);
-#endif
 
 	pm_runtime_disable(&pdev->dev);
 
