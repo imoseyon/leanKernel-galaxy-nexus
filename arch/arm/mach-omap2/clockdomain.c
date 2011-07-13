@@ -718,6 +718,8 @@ int clkdm_sleep(struct clockdomain *clkdm)
  */
 int clkdm_wakeup(struct clockdomain *clkdm)
 {
+	int ret;
+
 	if (!clkdm)
 		return -EINVAL;
 
@@ -732,7 +734,10 @@ int clkdm_wakeup(struct clockdomain *clkdm)
 
 	pr_debug("clockdomain: forcing wakeup on %s\n", clkdm->name);
 
-	return arch_clkdm->clkdm_wakeup(clkdm);
+	ret = arch_clkdm->clkdm_wakeup(clkdm);
+	ret |= pwrdm_wait_transition(clkdm->pwrdm.ptr);
+
+	return ret;
 }
 
 /**
