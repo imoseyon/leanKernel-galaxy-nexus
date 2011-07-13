@@ -259,14 +259,32 @@ static void ehci_hcd_omap_shutdown(struct platform_device *pdev)
 		hcd->driver->shutdown(hcd);
 }
 
+static int omap_ehci_resume(struct device *dev)
+{
+	if (dev->parent)
+		pm_runtime_get_sync(dev->parent);
+	return 0;
+}
+
+static int omap_ehci_suspend(struct device *dev)
+{
+	if (dev->parent)
+		pm_runtime_put_sync(dev->parent);
+	return 0;
+}
+
+static const struct dev_pm_ops omap_ehci_dev_pm_ops = {
+	.suspend	= omap_ehci_suspend,
+	.resume		= omap_ehci_resume,
+};
+
 static struct platform_driver ehci_hcd_omap_driver = {
 	.probe			= ehci_hcd_omap_probe,
 	.remove			= ehci_hcd_omap_remove,
 	.shutdown		= ehci_hcd_omap_shutdown,
-	/*.suspend		= ehci_hcd_omap_suspend, */
-	/*.resume		= ehci_hcd_omap_resume, */
 	.driver = {
 		.name		= "ehci-omap",
+		.pm		= &omap_ehci_dev_pm_ops,
 	}
 };
 

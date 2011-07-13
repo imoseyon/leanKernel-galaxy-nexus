@@ -230,12 +230,33 @@ static void ohci_hcd_omap3_shutdown(struct platform_device *pdev)
 		hcd->driver->shutdown(hcd);
 }
 
+
+static int omap_ohci_resume(struct device *dev)
+{
+	if (dev->parent)
+		pm_runtime_get_sync(dev->parent);
+	return 0;
+}
+
+static int omap_ohci_suspend(struct device *dev)
+{
+	if (dev->parent)
+		pm_runtime_put_sync(dev->parent);
+	return 0;
+}
+
+static const struct dev_pm_ops omap_ohci_dev_pm_ops = {
+	.suspend	= omap_ohci_suspend,
+	.resume		= omap_ohci_resume,
+};
+
 static struct platform_driver ohci_hcd_omap3_driver = {
 	.probe		= ohci_hcd_omap3_probe,
 	.remove		= __devexit_p(ohci_hcd_omap3_remove),
 	.shutdown	= ohci_hcd_omap3_shutdown,
 	.driver		= {
 		.name	= "ohci-omap3",
+		.pm		= &omap_ohci_dev_pm_ops,
 	},
 };
 
