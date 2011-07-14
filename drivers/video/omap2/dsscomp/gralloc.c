@@ -234,7 +234,6 @@ static DECLARE_WAIT_QUEUE_HEAD(early_suspend_wq);
 static void dsscomp_early_suspend_cb(void *data, int status)
 {
 	blank_complete = true;
-	smp_wmb();
 	wake_up_interruptible_sync(&early_suspend_wq);
 }
 
@@ -252,15 +251,12 @@ static void dsscomp_early_suspend(struct early_suspend *h)
 	blank_complete = false;
 
 	/* wait until composition is displayed */
-	do {
-		err = wait_event_interruptible_timeout(early_suspend_wq, blank_complete,
-						       msecs_to_jiffies(500));
-		if (err == 0) {
-			pr_warn("DSSCOMP: timeout blanking screen\n");
-			return;
-		}
-	} while (err == -ERESTARTSYS);
-	pr_info("DSSCOMP: blanked screen\n");
+	err = wait_event_timeout(early_suspend_wq, blank_complete,
+				 msecs_to_jiffies(500));
+	if (err == 0)
+		pr_warn("DSSCOMP: timeout blanking screen\n");
+	else
+		pr_info("DSSCOMP: blanked screen\n");
 }
 
 static void dsscomp_late_resume(struct early_suspend *h)
