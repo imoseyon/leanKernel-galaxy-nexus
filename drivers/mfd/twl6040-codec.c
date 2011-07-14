@@ -616,6 +616,7 @@ static int __devinit twl6040_probe(struct platform_device *pdev)
 		cell = &twl6040->cells[children];
 		cell->name = "twl6040-codec";
 		cell->platform_data = pdata->audio;
+		cell->pdata_size = sizeof(*pdata->audio);
 		children++;
 	}
 
@@ -623,6 +624,7 @@ static int __devinit twl6040_probe(struct platform_device *pdev)
 		cell = &twl6040->cells[children];
 		cell->name = "twl6040-vibra";
 		cell->platform_data = pdata->vibra;
+		cell->pdata_size = sizeof(*pdata->vibra);
 		children++;
 	}
 
