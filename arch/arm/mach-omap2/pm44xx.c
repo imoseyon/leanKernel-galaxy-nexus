@@ -532,6 +532,9 @@ static int __init omap4_pm_init(void)
 	core_pwrdm = pwrdm_lookup("core_pwrdm");
 	per_pwrdm = pwrdm_lookup("l4per_pwrdm");
 
+	 /* Enable wakeup for PRCM IRQ for system wide suspend */
+	enable_irq_wake(OMAP44XX_IRQ_PRCM);
+
 	omap4_idle_init();
 
 err2:
