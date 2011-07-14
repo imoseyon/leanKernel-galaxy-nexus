@@ -41,6 +41,7 @@
 
 static bool ssptr_id = CONFIG_TILER_SSPTR_ID;
 static uint granularity = CONFIG_TILER_GRANULARITY;
+static uint tiler_alloc_debug;
 
 /*
  * We can only change ssptr_id if there are no blocks allocated, so that
@@ -51,6 +52,8 @@ module_param(ssptr_id, bool, 0444);
 MODULE_PARM_DESC(ssptr_id, "Use ssptr as block ID");
 module_param_named(grain, granularity, uint, 0644);
 MODULE_PARM_DESC(grain, "Granularity (bytes)");
+module_param_named(alloc_debug, tiler_alloc_debug, uint, 0644);
+MODULE_PARM_DESC(alloc_debug, "Allocation debug flag");
 
 struct tiler_dev {
 	struct cdev cdev;
@@ -612,6 +615,15 @@ static struct mem_info *get_2d_area(u16 w, u16 h, u16 align, u16 band,
 
 			/* remove from reserved list */
 			list_del(&mi->global);
+			if (tiler_alloc_debug & 1)
+				 printk(KERN_ERR "(=2d (%d-%d,%d-%d) in (%d-%d,%d-%d) prereserved)\n",
+				 mi->area.p0.x, mi->area.p1.x,
+				 mi->area.p0.y, mi->area.p1.y,
+				 ((struct area_info *) mi->parent)->area.p0.x,
+				 ((struct area_info *) mi->parent)->area.p1.x,
+				 ((struct area_info *) mi->parent)->area.p0.y,
+				 ((struct area_info *) mi->parent)->area.p1.y);
+
 			goto done;
 		}
 	}
@@ -632,7 +644,17 @@ static struct mem_info *get_2d_area(u16 w, u16 h, u16 align, u16 band,
 			x = _m_blk_find_fit(w, align, ai, &before);
 			if (x) {
 				_m_add2area(mi, ai, x - w, w, before);
-				goto done;
+
+			if (tiler_alloc_debug & 1)
+				printk(KERN_ERR "(+2d (%d-%d,%d-%d) in (%d-%d,%d-%d) existing)\n",
+				mi->area.p0.x, mi->area.p1.x,
+				mi->area.p0.y, mi->area.p1.y,
+				((struct area_info *) mi->parent)->area.p0.x,
+				((struct area_info *) mi->parent)->area.p1.x,
+				((struct area_info *) mi->parent)->area.p0.y,
+				((struct area_info *) mi->parent)->area.p1.y);
+
+			goto done;
 			}
 		}
 	}
@@ -643,6 +665,12 @@ static struct mem_info *get_2d_area(u16 w, u16 h, u16 align, u16 band,
 		      max(band, align), tcm, gi);
 	if (ai) {
 		_m_add2area(mi, ai, ai->area.p0.x, w, &ai->blocks);
+		if (tiler_alloc_debug & 1)
+			printk(KERN_ERR "(+2d (%d-%d,%d-%d) in (%d-%d,%d-%d) new)\n",
+					mi->area.p0.x, mi->area.p1.x,
+					mi->area.p0.y, mi->area.p1.y,
+					ai->area.p0.x, ai->area.p1.x,
+					ai->area.p0.y, ai->area.p1.y);
 	} else {
 		/* clean up */
 		kfree(mi);
@@ -786,14 +814,31 @@ static s32 _m_free(struct mem_info *mi)
 
 		/* check to see if area needs removing also */
 		if (ai && !--ai->nblocks) {
+				if (tiler_alloc_debug & 1)
+					printk(KERN_ERR "(-2d (%d-%d,%d-%d) in (%d-%d,%d-%d) last)\n",
+							   mi->area.p0.x, mi->area.p1.x,
+							   mi->area.p0.y, mi->area.p1.y,
+							   ai->area.p0.x, ai->area.p1.x,
+							   ai->area.p0.y, ai->area.p1.y);
+
 			res = tcm_free(&ai->area);
 			list_del(&ai->by_gid);
 			/* try to remove parent if it became empty */
 			_m_try_free_group(ai->gi);
 			kfree(ai);
 			ai = NULL;
-		}
+		} else if (tiler_alloc_debug & 1)
+					printk(KERN_ERR "(-2d (%d-%d,%d-%d) in (%d-%d,%d-%d) remaining)\n",
+						mi->area.p0.x, mi->area.p1.x,
+						mi->area.p0.y, mi->area.p1.y,
+						ai->area.p0.x, ai->area.p1.x,
+						ai->area.p0.y, ai->area.p1.y);
+
 	} else {
+		if (tiler_alloc_debug & 1)
+			printk(KERN_ERR "(-1d: %d,%d..%d,%d)\n",
+			mi->area.p0.x, mi->area.p0.y,
+			mi->area.p1.x, mi->area.p1.y);
 		/* remove 1D area */
 		res = tcm_free(&mi->area);
 		/* try to remove parent if it became empty */
@@ -1066,6 +1111,11 @@ static struct mem_info *alloc_area(enum tiler_fmt fmt, u32 width, u32 height,
 			kfree(mi);
 			return NULL;
 		}
+
+		if (tiler_alloc_debug & 1)
+			 printk(KERN_ERR "(+1d: %d,%d..%d,%d)\n",
+						mi->area.p0.x, mi->area.p0.y,
+						mi->area.p1.x, mi->area.p1.y);
 
 		mutex_lock(&mtx);
 		mi->parent = gi;
