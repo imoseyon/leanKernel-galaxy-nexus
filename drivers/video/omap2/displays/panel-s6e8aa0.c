@@ -31,6 +31,7 @@
 #include <linux/interrupt.h>
 #include <linux/gpio.h>
 #include <linux/slab.h>
+#include <linux/sort.h>
 #include <linux/regulator/consumer.h>
 #include <linux/mutex.h>
 #include <linux/i2c.h>
@@ -86,7 +87,7 @@ static const struct s6e8aa0_gamma_adj_points default_gamma_adj_points = {
 };
 
 struct s6e8aa0_gamma_reg_offsets {
-	s16 v[3][7];
+	s16 v[2][3][7];
 };
 
 struct s6e8aa0_data {
@@ -102,7 +103,9 @@ struct s6e8aa0_data {
 	unsigned int bl;
 	const struct s6e8aa0_gamma_adj_points *gamma_adj_points;
 	struct s6e8aa0_gamma_reg_offsets gamma_reg_offsets;
-	u32 color_mult[3];
+	struct s6e8aa0_gamma_entry *brightness_table;
+	int brightness_table_size;
+	u32 brightness_limit[3];
 	unsigned long hw_guard_end;	/* next value of jiffies when we can
 					 * issue the next sleep in/out command
 					 */
@@ -262,47 +265,67 @@ static int s6e8aa0_hw_reset(struct omap_dss_device *dssdev)
 	return 0;
 }
 
-static u32 s6e8aa0_gamma_lookup(struct s6e8aa0_data *s6,
-				u8 brightness, u32 val, int c)
+static u32 s6e8aa0_table_lookup(u32 b, int c,
+				const struct s6e8aa0_gamma_entry *table,
+				int table_size)
 {
 	int i;
+	u32 ret;
 	u32 bl = 0;
 	u32 bh = 0;
 	u32 vl = 0;
 	u32 vh;
+	u64 tmp;
+
+	if (!table_size)
+		return b;
+
+	for (i = 0; i < table_size; i++) {
+		bl = bh;
+		bh = table[i].brightness;
+		if (bh >= b)
+			break;
+	}
+	vh = table[i].v[c];
+	if (i == 0 || (b - bl) == 0) {
+		ret = vl = vh;
+	} else {
+		vl = table[i - 1].v[c];
+		tmp = (u64)vh * (b - bl) + (u64)vl * (bh - b);
+		do_div(tmp, bh - bl);
+		ret = tmp;
+	}
+	pr_debug("%s: looking for c %d, %08x, "
+		 "found %08x:%08x, v %7d:%7d, ret %7d\n",
+		 __func__, c, b, bl, bh, vl, vh, ret);
+	return ret;
+}
+
+static u32 s6e8aa0_raw_gamma_lookup(struct s6e8aa0_data *s6, u32 b, int c)
+{
+	struct panel_s6e8aa0_data *pdata = s6->pdata;
+	return s6e8aa0_table_lookup(b, c, pdata->gamma_table,
+				    pdata->gamma_table_size);
+}
+
+static u32 s6e8aa0_gamma_lookup(struct s6e8aa0_data *s6,
+				u8 brightness, u32 val, int c)
+{
 	u32 b;
 	u32 ret;
 	u64 tmp;
-	struct panel_s6e8aa0_data *pdata = s6->pdata;
 
 	tmp = val;
 	tmp *= brightness;
 	do_div(tmp, 255);
 
-	tmp *= s6->color_mult[c];
-	do_div(tmp, 0xffffffff);
+	b = s6e8aa0_table_lookup(tmp, c, s6->brightness_table,
+				 s6->brightness_table_size);
 
-	b = tmp;
+	ret = s6e8aa0_raw_gamma_lookup(s6, b, c);
 
-	for (i = 0; i < pdata->gamma_table_size; i++) {
-		bl = bh;
-		bh = pdata->gamma_table[i].brightness;
-		if (bh >= b)
-			break;
-	}
-	vh = pdata->gamma_table[i].v[c];
-	if (i == 0 || (b - bl) == 0) {
-		ret = vl = vh;
-	} else {
-		vl = pdata->gamma_table[i - 1].v[c];
-		tmp = (u64)vh * (b - bl) + (u64)vl * (bh - b);
-		do_div(tmp, bh - bl);
-		ret = tmp;
-	}
-
-	pr_debug("%s: looking for %3d %08x c %d, %08x, "
-		"found %08x:%08x, v %7d:%7d, ret %7d\n",
-		__func__, brightness, val, c, b, bl, bh, vl, vh, ret);
+	pr_debug("%s: looking for %3d %08x c %d, %08x, got %7d\n",
+		 __func__, brightness, val, c, b, ret);
 
 	return ret;
 }
@@ -379,7 +402,7 @@ static void s6e8aa0_setup_gamma_regs(struct s6e8aa0_data *s6, u8 gamma_regs[])
 
 		v[V1] = s6e8aa0_gamma_lookup(s6, brightness, bv->v1, c);
 		adj = v1_to_v1adj(v[V1], v0);
-		adj -= s6->gamma_reg_offsets.v[c][V1];
+		adj -= s6->gamma_reg_offsets.v[1][c][V1];
 		if (adj > V1_ADJ_MAX) {
 			pr_debug("%s: bad adj value %d, v0 %d, v1 %d, c %d\n",
 				__func__, adj, v0, v[V1], c);
@@ -392,7 +415,7 @@ static void s6e8aa0_setup_gamma_regs(struct s6e8aa0_data *s6, u8 gamma_regs[])
 
 		v[V255] = s6e8aa0_gamma_lookup(s6, brightness, BV_255, c);
 		adj = v255_to_v255adj(v[V255], v0);
-		adj -= s6->gamma_reg_offsets.v[c][V255];
+		adj -= s6->gamma_reg_offsets.v[1][c][V255];
 		if (adj > V255_ADJ_MAX) {
 			pr_debug("%s: bad adj value %d, v0 %d, v255 %d, c %d\n",
 				__func__, adj, v0, v[V255], c);
@@ -417,7 +440,7 @@ static void s6e8aa0_setup_gamma_regs(struct s6e8aa0_data *s6, u8 gamma_regs[])
 				adj = -1;
 			} else {
 				adj = vn_to_vnadj(i, v[i], v[V1], v[i + 1]);
-				adj -= s6->gamma_reg_offsets.v[c][i];
+				adj -= s6->gamma_reg_offsets.v[1][c][i];
 			}
 			if (adj > 255) {
 				pr_debug("%s: bad adj value %d, "
@@ -453,7 +476,7 @@ static u64 s6e8aa0_voltage_lookup(struct s6e8aa0_data *s6, int c, u32 v)
 {
 	int i;
 	u32 vh = ~0, vl = ~0;
-	u32 bl, bh = 0;
+	u32 bl = 0, bh = 0;
 	u64 ret;
 	struct panel_s6e8aa0_data *pdata = s6->pdata;
 
@@ -477,51 +500,171 @@ static u64 s6e8aa0_voltage_lookup(struct s6e8aa0_data *s6, int c, u32 v)
 	return ret;
 }
 
-static void s6e8aa0_adjust_brightness_from_mtp(struct s6e8aa0_data *s6)
+static u64 s6e8aa0_limit_brightness(u64 bc[3], u64 bcmax)
 {
 	int c;
-	u32 v255[3];
-	u64 bc[3];
-	u64 bcmax;
 	int shift;
-	struct panel_s6e8aa0_data *pdata = s6->pdata;
-	const struct s6e8aa0_gamma_reg_offsets *offset = &s6->gamma_reg_offsets;
-	const u16 *factory_v255_regs = pdata->factory_v255_regs;
 
-	for (c = 0; c < 3; c++) {
-		u32 v0 = s6e8aa0_gamma_lookup(s6, 255, BV_0, c);
-		v255[c] = v255adj_to_v255(factory_v255_regs[c] +
-					  offset->v[c][V255], v0);
-		bc[c] = s6e8aa0_voltage_lookup(s6, c, v255[c]);
-	}
-
-	shift = pdata->color_adj.rshift;
-	if (shift)
-		for (c = 0; c < 3; c++)
-			bc[c] = bc[c] * pdata->color_adj.mult[c] >> shift;
-
-	bcmax = 0xffffffff;
 	for (c = 0; c < 3; c++)
 		if (bc[c] > bcmax)
 			bcmax = bc[c];
 
 	if (bcmax != 0xffffffff) {
-		pr_warn("s6e8aa: factory calibration info is out of range: "
-			"scale to 0x%llx\n", bcmax);
-		bcmax += 1;
+		u64 tmp;
+		pr_warn("s6e8aa: factory calibration info is out of range: scale to 0x%llx\n",
+			bcmax);
 		shift = fls(bcmax >> 32);
+		tmp = (bcmax << (32 - shift)) - 1;
+		do_div(tmp, 0xffffffff);
+		tmp++;
+		pr_warn("s6e8aa: factory calibration info is out of range: scale to 0x%llx, shift %d\n",
+			tmp, shift);
 		for (c = 0; c < 3; c++) {
 			bc[c] <<= 32 - shift;
-			do_div(bc[c], bcmax >> shift);
+			do_div(bc[c], tmp);
+		}
+	}
+	return bcmax;
+}
+
+static void s6e8aa0_apply_color_adj(
+	const struct s6e8aa0_factory_calibration_info *fi, u64 bc[3])
+{
+	int c;
+	int shift = fi->color_adj.rshift;
+
+	if (!shift)
+		return;
+
+	for (c = 0; c < 3; c++) {
+		u64 b = bc[c];
+		u32 bh = b >> 32;
+		u32 bl = b;
+		u64 m = fi->color_adj.mult[c];
+		/*
+		 * Calculate ((b * m) >> shift).
+		 * If b is greater than 2^32, The 64 by 32 to 64 bit (b * m)
+		 * multiplication can overflow, even if the end result fits,
+		 * so we split it into two 32 by 32 to 64 bit operations.
+		 */
+		bc[c] = ((bh * m) << (32 - shift)) + ((bl * m) >> shift);
+	}
+}
+
+static int s6e8aa0_cmp_gamma_entry(const void *pa, const void *pb)
+{
+	u32 a = ((const struct s6e8aa0_gamma_entry *)pa)->brightness;
+	u32 b = ((const struct s6e8aa0_gamma_entry *)pb)->brightness;
+	if (a > b)
+		return 1;
+	if (a < b)
+		return -1;
+	return 0;
+}
+
+static void s6e8aa0_adjust_brightness_from_mtp(struct s6e8aa0_data *s6)
+{
+	int b, c, i;
+	u32 v[2][3][V_COUNT];
+	u64 bc[3];
+	u64 bcmax;
+	struct panel_s6e8aa0_data *pdata = s6->pdata;
+	const struct s6e8aa0_gamma_reg_offsets *offset = &s6->gamma_reg_offsets;
+	struct s6e8aa0_factory_calibration_info *fi = pdata->factory_info;
+	struct s6e8aa0_gamma_entry *brightness_table;
+	int brightness_table_size = 1;
+
+	for (b = 0; b < 2; b++)
+		for (i = 0; i < V_COUNT; i++)
+			if (fi->brightness[b][i])
+				brightness_table_size++;
+
+	brightness_table = kmalloc(sizeof(*brightness_table) *
+				   brightness_table_size, GFP_KERNEL);
+	if (!brightness_table) {
+		dev_err(&s6->dssdev->dev,
+			"Failed to allocate brightness table\n");
+		return;
+	}
+	brightness_table->brightness = 0;
+	for (c = 0; c < 3; c++)
+		brightness_table->v[c] = 0;
+	s6->brightness_table = brightness_table;
+	s6->brightness_table_size = brightness_table_size;
+	brightness_table++;
+
+	for (b = 0; b < 2; b++) {
+		for (c = 0; c < 3; c++) {
+			u32 v0 = s6e8aa0_raw_gamma_lookup(s6, BV_0, c);
+			v[b][c][V1] = v1adj_to_v1(fi->regs[b][c][V1] +
+						  offset->v[b][c][V1], v0);
+			v[b][c][V255] = v255adj_to_v255(fi->regs[b][c][V255] +
+						     offset->v[b][c][V255], v0);
+			for (i = V171; i >= V15; i--)
+				v[b][c][i] = vnadj_to_vn(i, fi->regs[b][c][i] +
+						   offset->v[b][c][i],
+						   v[b][c][V1], v[b][c][i + 1]);
 		}
 	}
 
-	for (c = 0; c < 3; c++) {
-		s6->color_mult[c] = bc[c];
-		pr_info("s6e8aa: c%d, b-%08llx, got v %d, factory wants %d\n",
-			c, bc[c], s6e8aa0_gamma_lookup(s6, 255, BV_255, c),
-			v255[c]);
+	for (b = 0; b < 2; b++)
+		for (i = 0; i < V_COUNT; i++)
+			pr_debug("%s: b %d, p %d, R %7dv, G %7dv, B %7dv\n",
+				 __func__, b, i,
+				 v[b][0][i], v[b][1][i], v[b][2][i]);
+
+	bcmax = 0xffffffff;
+	for (b = 0; b < 2; b++) {
+		for (i = 0; i < V_COUNT; i++) {
+			if (!fi->brightness[b][i])
+				continue;
+
+			for (c = 0; c < 3; c++)
+				bc[c] = s6e8aa0_voltage_lookup(s6, c,
+							       v[b][c][i]);
+
+			s6e8aa0_apply_color_adj(fi, bc);
+			bcmax = s6e8aa0_limit_brightness(bc, bcmax);
+		}
 	}
+
+	for (b = 0; b < 2; b++) {
+		for (i = 0; i < V_COUNT; i++) {
+			if (!fi->brightness[b][i])
+				continue;
+
+			for (c = 0; c < 3; c++) {
+				bc[c] = s6e8aa0_voltage_lookup(s6, c,
+							       v[b][c][i]);
+				pr_debug("s6e8aa: c%d, %d, b-%08llx, before scaling\n",
+					 c, i, bc[c]);
+			}
+
+			s6e8aa0_apply_color_adj(fi, bc);
+			for (c = 0; c < 3; c++) {
+				pr_debug("s6e8aa: c%d, %d, b-%08llx, after color adj\n",
+					 c, i, bc[c]);
+			}
+
+			s6e8aa0_limit_brightness(bc, bcmax);
+
+			brightness_table->brightness = fi->brightness[b][i];
+			pr_info("s6e8aa: d/b %d, p %d, b-%08x\n",
+				b, i, fi->brightness[b][i]);
+			for (c = 0; c < 3; c++) {
+				if (bc[c] > s6->brightness_limit[c])
+					s6->brightness_limit[c] = bc[c];
+				brightness_table->v[c] = bc[c];
+				pr_info("s6e8aa: c%d, %d, b-%08llx, got v %d, factory wants %d\n",
+					c, i, bc[c],
+					s6e8aa0_raw_gamma_lookup(s6, bc[c], c),
+					v[b][c][i]);
+			}
+			brightness_table++;
+		}
+	}
+	sort(s6->brightness_table + 1, s6->brightness_table_size - 1,
+	     sizeof(*s6->brightness_table), s6e8aa0_cmp_gamma_entry, NULL);
 }
 
 static s16 s9_to_s16(s16 v)
@@ -534,17 +677,18 @@ static int mtp_reg_index(int c, int i)
 	return c * (V_COUNT + 1) + i;
 }
 
-static void s6e8aa0_read_mtp_info(struct s6e8aa0_data *s6)
+static void s6e8aa0_read_mtp_info(struct s6e8aa0_data *s6, int b)
 {
 	int ret;
 	int c, i;
 	u8 mtp_data[24];
+	u8 cmd = b ? 0xD3 : 0xD4;
 	struct omap_dss_device *dssdev = s6->dssdev;
 
 	s6e8aa0_write_block(dssdev, s6e8aa0_mtp_unlock,
 			    ARRAY_SIZE(s6e8aa0_mtp_unlock));
 	dsi_vc_set_max_rx_packet_size(dssdev, 1, 24);
-	ret = s6e8aa0_read_block(dssdev, 0xD3, mtp_data, ARRAY_SIZE(mtp_data));
+	ret = s6e8aa0_read_block(dssdev, cmd, mtp_data, ARRAY_SIZE(mtp_data));
 	dsi_vc_set_max_rx_packet_size(dssdev, 1, 1);
 	s6e8aa0_write_block(dssdev, s6e8aa0_mtp_lock,
 			    ARRAY_SIZE(s6e8aa0_mtp_lock));
@@ -554,10 +698,10 @@ static void s6e8aa0_read_mtp_info(struct s6e8aa0_data *s6)
 	}
 	for (c = 0; c < 3; c++) {
 		for (i = 0; i < V255; i++)
-			s6->gamma_reg_offsets.v[c][i] =
+			s6->gamma_reg_offsets.v[b][c][i] =
 				(s8)mtp_data[mtp_reg_index(c, i)];
 
-		s6->gamma_reg_offsets.v[c][V255] =
+		s6->gamma_reg_offsets.v[b][c][V255] =
 			s9_to_s16(mtp_data[mtp_reg_index(c, V255)] << 8 |
 				  mtp_data[mtp_reg_index(c, V255 + 1)]);
 	}
@@ -619,15 +763,16 @@ static void seq_print_gamma_regs(struct seq_file *m, const u8 gamma_regs[])
 		vt[V255] = s6e8aa0_gamma_lookup(s6, brightness, BV_255, c);
 
 		adj[V1] = gamma_regs[gamma_reg_index(c, V1)];
-		v[V1] = v1adj_to_v1(adj[V1] + offset->v[c][V1], v0);
+		v[V1] = v1adj_to_v1(adj[V1] + offset->v[1][c][V1], v0);
 
 		adj[V255] = gamma_regs[gamma_reg_index_v255_h(c)] << 8 |
 			    gamma_regs[gamma_reg_index_v255_l(c)];
-		v[V255] = v255adj_to_v255(adj[V255] + offset->v[c][V255], v0);
+		v[V255] = v255adj_to_v255(adj[V255] + offset->v[1][c][V255],
+					  v0);
 
 		for (i = V171; i >= V15; i--) {
 			adj[i] = gamma_regs[gamma_reg_index(c, i)];
-			v[i] = vnadj_to_vn(i, adj[i] + offset->v[c][i],
+			v[i] = vnadj_to_vn(i, adj[i] + offset->v[1][c][i],
 					   v[V1], v[i + 1]);
 		}
 		seq_printf(m, "%c                   v0   %7d\n",
@@ -635,7 +780,7 @@ static void seq_print_gamma_regs(struct seq_file *m, const u8 gamma_regs[])
 		for (i = 0; i < V_COUNT; i++) {
 			seq_printf(m, "%c adj %3d (%02x) %+4d "
 				   "v%-3d %7d - %7d %+8d\n",
-				   color[c], adj[i], adj[i], offset->v[c][i],
+				   color[c], adj[i], adj[i], offset->v[1][c][i],
 				   adj_points[i], v[i], vt[i], v[i] - vt[i]);
 		}
 	}
@@ -769,8 +914,9 @@ static void s6e8aa0_config(struct omap_dss_device *dssdev)
 {
 	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
 	struct panel_s6e8aa0_data *pdata = s6->pdata;
-	if (!s6->color_mult[0]) {
-		s6e8aa0_read_mtp_info(s6);
+	if (!s6->brightness_table) {
+		s6e8aa0_read_mtp_info(s6, 0);
+		s6e8aa0_read_mtp_info(s6, 1);
 		s6e8aa0_adjust_brightness_from_mtp(s6);
 	}
 

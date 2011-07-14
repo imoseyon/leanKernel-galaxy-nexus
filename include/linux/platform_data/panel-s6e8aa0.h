@@ -58,6 +58,28 @@ struct s6e8aa0_color_adj {
 	int rshift;
 };
 
+/**
+ * struct s6e8aa0_factory_calibration_info - factory calibration parameters
+ * @regs:       Register values used during factory calibration. The first array
+ *              index is 0 for dark gamma offsets and 1 for bright gamma
+ *              offsets. The second array index is color (0: red, 1: green,
+ *              2: blue). The last array index is the adjusment point (0: V1,
+ *              1: V15, 2: V35, 3: V59, 4: V87, 5: V171, 6: V255).
+ * @brightness: Brightness target used for each adjustment point scaled linearly
+ *              so the maximum brightness is BV_255 (0xffffffff).The first array
+ *              index is 0 for dark gamma offsets and 1 for bright gamma
+ *              offsets. The last array index is the adjusment point (0: V1,
+ *              1: V15, 2: V35, 3: V59, 4: V87, 5: V171, 6: V255). If the value
+ *              is 0 adjustment point is ignored.
+ * @color_adj:  Per color brightness multiplier.
+ */
+
+struct s6e8aa0_factory_calibration_info {
+	u16 regs[2][3][7];
+	u32 brightness[2][7];
+	struct s6e8aa0_color_adj color_adj;
+};
+
 struct panel_s6e8aa0_data {
 	int	reset_gpio;
 	void	(* set_power)(bool enable);
@@ -67,8 +89,7 @@ struct panel_s6e8aa0_data {
 	const struct s6e8aa0_sequence_entry *seq_etc_set;
 	int seq_etc_set_size;
 
-	u16 factory_v255_regs[3];
-	struct s6e8aa0_color_adj color_adj;
+	struct s6e8aa0_factory_calibration_info *factory_info;
 
 	const struct s6e8aa0_gamma_adj_points *gamma_adj_points;
 	const struct s6e8aa0_gamma_entry *gamma_table;
