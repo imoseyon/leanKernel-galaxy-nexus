@@ -282,6 +282,15 @@ static void tuna_gsd4t_gps_gpio(void)
 	omap_mux_init_signal("mcspi1_cs0.gpio_137", OMAP_PIN_OUTPUT);
 	/* GPS_UART_SEL - GPIO 164 */
 	omap_mux_init_signal("usbb2_ulpitll_dat3.gpio_164", OMAP_PIN_OUTPUT);
+
+	if (omap4_tuna_get_revision() >= TUNA_REV_03) {
+		/* GPS_UART_CTS - GPIO 139 */
+		omap_mux_init_signal("mcspi1_cs2.gpio_139",
+					OMAP_MUX_MODE1 | OMAP_PIN_INPUT);
+		/* GPS_UART_RTS - GPIO 140 */
+		omap_mux_init_signal("mcspi1_cs3.gpio_140",
+					OMAP_MUX_MODE1 | OMAP_PIN_OUTPUT);
+	}
 }
 
 static void tuna_gsd4t_gps_init(void)
@@ -601,6 +610,13 @@ static struct omap_board_mux board_wkup_mux[] __initdata = {
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 
+static struct omap_device_pad serial1_pads[] __initdata = {
+	OMAP_MUX_STATIC("mcspi1_cs1.uart1_rx",
+			OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE1),
+	OMAP_MUX_STATIC("uart3_cts_rctx.uart1_tx",
+			OMAP_PIN_OUTPUT | OMAP_MUX_MODE1),
+};
+
 static struct omap_device_pad serial2_pads[] __initdata = {
 	OMAP_MUX_STATIC("uart2_cts.uart2_cts",
 			 OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE0),
@@ -613,10 +629,6 @@ static struct omap_device_pad serial2_pads[] __initdata = {
 };
 
 static struct omap_device_pad serial3_pads[] __initdata = {
-	OMAP_MUX_STATIC("uart3_cts_rctx.uart3_cts_rctx",
-			 OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE0),
-	OMAP_MUX_STATIC("uart3_rts_sd.uart3_rts_sd",
-			 OMAP_PIN_OUTPUT | OMAP_MUX_MODE0),
 	OMAP_MUX_STATIC("uart3_rx_irrx.uart3_rx_irrx",
 			 OMAP_PIN_INPUT | OMAP_MUX_MODE0),
 	OMAP_MUX_STATIC("uart3_tx_irtx.uart3_tx_irtx",
@@ -628,6 +640,12 @@ static struct omap_device_pad serial4_pads[] __initdata = {
 			 OMAP_PIN_INPUT | OMAP_MUX_MODE0),
 	OMAP_MUX_STATIC("uart4_tx.uart4_tx",
 			 OMAP_PIN_OUTPUT | OMAP_MUX_MODE0),
+};
+
+static struct omap_board_data serial1_data __initdata = {
+	.id             = 0,
+	.pads           = serial1_pads,
+	.pads_cnt       = ARRAY_SIZE(serial1_pads),
 };
 
 static struct omap_board_data serial2_data __initdata = {
@@ -650,14 +668,7 @@ static struct omap_board_data serial4_data __initdata = {
 
 static inline void __init board_serial_init(void)
 {
-	struct omap_board_data bdata;
-	bdata.flags     = 0;
-	bdata.pads      = NULL;
-	bdata.pads_cnt  = 0;
-	bdata.id        = 0;
-	/* pass dummy data for UART1 */
-	omap_serial_init_port(&bdata);
-
+	omap_serial_init_port(&serial1_data);
 	omap_serial_init_port(&serial2_data);
 	omap_serial_init_port(&serial3_data);
 	omap_serial_init_port(&serial4_data);

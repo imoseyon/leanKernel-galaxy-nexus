@@ -17,6 +17,7 @@
 #define TUNA_REV_PRE_LUNCHBOX	0x5
 #define TUNA_REV_LUNCHBOX	0x0
 #define TUNA_REV_MASK		0xf
+#define TUNA_REV_03		0x3
 
 #define TUNA_TYPE_TORO		0x10
 #define TUNA_TYPE_MAGURO	0x00
