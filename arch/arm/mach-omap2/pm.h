@@ -22,7 +22,8 @@ extern int omap3_can_sleep(void);
 extern int omap_set_pwrdm_state(struct powerdomain *pwrdm, u32 state);
 extern int omap3_idle_init(void);
 extern int omap4_idle_init(void);
-extern void omap4_enter_sleep(unsigned int cpu, unsigned int power_state);
+extern void omap4_enter_sleep(unsigned int cpu, unsigned int power_state,
+				bool suspend);
 extern void omap4_trigger_ioctrl(void);
 
 #if defined(CONFIG_PM_OPP)

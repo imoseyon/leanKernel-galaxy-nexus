@@ -85,7 +85,8 @@ void omap4_trigger_ioctrl(void)
 /* This is a common low power function called from suspend and
  * cpuidle
  */
-void omap4_enter_sleep(unsigned int cpu, unsigned int power_state)
+
+void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 {
 	int cpu0_next_state = PWRDM_POWER_ON;
 	int per_next_state = PWRDM_POWER_ON;
@@ -240,7 +241,7 @@ static int omap4_pm_suspend(void)
 	 * domain CSWR is not supported by hardware.
 	 * More details can be found in OMAP4430 TRM section 4.3.4.2.
 	 */
-	omap4_enter_sleep(0, PWRDM_POWER_OFF);
+	omap4_enter_sleep(0, PWRDM_POWER_OFF, true);
 	omap4_print_wakeirq();
 
 	/* Disable wake-up irq's */
