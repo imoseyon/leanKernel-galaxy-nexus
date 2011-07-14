@@ -8799,17 +8799,22 @@ cpu_cgroup_destroy(struct cgroup_subsys *ss, struct cgroup *cgrp)
 }
 
 static int
+cpu_cgroup_allow_attach(struct cgroup *cgrp, struct task_struct *tsk)
+{
+	const struct cred *cred = current_cred(), *tcred;
+
+	tcred = __task_cred(tsk);
+
+	if ((current != tsk) && !capable(CAP_SYS_NICE) &&
+	    cred->euid != tcred->uid && cred->euid != tcred->suid)
+		return -EACCES;
+
+	return 0;
+}
+
+static int
 cpu_cgroup_can_attach_task(struct cgroup *cgrp, struct task_struct *tsk)
 {
-	if ((current != tsk) && (!capable(CAP_SYS_NICE))) {
-		const struct cred *cred = current_cred(), *tcred;
-
-		tcred = __task_cred(tsk);
-
-		if (cred->euid != tcred->uid && cred->euid != tcred->suid)
-			return -EPERM;
-	}
-
 #ifdef CONFIG_RT_GROUP_SCHED
 	if (!sched_rt_can_attach(cgroup_tg(cgrp), tsk))
 		return -EINVAL;
@@ -8912,6 +8917,7 @@ struct cgroup_subsys cpu_cgroup_subsys = {
 	.name		= "cpu",
 	.create		= cpu_cgroup_create,
 	.destroy	= cpu_cgroup_destroy,
+	.allow_attach	= cpu_cgroup_allow_attach,
 	.can_attach_task = cpu_cgroup_can_attach_task,
 	.attach_task	= cpu_cgroup_attach_task,
 	.exit		= cpu_cgroup_exit,
