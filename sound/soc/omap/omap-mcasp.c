@@ -340,8 +340,11 @@ static int omap_hw_dit_param(struct omap_mcasp *mcasp, unsigned int rate)
 						AFSXE | FSXMOD(0x180));
 
 	/* Set the TX clock controls : div = 1 and internal */
-	mcasp_set_bits(mcasp->base + OMAP_MCASP_ACLKXCTL_REG,
+	mcasp_set_reg(mcasp->base + OMAP_MCASP_ACLKXCTL_REG,
 						ACLKXE | TX_ASYNC);
+
+	/* Set the HS TX clock controls : div = 1 and internal */
+	mcasp_set_reg(mcasp->base + OMAP_MCASP_AHCLKXCTL_REG, AHCLKXE);
 
 	/* The SPDIF bit clock is derived from the McASP functional clock.
 	 * The McASP has two programmable clock dividers (aclkxdiv and
