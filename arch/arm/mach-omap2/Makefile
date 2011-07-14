@@ -286,3 +286,4 @@ obj-y					+= $(disp-m) $(disp-y)
 obj-y					+= common-board-devices.o
 
 obj-$(CONFIG_OMAP_REMOTE_PROC)		+= remoteproc.o
+obj-$(CONFIG_OMAP_HSI_DEVICE)		+= omap_hsi.o

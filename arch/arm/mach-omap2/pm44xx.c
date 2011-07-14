@@ -356,6 +356,17 @@ static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 
 	/* Check if a IO_ST interrupt */
 	if (irqstatus_mpu & OMAP4430_IO_ST_MASK) {
+
+		/* Check if HSI caused the IO wakeup */
+		#define CA_WAKE_MUX_REG		(0x4a1000C2)
+		#define CM_L3INIT_HSI_CLKCTRL	(0x4a009338)
+		#define HSI_SYSCONFIG		(0x4a058010)
+		if (omap_readw(CA_WAKE_MUX_REG) & (1<<15)) {
+			/* Enable HSI module */
+			omap_writel(omap_readl(CM_L3INIT_HSI_CLKCTRL) | 0x1, CM_L3INIT_HSI_CLKCTRL);
+			/* Put HSI in: No-standby and No-idle */
+			omap_writel( (1<<3) | (1<<12), HSI_SYSCONFIG);
+		}
 		omap4_trigger_ioctrl();
 	}
 
