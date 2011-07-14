@@ -19,6 +19,7 @@
 #include <linux/interrupt.h>
 #include <linux/gpio.h>
 #include <linux/max17040_battery.h>
+#include <linux/moduleparam.h>
 #include <linux/pda_power.h>
 #include <linux/platform_device.h>
 
@@ -35,6 +36,9 @@
 #define GPIO_CHG_CUR_ADJ	102
 
 #define TPS62361_GPIO   7
+
+static bool enable_sr = true;
+module_param(enable_sr, bool, S_IRUSR | S_IRGRP | S_IROTH);
 
 static struct gpio charger_gpios[] = {
 	{ .gpio = GPIO_CHARGING_N, .flags = GPIOF_IN, .label = "charging_n" },
@@ -139,5 +143,6 @@ void __init omap4_tuna_power_init(void)
 
 	i2c_register_board_info(4, max17043_i2c, ARRAY_SIZE(max17043_i2c));
 
-	omap_enable_smartreflex_on_init();
+	if (enable_sr)
+		omap_enable_smartreflex_on_init();
 }
