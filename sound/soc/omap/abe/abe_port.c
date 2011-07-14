@@ -640,11 +640,11 @@ int omap_abe_enable_data_transfer(struct omap_abe *abe, u32 id)
 	}
 	if (id == OMAP_ABE_VX_UL_PORT) {
 		/* Init VX_UL ASRC and enable its adaptation */
-		abe_init_asrc_vx_ul(250);
+		abe_init_asrc_vx_ul(0);
 	}
 	if (id == OMAP_ABE_VX_DL_PORT) {
 		/* Init VX_DL ASRC and enable its adaptation */
-		abe_init_asrc_vx_dl(250);
+		abe_init_asrc_vx_dl(0);
 	}
 	/* local host variable status= "port is running" */
 	abe_port[id].status = OMAP_ABE_PORT_ACTIVITY_RUNNING;

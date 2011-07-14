@@ -41,8 +41,12 @@
 #include "omap-mcbsp.h"
 #include "../codecs/twl6040.h"
 
+#include "../../../arch/arm/mach-omap2/board-tuna.h"
+
 static int twl6040_power_mode;
 static int mcbsp_cfg;
+
+int omap4_tuna_get_type(void);
 
 static int sdp4430_modem_mcbsp_configure(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params, int flag)
@@ -65,18 +69,46 @@ static int sdp4430_modem_mcbsp_configure(struct snd_pcm_substream *substream,
 			modem_substream[substream->stream]->private_data;
 
 		if (!mcbsp_cfg) {
-			/* Set cpu DAI configuration */
-			ret = snd_soc_dai_set_fmt(modem_rtd->cpu_dai,
-					  SND_SOC_DAIFMT_I2S |
-					  SND_SOC_DAIFMT_NB_NF |
-					  SND_SOC_DAIFMT_CBM_CFM);
+			if (omap4_tuna_get_type() == TUNA_TYPE_TORO) {
+				/* Set cpu DAI configuration */
+				ret = snd_soc_dai_set_fmt(modem_rtd->cpu_dai,
+						SND_SOC_DAIFMT_I2S |
+						SND_SOC_DAIFMT_NB_NF |
+						SND_SOC_DAIFMT_CBS_CFS);
+				if (unlikely(ret < 0)) {
+					printk(KERN_ERR "can't set Modem cpu DAI format\n");
+					goto exit;
+				}
 
-			if (unlikely(ret < 0)) {
-				printk(KERN_ERR "can't set Modem cpu DAI configuration\n");
-				goto exit;
+				/* McBSP2 fclk reparented to ABE_24M_FCLK */
+				ret = snd_soc_dai_set_sysclk(modem_rtd->cpu_dai,
+						OMAP_MCBSP_SYSCLK_CLKS_FCLK,
+						32 * 96 * params_rate(params),
+						SND_SOC_CLOCK_IN);
+				if (unlikely(ret < 0)) {
+					printk(KERN_ERR "can't set Modem cpu DAI sysclk\n");
+					goto exit;
+				}
+
+				/* assuming McBSP2 is S16_LE stereo */
+				ret = snd_soc_dai_set_clkdiv(modem_rtd->cpu_dai, 0, 96);
+				if (unlikely(ret < 0)) {
+					printk(KERN_ERR "can't set Modem cpu DAI clkdiv\n");
+					goto exit;
+				}
 			} else {
-				mcbsp_cfg = 1;
+				/* Set cpu DAI configuration */
+				ret = snd_soc_dai_set_fmt(modem_rtd->cpu_dai,
+						SND_SOC_DAIFMT_I2S |
+						SND_SOC_DAIFMT_NB_NF |
+						SND_SOC_DAIFMT_CBM_CFM);
+
+				if (unlikely(ret < 0)) {
+					printk(KERN_ERR "can't set Modem cpu DAI configuration\n");
+					goto exit;
+				}
 			}
+			mcbsp_cfg = 1;
 		}
 
 		if (params != NULL) {
