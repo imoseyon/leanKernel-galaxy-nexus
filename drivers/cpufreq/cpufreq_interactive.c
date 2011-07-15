@@ -28,7 +28,6 @@
 
 #include <asm/cputime.h>
 
-static void (*pm_idle_old)(void);
 static atomic_t active_count = ATOMIC_INIT(0);
 
 struct cpufreq_interactive_cpuinfo {
@@ -67,92 +66,11 @@ static unsigned long go_maxspeed_load;
 #define DEFAULT_MIN_SAMPLE_TIME 80000;
 static unsigned long min_sample_time;
 
-#define DEBUG 0
-#define BUFSZ 128
-
-#if DEBUG
-#include <linux/proc_fs.h>
-
-struct dbgln {
-	int cpu;
-	unsigned long jiffy;
-	unsigned long run;
-	char buf[BUFSZ];
-};
-
-#define NDBGLNS 256
-
-static struct dbgln dbgbuf[NDBGLNS];
-static int dbgbufs;
-static int dbgbufe;
-static struct proc_dir_entry	*dbg_proc;
-static spinlock_t dbgpr_lock;
-
-static u64 up_request_time;
-static unsigned int up_max_latency;
-
-static void dbgpr(char *fmt, ...)
-{
-	va_list args;
-	int n;
-	unsigned long flags;
-
-	spin_lock_irqsave(&dbgpr_lock, flags);
-	n = dbgbufe;
-        va_start(args, fmt);
-        vsnprintf(dbgbuf[n].buf, BUFSZ, fmt, args);
-        va_end(args);
-	dbgbuf[n].cpu = smp_processor_id();
-	dbgbuf[n].run = nr_running();
-	dbgbuf[n].jiffy = jiffies;
-
-	if (++dbgbufe >= NDBGLNS)
-		dbgbufe = 0;
-
-	if (dbgbufe == dbgbufs)
-		if (++dbgbufs >= NDBGLNS)
-			dbgbufs = 0;
-
-	spin_unlock_irqrestore(&dbgpr_lock, flags);
-}
-
-static void dbgdump(void)
-{
-	int i, j;
-	unsigned long flags;
-	static struct dbgln prbuf[NDBGLNS];
-
-	spin_lock_irqsave(&dbgpr_lock, flags);
-	i = dbgbufs;
-	j = dbgbufe;
-	memcpy(prbuf, dbgbuf, sizeof(dbgbuf));
-	dbgbufs = 0;
-	dbgbufe = 0;
-	spin_unlock_irqrestore(&dbgpr_lock, flags);
-
-	while (i != j)
-	{
-		printk("%lu %d %lu %s",
-		       prbuf[i].jiffy, prbuf[i].cpu, prbuf[i].run,
-		       prbuf[i].buf);
-		if (++i == NDBGLNS)
-			i = 0;
-	}
-}
-
-static int dbg_proc_read(char *buffer, char **start, off_t offset,
-			       int count, int *peof, void *dat)
-{
-	printk("max up_task latency=%uus\n", up_max_latency);
-	dbgdump();
-	*peof = 1;
-	return 0;
-}
-
-
-#else
-#define dbgpr(...) do {} while (0)
-#endif
+/*
+ * The sample rate of the timer used to increase frequency
+ */
+#define DEFAULT_TIMER_RATE 30000;
+static unsigned long timer_rate;
 
 static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		unsigned int event);
@@ -202,16 +120,8 @@ static void cpufreq_interactive_timer(unsigned long data)
 	smp_wmb();
 
 	/* If we raced with cancelling a timer, skip. */
-	if (!idle_exit_time) {
-		dbgpr("timer %d: no valid idle exit sample\n", (int) data);
+	if (!idle_exit_time)
 		goto exit;
-	}
-
-#if DEBUG
-	if ((int) jiffies - (int) pcpu->cpu_timer.expires >= 10)
-		dbgpr("timer %d: late by %d ticks\n",
-		      (int) data, jiffies - pcpu->cpu_timer.expires);
-#endif
 
 	delta_idle = (unsigned int) cputime64_sub(now_idle, time_in_idle);
 	delta_time = (unsigned int) cputime64_sub(pcpu->timer_run_time,
@@ -220,11 +130,8 @@ static void cpufreq_interactive_timer(unsigned long data)
 	/*
 	 * If timer ran less than 1ms after short-term sample started, retry.
 	 */
-	if (delta_time < 1000) {
-		dbgpr("timer %d: time delta %u too short exit=%llu now=%llu\n", (int) data,
-		      delta_time, idle_exit_time, pcpu->timer_run_time);
+	if (delta_time < 1000)
 		goto rearm;
-	}
 
 	if (delta_idle > delta_time)
 		cpu_load = 0;
@@ -232,7 +139,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 		cpu_load = 100 * (delta_time - delta_idle) / delta_time;
 
 	delta_idle = (unsigned int) cputime64_sub(now_idle,
-						 pcpu->freq_change_time_in_idle);
+						pcpu->freq_change_time_in_idle);
 	delta_time = (unsigned int) cputime64_sub(pcpu->timer_run_time,
 						  pcpu->freq_change_time);
 
@@ -258,31 +165,25 @@ static void cpufreq_interactive_timer(unsigned long data)
 	if (cpufreq_frequency_table_target(pcpu->policy, pcpu->freq_table,
 					   new_freq, CPUFREQ_RELATION_H,
 					   &index)) {
-		dbgpr("timer %d: cpufreq_frequency_table_target error\n", (int) data);
+		pr_warn_once("timer %d: cpufreq_frequency_table_target error\n",
+			     (int) data);
 		goto rearm;
 	}
 
 	new_freq = pcpu->freq_table[index].frequency;
 
 	if (pcpu->target_freq == new_freq)
-	{
-		dbgpr("timer %d: load=%d, already at %d\n", (int) data, cpu_load, new_freq);
 		goto rearm_if_notmax;
-	}
 
 	/*
 	 * Do not scale down unless we have been at this frequency for the
 	 * minimum sample time.
 	 */
 	if (new_freq < pcpu->target_freq) {
-		if (cputime64_sub(pcpu->timer_run_time, pcpu->freq_change_time) <
-		    min_sample_time) {
-			dbgpr("timer %d: load=%d cur=%d tgt=%d not yet\n", (int) data, cpu_load, pcpu->target_freq, new_freq);
+		if (cputime64_sub(pcpu->timer_run_time, pcpu->freq_change_time)
+		    < min_sample_time)
 			goto rearm;
-		}
 	}
-
-	dbgpr("timer %d: load=%d cur=%d tgt=%d queue\n", (int) data, cpu_load, pcpu->target_freq, new_freq);
 
 	if (new_freq < pcpu->target_freq) {
 		pcpu->target_freq = new_freq;
@@ -292,9 +193,6 @@ static void cpufreq_interactive_timer(unsigned long data)
 		queue_work(down_wq, &freq_scale_down_work);
 	} else {
 		pcpu->target_freq = new_freq;
-#if DEBUG
-		up_request_time = ktime_to_us(ktime_get());
-#endif
 		spin_lock_irqsave(&up_cpumask_lock, flags);
 		cpumask_set_cpu(data, &up_cpumask);
 		spin_unlock_irqrestore(&up_cpumask_lock, flags);
@@ -319,34 +217,29 @@ rearm:
 		if (pcpu->target_freq == pcpu->policy->min) {
 			smp_rmb();
 
-			if (pcpu->idling) {
-				dbgpr("timer %d: cpu idle, don't re-arm\n", (int) data);
+			if (pcpu->idling)
 				goto exit;
-			}
 
 			pcpu->timer_idlecancel = 1;
 		}
 
 		pcpu->time_in_idle = get_cpu_idle_time_us(
 			data, &pcpu->idle_exit_time);
-		mod_timer(&pcpu->cpu_timer, jiffies + 2);
-		dbgpr("timer %d: set timer for %lu exit=%llu\n", (int) data, pcpu->cpu_timer.expires, pcpu->idle_exit_time);
+		mod_timer(&pcpu->cpu_timer, jiffies + usecs_to_jiffies(timer_rate));
 	}
 
 exit:
 	return;
 }
 
-static void cpufreq_interactive_idle(void)
+static void cpufreq_interactive_idle_start(void)
 {
 	struct cpufreq_interactive_cpuinfo *pcpu =
 		&per_cpu(cpuinfo, smp_processor_id());
 	int pending;
 
-	if (!pcpu->governor_enabled) {
-		pm_idle_old();
+	if (!pcpu->governor_enabled)
 		return;
-	}
 
 	pcpu->idling = 1;
 	smp_wmb();
@@ -366,10 +259,7 @@ static void cpufreq_interactive_idle(void)
 			pcpu->time_in_idle = get_cpu_idle_time_us(
 				smp_processor_id(), &pcpu->idle_exit_time);
 			pcpu->timer_idlecancel = 0;
-			mod_timer(&pcpu->cpu_timer, jiffies + 2);
-			dbgpr("idle: enter at %d, set timer for %lu exit=%llu\n",
-			      pcpu->target_freq, pcpu->cpu_timer.expires,
-			      pcpu->idle_exit_time);
+			mod_timer(&pcpu->cpu_timer, jiffies + usecs_to_jiffies(timer_rate));
 		}
 #endif
 	} else {
@@ -380,7 +270,6 @@ static void cpufreq_interactive_idle(void)
 		 * CPU didn't go busy; we'll recheck things upon idle exit.
 		 */
 		if (pending && pcpu->timer_idlecancel) {
-			dbgpr("idle: cancel timer for %lu\n", pcpu->cpu_timer.expires);
 			del_timer(&pcpu->cpu_timer);
 			/*
 			 * Ensure last timer run time is after current idle
@@ -392,7 +281,13 @@ static void cpufreq_interactive_idle(void)
 		}
 	}
 
-	pm_idle_old();
+}
+
+static void cpufreq_interactive_idle_end(void)
+{
+	struct cpufreq_interactive_cpuinfo *pcpu =
+		&per_cpu(cpuinfo, smp_processor_id());
+
 	pcpu->idling = 0;
 	smp_wmb();
 
@@ -414,14 +309,7 @@ static void cpufreq_interactive_idle(void)
 			get_cpu_idle_time_us(smp_processor_id(),
 					     &pcpu->idle_exit_time);
 		pcpu->timer_idlecancel = 0;
-		mod_timer(&pcpu->cpu_timer, jiffies + 2);
-		dbgpr("idle: exit, set timer for %lu exit=%llu\n", pcpu->cpu_timer.expires, pcpu->idle_exit_time);
-#if DEBUG
-	} else if (timer_pending(&pcpu->cpu_timer) == 0 &&
-		   pcpu->timer_run_time < pcpu->idle_exit_time) {
-		dbgpr("idle: timer not run yet: exit=%llu tmrrun=%llu\n",
-		      pcpu->idle_exit_time, pcpu->timer_run_time);
-#endif
+		mod_timer(&pcpu->cpu_timer, jiffies + usecs_to_jiffies(timer_rate));
 	}
 
 }
@@ -432,12 +320,6 @@ static int cpufreq_interactive_up_task(void *data)
 	cpumask_t tmp_mask;
 	unsigned long flags;
 	struct cpufreq_interactive_cpuinfo *pcpu;
-
-#if DEBUG
-	u64 now;
-	u64 then;
-	unsigned int lat;
-#endif
 
 	while (1) {
 		set_current_state(TASK_INTERRUPTIBLE);
@@ -455,29 +337,12 @@ static int cpufreq_interactive_up_task(void *data)
 
 		set_current_state(TASK_RUNNING);
 
-#if DEBUG
-		then = up_request_time;
-		now = ktime_to_us(ktime_get());
-
-		if (now > then) {
-			lat = ktime_to_us(ktime_get()) - then;
-
-			if (lat > up_max_latency)
-				up_max_latency = lat;
-		}
-#endif
-
 		tmp_mask = up_cpumask;
 		cpumask_clear(&up_cpumask);
 		spin_unlock_irqrestore(&up_cpumask_lock, flags);
 
 		for_each_cpu(cpu, &tmp_mask) {
 			pcpu = &per_cpu(cpuinfo, cpu);
-
-			if (nr_running() == 1) {
-				dbgpr("up %d: tgt=%d nothing else running\n", cpu,
-				      pcpu->target_freq);
-			}
 
 			smp_rmb();
 
@@ -490,7 +355,6 @@ static int cpufreq_interactive_up_task(void *data)
 			pcpu->freq_change_time_in_idle =
 				get_cpu_idle_time_us(cpu,
 						     &pcpu->freq_change_time);
-			dbgpr("up %d: set tgt=%d (actual=%d)\n", cpu, pcpu->target_freq, pcpu->policy->cur);
 		}
 	}
 
@@ -523,7 +387,6 @@ static void cpufreq_interactive_freq_down(struct work_struct *work)
 		pcpu->freq_change_time_in_idle =
 			get_cpu_idle_time_us(cpu,
 					     &pcpu->freq_change_time);
-		dbgpr("down %d: set tgt=%d (actual=%d)\n", cpu, pcpu->target_freq, pcpu->policy->cur);
 	}
 }
 
@@ -536,7 +399,14 @@ static ssize_t show_go_maxspeed_load(struct kobject *kobj,
 static ssize_t store_go_maxspeed_load(struct kobject *kobj,
 			struct attribute *attr, const char *buf, size_t count)
 {
-	return strict_strtoul(buf, 0, &go_maxspeed_load);
+	int ret;
+	unsigned long val;
+
+	ret = strict_strtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	go_maxspeed_load = val;
+	return count;
 }
 
 static struct global_attr go_maxspeed_load_attr = __ATTR(go_maxspeed_load, 0644,
@@ -551,15 +421,45 @@ static ssize_t show_min_sample_time(struct kobject *kobj,
 static ssize_t store_min_sample_time(struct kobject *kobj,
 			struct attribute *attr, const char *buf, size_t count)
 {
-	return strict_strtoul(buf, 0, &min_sample_time);
+	int ret;
+	unsigned long val;
+
+	ret = strict_strtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	min_sample_time = val;
+	return count;
 }
 
 static struct global_attr min_sample_time_attr = __ATTR(min_sample_time, 0644,
 		show_min_sample_time, store_min_sample_time);
 
+static ssize_t show_timer_rate(struct kobject *kobj,
+			struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "%lu\n", timer_rate);
+}
+
+static ssize_t store_timer_rate(struct kobject *kobj,
+			struct attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	unsigned long val;
+
+	ret = strict_strtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	timer_rate = val;
+	return count;
+}
+
+static struct global_attr timer_rate_attr = __ATTR(timer_rate, 0644,
+		show_timer_rate, store_timer_rate);
+
 static struct attribute *interactive_attributes[] = {
 	&go_maxspeed_load_attr.attr,
 	&min_sample_time_attr.attr,
+	&timer_rate_attr.attr,
 	NULL,
 };
 
@@ -608,8 +508,6 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		if (rc)
 			return rc;
 
-		pm_idle_old = pm_idle;
-		pm_idle = cpufreq_interactive_idle;
 		break;
 
 	case CPUFREQ_GOV_STOP:
@@ -635,7 +533,6 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		sysfs_remove_group(cpufreq_global_kobject,
 				&interactive_attr_group);
 
-		pm_idle = pm_idle_old;
 		break;
 
 	case CPUFREQ_GOV_LIMITS:
@@ -650,6 +547,26 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 	return 0;
 }
 
+static int cpufreq_interactive_idle_notifier(struct notifier_block *nb,
+					     unsigned long val,
+					     void *data)
+{
+	switch (val) {
+	case IDLE_START:
+		cpufreq_interactive_idle_start();
+		break;
+	case IDLE_END:
+		cpufreq_interactive_idle_end();
+		break;
+	}
+
+	return 0;
+}
+
+static struct notifier_block cpufreq_interactive_idle_nb = {
+	.notifier_call = cpufreq_interactive_idle_notifier,
+};
+
 static int __init cpufreq_interactive_init(void)
 {
 	unsigned int i;
@@ -658,6 +575,7 @@ static int __init cpufreq_interactive_init(void)
 
 	go_maxspeed_load = DEFAULT_GO_MAXSPEED_LOAD;
 	min_sample_time = DEFAULT_MIN_SAMPLE_TIME;
+	timer_rate = DEFAULT_TIMER_RATE;
 
 	/* Initalize per-cpu timers */
 	for_each_possible_cpu(i) {
@@ -679,7 +597,7 @@ static int __init cpufreq_interactive_init(void)
 	   warm cache (probably doesn't matter much). */
 	down_wq = alloc_workqueue("knteractive_down", 0, 1);
 
-	if (! down_wq)
+	if (!down_wq)
 		goto err_freeuptask;
 
 	INIT_WORK(&freq_scale_down_work,
@@ -688,11 +606,7 @@ static int __init cpufreq_interactive_init(void)
 	spin_lock_init(&up_cpumask_lock);
 	spin_lock_init(&down_cpumask_lock);
 
-#if DEBUG
-	spin_lock_init(&dbgpr_lock);
-	dbg_proc = create_proc_entry("igov", S_IWUSR | S_IRUGO, NULL);
-	dbg_proc->read_proc = dbg_proc_read;
-#endif
+	idle_notifier_register(&cpufreq_interactive_idle_nb);
 
 	return cpufreq_register_governor(&cpufreq_gov_interactive);
 
