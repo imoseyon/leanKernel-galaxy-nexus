@@ -853,6 +853,9 @@ int omap_device_scale(struct device *req_dev, struct device *target_dev,
 
 	rcu_read_lock();
 	opp = opp_find_freq_ceil(target_dev, &freq);
+	/* If we dont find a max, try a floor at least */
+	if (IS_ERR(opp))
+		opp = opp_find_freq_floor(target_dev, &freq);
 	if (IS_ERR(opp)) {
 		rcu_read_unlock();
 		dev_err(target_dev, "%s: Unable to find OPP for freq%ld\n",
