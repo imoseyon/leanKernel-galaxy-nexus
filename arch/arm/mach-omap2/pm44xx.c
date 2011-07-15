@@ -108,7 +108,8 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 			mpu_next_state = PWRDM_POWER_INACTIVE;
 			pwrdm_set_next_pwrst(mpu_pwrdm, mpu_next_state);
 		} else {
-			omap_sr_disable_reset_volt(mpu_voltdm);
+			if (!suspend)
+				omap_sr_disable_reset_volt(mpu_voltdm);
 			omap_vc_set_auto_trans(mpu_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
 		}
@@ -126,8 +127,10 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 			core_next_state = PWRDM_POWER_ON;
 			pwrdm_set_next_pwrst(core_pwrdm, core_next_state);
 		} else {
-			omap_sr_disable_reset_volt(iva_voltdm);
-			omap_sr_disable_reset_volt(core_voltdm);
+			if (!suspend) {
+				omap_sr_disable_reset_volt(iva_voltdm);
+				omap_sr_disable_reset_volt(core_voltdm);
+			}
 			omap_vc_set_auto_trans(core_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
 			omap_vc_set_auto_trans(iva_voltdm,
@@ -147,14 +150,17 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 		omap_vc_set_auto_trans(iva_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE);
 		omap2_gpio_resume_after_idle();
-		omap_sr_enable(iva_voltdm);
-		omap_sr_enable(core_voltdm);
+		if (!suspend) {
+			omap_sr_enable(iva_voltdm);
+			omap_sr_enable(core_voltdm);
+		}
 	}
 
 	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
 		omap_vc_set_auto_trans(mpu_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE);
-		omap_sr_enable(mpu_voltdm);
+		if (!suspend)
+			omap_sr_enable(mpu_voltdm);
 	}
 
 	return;
