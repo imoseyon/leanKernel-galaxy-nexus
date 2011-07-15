@@ -128,10 +128,6 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state)
 			omap_vc_set_auto_trans(iva_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
 
-			omap_uart_prepare_idle(0);
-			omap_uart_prepare_idle(1);
-			omap_uart_prepare_idle(2);
-			omap_uart_prepare_idle(3);
 			omap2_gpio_prepare_for_idle(0);
 			omap4_trigger_ioctrl();
 		}
@@ -146,10 +142,6 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state)
 		omap_vc_set_auto_trans(iva_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE);
 		omap2_gpio_resume_after_idle();
-		omap_uart_resume_idle(0);
-		omap_uart_resume_idle(1);
-		omap_uart_resume_idle(2);
-		omap_uart_resume_idle(3);
 		omap_sr_enable(iva_voltdm);
 		omap_sr_enable(core_voltdm);
 	}
@@ -161,6 +153,15 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state)
 	}
 
 	return;
+}
+
+/* We set the wake-up enable bits for irq's that have to be wakeup capable but
+ * are not associated with a specific driver.
+ */
+static void omap4_pm_set_wakeups(int enable)
+{
+	irq_set_irq_wake(OMAP44XX_IRQ_PRCM, enable);
+	irq_set_irq_wake(OMAP44XX_IRQ_SYS_1N, enable);
 }
 
 static int omap4_pm_suspend(void)
@@ -178,6 +179,9 @@ static int omap4_pm_suspend(void)
 		pwrst->saved_state = pwrdm_read_next_pwrst(pwrst->pwrdm);
 		pwrst->saved_logic_state = pwrdm_read_logic_retst(pwrst->pwrdm);
 	}
+
+	/* Enable wake-up irq's */
+	omap4_pm_set_wakeups(1);
 
 	/* Set targeted power domain states by suspend */
 	list_for_each_entry(pwrst, &pwrst_list, node) {
@@ -204,8 +208,10 @@ static int omap4_pm_suspend(void)
 	 * domain CSWR is not supported by hardware.
 	 * More details can be found in OMAP4430 TRM section 4.3.4.2.
 	 */
-	omap_uart_prepare_suspend();
 	omap4_enter_sleep(0, PWRDM_POWER_OFF);
+
+	/* Disable wake-up irq's */
+	omap4_pm_set_wakeups(0);
 
 	/* Restore next powerdomain state */
 	list_for_each_entry(pwrst, &pwrst_list, node) {
@@ -356,7 +362,6 @@ static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 
 	/* Check if a IO_ST interrupt */
 	if (irqstatus_mpu & OMAP4430_IO_ST_MASK) {
-
 		/* Check if HSI caused the IO wakeup */
 		#define CA_WAKE_MUX_REG		(0x4a1000C2)
 		#define CM_L3INIT_HSI_CLKCTRL	(0x4a009338)
@@ -367,6 +372,7 @@ static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 			/* Put HSI in: No-standby and No-idle */
 			omap_writel( (1<<3) | (1<<12), HSI_SYSCONFIG);
 		}
+		omap_uart_resume_idle();
 		omap4_trigger_ioctrl();
 	}
 
@@ -376,13 +382,6 @@ static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 					OMAP4_PRM_IRQSTATUS_MPU_OFFSET);
 
 	return IRQ_HANDLED;
-}
-
-int omap4_can_sleep(void)
-{
-	if (!omap_uart_can_sleep())
-		return -1;
-	return 0;
 }
 
 /**

@@ -34,6 +34,8 @@
 #include <linux/semaphore.h>
 #include <linux/gpio.h>
 #include <linux/regulator/consumer.h>
+#include <linux/pm_runtime.h>
+
 #include <plat/dma.h>
 #include <mach/hardware.h>
 #include <plat/board.h>
@@ -1157,8 +1159,7 @@ static int omap_hsmmc_switch_opcond(struct omap_hsmmc_host *host, int vdd)
 	int ret;
 
 	/* Disable the clocks */
-	clk_disable(host->fclk);
-	clk_disable(host->iclk);
+	pm_runtime_put_sync(host->dev);
 	if (host->got_dbclk)
 		clk_disable(host->dbclk);
 
@@ -1169,8 +1170,7 @@ static int omap_hsmmc_switch_opcond(struct omap_hsmmc_host *host, int vdd)
 	if (!ret)
 		ret = mmc_slot(host).set_power(host->dev, host->slot_id, 1,
 					       vdd);
-	clk_enable(host->iclk);
-	clk_enable(host->fclk);
+	pm_runtime_get_sync(host->dev);
 	if (host->got_dbclk)
 		clk_enable(host->dbclk);
 
@@ -1711,8 +1711,8 @@ enum {ENABLED = 0, DISABLED, CARDSLEEP, REGSLEEP, OFF};
 /* Handler for [ENABLED -> DISABLED] transition */
 static int omap_hsmmc_enabled_to_disabled(struct omap_hsmmc_host *host)
 {
-	omap_hsmmc_context_save(host);
-	clk_disable(host->fclk);
+	pm_runtime_put_sync(host->dev);
+
 	host->dpm_state = DISABLED;
 
 	dev_dbg(mmc_dev(host->mmc), "ENABLED -> DISABLED\n");
@@ -1731,12 +1731,12 @@ static int omap_hsmmc_disabled_to_sleep(struct omap_hsmmc_host *host)
 	if (!mmc_try_claim_host(host->mmc))
 		return 0;
 
-	clk_enable(host->fclk);
-	omap_hsmmc_context_restore(host);
+	pm_runtime_get_sync(host->dev);
+
 	if (mmc_card_can_sleep(host->mmc)) {
 		err = mmc_card_sleep(host->mmc);
 		if (err < 0) {
-			clk_disable(host->fclk);
+			pm_runtime_put_sync(host->dev);
 			mmc_release_host(host->mmc);
 			return err;
 		}
@@ -1748,7 +1748,7 @@ static int omap_hsmmc_disabled_to_sleep(struct omap_hsmmc_host *host)
 		mmc_slot(host).set_sleep(host->dev, host->slot_id, 1, 0,
 					 new_state == CARDSLEEP);
 	/* FIXME: turn off bus power and perhaps interrupts too */
-	clk_disable(host->fclk);
+	pm_runtime_put_sync(host->dev);
 	host->dpm_state = new_state;
 
 	mmc_release_host(host->mmc);
@@ -1802,13 +1802,8 @@ static int omap_hsmmc_sleep_to_off(struct omap_hsmmc_host *host)
 /* Handler for [DISABLED -> ENABLED] transition */
 static int omap_hsmmc_disabled_to_enabled(struct omap_hsmmc_host *host)
 {
-	int err;
+	pm_runtime_get_sync(host->dev);
 
-	err = clk_enable(host->fclk);
-	if (err < 0)
-		return err;
-
-	omap_hsmmc_context_restore(host);
 	host->dpm_state = ENABLED;
 
 	dev_dbg(mmc_dev(host->mmc), "DISABLED -> ENABLED\n");
@@ -1822,8 +1817,8 @@ static int omap_hsmmc_sleep_to_enabled(struct omap_hsmmc_host *host)
 	if (!mmc_try_claim_host(host->mmc))
 		return 0;
 
-	clk_enable(host->fclk);
-	omap_hsmmc_context_restore(host);
+	pm_runtime_get_sync(host->dev);
+
 	if (mmc_slot(host).set_sleep)
 		mmc_slot(host).set_sleep(host->dev, host->slot_id, 0,
 			 host->vdd, host->dpm_state == CARDSLEEP);
@@ -1843,9 +1838,8 @@ static int omap_hsmmc_sleep_to_enabled(struct omap_hsmmc_host *host)
 /* Handler for [OFF -> ENABLED] transition */
 static int omap_hsmmc_off_to_enabled(struct omap_hsmmc_host *host)
 {
-	clk_enable(host->fclk);
+	pm_runtime_get_sync(host->dev);
 
-	omap_hsmmc_context_restore(host);
 	omap_hsmmc_conf_bus_power(host);
 	mmc_power_restore_host(host->mmc);
 
@@ -1904,32 +1898,29 @@ static int omap_hsmmc_disable(struct mmc_host *mmc, int lazy)
 	}
 }
 
-static int omap_hsmmc_enable_fclk(struct mmc_host *mmc)
+static int omap_hsmmc_enable_simple(struct mmc_host *mmc)
 {
 	struct omap_hsmmc_host *host = mmc_priv(mmc);
-	int err;
 
-	err = clk_enable(host->fclk);
-	if (err)
-		return err;
-	dev_dbg(mmc_dev(host->mmc), "mmc_fclk: enabled\n");
-	omap_hsmmc_context_restore(host);
+	pm_runtime_get_sync(host->dev);
+
+	dev_dbg(mmc_dev(host->mmc), "enabled\n");
 	return 0;
 }
 
-static int omap_hsmmc_disable_fclk(struct mmc_host *mmc, int lazy)
+static int omap_hsmmc_disable_simple(struct mmc_host *mmc, int lazy)
 {
 	struct omap_hsmmc_host *host = mmc_priv(mmc);
 
-	omap_hsmmc_context_save(host);
-	clk_disable(host->fclk);
-	dev_dbg(mmc_dev(host->mmc), "mmc_fclk: disabled\n");
+	pm_runtime_put_sync(host->dev);
+
+	dev_dbg(mmc_dev(host->mmc), "idle\n");
 	return 0;
 }
 
 static const struct mmc_host_ops omap_hsmmc_ops = {
-	.enable = omap_hsmmc_enable_fclk,
-	.disable = omap_hsmmc_disable_fclk,
+	.enable = omap_hsmmc_enable_simple,
+	.disable = omap_hsmmc_disable_simple,
 	.request = omap_hsmmc_request,
 	.set_ios = omap_hsmmc_set_ios,
 	.get_cd = omap_hsmmc_get_cd,
@@ -1975,10 +1966,7 @@ static int omap_hsmmc_regs_show(struct seq_file *s, void *data)
 		return 0;
 	}
 
-	if (clk_enable(host->fclk) != 0) {
-		seq_printf(s, "can't read the regs\n");
-		return 0;
-	}
+	pm_runtime_get_sync(host->dev);
 
 	seq_printf(s, "SYSCONFIG:\t0x%08x\n",
 			OMAP_HSMMC_READ(host->base, SYSCONFIG));
@@ -1995,7 +1983,7 @@ static int omap_hsmmc_regs_show(struct seq_file *s, void *data)
 	seq_printf(s, "CAPA:\t\t0x%08x\n",
 			OMAP_HSMMC_READ(host->base, CAPA));
 
-	clk_disable(host->fclk);
+	pm_runtime_put_sync(host->dev);
 
 	return 0;
 }
@@ -2125,18 +2113,17 @@ static int __init omap_hsmmc_probe(struct platform_device *pdev)
 	/* we start off in DISABLED state */
 	host->dpm_state = DISABLED;
 
-	if (clk_enable(host->iclk) != 0) {
-		clk_put(host->iclk);
-		clk_put(host->fclk);
-		goto err1;
-	}
+	pm_runtime_enable(host->dev);
+#ifndef CONFIG_PM_RUNTIME
+	/*
+	 * If runtime PM is not enabled, ensure clocks are always enabled.
+	 */
+	clk_enable(host->iclk);
+	clk_enable(host->fclk);
+#endif
 
-	if (mmc_host_enable(host->mmc) != 0) {
-		clk_disable(host->iclk);
-		clk_put(host->iclk);
-		clk_put(host->fclk);
+	if (mmc_host_enable(host->mmc) != 0)
 		goto err1;
-	}
 
 	if (cpu_is_omap2430()) {
 		host->dbclk = clk_get(&pdev->dev, "mmchsdb_fck");
@@ -2176,32 +2163,19 @@ static int __init omap_hsmmc_probe(struct platform_device *pdev)
 
 	omap_hsmmc_conf_bus_power(host);
 
-	/* Select DMA lines */
-	switch (host->id) {
-	case OMAP_MMC1_DEVID:
-		host->dma_line_tx = OMAP24XX_DMA_MMC1_TX;
-		host->dma_line_rx = OMAP24XX_DMA_MMC1_RX;
-		break;
-	case OMAP_MMC2_DEVID:
-		host->dma_line_tx = OMAP24XX_DMA_MMC2_TX;
-		host->dma_line_rx = OMAP24XX_DMA_MMC2_RX;
-		break;
-	case OMAP_MMC3_DEVID:
-		host->dma_line_tx = OMAP34XX_DMA_MMC3_TX;
-		host->dma_line_rx = OMAP34XX_DMA_MMC3_RX;
-		break;
-	case OMAP_MMC4_DEVID:
-		host->dma_line_tx = OMAP44XX_DMA_MMC4_TX;
-		host->dma_line_rx = OMAP44XX_DMA_MMC4_RX;
-		break;
-	case OMAP_MMC5_DEVID:
-		host->dma_line_tx = OMAP44XX_DMA_MMC5_TX;
-		host->dma_line_rx = OMAP44XX_DMA_MMC5_RX;
-		break;
-	default:
-		dev_err(mmc_dev(host->mmc), "Invalid MMC id\n");
+	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "tx");
+	if (!res) {
+		dev_err(mmc_dev(host->mmc), "cannot get DMA TX channel\n");
 		goto err_irq;
 	}
+	host->dma_line_tx = res->start;
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "rx");
+	if (!res) {
+		dev_err(mmc_dev(host->mmc), "cannot get DMA RX channel\n");
+		goto err_irq;
+	}
+	host->dma_line_rx = res->end;
 
 	/* Request IRQ for MMC operations */
 	ret = request_irq(host->irq, omap_hsmmc_irq, IRQF_DISABLED,
@@ -2281,9 +2255,9 @@ err_irq_cd_init:
 	free_irq(host->irq, host);
 err_irq:
 	mmc_host_disable(host->mmc);
-	clk_disable(host->iclk);
 	clk_put(host->fclk);
 	clk_put(host->iclk);
+
 	if (host->got_dbclk) {
 		clk_disable(host->dbclk);
 		clk_put(host->dbclk);
@@ -2317,7 +2291,8 @@ static int omap_hsmmc_remove(struct platform_device *pdev)
 		flush_work_sync(&host->mmc_carddetect_work);
 
 		mmc_host_disable(host->mmc);
-		clk_disable(host->iclk);
+		pm_runtime_suspend(host->dev);
+
 		clk_put(host->fclk);
 		clk_put(host->iclk);
 		if (host->got_dbclk) {
@@ -2370,7 +2345,7 @@ static int omap_hsmmc_suspend(struct device *dev)
 			OMAP_HSMMC_WRITE(host->base, HCTL,
 				OMAP_HSMMC_READ(host->base, HCTL) & ~SDBP);
 			mmc_host_disable(host->mmc);
-			clk_disable(host->iclk);
+
 			if (host->got_dbclk)
 				clk_disable(host->dbclk);
 		} else {
@@ -2382,6 +2357,12 @@ static int omap_hsmmc_suspend(struct device *dev)
 					dev_dbg(mmc_dev(host->mmc),
 						"Unmask interrupt failed\n");
 			}
+
+			/*
+			 * Directly call platform_bus suspend. runtime PM
+			 * PM lock is held during system suspend, so will
+			 * not be auto-matically called
+			 */
 			mmc_host_disable(host->mmc);
 		}
 
@@ -2400,12 +2381,7 @@ static int omap_hsmmc_resume(struct device *dev)
 		return 0;
 
 	if (host) {
-		ret = clk_enable(host->iclk);
-		if (ret)
-			goto clk_en_err;
-
 		if (mmc_host_enable(host->mmc) != 0) {
-			clk_disable(host->iclk);
 			goto clk_en_err;
 		}
 
@@ -2445,9 +2421,38 @@ clk_en_err:
 #define omap_hsmmc_resume		NULL
 #endif
 
+/* called just before device is disabled */
+static int omap_hsmmc_runtime_suspend(struct device *dev)
+{
+	struct omap_hsmmc_host *host;
+
+	dev_dbg(dev, "%s\n", __func__);
+
+	host = platform_get_drvdata(to_platform_device(dev));
+	omap_hsmmc_context_save(host);
+
+	return 0;
+}
+
+/* called after device is (re)enabled, ONLY if context was lost */
+static int omap_hsmmc_runtime_resume(struct device *dev)
+{
+	struct omap_hsmmc_host *host;
+
+	dev_dbg(dev, "%s\n", __func__);
+
+	host = platform_get_drvdata(to_platform_device(dev));
+	omap_hsmmc_context_restore(host);
+
+	return 0;
+}
+
+
 static struct dev_pm_ops omap_hsmmc_dev_pm_ops = {
 	.suspend	= omap_hsmmc_suspend,
 	.resume		= omap_hsmmc_resume,
+	.runtime_suspend = omap_hsmmc_runtime_suspend,
+	.runtime_resume = omap_hsmmc_runtime_resume,
 };
 
 static struct platform_driver omap_hsmmc_driver = {

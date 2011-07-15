@@ -27,6 +27,7 @@
 #include <plat/mcspi.h>
 #include <plat/mcbsp.h>
 #include <plat/mmc.h>
+#include <plat/dmtimer.h>
 
 #include "omap_hwmod_common_data.h"
 
@@ -4154,7 +4155,7 @@ static struct omap_hwmod_class_sysconfig omap44xx_mmc_sysc = {
 			   SYSC_HAS_RESET_STATUS | SYSC_HAS_SIDLEMODE |
 			   SYSC_HAS_SOFTRESET),
 	.idlemodes	= (SIDLE_FORCE | SIDLE_NO | SIDLE_SMART |
-			   SIDLE_SMART_WKUP | MSTANDBY_FORCE | MSTANDBY_NO |
+			   MSTANDBY_FORCE | MSTANDBY_NO |
 			   MSTANDBY_SMART),
 	.sysc_fields	= &omap_hwmod_sysc_type2,
 };
@@ -4525,6 +4526,7 @@ static struct omap_hwmod_class_sysconfig omap44xx_timer_1ms_sysc = {
 static struct omap_hwmod_class omap44xx_timer_1ms_hwmod_class = {
 	.name	= "timer",
 	.sysc	= &omap44xx_timer_1ms_sysc,
+	.rev	= OMAP_TIMER_IP_VERSION_1,
 };
 
 static struct omap_hwmod_class_sysconfig omap44xx_timer_sysc = {
@@ -4540,6 +4542,12 @@ static struct omap_hwmod_class_sysconfig omap44xx_timer_sysc = {
 static struct omap_hwmod_class omap44xx_timer_hwmod_class = {
 	.name	= "timer",
 	.sysc	= &omap44xx_timer_sysc,
+	.rev	= OMAP_TIMER_IP_VERSION_2,
+};
+
+/* secure timer can assign this to .dev_attr field */
+static struct omap_secure_timer_dev_attr secure_timer_dev_attr = {
+	.is_secure_timer        = true,
 };
 
 /* timer1 */
