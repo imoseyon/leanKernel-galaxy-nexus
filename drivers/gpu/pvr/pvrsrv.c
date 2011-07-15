@@ -1168,6 +1168,20 @@ IMG_VOID IMG_CALLCONV PVRSRVMISR(IMG_VOID *pvSysData)
 	}
 }
 
+IMG_EXPORT
+void PVRSVRSignalOSEventObject(void)
+{
+	SYS_DATA  *psSysData;
+	SysAcquireData(&psSysData);
+	if (psSysData && psSysData->psGlobalEventObject)
+	{
+		IMG_HANDLE hOSEventKM = psSysData->psGlobalEventObject->hOSEventKM;
+		if(hOSEventKM)
+		{
+			OSEventObjectSignalKM(hOSEventKM);
+		}
+	}
+}
 
 IMG_EXPORT
 PVRSRV_ERROR IMG_CALLCONV PVRSRVProcessConnect(IMG_UINT32	ui32PID, IMG_UINT32 ui32Flags)
