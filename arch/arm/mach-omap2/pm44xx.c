@@ -20,7 +20,9 @@
 #include <linux/gpio.h>
 #include <linux/interrupt.h>
 #include <linux/delay.h>
+#include <linux/irq.h>
 
+#include <asm/hardware/gic.h>
 #include <mach/omap4-common.h>
 #include <plat/common.h>
 
@@ -42,6 +44,8 @@
 #include "dvfs.h"
 #include "voltage.h"
 #include "vc.h"
+
+#define OMAP44XX_IRQ_GIC_START 32
 
 struct power_state {
 	struct powerdomain *pwrdm;
@@ -164,6 +168,34 @@ static void omap4_pm_set_wakeups(int enable)
 	irq_set_irq_wake(OMAP44XX_IRQ_SYS_1N, enable);
 }
 
+#ifdef CONFIG_PM_DEBUG
+static void omap4_print_wakeirq(void)
+{
+	int irq;
+	struct irq_desc *desc;
+
+	irq = gic_cpu_read(GIC_CPU_HIGHPRI) & 0x3ff;
+
+	if ((irq == 1022) || (irq == 1023)) {
+		pr_info("GIC returns spurious interrupt for resume IRQ\n");
+		return;
+	}
+
+	irq -= OMAP44XX_IRQ_GIC_START;
+	desc = irq_to_desc(irq);
+
+	if (!desc || !desc->action || !desc->action->name)
+		pr_info("Resume caused by IRQ %d\n", irq);
+	else
+		pr_info("Resume caused by IRQ %d, %s\n", irq,
+			desc->action->name);
+}
+#else
+static void omap4_print_wakeirq(void)
+{
+}
+#endif
+
 static int omap4_pm_suspend(void)
 {
 	struct power_state *pwrst;
@@ -209,6 +241,7 @@ static int omap4_pm_suspend(void)
 	 * More details can be found in OMAP4430 TRM section 4.3.4.2.
 	 */
 	omap4_enter_sleep(0, PWRDM_POWER_OFF);
+	omap4_print_wakeirq();
 
 	/* Disable wake-up irq's */
 	omap4_pm_set_wakeups(0);
