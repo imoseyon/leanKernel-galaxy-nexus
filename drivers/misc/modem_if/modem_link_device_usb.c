@@ -239,24 +239,6 @@ static int usb_tx_urb_with_skb(struct usb_link_device *usb_ld,
 	return 0;
 }
 
-static void usb_runtime_start(struct work_struct *work)
-{
-	struct usb_link_device *usb_ld =
-		container_of(work, struct usb_link_device,
-		pm_runtime_work.work);
-	struct device *dev, *ppdev;
-
-	dev = &usb_ld->usbdev->dev;
-	if (usb_ld->usbdev && dev->parent) {
-		ppdev = dev->parent->parent;
-		/*enable runtime feature - once after boot*/
-		/*enable_irq_wake(usb_ld->pdata->irq_host_wakeup);*/
-		enable_irq(usb_ld->pdata->irq_host_wakeup);
-		dev_info(dev, "if_usb Runtime PM Start!!\n");
-		usb_enable_autosuspend(usb_ld->usbdev);
-	}
-}
-
 static void usb_tx_work(struct work_struct *work)
 {
 	int ret = 0;
@@ -407,7 +389,7 @@ static void if_usb_disconnect(struct usb_interface *intf)
 	usb_ld->if_usb_connected = 0;
 	usb_ld->flow_suspend = 1;
 
-	dev_info(&usbdev->dev, "%s\n", __func__);
+	dev_dbg(&usbdev->dev, "%s\n", __func__);
 	usb_ld->dev_count--;
 	usb_ld->devdata[dev_id].disconnected = 1;
 	usb_driver_release_interface(&if_usb_driver,
@@ -422,7 +404,6 @@ static void if_usb_disconnect(struct usb_interface *intf)
 	if (usb_ld->dev_count == 0) {
 		usb_ld->usbdev = NULL;
 
-		cancel_delayed_work_sync(&usb_ld->pm_runtime_work);
 		cancel_delayed_work_sync(&usb_ld->ld.tx_delayed_work);
 		cancel_work_sync(&usb_ld->post_resume_work);
 		if (!usb_ld->driver_info) {
@@ -450,6 +431,8 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 			(struct usb_link_device *)id->driver_info;
 	struct usb_interface *data_intf;
 	struct usb_device *usbdev = interface_to_usbdev(intf);
+	struct device *dev;
+
 	int i;
 	int dev_id;
 	int err;
@@ -468,12 +451,6 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 
 	usb_ld->usbdev = usbdev;
 	usb_ld->driver_info = (unsigned long)id->driver_info;
-
-	pm_runtime_set_autosuspend_delay(&usbdev->dev, 1000);
-	schedule_delayed_work(&usb_ld->pm_runtime_work,
-				msecs_to_jiffies(10000));
-	usb_ld->if_usb_connected = 1;
-	usb_ld->flow_suspend = 0;
 
 	if (!usb_ld) {
 		dev_err(&intf->dev,
@@ -548,6 +525,17 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 
 	SET_HOST_ACTIVE(usb_ld->pdata, 1);
 
+	if (gpio_get_value(usb_ld->pdata->gpio_phone_active)) {
+		pm_runtime_set_autosuspend_delay(&usbdev->dev, 1000);
+		dev = &usb_ld->usbdev->dev;
+		if (dev->parent) {
+			dev_dbg(&usbdev->dev, "if_usb Runtime PM Start!!\n");
+			usb_enable_autosuspend(usb_ld->usbdev);
+		}
+		usb_ld->if_usb_connected = 1;
+		usb_ld->flow_suspend = 0;
+	}
+
 	return 0;
 
 out:
@@ -570,13 +558,11 @@ static irqreturn_t usb_resume_irq(int irq, void *data)
 	struct usb_link_device *usb_ld = (struct usb_link_device *)data;
 	struct device *dev = &usb_ld->usbdev->dev;
 	int val = gpio_get_value(usb_ld->pdata->gpio_host_wakeup);
-	static unsigned int i;
 
 	pr_debug("< H-WUP %d\n", val);
 
-	if (i == 0) {
-		pr_err("==> ignore first interrupt :(\n");
-		i++;
+	if (!gpio_get_value(usb_ld->pdata->gpio_phone_active)) {
+		pr_debug("phone is not active. Ignore\n");
 		return IRQ_HANDLED;
 	}
 
@@ -693,16 +679,8 @@ struct link_device *usb_create_link_device(void *data)
 					usb_ld->pdata->irq_host_wakeup);
 		return NULL;
 	}
-	/*
-	mc->irq[1] = mc->irq_host_wakeup;
-	enable_irq_wake(usb_ld->pdata->irq_host_wakeup);
-	*/
-	/*enable_irq_wake(usb_ld->pdata->irq_host_wakeup);*/
-	disable_irq(usb_ld->pdata->irq_host_wakeup);
-	/*device_init_wakeup(&pdev->dev, mc->wakeup);*//*TO BE CHECKED*/
 
 	INIT_DELAYED_WORK(&ld->tx_delayed_work, usb_tx_work);
-	INIT_DELAYED_WORK(&usb_ld->pm_runtime_work, usb_runtime_start);
 
 	ret = if_usb_init(ld);
 	if (ret)

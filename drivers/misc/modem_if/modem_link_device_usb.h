@@ -68,7 +68,6 @@ struct usb_link_device {
 	struct usb_device	*usbdev;
 	struct if_usb_devdata	devdata[IF_USB_DEVNUM_MAX];
 	struct work_struct	post_resume_work;
-	struct delayed_work	pm_runtime_work;
 	struct delayed_work	reconnect_work;
 
 	unsigned long		driver_info;
