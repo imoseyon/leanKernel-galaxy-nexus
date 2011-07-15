@@ -226,29 +226,36 @@ static int tuna_wifi_reset(int on)
 
 static unsigned char tuna_mac_addr[IFHWADDRLEN] = { 0,0x90,0x4c,0,0,0 };
 
-#if 0
-static int __init parse_tag_wlan_mac(const struct tag *tag)
+static int __init tuna_mac_addr_setup(char *str)
 {
-	unsigned char *dptr = (unsigned char *)(&tag->u);
-	unsigned size;
-#ifdef ATAG_TUNA_MAC_DEBUG
-	unsigned i;
-#endif
+	char macstr[IFHWADDRLEN*3];
+	char *macptr = macstr;
+	char *token;
+	int i = 0;
 
-	size = min((tag->hdr.size - 2) * sizeof(__u32), (unsigned)IFHWADDRLEN);
-#ifdef ATAG_TUNA_MAC_DEBUG
-	printk("WiFi MAC Addr [%d] = 0x%x\n", tag->hdr.size, tag->hdr.tag);
-	for(i=0;(i < size);i++) {
-		printk(" %02x", dptr[i]);
+	if (!str)
+		return 0;
+	pr_debug("wlan MAC = %s\n", str);
+	if (strlen(str) >= sizeof(macstr))
+		return 0;
+	strcpy(macstr, str);
+
+	while ((token = strsep(&macptr, ":")) != NULL) {
+		unsigned long val;
+		int res;
+
+		if (i >= IFHWADDRLEN)
+			break;
+		res = strict_strtoul(token, 0x10, &val);
+		if (res < 0)
+			return 0;
+		tuna_mac_addr[i++] = (u8)val;
 	}
-	printk("\n");
-#endif
-	memcpy(tuna_mac_addr, dptr, size);
-	return 0;
+
+	return 1;
 }
 
-__tagtable(ATAG_TUNA_MAC, parse_tag_wlan_mac);
-#endif
+__setup("androidboot.macaddr=", tuna_mac_addr_setup);
 
 static int tuna_wifi_get_mac_addr(unsigned char *buf)
 {
