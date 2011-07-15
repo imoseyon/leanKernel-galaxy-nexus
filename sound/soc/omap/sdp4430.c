@@ -126,7 +126,6 @@ static int sdp4430_mcpdm_hw_params(struct snd_pcm_substream *substream,
 		if (dsp_params->fe->cpu_dai->id != ABE_FRONTEND_DAI_MODEM)
 			continue;
 
-		/* freed Modem McBSP configuration */
 		ret = sdp4430_modem_mcbsp_configure(substream, params, 1);
 		if (ret < 0) {
 			printk(KERN_ERR "can't set Modem cpu DAI configuration\n");
@@ -149,7 +148,6 @@ static int sdp4430_mcpdm_hw_free(struct snd_pcm_substream *substream)
 		if (dsp_params->fe->cpu_dai->id != ABE_FRONTEND_DAI_MODEM)
 			continue;
 
-		/* freed Modem McBSP configuration */
 		ret = sdp4430_modem_mcbsp_configure(substream, NULL, 0);
 		if (ret < 0) {
 			printk(KERN_ERR "can't set Modem cpu DAI configuration\n");
@@ -169,8 +167,11 @@ static int sdp4430_mcbsp_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	struct snd_soc_dsp_params *dsp_params;
+	int stream = substream->stream;
 	int ret = 0;
 	unsigned int be_id;
+
 
         be_id = rtd->dai_link->be_id;
 
@@ -204,6 +205,19 @@ static int sdp4430_mcbsp_hw_params(struct snd_pcm_substream *substream,
 		printk(KERN_ERR "can't set cpu system clock\n");
 		return ret;
 	}
+
+	list_for_each_entry(dsp_params, &rtd->dsp[stream].fe_clients, list_fe) {
+
+		if (dsp_params->fe->cpu_dai->id != ABE_FRONTEND_DAI_MODEM)
+			continue;
+
+		ret = sdp4430_modem_mcbsp_configure(substream, params, 1);
+		if (ret < 0) {
+			printk(KERN_ERR "can't set Modem cpu DAI configuration\n");
+			return ret;
+		}
+	}
+
 	return 0;
 }
 
@@ -654,8 +668,25 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 		.be_id = OMAP_ABE_DAI_PDM_VIB,
 	},
 	{
-		.name = OMAP_ABE_BE_BT_VX,
-		.stream_name = "BT",
+		.name = OMAP_ABE_BE_BT_VX_UL,
+		.stream_name = "BT Capture",
+
+		/* ABE components - MCBSP1 - BT-VX */
+		.cpu_dai_name = "omap-mcbsp-dai.0",
+		.platform_name = "aess",
+
+		/* Bluetooth */
+		.codec_dai_name = "Bluetooth",
+
+		.no_pcm = 1, /* don't create ALSA pcm for this */
+		.no_codec = 1, /* TODO: have a dummy CODEC */
+		.be_hw_params_fixup = mcbsp_be_hw_params_fixup,
+		.ops = &sdp4430_mcbsp_ops,
+		.be_id = OMAP_ABE_DAI_BT_VX,
+	},
+	{
+		.name = OMAP_ABE_BE_BT_VX_DL,
+		.stream_name = "BT Playback",
 
 		/* ABE components - MCBSP1 - BT-VX */
 		.cpu_dai_name = "omap-mcbsp-dai.0",

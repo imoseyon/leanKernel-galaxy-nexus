@@ -808,6 +808,7 @@ static int omap_abe_dai_hw_params(struct snd_pcm_substream *substream,
 			struct snd_soc_dai *dai)
 {
 	struct omap_abe_data *abe_priv = snd_soc_dai_get_drvdata(dai);
+	struct omap_pcm_dma_data *dma_data;
 	abe_data_format_t format;
 	abe_dma_t dma_sink;
 	abe_dma_t dma_params;
@@ -815,12 +816,16 @@ static int omap_abe_dai_hw_params(struct snd_pcm_substream *substream,
 
 	dev_dbg(dai->dev, "%s: %s\n", __func__, dai->name);
 
+	dma_data = &omap_abe_dai_dma_params[dai->id][substream->stream];
+
 	switch (params_channels(params)) {
 	case 1:
-		if (params_format(params) == SNDRV_PCM_FORMAT_S16_LE)
+		if (params_format(params) == SNDRV_PCM_FORMAT_S16_LE) {
 			format.samp_format = MONO_RSHIFTED_16;
-		else
+			dma_data->data_type = OMAP_DMA_DATA_TYPE_S16;
+		} else {
 			format.samp_format = MONO_MSB;
+		}
 		break;
 	case 2:
 		if (params_format(params) == SNDRV_PCM_FORMAT_S16_LE)
@@ -924,15 +929,13 @@ static int omap_abe_dai_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	/* configure frontend SDMA data */
-	omap_abe_dai_dma_params[dai->id][substream->stream].port_addr =
-			(unsigned long)dma_params.data;
-	omap_abe_dai_dma_params[dai->id][substream->stream].packet_size =
-			dma_params.iter;
+	dma_data->port_addr = (unsigned long)dma_params.data;
+	dma_data->packet_size = dma_params.iter;
 
 	if (dai->id == ABE_FRONTEND_DAI_MODEM) {
 		/* call hw_params on McBSP with correct DMA data */
 		snd_soc_dai_set_dma_data(abe_priv->modem_dai, substream,
-				&omap_abe_dai_dma_params[dai->id][substream->stream]);
+					dma_data);
 
 		dev_dbg(abe_priv->modem_dai->dev, "%s: MODEM stream %d\n",
 				__func__, substream->stream);
@@ -944,8 +947,7 @@ static int omap_abe_dai_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 	}
 
-	snd_soc_dai_set_dma_data(dai, substream,
-				&omap_abe_dai_dma_params[dai->id][substream->stream]);
+	snd_soc_dai_set_dma_data(dai, substream, dma_data);
 
 	return 0;
 }
