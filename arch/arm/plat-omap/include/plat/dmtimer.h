@@ -55,12 +55,69 @@
  * in OMAP4 can be distinguished.
  */
 #define OMAP_TIMER_IP_VERSION_1                        0x1
-struct omap_dm_timer;
+#define OMAP_TIMER_IP_VERSION_2			0x2
+
+struct omap_secure_timer_dev_attr {
+	bool is_secure_timer;
+};
+
+struct timer_regs {
+	u32 tidr;
+	u32 tiocp_cfg;
+	u32 tistat;
+	u32 tisr;
+	u32 tier;
+	u32 twer;
+	u32 tclr;
+	u32 tcrr;
+	u32 tldr;
+	u32 ttrg;
+	u32 twps;
+	u32 tmar;
+	u32 tcar1;
+	u32 tsicr;
+	u32 tcar2;
+	u32 tpir;
+	u32 tnir;
+	u32 tcvr;
+	u32 tocr;
+	u32 towr;
+};
+
+struct omap_dm_timer {
+	int irq;
+	struct clk *fclk;
+	void __iomem *io_base;
+	unsigned reserved:1;
+	unsigned enabled:1;
+	unsigned posted:1;
+	unsigned is_early_init:1;
+	unsigned needs_manual_reset:1;
+	u8 func_offset;
+	u8 intr_offset;
+	bool loses_context;
+	bool context_saved;
+	u32 ctx_loss_count;
+	struct timer_regs context;
+	struct platform_device *pdev;
+	struct list_head node;
+
+	int (*get_context_loss_count)(struct device *dev);
+};
+
 extern struct omap_dm_timer *gptimer_wakeup;
 extern struct sys_timer omap_timer;
 struct clk;
 
-int omap_dm_timer_init(void);
+struct dmtimer_platform_data {
+	int (*set_timer_src)(struct platform_device *pdev, int source);
+	int timer_ip_type;
+	u32 is_early_init:1;
+	u32 needs_manual_reset:1;
+	bool loses_context;
+
+	int (*get_context_loss_count)(struct device *dev);
+};
 
 struct omap_dm_timer *omap_dm_timer_request(void);
 struct omap_dm_timer *omap_dm_timer_request_specific(int timer_id);
