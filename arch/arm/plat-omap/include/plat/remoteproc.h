@@ -29,6 +29,7 @@
  * @firmware: name of firmware file to be loaded
  * @ops: platform-specific start/stop rproc handlers
  * @memory_maps: table of da-to-pa iommu memory maps
+ * @memory_pool: platform-specific pool data
  */
 struct omap_rproc_pdata {
 	const char *name;
@@ -37,7 +38,7 @@ struct omap_rproc_pdata {
 	const char *oh_name_opt;
 	const char *firmware;
 	const struct rproc_ops *ops;
-	const struct rproc_mem_entry *memory_maps;
+	struct rproc_mem_pool *memory_pool;
 	u32 idle_addr;
 	u32 idle_mask;
 	u32 suspend_addr;

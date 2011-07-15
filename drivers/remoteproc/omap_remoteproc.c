@@ -346,7 +346,7 @@ static int omap_rproc_probe(struct platform_device *pdev)
 	struct omap_rproc_pdata *pdata = pdev->dev.platform_data;
 
 	return rproc_register(&pdev->dev, pdata->name, &omap_rproc_ops,
-				pdata->firmware, pdata->memory_maps,
+				pdata->firmware, pdata->memory_pool,
 				THIS_MODULE, pdata->sus_timeout);
 }
 
