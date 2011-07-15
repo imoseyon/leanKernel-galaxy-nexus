@@ -250,6 +250,71 @@ unlock_mutext:
 	mutex_unlock(&rproc->lock);
 }
 
+static int rproc_add_mem_entry(struct rproc *rproc, struct fw_resource *rsc)
+{
+	struct rproc_mem_entry *me = rproc->memory_maps;
+	int i = 0;
+	int ret = 0;
+
+	while (me->da || me->pa || me->size) {
+		me += 1;
+		i++;
+		if (i == RPROC_MAX_MEM_ENTRIES) {
+			ret = -ENOSPC;
+			break;
+		}
+	}
+
+	if (!ret) {
+		me->da = rsc->da;
+		me->pa = (phys_addr_t)rsc->pa;
+		me->size = rsc->len;
+	}
+
+	return ret;
+}
+
+static int rproc_alloc_poolmem(struct rproc *rproc, u32 size, phys_addr_t *pa)
+{
+	struct rproc_mem_pool *pool = rproc->memory_pool;
+
+	*pa = 0;
+	if (!pool || !pool->mem_base) {
+		pr_warn("invalid pool\n");
+		return -EINVAL;
+	}
+	if (pool->cur_size < size) {
+		pr_warn("out of carveout memory\n");
+		return -ENOMEM;
+	}
+
+	*pa = pool->cur_base;
+	pool->cur_base += size;
+	pool->cur_size -= size;
+	return 0;
+}
+
+static int rproc_check_poolmem(struct rproc *rproc, u32 size, phys_addr_t pa)
+{
+	struct rproc_mem_pool *pool = rproc->memory_pool;
+
+	if (!pool || !pool->st_base || !pool->st_size) {
+		pr_warn("invalid pool\n");
+		return -EINVAL;
+	}
+	if (pool->st_size < size) {
+		pr_warn("section size bigger than carveout memory\n");
+		return -ENOSPC;
+	}
+	if ((pa < pool->st_base) ||
+		((pa + size) >= (pool->st_base + pool->st_size))) {
+		pr_warn("section lies outside the remoteproc carveout\n");
+		return -ENOSPC;
+	}
+
+	return 0;
+}
+
 static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 							int len, u64 *bootaddr)
 {
@@ -257,24 +322,15 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 	phys_addr_t pa;
 	u64 da;
 	void *ptr;
-	int ret;
+	int ret = 0;
 
-	while (len >= sizeof(*rsc)) {
+	while (len >= sizeof(*rsc) && !ret) {
 		da = rsc->da;
-
-		/* RSC_DEVMEM not currently handled */
-		if (rsc->type != RSC_DEVMEM)
-		{
-			ret = rproc_da_to_pa(rproc->memory_maps, da, &pa);
-			if (ret) {
-				dev_err(dev, "invalid device address\n");
-				return -EINVAL;
-			}
-			dev_dbg(dev, "resource: type %d, da 0x%llx, pa 0x%llx, "
-				"mapped pa: 0x%x, len 0x%x, reserved 0x%x, "
-				"name %s\n", rsc->type, rsc->da, rsc->pa, pa,
-				rsc->len, rsc->reserved, rsc->name);
-		}
+		pa = rsc->pa;
+		dev_dbg(dev, "resource: type %d, da 0x%llx, pa 0x%llx, "
+			"mapped pa: 0x%x, len 0x%x, reserved 0x%x, "
+			"name %s\n", rsc->type, rsc->da, rsc->pa, pa,
+			rsc->len, rsc->reserved, rsc->name);
 
 		if (rsc->reserved)
 			dev_warn(dev, "nonzero reserved\n");
@@ -295,6 +351,7 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 			if (!ptr) {
 				dev_err(dev, "can't ioremap trace buffer %s\n",
 								rsc->name);
+				ret = PTR_ERR(ptr);
 				break;
 			}
 
@@ -312,7 +369,37 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 			*bootaddr = da;
 			break;
 		case RSC_DEVMEM:
-			/* Not yet handled... */
+			ret = rproc_add_mem_entry(rproc, rsc);
+			if (ret) {
+				dev_err(dev, "can't add mem_entry %s\n",
+							rsc->name);
+				break;
+			}
+			break;
+		case RSC_CARVEOUT:
+			if (!pa) {
+				ret = rproc_alloc_poolmem(rproc, rsc->len, &pa);
+				if (ret) {
+					dev_err(dev, "can't alloc poolmem %s\n",
+								rsc->name);
+					break;
+				}
+				rsc->pa = pa;
+			} else {
+				ret = rproc_check_poolmem(rproc, rsc->len, pa);
+				if (ret) {
+					dev_err(dev, "static memory for %s "
+						"doesn't belong to poolmem\n",
+						rsc->name);
+					break;
+				}
+			}
+			ret = rproc_add_mem_entry(rproc, rsc);
+			if (ret) {
+				dev_err(dev, "can't add mem_entry %s\n",
+							rsc->name);
+				break;
+			}
 			break;
 		default:
 			/* we don't support much right now. so use dbg lvl */
@@ -325,7 +412,7 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 		len -= sizeof(*rsc);
 	}
 
-	return 0;
+	return ret;
 }
 
 static int rproc_process_fw(struct rproc *rproc, struct fw_section *section,
@@ -337,6 +424,14 @@ static int rproc_process_fw(struct rproc *rproc, struct fw_section *section,
 	u64 da;
 	int ret = 0;
 	void *ptr;
+
+	/* first section should be FW_RESOURCE section */
+	if (section->type != FW_RESOURCE) {
+		dev_err(dev, "first section is not FW_RESOURCE: type %u found",
+			section->type);
+		ret = -EINVAL;
+		goto exit;
+	}
 
 	while (left > sizeof(struct fw_section)) {
 		da = section->da;
@@ -351,6 +446,16 @@ static int rproc_process_fw(struct rproc *rproc, struct fw_section *section,
 			dev_err(dev, "BIOS image is truncated\n");
 			ret = -EINVAL;
 			break;
+		}
+
+		/* a resource table needs special handling */
+		if (section->type == FW_RESOURCE) {
+			ret = rproc_handle_resources(rproc,
+					(struct fw_resource *) section->content,
+					len, bootaddr);
+			if (ret) {
+				break;
+			}
 		}
 
 		ret = rproc_da_to_pa(rproc->memory_maps, da, &pa);
@@ -371,18 +476,6 @@ static int rproc_process_fw(struct rproc *rproc, struct fw_section *section,
 
 		memcpy(ptr, section->content, len);
 
-		/* a resource table needs special handling */
-		if (section->type == FW_RESOURCE) {
-			ret = rproc_handle_resources(rproc,
-						(struct fw_resource *) ptr,
-						len, bootaddr);
-			if (ret) {
-				/* iounmap normal mem, so make sparse happy */
-				iounmap((__force void __iomem *) ptr);
-				break;
-			}
-		}
-
 		/* iounmap normal memory, so make sparse happy */
 		iounmap((__force void __iomem *) ptr);
 
@@ -390,6 +483,7 @@ static int rproc_process_fw(struct rproc *rproc, struct fw_section *section,
 		left -= len;
 	}
 
+exit:
 	return ret;
 }
 
@@ -889,7 +983,7 @@ EXPORT_SYMBOL(rproc_set_constraints);
 int rproc_register(struct device *dev, const char *name,
 				const struct rproc_ops *ops,
 				const char *firmware,
-				const struct rproc_mem_entry *memory_maps,
+				struct rproc_mem_pool *memory_pool,
 				struct module *owner,
 				unsigned sus_timeout)
 {
@@ -910,7 +1004,7 @@ int rproc_register(struct device *dev, const char *name,
 	rproc->ops = ops;
 	rproc->firmware = firmware;
 	rproc->owner = owner;
-	rproc->memory_maps = memory_maps;
+	rproc->memory_pool = memory_pool;
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	rproc->sus_timeout = sus_timeout;
 	mutex_init(&rproc->pm_lock);

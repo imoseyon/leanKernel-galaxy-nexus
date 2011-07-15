@@ -42,6 +42,9 @@
 /* Must match the BIOS version embeded in the BIOS firmware image */
 #define RPROC_BIOS_VERSION	2
 
+/* Maximum number of entries that can be added for lookup */
+#define RPROC_MAX_MEM_ENTRIES	20
+
 /**
  * The following enums and structures define the binary format of the images
  * we load and run the remote processors with.
@@ -98,6 +101,25 @@ enum fw_resource_type {
 	RSC_TRACE	= 4,
 	RSC_BOOTADDR	= 5,
 	RSC_END		= 6,
+};
+
+/**
+ * struct rproc_mem_pool - descriptor for the rproc's contiguous memory pool data
+ *
+ * @mem_base: starting physical address of the dynamic pool
+ * @mem_size: size of the initial dynamic pool
+ * @cur_base: current available physical address in the pool
+ * @cur_size: remaining available memory in the pool
+ * @st_base:  starting physical address of the static pool
+ * @st_size:  size of the static pool
+ */
+struct rproc_mem_pool {
+	phys_addr_t mem_base;
+	u32 mem_size;
+	phys_addr_t cur_base;
+	u32 cur_size;
+	phys_addr_t st_base;
+	u32 st_size;
 };
 
 /**
@@ -187,6 +209,8 @@ enum rproc_event {
  * @name: human readable name of the rproc, cannot exceed RPROC_MAN_NAME bytes
  * @memory_maps: table of da-to-pa memory maps (relevant if device is behind
  *               an iommu)
+ * @memory_pool: platform-specific contiguous memory pool data (relevant for
+ *               allocating memory needed for the remote processor image)
  * @firmware: name of firmware file to be loaded
  * @owner: reference to the platform-specific rproc module
  * @priv: private data which belongs to the platform-specific rproc module
@@ -207,7 +231,8 @@ enum rproc_event {
 struct rproc {
 	struct list_head next;
 	const char *name;
-	const struct rproc_mem_entry *memory_maps;
+	struct rproc_mem_entry memory_maps[RPROC_MAX_MEM_ENTRIES];
+	struct rproc_mem_pool *memory_pool;
 	const char *firmware;
 	struct module *owner;
 	void *priv;
@@ -239,7 +264,7 @@ void rproc_put(struct rproc *);
 int rproc_event_register(struct rproc *, struct notifier_block *, int);
 int rproc_event_unregister(struct rproc *, struct notifier_block *, int);
 int rproc_register(struct device *, const char *, const struct rproc_ops *,
-		const char *, const struct rproc_mem_entry *, struct module *,
+		const char *, struct rproc_mem_pool *, struct module *,
 		unsigned int timeout);
 int rproc_unregister(const char *);
 void rproc_last_busy(struct rproc *);
