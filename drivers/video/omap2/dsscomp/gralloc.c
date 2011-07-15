@@ -242,6 +242,7 @@ static void dsscomp_early_suspend(struct early_suspend *h)
 	struct dsscomp_setup_mgr_data d = {
 		.mgr.alpha_blending = 1,
 	};
+	int err;
 
 	pr_info("DSSCOMP: %s\n", __func__);
 
@@ -250,8 +251,12 @@ static void dsscomp_early_suspend(struct early_suspend *h)
 	blank_complete = false;
 
 	/* wait until composition is displayed */
-	wait_event_interruptible(early_suspend_wq, blank_complete);
-	pr_info("DSSCOMP: blanked screen\n");
+	err = wait_event_timeout(early_suspend_wq, blank_complete,
+				 msecs_to_jiffies(500));
+	if (err == 0)
+		pr_warn("DSSCOMP: timeout blanking screen\n");
+	else
+		pr_info("DSSCOMP: blanked screen\n");
 }
 
 static void dsscomp_late_resume(struct early_suspend *h)
