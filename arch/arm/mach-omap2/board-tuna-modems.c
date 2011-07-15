@@ -397,7 +397,7 @@ static void dpram_cfg_gpio(void)
 		nRetry++;
 	  }
 
-	__raw_writel(0x08, OMAP4_GPMC_IO_ADDRESS((OMAP44XX_GPMC_BASE + 0x10)));
+	__raw_writel(0x10, OMAP4_GPMC_IO_ADDRESS((OMAP44XX_GPMC_BASE + 0x10)));
 
 	__raw_writel((u32)DPRAM_GPMC_CONFIG1,
 			OMAP4_GPMC_IO_ADDRESS(GPMC_CONFIG1_1));
