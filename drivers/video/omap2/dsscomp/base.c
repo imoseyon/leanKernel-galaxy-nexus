@@ -262,9 +262,9 @@ int set_dss_ovl_info(struct dss2_ovl_info *oi)
 		else if (cfg->color_mode == OMAP_DSS_COLOR_RGB24P)
 			bpp = 3;
 
-		tilview_create(&t, info.paddr, info.width, info.height);
+		tilview_create(&t, info.paddr, cfg->width, cfg->height);
 		info.paddr -= t.tsptr;
-		tilview_crop(&t, 0, crop.y, info.width, crop.h);
+		tilview_crop(&t, 0, crop.y, cfg->width, crop.h);
 		info.paddr += t.tsptr + bpp * crop.x;
 
 		info.rotation_type = OMAP_DSS_ROT_TILER;
@@ -273,9 +273,9 @@ int set_dss_ovl_info(struct dss2_ovl_info *oi)
 		/* for NV12 format also crop NV12 */
 		if (info.color_mode == OMAP_DSS_COLOR_NV12) {
 			tilview_create(&t, info.p_uv_addr,
-					info.width >> 1, info.height >> 1);
+					cfg->width >> 1, cfg->height >> 1);
 			info.p_uv_addr -= t.tsptr;
-			tilview_crop(&t, 0, crop.y >> 1, info.width,
+			tilview_crop(&t, 0, crop.y >> 1, cfg->width >> 1,
 								crop.h >> 1);
 			info.p_uv_addr += t.tsptr + bpp * crop.x;
 		}
