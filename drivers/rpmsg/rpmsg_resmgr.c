@@ -594,8 +594,7 @@ static int rprm_rpres_request(struct rprm_elem *e, int type)
 	e->handle = res;
 
 #ifdef RPRM_DEBUG_CONSTRAINTS
-	if (!strcmp(res_name, "rpres_iss") || !strcmp(res_name, "rpres_iva")) {
-		e->type = type;
+	if (!strcmp(res_name, "rpres_iss")) {
 		_set_constraints(e, &test_data);
 		e->constraints->mask = test_data.mask;
 	}
