@@ -486,7 +486,7 @@ extern int omap_hsi_is_io_wakeup_from_hsi(void);
 inline int omap_hsi_prepare_suspend(int hsi_port,
 					bool dev_may_wakeup) { return -ENOSYS; }
 inline int omap_hsi_prepare_idle(void) { return -ENOSYS; }
-inline int omap_hsi_wakeup(void) { return -ENOSYS; }
+inline int omap_hsi_wakeup(int hsi_port) { return -ENOSYS; }
 inline int omap_hsi_is_io_wakeup_from_hsi(void) { return -ENOSYS; }
 
 #endif
