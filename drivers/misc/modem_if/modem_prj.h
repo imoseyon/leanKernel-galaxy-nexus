@@ -36,6 +36,9 @@
 #define IOCTL_MODEM_RECV	_IO('o', 0x26)
 
 #define IOCTL_MODEM_STATUS		_IO('o', 0x27)
+#define IOCTL_MODEM_GOTA_START	_IO('o', 0x28)
+#define IOCTL_MODEM_FW_UPDATE	_IO('o', 0x29)
+
 
 /* modem status */
 #define MODEM_OFF	0
@@ -72,6 +75,14 @@ struct header_data {
 	unsigned flag_len;
 	char start; /*hdlc start header 0x7F*/
 };
+
+/* buffer type for modem image */
+struct dpram_firmware {
+	char *firmware;
+	int size;
+	int is_delta;
+};
+
 
 struct vnet {
 	struct io_device *iod;
@@ -144,6 +155,12 @@ struct link_device {
 	 */
 	int (*send)(struct link_device *ld, struct io_device *iod,
 				struct sk_buff *skb);
+
+	int (*gota_start)(struct link_device *ld, struct io_device *iod);
+	int (*modem_update)(
+		struct link_device *ld,
+		struct io_device *iod,
+		unsigned long arg);
 };
 
 struct modemctl_ops {

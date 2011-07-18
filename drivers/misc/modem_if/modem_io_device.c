@@ -580,6 +580,14 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long _arg)
 		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_STATUS\n");
 		return iod->mc->phone_state;
 
+	case IOCTL_MODEM_GOTA_START:
+		pr_debug("[GOTA] misc_ioctl : IOCTL_MODEM_GOTA_START\n");
+		return iod->link->gota_start(iod->link, iod);
+
+	case IOCTL_MODEM_FW_UPDATE:
+		pr_debug("[GOTA] misc_ioctl : IOCTL_MODEM_FW_UPDATE\n");
+		return iod->link->modem_update(iod->link, iod, _arg);
+
 	default:
 		return -EINVAL;
 	}

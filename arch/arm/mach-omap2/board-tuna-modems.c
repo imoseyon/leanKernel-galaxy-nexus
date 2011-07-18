@@ -264,28 +264,34 @@ static struct modem_io_t cdma_io_devices[] = {
 		.link = LINKDEV_DPRAM,
 	},
 	[2] = {
+		.name = "cdma_boot0",
+		.id = 0x1,
+		.format = IPC_BOOT,
+		.io_type = IODEV_MISC,
+		.link = LINKDEV_DPRAM,
+	},
+	[3] = {
 		.name = "cdma_rmnet0",
 		.id = 0x2A,
 		.format = IPC_RAW,
 		.io_type = IODEV_NET,
 		.link = LINKDEV_DPRAM,
 	},
-	[3] = {
+	[4] = {
 		.name = "cdma_rmnet1",
 		.id = 0x2B,
 		.format = IPC_RAW,
 		.io_type = IODEV_NET,
 		.link = LINKDEV_DPRAM,
 	},
-	[4] = {
+	[5] = {
 		.name = "cdma_rmnet2",
 		.id = 0x2C,
 		.format = IPC_RAW,
 		.io_type = IODEV_NET,
 		.link = LINKDEV_DPRAM,
 	},
-
-	[5] = {
+	[6] = {
 		.name = "cdma_rmnet3",
 		.id = 0x2D,
 		.format = IPC_RAW,

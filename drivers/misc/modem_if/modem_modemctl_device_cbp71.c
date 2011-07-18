@@ -55,9 +55,10 @@ static int cbp71_on(struct modem_ctl *mc)
 	dpram_ld->clear_interrupt(dpram_ld);
 
 	dpram_init_RetVal =
-		wait_event_interruptible_timeout(dpram_ld->dpram_init_cmd_wait_q,
-						dpram_ld->dpram_init_cmd_wait_condition,
-						DPRAM_INIT_TIMEOUT);
+		wait_event_interruptible_timeout(
+		dpram_ld->dpram_init_cmd_wait_q,
+					dpram_ld->dpram_init_cmd_wait_condition,
+					DPRAM_INIT_TIMEOUT);
 
 	if (!dpram_init_RetVal) {
 		/*RetVal will be 0 on timeout, non zero if interrupted */
@@ -67,9 +68,11 @@ static int cbp71_on(struct modem_ctl *mc)
 	}
 
 	RetVal =
-		wait_event_interruptible_timeout(dpram_ld->modem_pif_init_done_wait_q,
-						dpram_ld->modem_pif_init_wait_condition,
-						PIF_TIMEOUT);
+		wait_event_interruptible_timeout(
+		dpram_ld->modem_pif_init_done_wait_q,
+					dpram_ld->modem_pif_init_wait_condition,
+					PIF_TIMEOUT);
+
 	if (!RetVal) {
 		/*RetVal will be 0 on timeout, non zero if interrupted */
 		pr_warn("[MODEM_IF] PIF init failed\n");
@@ -77,6 +80,7 @@ static int cbp71_on(struct modem_ctl *mc)
 		return -ENXIO;
 	}
 
+	pr_debug("[MODEM_IF] complete cbp71_on\n");
 	mc->phone_state = STATE_BOOTING;
 
 	return 0;
@@ -84,7 +88,7 @@ static int cbp71_on(struct modem_ctl *mc)
 
 static int cbp71_off(struct modem_ctl *mc)
 {
-	pr_info("[MODEM_IF] cbp71_off()\n");
+	pr_debug("[MODEM_IF] cbp71_off()\n");
 
 	if (!mc->gpio_cp_reset) {
 		pr_err("[MODEM_IF] no gpio data\n");
@@ -103,7 +107,7 @@ static int cbp71_reset(struct modem_ctl *mc)
 {
 	int ret = 0;
 
-	pr_info("[MODEM_IF] cbp71_reset()\n");
+	pr_debug("[MODEM_IF] cbp71_reset()\n");
 
 	ret = cbp71_off(mc);
 	if (ret)
@@ -120,13 +124,24 @@ static int cbp71_reset(struct modem_ctl *mc)
 
 static int cbp71_boot_on(struct modem_ctl *mc)
 {
-	pr_info("[MODEM_IF] cbp71_boot_on()\n");
+	pr_debug("[GOTA] cbp71_boot_on()\n");
+
+	if (!mc->gpio_cp_reset) {
+		pr_err("[MODEM_IF] no gpio data\n");
+		return -ENXIO;
+	}
+	gpio_set_value(mc->gpio_cp_reset, 0);
+	msleep(600);
+	gpio_set_value(mc->gpio_cp_reset, 1);
+
+	mc->phone_state = STATE_BOOTING;
+
 	return 0;
 }
 
 static int cbp71_boot_off(struct modem_ctl *mc)
 {
-	pr_info("[MODEM_IF] cbp71_boot_off()\n");
+	pr_debug("[MODEM_IF] cbp71_boot_off()\n");
 	return 0;
 }
 

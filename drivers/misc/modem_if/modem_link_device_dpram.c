@@ -23,15 +23,25 @@
 #include <linux/delay.h>
 #include <linux/wait.h>
 #include <linux/sched.h>
+#include <linux/vmalloc.h>
 #include <linux/proc_fs.h>
 #include <linux/if_arp.h>
 #include <linux/platform_data/modem.h>
+#include <linux/crc-ccitt.h>
 #include "modem_prj.h"
 #include "modem_link_device_dpram.h"
 
 #include <linux/platform_data/dpram.h>
 
 #include "../../../arch/arm/mach-omap2/mux44xx.h"
+
+#define GOTA_TIMEOUT		(50 * HZ)
+#define GOTA_SEND_TIMEOUT	(200 * HZ)
+
+static int dpram_download(struct dpram_link_device *dpld,
+			const unsigned char *buf,
+			int Len);
+
 
 static void dpram_send_interrupt_to_phone(struct dpram_link_device *dpld,
 					u16 irq_mask)
@@ -229,6 +239,56 @@ static void command_handler(struct dpram_link_device *dpld, u16 cmd)
 	}
 }
 
+
+static int dpram_process_modem_update(struct dpram_link_device *dpld,
+					struct dpram_firmware *pfw)
+{
+	int ret = 0;
+	char *buff = vmalloc(pfw->size);
+
+	pr_debug("[GOTA] modem size =[%d]\n", pfw->size);
+
+	if (!buff)
+		return -ENOMEM;
+
+	ret = copy_from_user(buff, pfw->firmware, pfw->size);
+
+	if (ret  < 0) {
+		pr_err("[%s:%d] Copy from user failed\n",
+							__func__, __LINE__);
+		return -EINVAL;
+	} else if (dpram_download(dpld, buff, pfw->size) < 0) {
+		pr_err("firmware write failed\n");
+		return -EIO;
+		}
+
+	vfree(buff);
+
+	return ret;
+}
+
+
+static int dpram_modem_update(struct link_device *ld,
+				struct io_device *iod,
+				unsigned long _arg)
+{
+	int ret = 0;
+	struct dpram_link_device *dpld = to_dpram_link_device(ld);
+	struct dpram_firmware fw;
+
+	pr_debug("[GOTA] dpram_modem_update\n");
+
+	ret = copy_from_user((void *)&fw, (void *)_arg, sizeof(fw));
+	if (ret  < 0) {
+		pr_err("copy from user failed!");
+		ret = -EINVAL;
+	} else if (dpram_process_modem_update(dpld, &fw) < 0) {
+		pr_err("firmware write failed\n");
+		ret = -EIO;
+	}
+	return ret;
+}
+
 static void dpram_drop_data(struct dpram_device *device)
 {
 	u16 head, tail;
@@ -408,13 +468,18 @@ static irqreturn_t dpram_irq_handler(int irq, void *p_ld)
 	disable_irq_wake(irq);
 
 	memcpy((u16 *)&irq_mask, (u16 *)dpld->m_region.mbx, sizeof(irq_mask));
+	pr_debug("received mailboxAB = 0x%x\n", irq_mask);
 
 	/* valid bit verification.
 	* or Say something about the phone being dead...*/
-	if ((!(irq_mask & INT_MASK_VALID)) || irq_mask == INT_POWERSAFE_FAIL)
+	if (!(irq_mask & (INT_MASK_VALID | INT_GOTA_MASK_VALID)) ||
+			irq_mask == INT_POWERSAFE_FAIL)
 		goto exit_irq;
 
-	if (irq_mask & INT_MASK_CMD) {
+	if (irq_mask & INT_GOTA_MASK_VALID) {
+		dpld->gota_irq_hander_cmd = irq_mask;
+		queue_work(dpld->gota_wq, &dpld->gota_cmd_work);
+	} else if (irq_mask & INT_MASK_CMD) {
 		irq_mask &= ~(INT_MASK_VALID | INT_MASK_CMD);
 		command_handler(dpld, irq_mask);
 	} else {
@@ -463,6 +528,7 @@ static int dpram_write(struct dpram_link_device *dpld,
 	pr_debug("WRITE: len[%d] free_space[%d] head[%u] tail[%u] out_buff_size =%lu\n",
 			len, free_space, head, tail, device->out_buff_size);
 
+	pr_debug("%s, head: %d, tail: %d\n", __func__, head, tail);
 	if (head < tail) {
 		/* +++++++++ head ---------- tail ++++++++++ */
 		memcpy((device->out_buff_addr + head), buf, len);
@@ -651,6 +717,263 @@ static void dpram_table_init(struct dpram_link_device *dpld)
 	dpld->dev_map[RAW_IDX].mask_send    = INT_MASK_SEND_R;
 }
 
+static void dpram_write_magic_code(struct dpram_link_device *dpld, u32 cmd)
+{
+	memcpy(dpld->m_region.control, &cmd, sizeof(cmd));
+}
+
+static void dpram_write_command(struct dpram_link_device *dpld, u16 cmd)
+{
+	memcpy(dpld->m_region.mbx+2, &cmd, sizeof(cmd));
+}
+
+u16 calc_total_frame(u32 nDividend, u16 nDivisor)
+{
+	u16 nCompVal1 = 0;
+	u16 nCompVal2 = 0;
+
+	nCompVal1 = (u16)(nDividend / nDivisor);
+	nCompVal2 = (u16)(nDividend  - (nCompVal1 * nDivisor));
+
+	if (nCompVal2 > 0)
+		nCompVal1++;
+
+	return nCompVal1;
+}
+
+static int dpram_set_dlmagic(struct link_device *ld, struct io_device *iod)
+{
+	struct dpram_link_device *dpld = to_dpram_link_device(ld);
+
+	dpram_write_magic_code(dpld, MAGIC_DMDL);
+
+	return 0;
+}
+
+static int dpram_download(struct dpram_link_device *dpld,
+			const unsigned char *buf,
+			int Len)
+{
+	u32 dwWriteLen, dwWrittenLen, dwTotWrittenLen;
+	u16 nTotalFrame = 0;
+	u8 *pDest;
+	u8 *pDest_Data;
+	u16 pLen = 0;
+	u16 nCrc;
+	int nrRetry = 0;
+	u16 g_TotFrame = 0;
+	u16 g_CurFrame = 1;
+	u16 currDownFrame = 0;
+	u32 control_size = 0;
+	u32 fmt_out_size = 0;
+	u32 raw_out_size = 0;
+	u32 fmt_in_size = 0;
+	u32 raw_in_size = 0;
+	u32 mailbox_size = 0;
+	int buffOffest = 0;
+	const u8 *crcdata;
+	int download_send_done_RetVal = 0;
+	int download_update_done_RetVal = 0;
+
+	pr_debug("[GOTA] Start download\n");
+
+	control_size = 4;
+	fmt_out_size = dpld->fmt_out_buff_size + 4;
+	raw_out_size = dpld->raw_out_buff_size + 4;
+	fmt_in_size =  dpld->fmt_in_buff_size + 4;
+	raw_in_size =  dpld->raw_in_buff_size + 4;
+	mailbox_size = 4;
+
+	nTotalFrame = calc_total_frame(Len, DPDN_DEFAULT_WRITE_LEN);
+	pr_debug("[GOTA] download Len = %d\n", Len);
+
+	g_TotFrame =  nTotalFrame;
+
+	while (dwTotWrittenLen < Len) {
+		pr_debug("[GOTA]Start write : currDownFrame = %d,nTotalFrame = %d\n",
+			currDownFrame, nTotalFrame);
+		dwWriteLen = min((u32)Len - dwTotWrittenLen,
+			(u32)DPDN_DEFAULT_WRITE_LEN);
+		pDest = (u8 *)(dpld->m_region.fmt_out);
+		pLen   = (u16)min(dwWriteLen, (u32)DPDN_DEFAULT_WRITE_LEN);
+
+		pr_debug("[GOTA] pLen=%d, dwWriteLen=%d\n", pLen, dwWriteLen);
+
+		*pDest++ = START_INDEX;
+
+		*pDest++ = (u8)g_TotFrame;
+		*pDest++ = (u8)((u16)g_TotFrame >> 8);
+
+		*pDest++ = (u8)g_CurFrame;
+		*pDest++ = (u8)((u16)g_CurFrame >> 8);
+		g_CurFrame++;
+
+		*pDest++ = (u8)pLen;
+		*pDest++ = (u8)((u16)pLen >> 8);
+
+		pDest_Data = pDest;
+
+		if (pLen == DPDN_DEFAULT_WRITE_LEN) {
+			memcpy((u8 *)pDest, (u8 *)buf, fmt_out_size - 7);
+			buffOffest = fmt_out_size - 7;
+
+			pDest = (u8 *)(dpld->m_region.raw_out);
+			memcpy((u8 *)pDest,
+				(u8 *)(buf + buffOffest),
+				pLen - buffOffest);
+			pDest =	(u8 *)(dpld->m_region.raw_out +
+						pLen - buffOffest);
+		}
+
+		if (pLen%2 != 0)
+			*pDest++ = 0xff;
+
+		if (pLen < DPDN_DEFAULT_WRITE_LEN) {
+			if (pLen < fmt_out_size - 7) {
+				memcpy((u8 *)pDest, (u8 *)buf, pLen);
+				pDest += pLen;
+				memset((void *)pDest,
+						0x0,
+						fmt_out_size - 7 - pLen);
+				pDest = (u8 *)(dpld->m_region.raw_out);
+
+				memset((void *)pDest,
+					0x0,
+					DPDN_DEFAULT_WRITE_LEN -
+						(fmt_out_size - 7));
+				pDest = (u8 *)(dpld->m_region.raw_out +
+					DPDN_DEFAULT_WRITE_LEN -
+					(fmt_out_size - 7));
+			} else {
+				memcpy((u8 *)pDest, (u8 *)buf,
+						fmt_out_size - 7);
+				pDest = (u8 *)(dpld->m_region.raw_out);
+
+				memcpy((u8 *)pDest, (u8 *)buf,
+						pLen - (fmt_out_size - 7));
+				pDest = (u8 *)(dpld->m_region.raw_out + pLen -
+						(fmt_out_size - 7));
+
+				memset((void *)pDest,
+					0x0,
+					DPDN_DEFAULT_WRITE_LEN -
+					(fmt_out_size - 7) - pLen);
+				pDest = (u8 *)(dpld->m_region.raw_out +
+					DPDN_DEFAULT_WRITE_LEN -
+					(fmt_out_size - 7) - pLen);
+				}
+			}
+
+		crcdata = (u8 *) pDest_Data;
+		nCrc = crc_ccitt((u16)CRC_16_L_SEED, crcdata, (size_t)pLen/2);
+		*pDest++ = (u8)(nCrc);
+		*pDest++ = (u8)((u16)nCrc >> 8) & 0xFF;
+		pDest = (u8 *)(dpld->m_region.raw_out +
+			(BSP_DPRAM_BASE_SIZE - fmt_out_size - control_size) -
+			DPRAM_INDEX_SIZE);
+
+		*pDest++ = END_INDEX;
+
+		if (currDownFrame == 0) {
+			dpld->gota_download_start_cmd_wait_condition = 1;
+			wake_up_interruptible(
+			&dpld->gota_download_start_cmd_wait_q);
+		} else {
+			dpram_write_command(dpld, CMD_IMG_SEND_REQ);
+			pr_debug("[GOTA] Send AP-->CP CMD_IMG_SEND_REQ(0x9400)\n");
+		}
+
+		download_send_done_RetVal =
+			wait_event_interruptible_timeout(
+			dpld->gota_send_done_cmd_wait_q,
+				dpld->gota_send_done_cmd_wait_condition,
+				GOTA_SEND_TIMEOUT);
+		if (!download_send_done_RetVal) {
+			pr_warn("[GOTA] CP don't send SEND_DONE_RESPONSE(packet).\n");
+			pr_warn("init_cmd_wait_condition is 0 and wait timeout happend\n");
+			return -ENXIO;
+		}
+		dpld->gota_send_done_cmd_wait_condition = 0;
+
+		dwWrittenLen = pLen;
+
+		if (dwWrittenLen > 0) {
+			dwTotWrittenLen += dwWrittenLen;
+			buf += dwWrittenLen;
+		} else
+			pr_err("[GOTA] Failed download for dwWrittenLen < 0\n");
+
+		nrRetry = 0;
+
+		currDownFrame++;
+	}
+
+	g_CurFrame = 1;
+
+	dpram_write_command(dpld, CMD_DL_SEND_DONE_REQ);
+	pr_debug("[GOTA] Send AP-->CP CMD_DL_SEND_DONE_REQ(0x9600)\n");
+
+	download_update_done_RetVal =
+		wait_event_interruptible_timeout(
+		dpld->gota_update_done_cmd_wait_q,
+			dpld->gota_update_done_cmd_wait_condition,
+			GOTA_TIMEOUT);
+	if (!download_update_done_RetVal) {
+		pr_warn("[GOTA] CP don't send UPDATE_DONE_NOTIFICATION.\n");
+		pr_warn("init_cmd_wait_condition is 0 and wait timeout happend\n");
+		return -ENXIO;
+	}
+
+	return TRUE;
+}
+
+static void if_gota_cmd_work(struct work_struct *work)
+{
+	int download_start_RetVal = 0;
+	struct dpram_link_device *dpld =
+		container_of(work, struct dpram_link_device, gota_cmd_work);
+
+	pr_debug("[GOTA] cmd_work\n");
+
+	switch (dpld->gota_irq_hander_cmd) {
+	case MASK_CMD_RECEIVE_READY_NOTIFICATION:
+		pr_debug("[GOTA] Send CP-->AP CMD_RECEIVE_READY_NOTIFICATION(0xA100)\n");
+		dpram_write_command(dpld, CMD_DL_START_REQ);
+		pr_debug("[GOTA] Send AP-->CP CMD_DL_START_REQ(0x9200)\n");
+		break;
+	case MASK_CMD_DOWNLOAD_START_RESPONSE:
+		pr_debug("[GOTA] Send CP-->AP CMD_RECEIVE_READY_NOTIFICATION(0xA301)\n");
+		download_start_RetVal =
+			wait_event_interruptible_timeout(
+			dpld->gota_download_start_cmd_wait_q,
+				dpld->gota_download_start_cmd_wait_condition,
+				GOTA_TIMEOUT);
+		if (!download_start_RetVal) {
+			pr_warn("[GOTA] CP don't send DOWNLOAD_START_RESPONSE.\n");
+			pr_warn("[GOTA] init_cmd_wait_condition is 0 and wait timeout happend\n");
+		}
+		dpram_write_command(dpld, CMD_IMG_SEND_REQ);
+		pr_debug("[GOTA] Send AP-->CP CMD_DL_START_REQ(0x9400)\n");
+		break;
+
+	case MASK_CMD_SEND_DONE_RESPONSE:
+		pr_debug("[GOTA] Send CP-->AP CMD_SEND_DONE_RESPONSE(0xA701) about CMD_IMG_SEND_REQ(0x9400)\n");
+		dpld->gota_send_done_cmd_wait_condition = 1;
+		wake_up_interruptible(&dpld->gota_send_done_cmd_wait_q);
+		break;
+
+	case MASK_CMD_UPDATE_DONE_NOTIFICATION:
+		pr_debug("[GOTA] Send CP-->AP CMD_UPDATE_DONE_NOTIFICATION(0xA900)\n");
+		dpld->gota_update_done_cmd_wait_condition = 1;
+		wake_up_interruptible(&dpld->gota_update_done_cmd_wait_q);
+		break;
+	default:
+		pr_err("[GOTA] Unknown command.. %x\n",
+					dpld->gota_irq_hander_cmd);
+	}
+}
+
+
 static int if_dpram_init(struct platform_device *pdev, struct link_device *ld)
 {
 	int ret = 0;
@@ -666,7 +989,20 @@ static int if_dpram_init(struct platform_device *pdev, struct link_device *ld)
 	dpram_shared_bank_remap(pdev, dpld);
 	dpram_table_init(dpld);
 
+	dpld->gota_wq = create_singlethread_workqueue("gota_cmd_wq");
+	if (!dpld->gota_wq) {
+		pr_err("[GOTA] fail to create work Q.\n");
+		return -ENOMEM;
+	}
 	init_waitqueue_head(&dpld->dpram_init_cmd_wait_q);
+
+	init_waitqueue_head(&dpld->gota_download_start_cmd_wait_q);
+
+	init_waitqueue_head(&dpld->gota_send_done_cmd_wait_q);
+
+	init_waitqueue_head(&dpld->gota_update_done_cmd_wait_q);
+
+	INIT_WORK(&dpld->gota_cmd_work, if_gota_cmd_work);
 
 	ld->irq = IRQ_DPRAM_INT_N;
 
@@ -694,6 +1030,9 @@ struct link_device *dpram_create_link_device(struct platform_device *pdev)
 	int ret;
 	struct dpram_link_device *dpld;
 	struct link_device *ld;
+	struct modem_data *pdata;
+
+	pdata = pdev->dev.platform_data;
 
 	dpld = kzalloc(sizeof(struct dpram_link_device), GFP_KERNEL);
 	if (!dpld)
@@ -704,10 +1043,14 @@ struct link_device *dpram_create_link_device(struct platform_device *pdev)
 	skb_queue_head_init(&dpld->ld.sk_raw_tx_q);
 
 	ld = &dpld->ld;
+	dpld->pdata = pdata;
+
 
 	ld->name = "dpram";
 	ld->attach = dpram_attach_io_dev;
 	ld->send = dpram_send;
+	ld->gota_start = dpram_set_dlmagic;
+	ld->modem_update = dpram_modem_update;
 
 	dpld->clear_interrupt = ClearPendingInterruptFromModem;
 
