@@ -147,11 +147,8 @@ static void _wakeupgen_restore_masks(unsigned int cpu)
  */
 static void wakeupgen_mask(struct irq_data *d)
 {
-	unsigned int cpu;
-
 	spin_lock(&wakeupgen_lock);
-	for_each_cpu(cpu, d->affinity)
-		_wakeupgen_clear(d->irq, cpu);
+	_wakeupgen_clear(d->irq, d->node);
 	spin_unlock(&wakeupgen_lock);
 }
 
@@ -160,11 +157,8 @@ static void wakeupgen_mask(struct irq_data *d)
  */
 static void wakeupgen_unmask(struct irq_data *d)
 {
-	unsigned int cpu;
-
 	spin_lock(&wakeupgen_lock);
-	for_each_cpu(cpu, d->affinity)
-		_wakeupgen_set(d->irq, cpu);
+	_wakeupgen_set(d->irq, d->node);
 	spin_unlock(&wakeupgen_lock);
 }
 
