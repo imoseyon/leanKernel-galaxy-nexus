@@ -393,8 +393,10 @@ static int rpmsg_omx_release(struct inode *inode, struct file *filp)
 	int use, ret;
 
 	/* todo: release resources here */
-	if (omxserv->pm_qos)
+	if (omxserv->pm_qos) {
 		pm_qos_remove_request(omxserv->pm_qos);
+		kfree(omxserv->pm_qos);
+	}
 
 	/* send a disconnect msg with the OMX instance addr */
 	hdr->type = OMX_DISCONNECT;
@@ -622,8 +624,6 @@ static void __devexit rpmsg_omx_remove(struct rpmsg_channel *rpdev)
 
 	dev_info(omxserv->dev, "rpmsg omx driver is removed\n");
 
-	if (omxserv->pm_qos)
-		kfree(omxserv->pm_qos);
 	device_destroy(rpmsg_omx_class, MKDEV(major, omxserv->minor));
 	cdev_del(&omxserv->cdev);
 	spin_lock(&rpmsg_omx_services_lock);
