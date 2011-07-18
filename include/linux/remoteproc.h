@@ -227,6 +227,7 @@ enum rproc_event {
  * @firmware_loading_complete: flags e/o asynchronous firmware loading
  * @mmufault_work: work in charge of notifing mmufault
  * @nb_error: notify block for fatal errors
+ * @error_comp: completion used when an error happens
  */
 struct rproc {
 	struct list_head next;
@@ -247,6 +248,7 @@ struct rproc {
 	struct completion firmware_loading_complete;
 	struct work_struct mmufault_work;
 	struct blocking_notifier_head nb_error;
+	struct completion error_comp;
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	unsigned sus_timeout;
 	bool force_suspend;
