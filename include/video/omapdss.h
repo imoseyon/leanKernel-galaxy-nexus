@@ -337,6 +337,19 @@ struct omapdss_ovl_cb {
 	void *data;
 };
 
+struct omap_dss_cpr_coefs {
+	s16 rr, rg, rb;
+	s16 gr, gg, gb;
+	s16 br, bg, bb;
+};
+
+struct omap_dss_cconv_coefs {
+	s16 ry, rcr, rcb;
+	s16 gy, gcr, gcb;
+	s16 by, bcr, bcb;
+	u16 full_range;
+} __attribute__ ((aligned(4)));
+
 struct omap_overlay_info {
 	bool enabled;
 
@@ -359,6 +372,7 @@ struct omap_overlay_info {
 	u8 pre_mult_alpha;
 	enum omap_overlay_zorder zorder;
 	u16 min_x_decim, max_x_decim, min_y_decim, max_y_decim;
+	struct omap_dss_cconv_coefs cconv;
 
 	struct omapdss_ovl_cb cb;
 };
@@ -402,6 +416,9 @@ struct omap_overlay_manager_info {
 	bool alpha_enabled;
 
 	struct omapdss_ovl_cb cb;
+
+	bool cpr_enable;
+	struct omap_dss_cpr_coefs cpr_coefs;
 };
 
 struct omap_overlay_manager {

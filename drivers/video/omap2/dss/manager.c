@@ -279,6 +279,108 @@ static ssize_t manager_alpha_blending_enabled_store(
 	return size;
 }
 
+static ssize_t manager_cpr_enable_show(struct omap_overlay_manager *mgr,
+		char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", mgr->info.cpr_enable);
+}
+
+static ssize_t manager_cpr_enable_store(struct omap_overlay_manager *mgr,
+		const char *buf, size_t size)
+{
+	struct omap_overlay_manager_info info;
+	int v;
+	int r;
+	bool enable;
+
+	if (!dss_has_feature(FEAT_CPR))
+		return -ENODEV;
+
+	r = kstrtoint(buf, 0, &v);
+	if (r)
+		return r;
+
+	enable = !!v;
+
+	mgr->get_manager_info(mgr, &info);
+
+	if (info.cpr_enable == enable)
+		return size;
+
+	info.cpr_enable = enable;
+
+	r = mgr->set_manager_info(mgr, &info);
+	if (r)
+		return r;
+
+	r = mgr->apply(mgr);
+	if (r)
+		return r;
+
+	return size;
+}
+
+static ssize_t manager_cpr_coef_show(struct omap_overlay_manager *mgr,
+		char *buf)
+{
+	struct omap_overlay_manager_info info;
+
+	mgr->get_manager_info(mgr, &info);
+
+	return snprintf(buf, PAGE_SIZE,
+			"%d %d %d %d %d %d %d %d %d\n",
+			info.cpr_coefs.rr,
+			info.cpr_coefs.rg,
+			info.cpr_coefs.rb,
+			info.cpr_coefs.gr,
+			info.cpr_coefs.gg,
+			info.cpr_coefs.gb,
+			info.cpr_coefs.br,
+			info.cpr_coefs.bg,
+			info.cpr_coefs.bb);
+}
+
+static ssize_t manager_cpr_coef_store(struct omap_overlay_manager *mgr,
+		const char *buf, size_t size)
+{
+	struct omap_overlay_manager_info info;
+	struct omap_dss_cpr_coefs coefs;
+	int r, i;
+	s16 *arr;
+
+	if (!dss_has_feature(FEAT_CPR))
+		return -ENODEV;
+
+	if (sscanf(buf, "%hd %hd %hd %hd %hd %hd %hd %hd %hd",
+				&coefs.rr, &coefs.rg, &coefs.rb,
+				&coefs.gr, &coefs.gg, &coefs.gb,
+				&coefs.br, &coefs.bg, &coefs.bb) != 9)
+		return -EINVAL;
+
+	arr = (s16[]){ coefs.rr, coefs.rg, coefs.rb,
+		coefs.gr, coefs.gg, coefs.gb,
+		coefs.br, coefs.bg, coefs.bb };
+
+	for (i = 0; i < 9; ++i) {
+		if (arr[i] < -512 || arr[i] > 511)
+			return -EINVAL;
+	}
+
+	mgr->get_manager_info(mgr, &info);
+
+	info.cpr_coefs = coefs;
+
+	r = mgr->set_manager_info(mgr, &info);
+	if (r)
+		return r;
+
+	r = mgr->apply(mgr);
+	if (r)
+		return r;
+
+	return size;
+}
+
 struct manager_attribute {
 	struct attribute attr;
 	ssize_t (*show)(struct omap_overlay_manager *, char *);
@@ -304,6 +406,12 @@ static MANAGER_ATTR(trans_key_enabled, S_IRUGO|S_IWUSR,
 static MANAGER_ATTR(alpha_blending_enabled, S_IRUGO|S_IWUSR,
 		manager_alpha_blending_enabled_show,
 		manager_alpha_blending_enabled_store);
+static MANAGER_ATTR(cpr_enable, S_IRUGO|S_IWUSR,
+		manager_cpr_enable_show,
+		manager_cpr_enable_store);
+static MANAGER_ATTR(cpr_coef, S_IRUGO|S_IWUSR,
+		manager_cpr_coef_show,
+		manager_cpr_coef_store);
 
 
 static struct attribute *manager_sysfs_attrs[] = {
@@ -314,6 +422,8 @@ static struct attribute *manager_sysfs_attrs[] = {
 	&manager_attr_trans_key_value.attr,
 	&manager_attr_trans_key_enabled.attr,
 	&manager_attr_alpha_blending_enabled.attr,
+	&manager_attr_cpr_enable.attr,
+	&manager_attr_cpr_coef.attr,
 	NULL
 };
 
@@ -441,6 +551,7 @@ struct overlay_cache_data {
 
 	bool manual_update;
 	enum omap_overlay_zorder zorder;
+	struct omap_dss_cconv_coefs cconv;
 };
 
 struct manager_cache_data {
@@ -472,6 +583,9 @@ struct manager_cache_data {
 	bool enlarge_update_area;
 
 	struct callback_states cb; /* callback data for the last 3 states */
+
+	bool cpr_enable;
+	struct omap_dss_cpr_coefs cpr_coefs;
 };
 
 static struct {
@@ -956,6 +1070,8 @@ static int configure_overlay(enum omap_plane plane)
 	dispc_set_zorder(plane, c->zorder);
 	dispc_enable_zorder(plane, 1);
 	dispc_setup_plane_fifo(plane, c->fifo_low, c->fifo_high);
+	if (plane != OMAP_DSS_GFX)
+		_dispc_setup_color_conv_coef(plane, &c->cconv);
 
 	dispc_enable_plane(plane, 1);
 
@@ -981,6 +1097,10 @@ static void configure_manager(enum omap_channel channel)
 		c->alpha_enabled = true;
 	} else {
 		dispc_enable_alpha_blending(channel, c->alpha_enabled);
+	}
+	if (dss_has_feature(FEAT_CPR)) {
+		dispc_enable_cpr(channel, c->cpr_enable);
+		dispc_set_cpr_coef(channel, &c->cpr_coefs);
 	}
 }
 
@@ -1515,6 +1635,7 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 		oc->max_x_decim = ovl->info.max_x_decim;
 		oc->min_y_decim = ovl->info.min_y_decim;
 		oc->max_y_decim = ovl->info.max_y_decim;
+		oc->cconv = ovl->info.cconv;
 
 		oc->replication =
 			dss_use_replication(dssdev, ovl->info.color_mode);
@@ -1574,6 +1695,8 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 		mc->trans_key = mgr->info.trans_key;
 		mc->trans_enabled = mgr->info.trans_enabled;
 		mc->alpha_enabled = mgr->info.alpha_enabled;
+		mc->cpr_coefs = mgr->info.cpr_coefs;
+		mc->cpr_enable = mgr->info.cpr_enable;
 
 		mc->manual_upd_display =
 			dssdev->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE;

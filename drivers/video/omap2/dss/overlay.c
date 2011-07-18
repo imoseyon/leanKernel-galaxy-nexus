@@ -738,6 +738,9 @@ void dss_overlay_setup_l4_manager(struct omap_overlay_manager *mgr)
 void dss_init_overlays(struct platform_device *pdev)
 {
 	int i, r;
+	const struct omap_dss_cconv_coefs ctbl_bt601_5 = {
+		298,  409,    0,  298, -208, -100,  298,    0,  517, 0,
+	};
 
 	INIT_LIST_HEAD(&overlay_list);
 
@@ -793,6 +796,7 @@ void dss_init_overlays(struct platform_device *pdev)
 		ovl->info.min_x_decim = ovl->info.min_y_decim = 1;
 		ovl->info.max_x_decim = ovl->info.max_y_decim =
 			cpu_is_omap44xx() ? 16 : 1;
+		ovl->info.cconv = ctbl_bt601_5;
 
 		ovl->set_manager = &omap_dss_set_manager;
 		ovl->unset_manager = &omap_dss_unset_manager;
