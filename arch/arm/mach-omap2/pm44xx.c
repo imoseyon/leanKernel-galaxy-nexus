@@ -515,6 +515,24 @@ static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 }
 
 /**
+ * omap_default_idle() - implement a default idle for !CONFIG_CPUIDLE
+ *
+ * Implements OMAP4 memory, IO ordering requirements which can't be addressed
+ * with default arch_idle() hook. Used by all CPUs with !CONFIG_CPUIDLE and
+ * by secondary CPU with CONFIG_CPUIDLE.
+ */
+static void omap_default_idle(void)
+{
+	local_irq_disable();
+	local_fiq_disable();
+
+	omap_do_wfi();
+
+	local_fiq_enable();
+	local_irq_enable();
+}
+
+/**
  * omap4_pm_init - Init routine for OMAP4 PM
  *
  * Initializes all powerdomain and clockdomain target states
@@ -631,6 +649,9 @@ static int __init omap4_pm_init(void)
 
 	 /* Enable wakeup for PRCM IRQ for system wide suspend */
 	enable_irq_wake(OMAP44XX_IRQ_PRCM);
+
+	/* Overwrite the default arch_idle() */
+	pm_idle = omap_default_idle;
 
 	omap4_idle_init();
 

@@ -233,11 +233,6 @@ wait:
 	smc	#0
 	dsb
 #endif
-#endif
-
-do_WFI:
-#ifdef CONFIG_CACHE_L2X0
-	/* Issue cache sync before WFI to drain L2X0 buffer */
 l2x_sync:
 	bl	omap4_get_l2cache_base
 	mov	r2, r0
@@ -248,47 +243,9 @@ sync:
 	ands	r0, r0, #0x1
 	bne	sync
 #endif
-	/* Drain interconnect write buffers. */
-	bl omap_bus_sync
 
-	/*
-	 * Execute an ISB instruction to ensure that all of the
-	 * CP15 register changes have been committed.
-	 */
-	isb
-
-	/*
-	 * Execute a barrier instruction to ensure that all cache,
-	 * TLB and branch predictor maintenance operations issued
-	 * by any CPU in the cluster have completed.
-	 */
-	dsb
-	dmb
-
-	/*
-	 * Execute a WFI instruction and wait until the
-	 * STANDBYWFI output is asserted to indicate that the
-	 * CPU is in idle and low power state. CPU can specualatively
-	 * prefetch the instructions so add NOPs after WFI. Sixteen
-	 * NOPs as per Cortex-A9 pipeline.
-	 */
-	wfi					@ Wait For Interrupt
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
+do_WFI:
+	bl	omap_do_wfi
 
 	/*
 	 * CPU is here when it failed to enter OFF/DORMANT or
@@ -553,5 +510,52 @@ ENTRY(omap_bus_sync)
 	isb
 	ldmfd	sp!, {r9, pc}
 ENDPROC(omap_bus_sync)
+
+ENTRY(omap_do_wfi)
+	stmfd	sp!, {lr}
+	/* Drain interconnect write buffers. */
+	bl omap_bus_sync
+
+	/*
+	 * Execute an ISB instruction to ensure that all of the
+	 * CP15 register changes have been committed.
+	 */
+	isb
+
+	/*
+	 * Execute a barrier instruction to ensure that all cache,
+	 * TLB and branch predictor maintenance operations issued
+	 * by any CPU in the cluster have completed.
+	 */
+	dsb
+	dmb
+
+	/*
+	 * Execute a WFI instruction and wait until the
+	 * STANDBYWFI output is asserted to indicate that the
+	 * CPU is in idle and low power state. CPU can specualatively
+	 * prefetch the instructions so add NOPs after WFI. Sixteen
+	 * NOPs as per Cortex-A9 pipeline.
+	 */
+	wfi					@ Wait For Interrupt
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	ldmfd	sp!, {pc}
+ENDPROC(omap_do_wfi)
 
 #endif
