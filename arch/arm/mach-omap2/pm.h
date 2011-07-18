@@ -81,6 +81,11 @@ extern u32 sleep_while_idle;
 #define enable_off_mode 0
 #define sleep_while_idle 0
 #endif
+#ifdef CONFIG_PM_ADVANCED_DEBUG
+extern void omap4_pm_suspend_save_regs(void);
+#else
+static inline void omap4_pm_suspend_save_regs(void) { }
+#endif
 
 #if defined(CONFIG_PM_DEBUG) && defined(CONFIG_DEBUG_FS)
 extern void pm_dbg_update_time(struct powerdomain *pwrdm, int prev);

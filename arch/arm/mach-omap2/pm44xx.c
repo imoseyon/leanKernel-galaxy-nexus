@@ -141,6 +141,9 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 		}
 	}
 
+	if (suspend && cpu_is_omap44xx())
+		omap4_pm_suspend_save_regs();
+
 	omap4_enter_lowpower(cpu, power_state);
 
 	if (core_next_state < PWRDM_POWER_ON) {
