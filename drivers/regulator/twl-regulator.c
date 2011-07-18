@@ -104,6 +104,10 @@ struct twlreg_info {
 #define SMPS_MULTOFFSET_VIO	BIT(1)
 #define SMPS_MULTOFFSET_SMPS3	BIT(6)
 
+/* TWL6030 VUSB supplemental config registers */
+#define TWL6030_MISC2		0xE5
+#define TWL6030_CFG_LDO_PD2	0xF5
+
 static inline int
 twlreg_read(struct twlreg_info *info, unsigned slave_subgp, unsigned offset)
 {
@@ -1010,6 +1014,7 @@ static int __devinit twlreg_probe(struct platform_device *pdev)
 	struct regulator_init_data	*initdata;
 	struct regulation_constraints	*c;
 	struct regulator_dev		*rdev;
+	int ret;
 
 	for (i = 0, info = NULL; i < ARRAY_SIZE(twl_regs); i++) {
 		if (twl_regs[i].desc.id != pdev->id)
@@ -1044,6 +1049,18 @@ static int __devinit twlreg_probe(struct platform_device *pdev)
 	case TWL4030_REG_VINTANA2:
 	case TWL4030_REG_VINTDIG:
 		c->always_on = true;
+		break;
+	case TWL6030_REG_VUSB:
+		/* Program CFG_LDO_PD2 register and set VUSB bit */
+		ret = twl_i2c_write_u8(TWL6030_MODULE_ID0, 0x1,
+				TWL6030_CFG_LDO_PD2);
+		if (ret < 0)
+			return ret;
+
+		/* Program MISC2 register and set bit VUSB_IN_VBAT */
+		ret = twl_i2c_write_u8(TWL6030_MODULE_ID0, 0x10, TWL6030_MISC2);
+		if (ret < 0)
+			return ret;
 		break;
 	default:
 		break;
