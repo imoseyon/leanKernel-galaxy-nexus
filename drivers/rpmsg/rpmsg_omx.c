@@ -34,7 +34,6 @@
 #include <linux/sched.h>
 #include <linux/rpmsg.h>
 #include <linux/rpmsg_omx.h>
-#include <linux/pm_qos_params.h>
 
 #include <mach/tiler.h>
 
@@ -377,9 +376,6 @@ static int rpmsg_omx_open(struct inode *inode, struct file *filp)
 
 	dev_info(omxserv->dev, "local addr assigned: 0x%x\n", omx->ept->addr);
 
-	/* Request for CORE latency. REVISIT: Move to proper code path */
-	pm_qos_add_request(omxserv->pm_qos, PM_QOS_CPU_DMA_LATENCY, 400);
-
 	return 0;
 }
 
@@ -393,10 +389,6 @@ static int rpmsg_omx_release(struct inode *inode, struct file *filp)
 	int use, ret;
 
 	/* todo: release resources here */
-	if (omxserv->pm_qos) {
-		pm_qos_remove_request(omxserv->pm_qos);
-		kfree(omxserv->pm_qos);
-	}
 
 	/* send a disconnect msg with the OMX instance addr */
 	hdr->type = OMX_DISCONNECT;
@@ -591,12 +583,6 @@ static int rpmsg_omx_probe(struct rpmsg_channel *rpdev)
 	if (IS_ERR(omxserv->dev)) {
 		ret = PTR_ERR(omxserv->dev);
 		dev_err(&rpdev->dev, "device_create failed: %d\n", ret);
-		goto clean_cdev;
-	}
-
-	omxserv->pm_qos = kzalloc(sizeof(struct pm_qos_request_list),
-				GFP_KERNEL);
-	if (!omxserv->pm_qos) {
 		goto clean_cdev;
 	}
 
