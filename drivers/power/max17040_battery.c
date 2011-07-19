@@ -250,6 +250,9 @@ static int __devinit max17040_probe(struct i2c_client *client,
 	chip->battery.num_properties	= ARRAY_SIZE(max17040_battery_props);
 	chip->battery.external_power_changed	= max17040_ext_power_changed;
 
+	max17040_reset(client);
+	max17040_get_version(client);
+	INIT_DELAYED_WORK_DEFERRABLE(&chip->work, max17040_work);
 	ret = power_supply_register(&client->dev, &chip->battery);
 	if (ret) {
 		dev_err(&client->dev, "failed: power supply register\n");
@@ -257,10 +260,6 @@ static int __devinit max17040_probe(struct i2c_client *client,
 		return ret;
 	}
 
-	max17040_reset(client);
-	max17040_get_version(client);
-
-	INIT_DELAYED_WORK_DEFERRABLE(&chip->work, max17040_work);
 	schedule_delayed_work(&chip->work, msecs_to_jiffies(MAX17040_DELAY));
 
 	return 0;
