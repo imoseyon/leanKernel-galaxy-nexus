@@ -64,12 +64,13 @@ static int hdmi_audio_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
+	struct platform_device *pdev = to_platform_device(codec->dev);
 	struct hdmi_data *priv = snd_soc_codec_get_drvdata(codec);
 	struct hdmi_audio_format *audio_format = &priv->audio_fmt;
 	struct hdmi_audio_dma *audio_dma = &priv->audio_dma;
 	struct hdmi_core_audio_config *core_cfg = &priv->audio_core_cfg;
 	struct hdmi_core_infoframe_audio *aud_if_cfg = &priv->aud_if_cfg;
-	int err, n, cts;
+	int err, n, cts, channels_nr, channel_alloc;
 	enum hdmi_core_audio_sample_freq sample_freq;
 	u32 pclk = omapdss_hdmi_get_pixel_clock();
 
@@ -126,8 +127,6 @@ static int hdmi_audio_hw_params(struct snd_pcm_substream *substream,
 		return err;
 
 	/* Audio wrapper config */
-	audio_format->stereo_channels = HDMI_AUDIO_STEREO_ONECHANNEL;
-	audio_format->active_chnnls_msk = 0x03;
 	audio_format->type = HDMI_AUDIO_TYPE_LPCM;
 	audio_format->sample_order = HDMI_AUDIO_SAMPLE_LEFT_FIRST;
 	/* Disable start/stop signals of IEC 60958 blocks */
@@ -154,8 +153,6 @@ static int hdmi_audio_hw_params(struct snd_pcm_substream *substream,
 	core_cfg->i2s_cfg.direction = HDMI_AUDIO_I2S_MSB_SHIFTED_FIRST;
 	/* Set serial data to word select shift. See Phillips spec. */
 	core_cfg->i2s_cfg.shift = HDMI_AUDIO_I2S_FIRST_BIT_SHIFT;
-	/* Enable one of the four available serial data channels */
-	core_cfg->i2s_cfg.active_sds = HDMI_AUDIO_I2S_SD0_EN;
 
 	/* Core audio config */
 	core_cfg->freq_sample = sample_freq;
@@ -171,7 +168,6 @@ static int hdmi_audio_hw_params(struct snd_pcm_substream *substream,
 		core_cfg->use_mclk = true;
 		core_cfg->mclk_mode = HDMI_AUDIO_MCLK_128FS;
 	}
-	core_cfg->layout = HDMI_AUDIO_LAYOUT_2CH;
 	core_cfg->en_spdif = false;
 	/* Use sample frequency from channel status word */
 	core_cfg->fs_override = true;
@@ -182,17 +178,55 @@ static int hdmi_audio_hw_params(struct snd_pcm_substream *substream,
 	/* Use parallel audio interface */
 	core_cfg->en_parallel_aud_input = true;
 
+	/* Number of channels */
+	channels_nr = params_channels(params);
+
+	switch (channels_nr) {
+	case 2:
+		core_cfg->layout = HDMI_AUDIO_LAYOUT_2CH;
+		channel_alloc = 0x0;
+		audio_format->stereo_channels = HDMI_AUDIO_STEREO_ONECHANNEL;
+		audio_format->active_chnnls_msk = 0x03;
+		/* Enable one of the four available serial data channels */
+		core_cfg->i2s_cfg.active_sds = HDMI_AUDIO_I2S_SD0_EN;
+		break;
+	case 6:
+		core_cfg->layout = HDMI_AUDIO_LAYOUT_8CH;
+		channel_alloc = 0xB;
+		audio_format->stereo_channels = HDMI_AUDIO_STEREO_FOURCHANNELS;
+		audio_format->active_chnnls_msk = 0x3f;
+		/* Enable all of the four available serial data channels */
+		core_cfg->i2s_cfg.active_sds = HDMI_AUDIO_I2S_SD0_EN |
+				HDMI_AUDIO_I2S_SD1_EN | HDMI_AUDIO_I2S_SD2_EN |
+				HDMI_AUDIO_I2S_SD3_EN;
+		break;
+	case 8:
+		core_cfg->layout = HDMI_AUDIO_LAYOUT_8CH;
+		channel_alloc = 0x13;
+		audio_format->stereo_channels = HDMI_AUDIO_STEREO_FOURCHANNELS;
+		audio_format->active_chnnls_msk = 0xff;
+		/* Enable all of the four available serial data channels */
+		core_cfg->i2s_cfg.active_sds = HDMI_AUDIO_I2S_SD0_EN |
+				HDMI_AUDIO_I2S_SD1_EN | HDMI_AUDIO_I2S_SD2_EN |
+				HDMI_AUDIO_I2S_SD3_EN;
+		break;
+	default:
+		dev_err(&pdev->dev, "Unsupported number of channels\n");
+		return -EINVAL;
+	}
+
 	hdmi_ti_4xxx_core_audio_config(&priv->ip_data, core_cfg);
+	hdmi_ti_4xxx_wp_audio_config_format(&priv->ip_data, audio_format);
 
 	/*
 	 * Configure packet
 	 * info frame audio see doc CEA861-D page 74
 	 */
 	aud_if_cfg->db1_coding_type = HDMI_INFOFRAME_AUDIO_DB1CT_FROM_STREAM;
-	aud_if_cfg->db1_channel_count = 2;
+	aud_if_cfg->db1_channel_count = channels_nr;
 	aud_if_cfg->db2_sample_freq = HDMI_INFOFRAME_AUDIO_DB2SF_FROM_STREAM;
 	aud_if_cfg->db2_sample_size = HDMI_INFOFRAME_AUDIO_DB2SS_FROM_STREAM;
-	aud_if_cfg->db4_channel_alloc = 0x00;
+	aud_if_cfg->db4_channel_alloc = channel_alloc;
 	aud_if_cfg->db5_downmix_inh = false;
 	aud_if_cfg->db5_lsv = 0;
 
