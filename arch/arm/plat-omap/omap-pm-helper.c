@@ -21,6 +21,8 @@
 #include <linux/err.h>
 #include <linux/slab.h>
 #include <linux/list.h>
+#include <linux/debugfs.h>
+#include <linux/seq_file.h>
 
 /* Interface documentation is in mach/omap-pm.h */
 #include <plat/omap-pm.h>
@@ -106,6 +108,34 @@ static struct users *get_user(void)
 	return user;
 }
 
+#ifdef CONFIG_PM_DEBUG
+static int pm_dbg_show_tput(struct seq_file *s, void *unused)
+{
+	struct users *usr;
+
+	mutex_lock(&bus_tput->throughput_mutex);
+	list_for_each_entry(usr, &bus_tput->users_list, node)
+		seq_printf(s, "%s:	%u\n", dev_name(usr->dev),
+				usr->level);
+	mutex_unlock(&bus_tput->throughput_mutex);
+
+	return 0;
+}
+
+static int pm_dbg_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, pm_dbg_show_tput,
+			&inode->i_private);
+}
+
+static const struct file_operations tputdebugfs_fops = {
+	.open           = pm_dbg_open,
+	.read           = seq_read,
+	.llseek         = seq_lseek,
+	.release        = single_release,
+};
+#endif
+
 /**
  * omap_bus_tput_init - Initializes the interconnect throughput
  * userlist
@@ -125,6 +155,12 @@ static int __init omap_bus_tput_init(void)
 	mutex_init(&bus_tput->throughput_mutex);
 	bus_tput->no_of_users = 0;
 	bus_tput->target_level = 0;
+
+#ifdef CONFIG_PM_DEBUG
+	(void) debugfs_create_file("tput", S_IRUGO,
+		NULL, (void *)bus_tput, &tputdebugfs_fops);
+#endif
+
 	return 0;
 }
 
