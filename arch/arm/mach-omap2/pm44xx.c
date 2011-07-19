@@ -45,8 +45,6 @@
 #include "voltage.h"
 #include "vc.h"
 
-#define OMAP44XX_IRQ_GIC_START 32
-
 struct power_state {
 	struct powerdomain *pwrdm;
 	u32 next_state;
@@ -179,10 +177,111 @@ static void omap4_pm_set_wakeups(int enable)
 }
 
 #ifdef CONFIG_PM_DEBUG
+#define GPIO_BANKS		6
+#define MODULEMODE_DISABLED	0x0
+#define MODULEMODE_AUTO		0x1
+
+static void _print_wakeirq(int irq)
+{
+	struct irq_desc *desc = irq_to_desc(irq);
+
+	if (!desc || !desc->action || !desc->action->name)
+		pr_info("Resume caused by IRQ %d\n", irq);
+	else
+		pr_info("Resume caused by IRQ %d, %s\n", irq,
+			desc->action->name);
+}
+
+static void _print_gpio_wakeirq(int irq)
+{
+	int bank = irq - OMAP44XX_IRQ_GPIO1;
+	int bit;
+	int gpioirq;
+	int restoremod = 0;
+	int timeout = 10;
+	u32 wken, irqst, gpio;
+	u32 clkctrl;
+	long unsigned int wkirqs;
+	void *gpio_base[GPIO_BANKS] = {
+		OMAP2_L4_IO_ADDRESS(0x4a310000),
+		OMAP2_L4_IO_ADDRESS(0x48055000),
+		OMAP2_L4_IO_ADDRESS(0x48057000),
+		OMAP2_L4_IO_ADDRESS(0x48059000),
+		OMAP2_L4_IO_ADDRESS(0x4805b000),
+		OMAP2_L4_IO_ADDRESS(0x4805d000),
+	};
+	void *gpio_clkctrl[GPIO_BANKS] = {
+		OMAP4430_CM_WKUP_GPIO1_CLKCTRL,
+		OMAP4430_CM_L4PER_GPIO2_CLKCTRL,
+		OMAP4430_CM_L4PER_GPIO3_CLKCTRL,
+		OMAP4430_CM_L4PER_GPIO4_CLKCTRL,
+		OMAP4430_CM_L4PER_GPIO5_CLKCTRL,
+		OMAP4430_CM_L4PER_GPIO6_CLKCTRL,
+	};
+
+	/*
+	 * GPIO1 is in CD_WKUP.
+	 * GPIO2-6 are in CD_l4_PER.
+	 *
+	 * Both of these clock domains are static dependencies of
+	 * the MPUSS clock domain (CD_CORTEXA9) and are guaranteed
+	 * to be already enabled (_CLKSTCTRL.CLKTRCTRL = HW_AUTO).
+	 *
+	 * Ensure the GPIO module is enabled (_CLKCTRL.MODULEMODE =
+	 * h/w managed).  If not, will set it back to disabled when
+	 * done.
+	 */
+
+	clkctrl = __raw_readl(gpio_clkctrl[bank]);
+
+	if ((clkctrl & OMAP4430_MODULEMODE_MASK) !=
+	    MODULEMODE_AUTO << OMAP4430_MODULEMODE_SHIFT) {
+		restoremod = 1;
+		__raw_writel((clkctrl & ~(OMAP4430_MODULEMODE_MASK)) |
+			     MODULEMODE_AUTO << OMAP4430_MODULEMODE_SHIFT,
+			     gpio_clkctrl[bank]);
+
+		while ((__raw_readl(gpio_clkctrl[bank]) &
+			OMAP4430_MODULEMODE_MASK) !=
+		       MODULEMODE_AUTO << OMAP4430_MODULEMODE_SHIFT &&
+		       --timeout)
+			udelay(5);
+
+		if (!timeout)
+			goto punt;
+	}
+
+	wken = __raw_readl(gpio_base[bank] + OMAP4_GPIO_IRQWAKEN0);
+	irqst = __raw_readl(gpio_base[bank] + OMAP4_GPIO_IRQSTATUS0);
+	wkirqs = irqst & wken;
+
+	if (!wkirqs)
+		goto punt;
+
+	for_each_set_bit(bit, &wkirqs, 32) {
+		gpio = bit + bank * 32;
+		gpioirq = gpio_to_irq(gpio);
+
+		if (gpioirq < 0)
+			pr_info("Resume caused by GPIO %d\n", (int)gpio);
+		else
+			_print_wakeirq(gpioirq);
+	}
+
+	goto out;
+
+punt:
+	pr_info("Resume caused by IRQ %d, unknown GPIO%d interrupt\n", irq,
+		bank + 1);
+
+out:
+	if (restoremod)
+		__raw_writel(clkctrl, gpio_clkctrl[bank]);
+}
+
 static void omap4_print_wakeirq(void)
 {
 	int irq;
-	struct irq_desc *desc;
 
 	irq = gic_cpu_read(GIC_CPU_HIGHPRI) & 0x3ff;
 
@@ -191,14 +290,11 @@ static void omap4_print_wakeirq(void)
 		return;
 	}
 
-	irq -= OMAP44XX_IRQ_GIC_START;
-	desc = irq_to_desc(irq);
-
-	if (!desc || !desc->action || !desc->action->name)
-		pr_info("Resume caused by IRQ %d\n", irq);
+	if (irq >= OMAP44XX_IRQ_GPIO1 &&
+	    irq <= OMAP44XX_IRQ_GPIO1 + GPIO_BANKS - 1)
+		_print_gpio_wakeirq(irq);
 	else
-		pr_info("Resume caused by IRQ %d, %s\n", irq,
-			desc->action->name);
+		_print_wakeirq(irq);
 }
 #else
 static void omap4_print_wakeirq(void)
