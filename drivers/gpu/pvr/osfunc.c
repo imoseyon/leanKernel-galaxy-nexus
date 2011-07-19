@@ -84,7 +84,11 @@
 #error "A preemptible Linux kernel is required when using workqueues"
 #endif
 
+#if defined(EMULATOR)
+#define EVENT_OBJECT_TIMEOUT_MS		(2000)
+#else
 #define EVENT_OBJECT_TIMEOUT_MS		(100)
+#endif 
 
 #if !defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
 PVRSRV_ERROR OSAllocMem_Impl(IMG_UINT32 ui32Flags, IMG_UINT32 ui32Size, IMG_PVOID *ppvCpuVAddr, IMG_HANDLE *phBlockAlloc)

@@ -3885,15 +3885,18 @@ typedef struct _MODIFY_SYNC_OP_INFO
 	IMG_UINT32 	ui32ModifyFlags;
 	IMG_UINT32	ui32ReadOpsPendingSnapShot;
 	IMG_UINT32	ui32WriteOpsPendingSnapShot;
+	IMG_UINT32	ui32ReadOps2PendingSnapShot;
 } MODIFY_SYNC_OP_INFO;
 
 
 static PVRSRV_ERROR DoQuerySyncOpsSatisfied(PVRSRV_KERNEL_SYNC_INFO *psKernelSyncInfo,
 											IMG_UINT32 ui32ReadOpsPendingSnapShot,
-											IMG_UINT32 ui32WriteOpsPendingSnapShot)
+											IMG_UINT32 ui32WriteOpsPendingSnapShot,
+											IMG_UINT32 ui32ReadOps2PendingSnapShot)
 {
 	IMG_UINT32 ui32WriteOpsPending;
 	IMG_UINT32 ui32ReadOpsPending;
+	IMG_UINT32 ui32ReadOps2Pending;
 
 	
 	if (!psKernelSyncInfo)
@@ -3913,11 +3916,14 @@ static PVRSRV_ERROR DoQuerySyncOpsSatisfied(PVRSRV_KERNEL_SYNC_INFO *psKernelSyn
 
 	ui32WriteOpsPending = psKernelSyncInfo->psSyncData->ui32WriteOpsPending;
 	ui32ReadOpsPending = psKernelSyncInfo->psSyncData->ui32ReadOpsPending;
+	ui32ReadOps2Pending = psKernelSyncInfo->psSyncData->ui32ReadOps2Pending;
 
 	if((ui32WriteOpsPending - ui32WriteOpsPendingSnapShot >=
 		ui32WriteOpsPending - psKernelSyncInfo->psSyncData->ui32WriteOpsComplete) &&
 	   (ui32ReadOpsPending - ui32ReadOpsPendingSnapShot >=
-		ui32ReadOpsPending - psKernelSyncInfo->psSyncData->ui32ReadOpsComplete))
+		ui32ReadOpsPending - psKernelSyncInfo->psSyncData->ui32ReadOpsComplete) &&
+		(ui32ReadOps2Pending - ui32ReadOps2PendingSnapShot >=
+		ui32ReadOps2Pending - psKernelSyncInfo->psSyncData->ui32ReadOps2Complete))
 	{
 #if defined(PDUMP) && !defined(SUPPORT_VGX)
 		
@@ -4013,7 +4019,8 @@ static PVRSRV_ERROR ModifyCompleteSyncOpsCallBack(IMG_PVOID		pvParam,
 		{
 			if (DoQuerySyncOpsSatisfied(psModSyncOpInfo->psKernelSyncInfo,
 										psModSyncOpInfo->ui32ReadOpsPendingSnapShot,
-										psModSyncOpInfo->ui32WriteOpsPendingSnapShot) == PVRSRV_OK)
+										psModSyncOpInfo->ui32WriteOpsPendingSnapShot,
+										psModSyncOpInfo->ui32ReadOps2PendingSnapShot) == PVRSRV_OK)
 			{
 				goto OpFlushedComplete;
 			}
@@ -4025,10 +4032,12 @@ static PVRSRV_ERROR ModifyCompleteSyncOpsCallBack(IMG_PVOID		pvParam,
 		PVR_DPF((PVR_DBG_ERROR, "  Write ops pending snapshot = %d, write ops complete = %d",
 				 psModSyncOpInfo->ui32WriteOpsPendingSnapShot,
 				 psModSyncOpInfo->psKernelSyncInfo->psSyncData->ui32WriteOpsComplete));
-		PVR_DPF((PVR_DBG_ERROR, "  Read ops pending snapshot = %d, write ops complete = %d",
+		PVR_DPF((PVR_DBG_ERROR, "  Read ops pending snapshot = %d, read ops complete = %d",
 				 psModSyncOpInfo->ui32ReadOpsPendingSnapShot,
 				 psModSyncOpInfo->psKernelSyncInfo->psSyncData->ui32ReadOpsComplete));
-
+		PVR_DPF((PVR_DBG_ERROR, "  Read ops pending snapshot = %d, read ops2 complete = %d",
+				 psModSyncOpInfo->ui32ReadOps2PendingSnapShot,
+				 psModSyncOpInfo->psKernelSyncInfo->psSyncData->ui32ReadOps2Complete));
 		return PVRSRV_ERROR_TIMEOUT;
 
 OpFlushedComplete:
@@ -4182,11 +4191,13 @@ PVRSRVModifyPendingSyncOpsBW(IMG_UINT32									ui32BridgeID,
 	psModSyncOpInfo->ui32ModifyFlags = psModifySyncOpsIN->ui32ModifyFlags;
 	psModSyncOpInfo->ui32ReadOpsPendingSnapShot = psKernelSyncInfo->psSyncData->ui32ReadOpsPending;
 	psModSyncOpInfo->ui32WriteOpsPendingSnapShot = psKernelSyncInfo->psSyncData->ui32WriteOpsPending;
+	psModSyncOpInfo->ui32ReadOps2PendingSnapShot = psKernelSyncInfo->psSyncData->ui32ReadOps2Pending;
 
 	
 
 	psModifySyncOpsOUT->ui32ReadOpsPending = psKernelSyncInfo->psSyncData->ui32ReadOpsPending;
 	psModifySyncOpsOUT->ui32WriteOpsPending = psKernelSyncInfo->psSyncData->ui32WriteOpsPending;
+	psModifySyncOpsOUT->ui32ReadOps2Pending = psKernelSyncInfo->psSyncData->ui32ReadOps2Pending;
 
 	if(psModifySyncOpsIN->ui32ModifyFlags & PVRSRV_MODIFYSYNCOPS_FLAGS_WO_INC)
 	{
@@ -4280,6 +4291,7 @@ PVRSRVSyncOpsTakeTokenBW(IMG_UINT32									ui32BridgeID,
 
 	psSyncOpsTakeTokenOUT->ui32ReadOpsPending = psKernelSyncInfo->psSyncData->ui32ReadOpsPending;
 	psSyncOpsTakeTokenOUT->ui32WriteOpsPending = psKernelSyncInfo->psSyncData->ui32WriteOpsPending;
+	psSyncOpsTakeTokenOUT->ui32ReadOps2Pending = psKernelSyncInfo->psSyncData->ui32ReadOps2Pending;
 
 	return 0;
 }
@@ -4294,6 +4306,7 @@ PVRSRVSyncOpsFlushToTokenBW(IMG_UINT32                                         u
 	PVRSRV_KERNEL_SYNC_INFO *psKernelSyncInfo;
 	IMG_UINT32 ui32ReadOpsPendingSnapshot;
 	IMG_UINT32 ui32WriteOpsPendingSnapshot;
+	IMG_UINT32 ui32ReadOps2PendingSnapshot;
 
 	PVRSRV_BRIDGE_ASSERT_CMD(ui32BridgeID, PVRSRV_BRIDGE_SYNC_OPS_FLUSH_TO_TOKEN);
 
@@ -4309,10 +4322,12 @@ PVRSRVSyncOpsFlushToTokenBW(IMG_UINT32                                         u
 
 	ui32ReadOpsPendingSnapshot = psSyncOpsFlushToTokenIN->ui32ReadOpsPendingSnapshot;
 	ui32WriteOpsPendingSnapshot = psSyncOpsFlushToTokenIN->ui32WriteOpsPendingSnapshot;
+	ui32ReadOps2PendingSnapshot = psSyncOpsFlushToTokenIN->ui32ReadOps2PendingSnapshot;
 
 	psSyncOpsFlushToTokenOUT->eError = DoQuerySyncOpsSatisfied(psKernelSyncInfo,
 															   ui32ReadOpsPendingSnapshot,
-															   ui32WriteOpsPendingSnapshot);
+															   ui32WriteOpsPendingSnapshot,
+															   ui32ReadOps2PendingSnapshot);
 
 	if (psSyncOpsFlushToTokenOUT->eError != PVRSRV_OK && psSyncOpsFlushToTokenOUT->eError != PVRSRV_ERROR_RETRY)
 	{
@@ -4353,7 +4368,8 @@ PVRSRVSyncOpsFlushToModObjBW(IMG_UINT32                                         
 
 	psSyncOpsFlushToModObjOUT->eError = DoQuerySyncOpsSatisfied(psModSyncOpInfo->psKernelSyncInfo,
 																psModSyncOpInfo->ui32ReadOpsPendingSnapShot,
-																psModSyncOpInfo->ui32WriteOpsPendingSnapShot);
+																psModSyncOpInfo->ui32WriteOpsPendingSnapShot,
+																psModSyncOpInfo->ui32ReadOps2PendingSnapShot);
 
 	if (psSyncOpsFlushToModObjOUT->eError != PVRSRV_OK && psSyncOpsFlushToModObjOUT->eError != PVRSRV_ERROR_RETRY)
 	{

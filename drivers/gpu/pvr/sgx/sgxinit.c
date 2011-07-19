@@ -167,9 +167,6 @@ static PVRSRV_ERROR InitDevInfo(PVRSRV_PER_PROCESS_DATA *psPerProc,
 #if defined(SGX_FEATURE_OVERLAPPED_SPM)
 	psDevInfo->psKernelTmpRgnHeaderMemInfo = (PVRSRV_KERNEL_MEM_INFO *)psInitInfo->hKernelTmpRgnHeaderMemInfo;
 #endif
-#if defined(SGX_FEATURE_SPM_MODE_0)
-	psDevInfo->psKernelTmpDPMStateMemInfo = (PVRSRV_KERNEL_MEM_INFO *)psInitInfo->hKernelTmpDPMStateMemInfo;
-#endif
 	
 	psDevInfo->ui32ClientBuildOptions = psInitInfo->ui32ClientBuildOptions;
 
