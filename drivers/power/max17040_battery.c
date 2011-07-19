@@ -271,7 +271,7 @@ static int __devexit max17040_remove(struct i2c_client *client)
 	struct max17040_chip *chip = i2c_get_clientdata(client);
 
 	power_supply_unregister(&chip->battery);
-	cancel_delayed_work(&chip->work);
+	cancel_delayed_work_sync(&chip->work);
 	kfree(chip);
 	return 0;
 }
