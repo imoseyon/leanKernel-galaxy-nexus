@@ -29,7 +29,11 @@
 #include "lists.h"
 #include "ttrace.h"
 
+#if defined(SUPPORT_DC_CMDCOMPLETE_WHEN_NO_LONGER_DISPLAYED)
+#define DC_NUM_COMMANDS_PER_TYPE		2
+#else
 #define DC_NUM_COMMANDS_PER_TYPE		1
+#endif
 
 typedef struct _DEVICE_COMMAND_DATA_
 {
@@ -138,6 +142,48 @@ void* ProcSeqOff2ElementQueue(struct seq_file * sfile, loff_t off)
 #define SYNCOPS_STALE(ui32OpsComplete, ui32OpsPending)					\
 	((ui32OpsComplete) >= (ui32OpsPending))
 
+#ifdef INLINE_IS_PRAGMA
+#pragma inline(PVRSRVGetWriteOpsPending)
+#endif
+static INLINE
+IMG_UINT32 PVRSRVGetWriteOpsPending(PVRSRV_KERNEL_SYNC_INFO *psSyncInfo, IMG_BOOL bIsReadOp)
+{
+	IMG_UINT32 ui32WriteOpsPending;
+
+	if(bIsReadOp)
+	{
+		ui32WriteOpsPending = psSyncInfo->psSyncData->ui32WriteOpsPending;
+	}
+	else
+	{
+		
+
+
+		ui32WriteOpsPending = psSyncInfo->psSyncData->ui32WriteOpsPending++;
+	}
+
+	return ui32WriteOpsPending;
+}
+
+#ifdef INLINE_IS_PRAGMA
+#pragma inline(PVRSRVGetReadOpsPending)
+#endif
+static INLINE
+IMG_UINT32 PVRSRVGetReadOpsPending(PVRSRV_KERNEL_SYNC_INFO *psSyncInfo, IMG_BOOL bIsReadOp)
+{
+	IMG_UINT32 ui32ReadOpsPending;
+
+	if(bIsReadOp)
+	{
+		ui32ReadOpsPending = psSyncInfo->psSyncData->ui32ReadOps2Pending++;
+	}
+	else
+	{
+		ui32ReadOpsPending = psSyncInfo->psSyncData->ui32ReadOps2Pending;
+	}
+
+	return ui32ReadOpsPending;
+}
 
 static IMG_VOID QueueDumpCmdComplete(COMMAND_COMPLETE_DATA *psCmdCompleteData,
 									 IMG_UINT32				i,
@@ -627,7 +673,42 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVSubmitCommandKM(PVRSRV_QUEUE_INFO *psQueue,
 	return PVRSRV_OK;
 }
 
+static
+PVRSRV_ERROR CheckIfSyncIsQueued(PVRSRV_SYNC_OBJECT *psSync, COMMAND_COMPLETE_DATA *psCmdData)
+{
+	IMG_UINT32 k;
+ 
+	if (psCmdData->bInUse)
+	{
+		for (k=0;k<psCmdData->ui32SrcSyncCount;k++)
+		{
+			if (psSync->psKernelSyncInfoKM == psCmdData->psSrcSync[k].psKernelSyncInfoKM)
+			{
+				PVRSRV_SYNC_DATA *psSyncData = psSync->psKernelSyncInfoKM->psSyncData;
+				IMG_UINT32 ui32WriteOpsComplete = psSyncData->ui32WriteOpsComplete;
 
+				
+
+
+				if (ui32WriteOpsComplete == psSync->ui32WriteOpsPending)
+				{
+					return PVRSRV_OK;
+				}
+				else
+				{
+					if (SYNCOPS_STALE(ui32WriteOpsComplete, psSync->ui32WriteOpsPending))
+					{
+						PVR_DPF((PVR_DBG_WARNING,
+								"CheckIfSyncIsQueued: Stale syncops psSyncData:0x%x ui32WriteOpsComplete:0x%x ui32WriteOpsPending:0x%x",
+								(IMG_UINTPTR_T)psSyncData, ui32WriteOpsComplete, psSync->ui32WriteOpsPending));
+						return PVRSRV_OK;
+					}
+				}
+			}
+		}
+	}
+	return PVRSRV_ERROR_FAILED_DEPENDENCIES;
+}
 
 static
 PVRSRV_ERROR PVRSRVProcessCommand(SYS_DATA			*psSysData,
@@ -694,7 +775,22 @@ PVRSRV_ERROR PVRSRVProcessCommand(SYS_DATA			*psSysData,
 				!SYNCOPS_STALE(ui32WriteOpsComplete, psWalkerObj->ui32WriteOpsPending) ||
 				!SYNCOPS_STALE(ui32ReadOpsComplete, psWalkerObj->ui32ReadOps2Pending))
 			{
-				return PVRSRV_ERROR_FAILED_DEPENDENCIES;
+				IMG_UINT32 j;
+				PVRSRV_ERROR eError;
+				IMG_BOOL bFound = IMG_FALSE;
+
+				psDeviceCommandData = psSysData->apsDeviceCommandData[psCommand->ui32DevIndex];
+				for (j=0;j<DC_NUM_COMMANDS_PER_TYPE;j++)
+				{
+					eError = CheckIfSyncIsQueued(psWalkerObj, psDeviceCommandData[psCommand->CommandType].apsCmdCompleteData[j]);
+
+					if (eError == PVRSRV_OK)
+					{
+						bFound = IMG_TRUE;
+					}
+				}
+				if (!bFound)
+					return PVRSRV_ERROR_FAILED_DEPENDENCIES;
 			}
 		}
 		psWalkerObj++;

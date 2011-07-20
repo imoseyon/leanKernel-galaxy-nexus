@@ -325,49 +325,6 @@ PVRSRV_ERROR FreeMemCallBackCommon(PVRSRV_KERNEL_MEM_INFO *psMemInfo,
                                    PVRSRV_FREE_CALLBACK_ORIGIN eCallbackOrigin);
 
 
-#ifdef INLINE_IS_PRAGMA
-#pragma inline(PVRSRVGetWriteOpsPending)
-#endif
-static INLINE
-IMG_UINT32 PVRSRVGetWriteOpsPending(PVRSRV_KERNEL_SYNC_INFO *psSyncInfo, IMG_BOOL bIsReadOp)
-{
-	IMG_UINT32 ui32WriteOpsPending;
-
-	if(bIsReadOp)
-	{
-		ui32WriteOpsPending = psSyncInfo->psSyncData->ui32WriteOpsPending;
-	}
-	else
-	{
-		
-
-
-		ui32WriteOpsPending = psSyncInfo->psSyncData->ui32WriteOpsPending++;
-	}
-
-	return ui32WriteOpsPending;
-}
-
-#ifdef INLINE_IS_PRAGMA
-#pragma inline(PVRSRVGetReadOpsPending)
-#endif
-static INLINE
-IMG_UINT32 PVRSRVGetReadOpsPending(PVRSRV_KERNEL_SYNC_INFO *psSyncInfo, IMG_BOOL bIsReadOp)
-{
-	IMG_UINT32 ui32ReadOpsPending;
-
-	if(bIsReadOp)
-	{
-		ui32ReadOpsPending = psSyncInfo->psSyncData->ui32ReadOps2Pending++;
-	}
-	else
-	{
-		ui32ReadOpsPending = psSyncInfo->psSyncData->ui32ReadOps2Pending;
-	}
-
-	return ui32ReadOpsPending;
-}
-
 IMG_IMPORT
 PVRSRV_ERROR PVRSRVQueueCommand(IMG_HANDLE hQueueInfo,
 								PVRSRV_COMMAND *psCommand);

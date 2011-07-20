@@ -68,8 +68,10 @@ typedef struct PVRSRV_DC_SWAPCHAIN_TAG
 	PVRSRV_DC_BUFFER					*psLastFlipBuffer;
 	IMG_UINT32							ui32MinSwapInterval;
 	IMG_UINT32							ui32MaxSwapInterval;
+#if !defined(SUPPORT_DC_CMDCOMPLETE_WHEN_NO_LONGER_DISPLAYED)
 	PVRSRV_KERNEL_SYNC_INFO				**ppsLastSyncInfos;
 	IMG_UINT32							ui32LastNumSyncInfos;
+#endif 
 	struct PVRSRV_DISPLAYCLASS_INFO_TAG *psDCInfo;
 	struct PVRSRV_DC_SWAPCHAIN_TAG		*psNext;
 } PVRSRV_DC_SWAPCHAIN;
@@ -877,11 +879,13 @@ static PVRSRV_ERROR DestroyDCSwapChain(PVRSRV_DC_SWAPCHAIN *psSwapChain)
 		}
 	}
 
+#if !defined(SUPPORT_DC_CMDCOMPLETE_WHEN_NO_LONGER_DISPLAYED)
 	if (psSwapChain->ppsLastSyncInfos)
 	{
 		OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof(PVRSRV_KERNEL_SYNC_INFO *) * psSwapChain->ui32LastNumSyncInfos,
 					psSwapChain->ppsLastSyncInfos, IMG_NULL);
 	}
+#endif 
 
 	OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof(PVRSRV_DC_SWAPCHAIN), psSwapChain, IMG_NULL);
 	
@@ -1551,6 +1555,7 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 	
 	psQueue = psSwapChain->psQueue;
 
+#if !defined(SUPPORT_DC_CMDCOMPLETE_WHEN_NO_LONGER_DISPLAYED)
 	if(psSwapChain->ppsLastSyncInfos)
 	{
 		IMG_UINT32 ui32NumUniqueSyncInfos = psSwapChain->ui32LastNumSyncInfos;
@@ -1591,6 +1596,7 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 		}
 	}
 	else
+#endif 
 	{
 		ppsCompiledSyncInfos = ppsSyncInfos;
 		ui32NumCompiledSyncInfos = ui32NumMemSyncInfos;
@@ -1683,6 +1689,7 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 		goto Exit;
 	}
 
+#if !defined(SUPPORT_DC_CMDCOMPLETE_WHEN_NO_LONGER_DISPLAYED)
 	
 	if (psSwapChain->ui32LastNumSyncInfos < ui32NumMemSyncInfos)
 	{
@@ -1708,6 +1715,7 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 	{
 		psSwapChain->ppsLastSyncInfos[i] = ppsSyncInfos[i];
 	}
+#endif 
 
 Exit:
 	if (psCallbackData)
