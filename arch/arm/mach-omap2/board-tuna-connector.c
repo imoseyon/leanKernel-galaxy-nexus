@@ -31,8 +31,11 @@
 #include <plat/usb.h>
 
 #include "mux.h"
+#include "board-tuna.h"
 
 #define GPIO_JACK_INT_N		4
+#define GPIO_MHL_SEL		96
+#define GPIO_AP_SEL		97
 #define GPIO_MUX3_SEL0		139
 #define GPIO_MUX3_SEL1		140
 #define GPIO_USB_ID_SEL		191
@@ -44,6 +47,13 @@
 #define MUX3_SEL1_MHL		0
 #define MUX3_SEL0_FSA		0
 #define MUX3_SEL1_FSA		1
+
+#define FSA3200_AP_SEL_AP	0
+#define FSA3200_MHL_SEL_AP	0
+#define FSA3200_AP_SEL_FSA	1
+#define FSA3200_MHL_SEL_FSA	0
+#define FSA3200_AP_SEL_MHL	1
+#define FSA3200_MHL_SEL_MHL	1
 
 #define USB_ID_SEL_FSA		0
 #define USB_ID_SEL_MHL		1
@@ -80,6 +90,15 @@ static struct {
 	[TUNA_USB_MUX_AP] = { MUX3_SEL0_AP, MUX3_SEL1_AP },
 };
 
+static struct {
+	int ap_sel;
+	int mhl_sel;
+} tuna_fsa3200_mux_pair_states[] = {
+	[TUNA_USB_MUX_FSA] = { FSA3200_AP_SEL_FSA, FSA3200_MHL_SEL_FSA },
+	[TUNA_USB_MUX_MHL] = { FSA3200_AP_SEL_MHL, FSA3200_MHL_SEL_MHL },
+	[TUNA_USB_MUX_AP] = { FSA3200_AP_SEL_AP, FSA3200_MHL_SEL_AP },
+};
+
 static int tuna_usb_id_mux_states[] = {
 	[TUNA_USB_MUX_FSA] = USB_ID_SEL_FSA,
 	[TUNA_USB_MUX_MHL] = USB_ID_SEL_MHL,
@@ -105,21 +124,43 @@ static void tuna_mux_usb_id(int state)
 	gpio_direction_output(GPIO_USB_ID_SEL, tuna_usb_id_mux_states[state]);
 }
 
+static void tuna_fsa3200_mux_pair(int state)
+{
+	BUG_ON(state >= NUM_TUNA_USB_MUX);
+
+	pr_debug("mux to %d\n", state);
+	gpio_direction_output(GPIO_AP_SEL,
+			      tuna_fsa3200_mux_pair_states[state].ap_sel);
+	gpio_direction_output(GPIO_MHL_SEL,
+			      tuna_fsa3200_mux_pair_states[state].mhl_sel);
+}
+
 static void tuna_mux_usb_to_fsa(bool enable)
 {
-	tuna_mux_usb(enable ? TUNA_USB_MUX_FSA : TUNA_USB_MUX_DEFAULT);
+	if (omap4_tuna_get_revision() >= 3) {
+		tuna_fsa3200_mux_pair(enable ? TUNA_USB_MUX_FSA :
+				TUNA_USB_MUX_DEFAULT);
+	} else {
+		tuna_mux_usb(enable ? TUNA_USB_MUX_FSA : TUNA_USB_MUX_DEFAULT);
 
-	/* when switching ID away from FSA, we want to ensure we switch it off
-	 * FSA, and force it to MHL. Ideally, we'd just say mux to default,
-	 * but FSA is likely the default mux position and there's no way
-	 * to force the ID pin to float to the FSA. */
-	tuna_mux_usb_id(enable ? TUNA_USB_MUX_FSA : TUNA_USB_MUX_MHL);
+		/* When switching ID away from FSA, we want to ensure we switch
+		 * it off FSA, and force it to MHL. Ideally, we'd just say mux
+		 * to default, but FSA is likely the default mux position and
+		 * there's no way to force the ID pin to float to the FSA.
+		 */
+		tuna_mux_usb_id(enable ? TUNA_USB_MUX_FSA : TUNA_USB_MUX_MHL);
+	}
 }
 
 static void tuna_mux_usb_to_mhl(bool enable)
 {
-	tuna_mux_usb(enable ? TUNA_USB_MUX_MHL : TUNA_USB_MUX_DEFAULT);
-	tuna_mux_usb_id(enable ? TUNA_USB_MUX_MHL : TUNA_USB_MUX_DEFAULT);
+	if (omap4_tuna_get_revision() >= 3) {
+		tuna_fsa3200_mux_pair(enable ? TUNA_USB_MUX_MHL :
+				TUNA_USB_MUX_DEFAULT);
+	} else {
+		tuna_mux_usb(enable ? TUNA_USB_MUX_MHL : TUNA_USB_MUX_DEFAULT);
+		tuna_mux_usb_id(enable ? TUNA_USB_MUX_MHL : TUNA_USB_MUX_DEFAULT);
+	}
 }
 
 static void tuna_vusb_enable(struct tuna_otg *tuna_otg, bool enable)
@@ -151,8 +192,12 @@ static void tuna_fsa_usb_detected(int device)
 	case FSA9480_DETECT_USB:
 		tuna_vusb_enable(tuna_otg, true);
 
-		tuna_mux_usb(TUNA_USB_MUX_AP);
-		tuna_mux_usb_id(TUNA_USB_MUX_FSA);
+		if (omap4_tuna_get_revision() >= 3) {
+			tuna_fsa3200_mux_pair(TUNA_USB_MUX_AP);
+		} else {
+			tuna_mux_usb(TUNA_USB_MUX_AP);
+			tuna_mux_usb_id(TUNA_USB_MUX_FSA);
+		}
 
 		tuna_otg->otg.state = OTG_STATE_B_IDLE;
 		tuna_otg->otg.default_a = false;
@@ -162,8 +207,12 @@ static void tuna_fsa_usb_detected(int device)
 					   tuna_otg->otg.gadget);
 		break;
 	case FSA9480_DETECT_CHARGER:
-		tuna_mux_usb(TUNA_USB_MUX_FSA);
-		tuna_mux_usb_id(TUNA_USB_MUX_FSA);
+		if (omap4_tuna_get_revision() >= 3) {
+			tuna_fsa3200_mux_pair(TUNA_USB_MUX_FSA);
+		} else {
+			tuna_mux_usb(TUNA_USB_MUX_FSA);
+			tuna_mux_usb_id(TUNA_USB_MUX_FSA);
+		}
 
 		tuna_otg->otg.state = OTG_STATE_B_IDLE;
 		tuna_otg->otg.default_a = false;
@@ -175,8 +224,12 @@ static void tuna_fsa_usb_detected(int device)
 	case FSA9480_DETECT_USB_HOST:
 		tuna_vusb_enable(tuna_otg, true);
 
-		tuna_mux_usb(TUNA_USB_MUX_AP);
-		tuna_mux_usb_id(TUNA_USB_MUX_FSA);
+		if (omap4_tuna_get_revision() >= 3) {
+			tuna_fsa3200_mux_pair(TUNA_USB_MUX_AP);
+		} else {
+			tuna_mux_usb(TUNA_USB_MUX_AP);
+			tuna_mux_usb_id(TUNA_USB_MUX_FSA);
+		}
 
 		tuna_otg->otg.state = OTG_STATE_A_IDLE;
 		tuna_otg->otg.default_a = true;
@@ -186,8 +239,13 @@ static void tuna_fsa_usb_detected(int device)
 					   tuna_otg->otg.gadget);
 		break;
 	case FSA9480_DETECT_NONE:
-		tuna_mux_usb(TUNA_USB_MUX_FSA);
-		tuna_mux_usb_id(TUNA_USB_MUX_FSA);
+
+		if (omap4_tuna_get_revision() >= 3) {
+			tuna_fsa3200_mux_pair(TUNA_USB_MUX_FSA);
+		} else {
+			tuna_mux_usb(TUNA_USB_MUX_FSA);
+			tuna_mux_usb_id(TUNA_USB_MUX_FSA);
+		}
 
 		tuna_vusb_enable(tuna_otg, false);
 
@@ -277,16 +335,27 @@ int __init omap4_tuna_connector_init(void)
 	struct tuna_otg *tuna_otg = &tuna_otg_xceiv;
 	int ret;
 
-	gpio_request(GPIO_MUX3_SEL0, "usb_mux3_sel0");
-	gpio_request(GPIO_MUX3_SEL1, "usb_mux3_sel1");
-	gpio_request(GPIO_USB_ID_SEL, "usb_id_sel");
+	if (omap4_tuna_get_revision() >= 3) {
+		gpio_request(GPIO_MHL_SEL, "fsa3200_mhl_sel");
+		gpio_request(GPIO_AP_SEL, "fsa3200_ap_sel");
 
-	tuna_mux_usb(TUNA_USB_MUX_DEFAULT);
-	tuna_mux_usb_id(TUNA_USB_MUX_DEFAULT);
+		tuna_fsa3200_mux_pair(TUNA_USB_MUX_DEFAULT);
 
-	omap_mux_init_gpio(GPIO_MUX3_SEL0, OMAP_PIN_OUTPUT);
-	omap_mux_init_gpio(GPIO_MUX3_SEL1, OMAP_PIN_OUTPUT);
-	omap_mux_init_gpio(GPIO_USB_ID_SEL, OMAP_PIN_OUTPUT);
+		omap_mux_init_gpio(GPIO_MHL_SEL, OMAP_PIN_OUTPUT);
+		omap_mux_init_gpio(GPIO_AP_SEL, OMAP_PIN_OUTPUT);
+	} else {
+		gpio_request(GPIO_MUX3_SEL0, "usb_mux3_sel0");
+		gpio_request(GPIO_MUX3_SEL1, "usb_mux3_sel1");
+		gpio_request(GPIO_USB_ID_SEL, "usb_id_sel");
+
+		tuna_mux_usb(TUNA_USB_MUX_DEFAULT);
+		tuna_mux_usb_id(TUNA_USB_MUX_DEFAULT);
+
+		omap_mux_init_gpio(GPIO_MUX3_SEL0, OMAP_PIN_OUTPUT);
+		omap_mux_init_gpio(GPIO_MUX3_SEL1, OMAP_PIN_OUTPUT);
+		omap_mux_init_gpio(GPIO_USB_ID_SEL, OMAP_PIN_OUTPUT);
+	}
+
 	omap_mux_init_gpio(GPIO_JACK_INT_N,
 			   OMAP_PIN_INPUT_PULLUP |
 			   OMAP_PIN_OFF_INPUT_PULLUP);
