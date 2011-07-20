@@ -453,6 +453,9 @@ static int __init omap4_pm_init(void)
 	pr_info("OMAP4 PM: Static dependency added between MPUSS <-> EMIF"
 		" MPUSS <-> L4_PER/CFG and MPUSS <-> L3_MAIN_1.\n");
 
+	/* HACK: prevent idling l3_2_clkdm, which seems to hang in idle */
+	clkdm_deny_idle(l3_2_clkdm);
+
 	/* Get handles for VDD's for enabling/disabling SR */
 	mpu_voltdm = voltdm_lookup("mpu");
 	if (!mpu_voltdm) {
