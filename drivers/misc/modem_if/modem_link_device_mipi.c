@@ -256,13 +256,23 @@ static int if_hsi_set_wakeline(struct if_hsi_channel *channel,
 {
 	int ret;
 
+	spin_lock_bh(&channel->acwake_lock);
+	if (channel->acwake == state) {
+		spin_unlock_bh(&channel->acwake_lock);
+		return 0;
+	}
+
 	ret = hsi_ioctl(channel->dev, state ?
 		HSI_IOCTL_ACWAKE_UP : HSI_IOCTL_ACWAKE_DOWN, NULL);
 	if (ret) {
-		pr_debug("[MIPI-HSI] ACWAKE(%d) setting fail : %d\n", state,
+		pr_err("[MIPI-HSI] ACWAKE(%d) setting fail : %d\n", state,
 					ret);
+		spin_unlock_bh(&channel->acwake_lock);
 		return ret;
 	}
+
+	channel->acwake = state;
+	spin_unlock_bh(&channel->acwake_lock);
 
 	pr_debug("[MIPI-HSI] ACWAKE_%d(%d)\n", channel->channel_id, state);
 	return 0;
@@ -276,7 +286,7 @@ static void if_hsi_acwake_down_func(unsigned long data)
 
 	pr_debug("[MIPI-HSI] %s\n", __func__);
 
-	for (i = 1; i < HSI_NUM_OF_USE_CHANNELS; i++) {
+	for (i = 0; i < HSI_NUM_OF_USE_CHANNELS; i++) {
 		channel = &mipi_ld->hsi_channles[i];
 
 		if ((channel->send_step == STEP_IDLE) &&
@@ -528,12 +538,6 @@ static void if_hsi_cmd_work(struct work_struct *work)
 
 	pr_debug("[MIPI-HSI] cmd_work\n");
 
-	if (!wake_lock_active(&mipi_ld->wlock)) {
-		wake_lock(&mipi_ld->wlock);
-		pr_debug("[MIPI-HSI] wake_lock\n");
-	}
-	if_hsi_set_wakeline(channel, 1);
-
 	do {
 		spin_lock_irqsave(&mipi_ld->list_cmd_lock, flags);
 		if (!list_empty(&mipi_ld->list_of_hsi_cmd)) {
@@ -541,8 +545,14 @@ static void if_hsi_cmd_work(struct work_struct *work)
 					struct if_hsi_command, list);
 			list_del(&hsi_cmd->list);
 			spin_unlock_irqrestore(&mipi_ld->list_cmd_lock, flags);
+
+			channel->send_step = STEP_TX;
+			if_hsi_set_wakeline(channel, 1);
+			mod_timer(&mipi_ld->hsi_acwake_down_timer, jiffies +
+					HSI_ACWAKE_DOWN_TIMEOUT);
 		} else {
 			spin_unlock_irqrestore(&mipi_ld->list_cmd_lock, flags);
+			channel->send_step = STEP_IDLE;
 			break;
 		}
 		pr_debug("[MIPI-HSI] take command : %08x\n", hsi_cmd->command);
@@ -551,14 +561,13 @@ static void if_hsi_cmd_work(struct work_struct *work)
 		if (ret < 0) {
 			pr_err("[MIPI-HSI] write command fail : %d\n", ret);
 			if_hsi_set_wakeline(channel, 0);
+			channel->send_step = STEP_IDLE;
 			return;
 		}
 		pr_debug("[MIPI-HSI] SEND CMD : %08x\n", hsi_cmd->command);
 
 		kfree(hsi_cmd);
 	} while (true);
-
-	if_hsi_set_wakeline(channel, 0);
 }
 
 static int if_hsi_send_command(struct mipi_link_device *mipi_ld,
@@ -1096,6 +1105,15 @@ static void if_hsi_read_done(struct hsi_device *dev, unsigned int size)
 	case HSI_CMD_CHANNEL:
 		pr_debug("[MIPI-HSI] receive command data : 0x%x\n",
 					*channel->rx_data);
+
+		ch = channel->channel_id;
+		param = 0;
+		ret = if_hsi_send_command(mipi_ld, HSI_LL_MSG_CONN_CLOSED,
+					ch, param);
+		if (ret)
+			pr_err("[MIPI-HSI] send_cmd fail=%d\n", ret);
+
+		channel->recv_step = STEP_IDLE;
 		return;
 
 	default:
@@ -1221,10 +1239,12 @@ static int __devinit if_hsi_probe(struct hsi_device *dev)
 		mipi_ld->hsi_channles[dev->n_ch].tx_state = 0;
 		mipi_ld->hsi_channles[dev->n_ch].rx_state = 0;
 		mipi_ld->hsi_channles[dev->n_ch].packet_size = 0;
+		mipi_ld->hsi_channles[dev->n_ch].acwake = 0;
 		mipi_ld->hsi_channles[dev->n_ch].send_step = STEP_UNDEF;
 		mipi_ld->hsi_channles[dev->n_ch].recv_step = STEP_UNDEF;
 		spin_lock_init(&mipi_ld->hsi_channles[dev->n_ch].tx_state_lock);
 		spin_lock_init(&mipi_ld->hsi_channles[dev->n_ch].rx_state_lock);
+		spin_lock_init(&mipi_ld->hsi_channles[dev->n_ch].acwake_lock);
 		sema_init(&mipi_ld->hsi_channles[dev->n_ch].write_done_sem, 0);
 		sema_init(&mipi_ld->hsi_channles[dev->n_ch].read_done_sem, 0);
 		sema_init(&mipi_ld->hsi_channles[dev->n_ch].ack_done_sem, 0);

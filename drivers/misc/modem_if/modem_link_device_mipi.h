@@ -105,6 +105,8 @@ struct if_hsi_channel {
 	unsigned int recv_step;
 
 	unsigned int got_nack;
+	unsigned int acwake;
+	spinlock_t acwake_lock;
 
 	struct semaphore write_done_sem;
 	struct semaphore read_done_sem;
