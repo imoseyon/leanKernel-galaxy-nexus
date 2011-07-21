@@ -2524,7 +2524,7 @@ static inline int l2cap_config_req(struct l2cap_conn *conn, struct l2cap_cmd_hdr
 
 	sk = chan->sk;
 
-	if (chan->state != BT_CONFIG) {
+	if (sk->sk_state != BT_CONFIG && sk->sk_state != BT_CONNECT2) {
 		struct l2cap_cmd_rej rej;
 
 		rej.reason = cpu_to_le16(0x0002);
@@ -2535,7 +2535,7 @@ static inline int l2cap_config_req(struct l2cap_conn *conn, struct l2cap_cmd_hdr
 
 	/* Reject if config buffer is too small. */
 	len = cmd_len - sizeof(*req);
-	if (chan->conf_len + len > sizeof(chan->conf_req)) {
+	if (len < 0 || chan->conf_len + len > sizeof(chan->conf_req)) {
 		l2cap_send_cmd(conn, cmd->ident, L2CAP_CONF_RSP,
 				l2cap_build_conf_rsp(chan, rsp,
 					L2CAP_CONF_REJECT, flags), rsp);
@@ -4147,7 +4147,8 @@ static int l2cap_security_cfm(struct hci_conn *hcon, u8 status, u8 encrypt)
 					struct sock *parent = bt_sk(sk)->parent;
 					res = L2CAP_CR_PEND;
 					stat = L2CAP_CS_AUTHOR_PEND;
-					parent->sk_data_ready(parent, 0);
+					if (parent)
+						parent->sk_data_ready(parent, 0);
 				} else {
 					l2cap_state_change(chan, BT_CONFIG);
 					res = L2CAP_CR_SUCCESS;

@@ -20,6 +20,7 @@
 #include <linux/rpmsg.h>
 #include <linux/delay.h>
 #include <linux/idr.h>
+#include <linux/remoteproc.h>
 #include <linux/clk.h>
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/driver.h>
@@ -70,6 +71,8 @@ static const char const *rnames[] = {
 	[RPRM_REGULATOR]	= "REGULATOR",
 	[RPRM_GPIO]		= "GPIO",
 	[RPRM_SDMA]		= "SDMA",
+	[RPRM_IPU]		= "IPU",
+	[RPRM_DSP]		= "DSP",
 };
 
 static const char *rname(u32 type) {
@@ -440,39 +443,87 @@ static const char *_get_rpres_name(int type)
 	return "";
 }
 
+static int _rpres_set_constraints(struct rprm_elem *e, u32 type, long val)
+{
+	switch (type) {
+	case RPRM_SCALE:
+		return rpres_set_constraints(e->handle,
+					     RPRES_CONSTRAINT_SCALE,
+					     val);
+	case RPRM_LATENCY:
+		return rpres_set_constraints(e->handle,
+					     RPRES_CONSTRAINT_LATENCY,
+					     val);
+	case RPRM_BANDWIDTH:
+		return rpres_set_constraints(e->handle,
+					     RPRES_CONSTRAINT_BANDWIDTH,
+					     val);
+	}
+	pr_err("Invalid constraint\n");
+	return -EINVAL;
+}
+
+static int _rproc_set_constraints(struct rprm_elem *e, u32 type, long val)
+{
+	switch (type) {
+	case RPRM_SCALE:
+		return rproc_set_constraints(e->handle,
+					     RPROC_CONSTRAINT_SCALE,
+					     val);
+	case RPRM_LATENCY:
+		return rproc_set_constraints(e->handle,
+					     RPROC_CONSTRAINT_LATENCY,
+					     val);
+	case RPRM_BANDWIDTH:
+		return rproc_set_constraints(e->handle,
+					     RPROC_CONSTRAINT_BANDWIDTH,
+					     val);
+	}
+	pr_err("Invalid constraint\n");
+	return -EINVAL;
+}
+
 static
 int _set_constraints(struct rprm_elem *e, struct rprm_constraints_data *c)
 {
 	int ret = -EINVAL;
 	u32 mask = 0;
+	int (*_set_constraints_func)(struct rprm_elem *, u32 type, long val);
+
+	switch (e->type) {
+	case RPRM_IVAHD:
+	case RPRM_ISS:
+	case RPRM_FDIF:
+		_set_constraints_func = _rpres_set_constraints;
+		break;
+	case RPRM_IPU:
+		_set_constraints_func = _rproc_set_constraints;
+		break;
+	default:
+		return -EINVAL;
+	}
 
 	if (c->mask & RPRM_SCALE) {
-		ret = rpres_set_constraints(e->handle,
-					    RPRES_CONSTRAINT_SCALE,
-					    c->frequency);
+		ret = _set_constraints_func(e, RPRM_SCALE, c->frequency);
 		if (ret)
 			goto err;
 		mask |= RPRM_SCALE;
 		e->constraints->frequency = c->frequency;
 	}
 
-	if (c->mask & RPRM_LAT) {
-		ret = rpres_set_constraints(e->handle,
-					    RPRES_CONSTRAINT_LATENCY,
-					    c->latency);
+	if (c->mask & RPRM_LATENCY) {
+		ret = _set_constraints_func(e, RPRM_LATENCY, c->latency);
 		if (ret)
 			goto err;
-		mask |= RPRM_LAT;
+		mask |= RPRM_LATENCY;
 		e->constraints->latency = c->latency;
 	}
 
-	if (c->mask & RPRM_BW) {
-		ret = rpres_set_constraints(e->handle,
-					    RPRES_CONSTRAINT_BANDWIDTH,
-					    c->bandwidth);
+	if (c->mask & RPRM_BANDWIDTH) {
+		ret = _set_constraints_func(e, RPRM_BANDWIDTH, c->bandwidth);
 		if (ret)
 			goto err;
-		mask |= RPRM_BW;
+		mask |= RPRM_BANDWIDTH;
 		e->constraints->bandwidth = c->bandwidth;
 	}
 err:
@@ -558,6 +609,30 @@ static void rprm_rpres_release(struct rpres *res)
 	rpres_put(res);
 }
 
+static int rprm_rproc_request(struct rprm_elem *e, char *name)
+{
+	struct rproc *rp;
+
+	e->constraints = kzalloc(sizeof(*(e->constraints)), GFP_KERNEL);
+	if (!(e->constraints))
+		return -ENOMEM;
+
+	rp = rproc_get(name);
+	if (IS_ERR(rp)) {
+		pr_debug("Error requesting %s\n", name);
+		kfree(e->constraints);
+		return PTR_ERR(rp);
+	}
+	e->handle = rp;
+
+	return 0;
+}
+
+static void rprm_rproc_release(struct rproc *rp)
+{
+	rproc_put(rp);
+}
+
 static int _resource_free(struct rprm_elem *e)
 {
 	if (e->constraints && e->constraints->mask) {
@@ -577,6 +652,10 @@ static int _resource_free(struct rprm_elem *e)
 	case RPRM_SL2IF:
 	case RPRM_FDIF:
 		rprm_rpres_release(e->handle);
+		break;
+	case RPRM_IPU:
+	case RPRM_DSP:
+		rprm_rproc_release(e->handle);
 		break;
 	case RPRM_AUXCLK:
 		rprm_auxclk_release(e->handle);
@@ -644,6 +723,12 @@ static int _resource_alloc(struct rprm_elem *e, int type, void *data)
 	case RPRM_SL2IF:
 	case RPRM_FDIF:
 		ret = rprm_rpres_request(e, type);
+		break;
+	case RPRM_IPU:
+		ret = rprm_rproc_request(e, "ipu");
+		break;
+	case RPRM_DSP:
+		ret = rprm_rproc_request(e, "dsp");
 		break;
 	case RPRM_AUXCLK:
 		ret = rprm_auxclk_request(e, data);

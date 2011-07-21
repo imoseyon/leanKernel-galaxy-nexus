@@ -1,6 +1,6 @@
 menuconfig DSSCOMP
         tristate "OMAP DSS Composition support (EXPERIMENTAL)"
-        depends on OMAP2_DSS
+        depends on OMAP2_DSS && PVR_SGX
 	default y
 
         help

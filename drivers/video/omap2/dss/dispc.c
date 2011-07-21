@@ -739,62 +739,22 @@ static void _dispc_set_scale_coef(enum omap_plane plane, int hscaleup,
 	}
 }
 
-static void _dispc_setup_color_conv_coef(void)
+void _dispc_setup_color_conv_coef(enum omap_plane plane,
+	const struct omap_dss_cconv_coefs *ct)
 {
-	const struct color_conv_coef {
-		int  ry,  rcr,  rcb,   gy,  gcr,  gcb,   by,  bcr,  bcb;
-		int  full_range;
-	}  ctbl_bt601_5 = {
-		298,  409,    0,  298, -208, -100,  298,    0,  517, 0,
-	};
-
-	const struct color_conv_coef *ct;
+	BUG_ON(plane < OMAP_DSS_VIDEO1 || plane > OMAP_DSS_VIDEO3);
 
 #define CVAL(x, y) (FLD_VAL(x, 26, 16) | FLD_VAL(y, 10, 0))
 
-	ct = &ctbl_bt601_5;
-
-	dispc_write_reg(DISPC_OVL_CONV_COEF(OMAP_DSS_VIDEO1, 0),
-		CVAL(ct->rcr, ct->ry));
-	dispc_write_reg(DISPC_OVL_CONV_COEF(OMAP_DSS_VIDEO1, 1),
-		CVAL(ct->gy,  ct->rcb));
-	dispc_write_reg(DISPC_OVL_CONV_COEF(OMAP_DSS_VIDEO1, 2),
-		CVAL(ct->gcb, ct->gcr));
-	dispc_write_reg(DISPC_OVL_CONV_COEF(OMAP_DSS_VIDEO1, 3),
-		CVAL(ct->bcr, ct->by));
-	dispc_write_reg(DISPC_OVL_CONV_COEF(OMAP_DSS_VIDEO1, 4),
-		CVAL(0, ct->bcb));
-
-	dispc_write_reg(DISPC_OVL_CONV_COEF(OMAP_DSS_VIDEO2, 0),
-		CVAL(ct->rcr, ct->ry));
-	dispc_write_reg(DISPC_OVL_CONV_COEF(OMAP_DSS_VIDEO2, 1),
-		CVAL(ct->gy, ct->rcb));
-	dispc_write_reg(DISPC_OVL_CONV_COEF(OMAP_DSS_VIDEO2, 2),
-		CVAL(ct->gcb, ct->gcr));
-	dispc_write_reg(DISPC_OVL_CONV_COEF(OMAP_DSS_VIDEO2, 3),
-		CVAL(ct->bcr, ct->by));
-	dispc_write_reg(DISPC_OVL_CONV_COEF(OMAP_DSS_VIDEO2, 4),
-		CVAL(0, ct->bcb));
-
-	dispc_write_reg(DISPC_OVL_CONV_COEF(OMAP_DSS_VIDEO3, 0),
-		CVAL(ct->rcr, ct->ry));
-	dispc_write_reg(DISPC_OVL_CONV_COEF(OMAP_DSS_VIDEO3, 1),
-		CVAL(ct->gy, ct->rcb));
-	dispc_write_reg(DISPC_OVL_CONV_COEF(OMAP_DSS_VIDEO3, 2),
-		CVAL(ct->gcb, ct->gcr));
-	dispc_write_reg(DISPC_OVL_CONV_COEF(OMAP_DSS_VIDEO3, 3),
-		CVAL(ct->bcr, ct->by));
-	dispc_write_reg(DISPC_OVL_CONV_COEF(OMAP_DSS_VIDEO3, 4),
-		CVAL(0, ct->bcb));
+	dispc_write_reg(DISPC_OVL_CONV_COEF(plane, 0), CVAL(ct->rcr, ct->ry));
+	dispc_write_reg(DISPC_OVL_CONV_COEF(plane, 1), CVAL(ct->gy,  ct->rcb));
+	dispc_write_reg(DISPC_OVL_CONV_COEF(plane, 2), CVAL(ct->gcb, ct->gcr));
+	dispc_write_reg(DISPC_OVL_CONV_COEF(plane, 3), CVAL(ct->bcr, ct->by));
+	dispc_write_reg(DISPC_OVL_CONV_COEF(plane, 4), CVAL(0, ct->bcb));
 
 #undef CVAL
 
-	REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(OMAP_DSS_VIDEO1),
-		ct->full_range, 11, 11);
-	REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(OMAP_DSS_VIDEO2),
-		ct->full_range, 11, 11);
-	REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(OMAP_DSS_VIDEO3),
-		ct->full_range, 11, 11);
+	REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(plane), ct->full_range, 11, 11);
 }
 
 
@@ -1078,6 +1038,40 @@ void dispc_enable_zorder(enum omap_plane plane, bool enable)
 	val = dispc_read_reg(DISPC_OVL_ATTRIBUTES(plane));
 	val = FLD_MOD(val, enable, 25, 25);
 	dispc_write_reg(DISPC_OVL_ATTRIBUTES(plane), val);
+}
+
+void dispc_enable_cpr(enum omap_channel channel, bool enable)
+{
+	u16 reg;
+
+	if (channel == OMAP_DSS_CHANNEL_LCD)
+		reg = DISPC_CONFIG;
+	else if (channel == OMAP_DSS_CHANNEL_LCD2)
+		reg = DISPC_CONFIG2;
+	else
+		return;
+
+	REG_FLD_MOD(reg, enable, 15, 15);
+}
+
+void dispc_set_cpr_coef(enum omap_channel channel,
+		struct omap_dss_cpr_coefs *coefs)
+{
+	u32 coef_r, coef_g, coef_b;
+
+	if (channel != OMAP_DSS_CHANNEL_LCD && channel != OMAP_DSS_CHANNEL_LCD2)
+		return;
+
+	coef_r = FLD_VAL(coefs->rr, 31, 22) | FLD_VAL(coefs->rg, 20, 11) |
+		FLD_VAL(coefs->rb, 9, 0);
+	coef_g = FLD_VAL(coefs->gr, 31, 22) | FLD_VAL(coefs->gg, 20, 11) |
+		FLD_VAL(coefs->gb, 9, 0);
+	coef_b = FLD_VAL(coefs->br, 31, 22) | FLD_VAL(coefs->bg, 20, 11) |
+		FLD_VAL(coefs->bb, 9, 0);
+
+	dispc_write_reg(DISPC_CPR_COEF_R(channel), coef_r);
+	dispc_write_reg(DISPC_CPR_COEF_G(channel), coef_g);
+	dispc_write_reg(DISPC_CPR_COEF_B(channel), coef_b);
 }
 
 static void _dispc_set_vid_color_conv(enum omap_plane plane, bool enable)
@@ -2206,7 +2200,6 @@ int dispc_setup_plane(enum omap_plane plane,
 
 	_dispc_set_pre_mult_alpha(plane, pre_mult_alpha);
 	_dispc_setup_global_alpha(plane, global_alpha);
-
 	return 0;
 }
 
@@ -3735,8 +3728,6 @@ static void _omap_dispc_initial_config(void)
 	/* XXX this should be somewhere in plat-omap */
 	if (cpu_is_omap24xx())
 		__raw_writel(0x402000b0, OMAP2_L3_IO_ADDRESS(0x680050a0));
-
-	_dispc_setup_color_conv_coef();
 
 	dispc_set_loadmode(OMAP_DSS_LOAD_FRAME_ONLY);
 

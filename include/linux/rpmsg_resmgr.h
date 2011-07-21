@@ -48,6 +48,8 @@ enum {
 	RPRM_REGULATOR	= 9,
 	RPRM_GPIO	= 10,
 	RPRM_SDMA	= 11,
+	RPRM_IPU	= 12,
+	RPRM_DSP	= 13,
 	RPRM_MAX
 };
 
@@ -61,9 +63,9 @@ enum {
 };
 
 enum {
-	RPRM_SCALE	= 0x1,
-	RPRM_LAT	= 0x2,
-	RPRM_BW		= 0x4,
+	RPRM_SCALE		= 0x1,
+	RPRM_LATENCY		= 0x2,
+	RPRM_BANDWIDTH		= 0x4,
 };
 
 struct rprm_request {
