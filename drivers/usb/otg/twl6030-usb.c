@@ -63,9 +63,6 @@
 #define USB_OTG_ADP_RISE		0x19
 #define USB_OTG_REVISION		0x1A
 
-/* to be moved to LDO */
-#define TWL6030_MISC2			0xE5
-#define TWL6030_CFG_LDO_PD2		0xF5
 #define TWL6030_BACKUP_REG		0xFA
 
 #define STS_HW_CONDITIONS		0x21
@@ -218,12 +215,6 @@ static int twl6030_usb_ldo_init(struct twl6030_usb *twl)
 
 	/* Set to OTG_REV 1.3 and turn on the ID_WAKEUP_COMP */
 	twl6030_writeb(twl, TWL6030_MODULE_ID0 , 0x1, TWL6030_BACKUP_REG);
-
-	/* Program CFG_LDO_PD2 register and set VUSB bit */
-	twl6030_writeb(twl, TWL6030_MODULE_ID0 , 0x1, TWL6030_CFG_LDO_PD2);
-
-	/* Program MISC2 register and set bit VUSB_IN_VBAT */
-	twl6030_writeb(twl, TWL6030_MODULE_ID0 , 0x10, TWL6030_MISC2);
 
 	twl->usb3v3 = regulator_get(twl->dev, regulator_name);
 	if (IS_ERR(twl->usb3v3))

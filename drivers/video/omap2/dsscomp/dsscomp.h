@@ -33,6 +33,7 @@
 #define DEBUG_COMPOSITIONS	(1 << 1)
 #define DEBUG_PHASES		(1 << 2)
 #define DEBUG_WAITS		(1 << 3)
+#define DEBUG_SYNC		(1 << 4)
 
 /*
  * Utility macros
@@ -87,6 +88,7 @@ struct dsscomp_data {
 	void (*extra_cb)(dsscomp_t comp, int status);
 	void (*gralloc_cb_fn)(void *, int);
 	void *gralloc_cb_arg;
+	void *gralloc_global_event;
 	bool must_apply;	/* whether composition must be applied */
 };
 
@@ -99,10 +101,15 @@ void dsscomp_gralloc_init(struct dsscomp_dev *cdev);
 void dsscomp_gralloc_exit(void);
 int dsscomp_gralloc_queue_ioctl(struct dsscomp_setup_mgr_data *d);
 
+/* for SGX PVR integration */
+void PVRSVRSignalOSEventObject(void);
+
 /* basic operation - if not using queues */
 int set_dss_ovl_info(struct dss2_ovl_info *oi);
 int set_dss_mgr_info(struct dss2_mgr_info *mi);
 struct omap_overlay_manager *find_dss_mgr(int display_ix);
+void swap_rb_in_ovl_info(struct dss2_ovl_info *oi);
+void swap_rb_in_mgr_info(struct dss2_mgr_info *mi);
 
 /*
  * Debug functions

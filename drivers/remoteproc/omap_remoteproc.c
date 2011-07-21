@@ -27,6 +27,9 @@
 #include <plat/omap_device.h>
 #include <plat/remoteproc.h>
 #include <plat/mailbox.h>
+#include <plat/common.h>
+#include <plat/omap-pm.h>
+#include "../../arch/arm/mach-omap2/dvfs.h"
 
 #define PM_SUSPEND_MBOX		0xffffff07
 #define PM_SUSPEND_TIMEOUT	300
@@ -309,6 +312,22 @@ static inline int omap_rproc_stop(struct rproc *rproc)
 	return omap_device_idle(pdev);
 }
 
+static int omap_rproc_set_lat(struct rproc *rproc, long val)
+{
+	pm_qos_update_request(rproc->qos_request, val);
+	return 0;
+}
+
+static int omap_rproc_set_l3_bw(struct rproc *rproc, long val)
+{
+	return omap_pm_set_min_bus_tput(rproc->dev, OCP_INITIATOR_AGENT, val);
+}
+
+static int omap_rproc_scale(struct rproc *rproc, long val)
+{
+	return omap_device_scale(rproc->dev, rproc->dev, val);
+}
+
 static struct rproc_ops omap_rproc_ops = {
 	.start = omap_rproc_start,
 	.stop = omap_rproc_stop,
@@ -317,6 +336,9 @@ static struct rproc_ops omap_rproc_ops = {
 #endif
 	.iommu_init = omap_rproc_iommu_init,
 	.iommu_exit = omap_rproc_iommu_exit,
+	.set_lat = omap_rproc_set_lat,
+	.set_bw = omap_rproc_set_l3_bw,
+	.scale = omap_rproc_scale,
 };
 
 static int omap_rproc_probe(struct platform_device *pdev)

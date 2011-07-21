@@ -72,7 +72,7 @@ static int rpres_iss_shutdown(struct platform_device *pdev)
 	return ret;
 }
 
-static int rpres_scale_ivahd(struct platform_device *pdev, long val)
+static int rpres_scale_dev(struct platform_device *pdev, long val)
 {
 	return omap_device_scale(&pdev->dev, &pdev->dev, val);
 }
@@ -99,7 +99,7 @@ static struct rpres_ops ivahd_ops = {
 	.stop = omap_device_shutdown,
 	.set_lat = rpres_set_dev_lat,
 	.set_bw = rpres_set_l3_bw,
-	.scale_dev = rpres_scale_ivahd,
+	.scale_dev = rpres_scale_dev,
 };
 
 static struct rpres_ops fdif_ops = {
@@ -107,6 +107,7 @@ static struct rpres_ops fdif_ops = {
 	.stop = omap_device_shutdown,
 	.set_lat = rpres_set_dev_lat,
 	.set_bw = rpres_set_l3_bw,
+	.scale_dev = rpres_scale_dev,
 };
 
 static struct rpres_ops gen_ops = {
@@ -127,6 +128,7 @@ static struct rpres_platform_data rpres_data[] = {
 		.name = "rpres_iva",
 		.oh_name = "iva",
 		.ops = &ivahd_ops,
+		.get_dev = omap2_get_iva_device,
 	},
 	{
 		.name = "rpres_iva_seq0",
@@ -148,6 +150,7 @@ static struct rpres_platform_data rpres_data[] = {
 		.name = "rpres_fdif",
 		.oh_name = "fdif",
 		.ops = &fdif_ops,
+		.get_dev = omap4_get_fdif_device,
 	},
 	{
 		.name = "rpres_sl2if",
@@ -158,11 +161,13 @@ static struct rpres_platform_data rpres_data[] = {
 
 static int __init init(void)
 {
-	int i;
+	int i, ret;
 	struct omap_hwmod *oh;
 	struct omap_device_pm_latency *ohl = rpres_latency;
 	int ohl_cnt = ARRAY_SIZE(rpres_latency);
 	struct omap_device *od;
+	struct device *dev;
+	struct platform_device *pdev;
 
 	for (i = 0; i < ARRAY_SIZE(rpres_data); i++) {
 		oh = omap_hwmod_lookup(rpres_data[i].oh_name);
@@ -171,13 +176,33 @@ static int __init init(void)
 			continue;
 		}
 		rpres_data[i].oh = oh;
-		od = omap_device_build("rpres", i, oh,
-				&rpres_data[i],
-				sizeof(struct rpres_platform_data),
-				ohl, ohl_cnt, false);
-		if (IS_ERR(od))
-			pr_err("Error building device for %s\n",
-				 rpres_data[i].name);
+
+		if (rpres_data[i].get_dev) {
+			dev = rpres_data[i].get_dev();
+			if (!dev) {
+				pr_err("No dev for %s\n", rpres_data[i].name);
+				continue;
+			}
+			pdev = to_platform_device(dev);
+			ret = platform_device_add_data(pdev, &rpres_data[i],
+					sizeof(struct rpres_platform_data));
+			if (ret) {
+				pr_err("Error pdev add for %s\n",
+							rpres_data[i].name);
+				continue;
+			}
+			od = to_omap_device(pdev);
+			od->pm_lats = ohl;
+			od->pm_lats_cnt = ohl_cnt;
+		} else {
+			od = omap_device_build("rpres", i, oh,
+					&rpres_data[i],
+					sizeof(struct rpres_platform_data),
+					ohl, ohl_cnt, false);
+			if (IS_ERR(od))
+				pr_err("Error building device for %s\n",
+					 rpres_data[i].name);
+		}
 	}
 	return 0;
 }

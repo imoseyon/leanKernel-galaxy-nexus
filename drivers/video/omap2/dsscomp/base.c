@@ -262,9 +262,9 @@ int set_dss_ovl_info(struct dss2_ovl_info *oi)
 		else if (cfg->color_mode == OMAP_DSS_COLOR_RGB24P)
 			bpp = 3;
 
-		tilview_create(&t, info.paddr, info.width, info.height);
+		tilview_create(&t, info.paddr, cfg->width, cfg->height);
 		info.paddr -= t.tsptr;
-		tilview_crop(&t, 0, crop.y, info.width, crop.h);
+		tilview_crop(&t, 0, crop.y, cfg->width, crop.h);
 		info.paddr += t.tsptr + bpp * crop.x;
 
 		info.rotation_type = OMAP_DSS_ROT_TILER;
@@ -273,9 +273,9 @@ int set_dss_ovl_info(struct dss2_ovl_info *oi)
 		/* for NV12 format also crop NV12 */
 		if (info.color_mode == OMAP_DSS_COLOR_NV12) {
 			tilview_create(&t, info.p_uv_addr,
-					info.width >> 1, info.height >> 1);
+					cfg->width >> 1, cfg->height >> 1);
 			info.p_uv_addr -= t.tsptr;
-			tilview_crop(&t, 0, crop.y >> 1, info.width,
+			tilview_crop(&t, 0, crop.y >> 1, cfg->width >> 1,
 								crop.h >> 1);
 			info.p_uv_addr += t.tsptr + bpp * crop.x;
 		}
@@ -323,7 +323,7 @@ int set_dss_ovl_info(struct dss2_ovl_info *oi)
 	info.out_wb = 0;
 #endif
 
-	/* :TODO: copy color conversion - this needs ovl support */
+	info.cconv = cfg->cconv;
 
 done:
 #if 0
@@ -345,6 +345,17 @@ done:
 #endif
 	/* set overlay info */
 	return ovl->set_overlay_info(ovl, &info);
+}
+
+void swap_rb_in_ovl_info(struct dss2_ovl_info *oi)
+{
+	/* we need to swap YUV color matrix if we are swapping R and B */
+	if (oi->cfg.color_mode &
+	    (OMAP_DSS_COLOR_NV12 | OMAP_DSS_COLOR_YUV2 | OMAP_DSS_COLOR_UYVY)) {
+		swap(oi->cfg.cconv.ry, oi->cfg.cconv.by);
+		swap(oi->cfg.cconv.rcr, oi->cfg.cconv.bcr);
+		swap(oi->cfg.cconv.rcb, oi->cfg.cconv.bcb);
+	}
 }
 
 struct omap_overlay_manager *find_dss_mgr(int display_ix)
@@ -383,7 +394,25 @@ int set_dss_mgr_info(struct dss2_mgr_info *mi)
 	info.trans_key = mi->trans_key;
 	info.trans_key_type = mi->trans_key_type;
 
+	info.cpr_coefs = mi->cpr_coefs;
+	info.cpr_enable = mi->cpr_enabled;
+
 	return mgr->set_manager_info(mgr, &info);
+}
+
+void swap_rb_in_mgr_info(struct dss2_mgr_info *mi)
+{
+	const struct omap_dss_cpr_coefs c = { 256, 0, 0, 0, 256, 0, 0, 0, 256 };
+
+	/* set default CPR */
+	if (!mi->cpr_enabled)
+		mi->cpr_coefs = c;
+	mi->cpr_enabled = true;
+
+	/* swap red and blue */
+	swap(mi->cpr_coefs.rr, mi->cpr_coefs.br);
+	swap(mi->cpr_coefs.rg, mi->cpr_coefs.bg);
+	swap(mi->cpr_coefs.rb, mi->cpr_coefs.bb);
 }
 
 /*

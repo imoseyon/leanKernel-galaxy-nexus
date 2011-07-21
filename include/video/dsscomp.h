@@ -89,6 +89,22 @@ struct omap_video_timings {
 	__u16 vbp;	/* Vertical back porch */
 };
 
+/* YUV to RGB color conversion info */
+struct omap_dss_cconv_coefs {
+	s16 ry, rcr, rcb;
+	s16 gy, gcr, gcb;
+	s16 by, bcr, bcb;
+
+	/* Y is 16..235, UV is 16..240 if not fullrange.  Otherwise 0..255 */
+	u16 full_range;
+} __attribute__ ((aligned(4)));
+
+struct omap_dss_cpr_coefs {
+	s16 rr, rg, rb;
+	s16 gr, gg, gb;
+	s16 br, bg, bb;
+};
+
 #endif
 
 /*
@@ -160,16 +176,6 @@ enum omap_dss_ilace_mode {
 	OMAP_DSS_ILACE_SEQ_TB	= OMAP_DSS_ILACE_IL_TB | OMAP_DSS_ILACE_SEQ,
 	OMAP_DSS_ILACE_SEQ_BT	= OMAP_DSS_ILACE_IL_BT | OMAP_DSS_ILACE_SEQ,
 };
-
-/* YUV to RGB color conversion info */
-struct dss2_color_conv_info {
-	__s16 r_y, r_cr, r_cb;
-	__s16 g_y, g_cr, g_cb;
-	__s16 b_y, b_cr, b_cb;
-
-	/* Y is 16..235, UV is 16..240 if not fullrange.  Otherwise 0..255 */
-	__u16 fullrange;	/* bool */
-} __attribute__ ((aligned(4)));
 
 /* YUV VC1 range mapping info */
 struct dss2_vc1_range_map_info {
@@ -299,7 +305,7 @@ struct dss2_ovl_cfg {
 
 	struct dss2_decim decim;	/* predecimation limits */
 
-	struct dss2_color_conv_info cconv;
+	struct omap_dss_cconv_coefs cconv;
 	struct dss2_vc1_range_map_info vc1;
 
 	__u8 ix;		/* ovl index same as sysfs/overlay# */
@@ -369,10 +375,14 @@ struct dss2_mgr_info {
 
 	enum omap_dss_trans_key_type trans_key_type;
 	__u32 trans_key;
+	struct omap_dss_cpr_coefs cpr_coefs;
+
 	__u8 trans_enabled;	/* bool */
 
 	__u8 interlaced;		/* bool */
 	__u8 alpha_blending;	/* bool - overrides trans_enabled */
+	__u8 cpr_enabled;	/* bool */
+	__u8 swap_rb;		/* bool - swap red and blue */
 } __attribute__ ((aligned(4)));
 
 /*

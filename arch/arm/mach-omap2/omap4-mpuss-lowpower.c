@@ -97,6 +97,7 @@ struct omap4_cpu_pm_info {
 };
 
 static void __iomem *gic_dist_base;
+static void __iomem *gic_cpu_base;
 static void __iomem *sar_base;
 
 static DEFINE_PER_CPU(struct omap4_cpu_pm_info, omap4_pm_info);
@@ -110,6 +111,11 @@ static inline void sar_writel(u32 val, u32 offset, u8 idx)
 static inline u32 gic_readl(u32 offset, u8 idx)
 {
 	return __raw_readl(gic_dist_base + offset + 4 * idx);
+}
+
+u32 gic_cpu_read(u32 reg)
+{
+	return __raw_readl(gic_cpu_base + reg);
 }
 
 /*
@@ -507,6 +513,7 @@ int __init omap4_mpuss_init(void)
 	/* Get GIC and SAR RAM base addresses */
 	sar_base = omap4_get_sar_ram_base();
 	gic_dist_base = omap4_get_gic_dist_base();
+	gic_cpu_base = omap4_get_gic_cpu_base();
 
 	if (omap_rev() == OMAP4430_REV_ES1_0) {
 		WARN(1, "Power Management not supported on OMAP4430 ES1.0\n");

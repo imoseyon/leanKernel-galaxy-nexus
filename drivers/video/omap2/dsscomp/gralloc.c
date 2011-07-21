@@ -41,6 +41,27 @@ static void unpin_tiler_blocks(struct list_head *slots)
 	list_splice_init(slots, &free_slots);
 }
 
+static void dsscomp_gralloc_decref(dsscomp_t comp)
+{
+	int i;
+
+	for (i = 0; i < comp->frm.num_ovls; i++) {
+		if (comp->frm.ovls[i].cfg.color_mode == OMAP_DSS_COLOR_NV12 &&
+		    comp->frm.ovls[i].cfg.stride) {
+			atomic_t *refCnt = container_of(
+				(int *) comp->frm.ovls[i].cfg.stride,
+				atomic_t, counter);
+			atomic_dec(refCnt);
+			if (debug & DEBUG_SYNC)
+				dev_info(DEV(cdev), "syncData-- = %p.%d",
+						refCnt, refCnt->counter);
+		}
+	}
+
+	/* trigger SGX global event */
+	PVRSVRSignalOSEventObject();
+}
+
 static void dsscomp_gralloc_cb(dsscomp_t comp, int status)
 {
 	if (status & DSS_COMPLETION_RELEASED) {
@@ -51,14 +72,18 @@ static void dsscomp_gralloc_cb(dsscomp_t comp, int status)
 	if ((status == DSS_COMPLETION_DISPLAYED) ||
 	    (status & DSS_COMPLETION_RELEASED)) {
 		/* complete composition if eclipsed or displayed */
-		if (comp->gralloc_cb_fn) {
+		if (comp->gralloc_cb_fn && comp->gralloc_cb_arg) {
 			if (debug & DEBUG_PHASES)
 				dev_info(DEV(cdev), "[%p] complete flip\n",
 									comp);
 			comp->gralloc_cb_fn(comp->gralloc_cb_arg, 1);
 		}
-		comp->gralloc_cb_fn = NULL;
+		comp->gralloc_cb_arg = NULL;
 	}
+
+	if (status & DSS_COMPLETION_RELEASED)
+		/* release display ref counts */
+		dsscomp_gralloc_decref(comp);
 }
 
 /* This is just test code for now that does the setup + apply.
@@ -152,6 +177,13 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 
 	comp->frm.mode = DSSCOMP_SETUP_DISPLAY;
 	comp->must_apply = true;
+
+	/* swap red & blue if requested */
+	if (d->mgr.swap_rb) {
+		swap_rb_in_mgr_info(&d->mgr);
+		for (i = 0; i < d->num_ovls; i++)
+			swap_rb_in_ovl_info(d->ovls + i);
+	}
 
 	/* NOTE: none of the dsscomp sets should fail as composition is new */
 	r = dsscomp_set_mgr(comp, &d->mgr);

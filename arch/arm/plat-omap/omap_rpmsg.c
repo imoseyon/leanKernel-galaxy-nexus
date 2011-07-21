@@ -274,6 +274,8 @@ static void omap_rpmsg_del_vqs(struct virtio_device *vdev)
 		kfree(rpvq);
 	}
 
+	iounmap(rpdev->buf_mapped);
+
 	if (rpdev->mbox)
 		omap_mbox_put(rpdev->mbox, &rpdev->nb);
 
@@ -352,6 +354,7 @@ static int omap_rpmsg_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 	if (!rpdev->rproc) {
 		pr_err("failed to get rproc %s\n", rpdev->rproc_name);
 		err = -EINVAL;
+		goto put_mbox;
 	}
 	/* register for remoteproc pre-suspend */
 	rpdev->rproc_nb.notifier_call = rpmsg_rproc_suspend;
