@@ -265,21 +265,21 @@ static struct modem_io_t cdma_io_devices[] = {
 	},
 	[2] = {
 		.name = "cdma_rmnet0",
-		.id = 0x27,
+		.id = 0x2A,
 		.format = IPC_RAW,
 		.io_type = IODEV_NET,
 		.link = LINKDEV_DPRAM,
 	},
 	[3] = {
 		.name = "cdma_rmnet1",
-		.id = 0x31,
+		.id = 0x2B,
 		.format = IPC_RAW,
 		.io_type = IODEV_NET,
 		.link = LINKDEV_DPRAM,
 	},
 	[4] = {
 		.name = "cdma_rmnet2",
-		.id = 0x33,
+		.id = 0x2C,
 		.format = IPC_RAW,
 		.io_type = IODEV_NET,
 		.link = LINKDEV_DPRAM,
@@ -287,7 +287,14 @@ static struct modem_io_t cdma_io_devices[] = {
 
 	[5] = {
 		.name = "cdma_rmnet3",
-		.id = 0x34,
+		.id = 0x2D,
+		.format = IPC_RAW,
+		.io_type = IODEV_NET,
+		.link = LINKDEV_DPRAM,
+	},
+	[6] = {
+		.name = "cdma_rmnet4",
+		.id = 0x27,
 		.format = IPC_RAW,
 		.io_type = IODEV_NET,
 		.link = LINKDEV_DPRAM,
@@ -383,7 +390,7 @@ static void dpram_cfg_gpio(void)
 	gpio_request(GPIO_DPRAM_INT_N, "dpram_int");
 	gpio_direction_input(GPIO_DPRAM_INT_N);
 	irq_set_irq_type(OMAP_GPIO_IRQ(GPIO_DPRAM_INT_N),
-				IRQ_TYPE_EDGE_FALLING);
+				IRQ_TYPE_LEVEL_LOW);
 
 	/*dpram platform init setting*/
 	__raw_writel(0x02, OMAP4_GPMC_IO_ADDRESS((OMAP44XX_GPMC_BASE + 0x10)));
