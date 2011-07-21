@@ -124,6 +124,8 @@ struct abe_data {
 	struct snd_kcontrol_new equalizer_control[ABE_MAX_EQU];
 	struct coeff_config *equ_texts;
 
+	int mono_mix[ABE_NUM_MONO_MIXERS];
+
 	/* DAPM mixer config - TODO: some of this can be replaced with HAL update */
 	u32 widget_opp[ABE_NUM_DAPM_REG + 1];
 
@@ -448,6 +450,55 @@ static int abe_get_mixer(struct snd_kcontrol *kcontrol,
 		(struct soc_mixer_control *)kcontrol->private_value;
 
 	ucontrol->value.integer.value[0] = the_abe->widget_opp[mc->shift];
+	return 0;
+}
+
+static int abe_dsp_set_mono_mixer(int id, int enable)
+{
+	int mixer;
+
+	switch (id) {
+	case MIX_DL1_MONO:
+		mixer = MIXDL1;
+		break;
+	case MIX_DL2_MONO:
+		mixer = MIXDL2;
+		break;
+	case MIX_AUDUL_MONO:
+		mixer = MIXAUDUL;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	pm_runtime_get_sync(the_abe->dev);
+	abe_mono_mixer(mixer, enable);
+	pm_runtime_put_sync(the_abe->dev);
+
+	return 0;
+}
+
+static int abe_put_mono_mixer(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_mixer_control *mc =
+		(struct soc_mixer_control *)kcontrol->private_value;
+	int id = mc->shift - MIX_DL1_MONO;
+
+	the_abe->mono_mix[id] = ucontrol->value.integer.value[0];
+	abe_dsp_set_mono_mixer(mc->shift, the_abe->mono_mix[id]);
+
+	return 1;
+}
+
+static int abe_get_mono_mixer(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_mixer_control *mc =
+		(struct soc_mixer_control *)kcontrol->private_value;
+	int id = mc->shift - MIX_DL1_MONO;
+
+	ucontrol->value.integer.value[0] = the_abe->mono_mix[id];
 	return 0;
 }
 
@@ -1021,6 +1072,13 @@ static const struct snd_kcontrol_new abe_controls[] = {
 	SOC_DOUBLE_EXT_TLV("BT UL Volume",
 		GAINS_BTUL, GAIN_LEFT_OFFSET, GAIN_RIGHT_OFFSET, 149, 0,
 		volume_get_gain, volume_put_gain, btul_tlv),
+
+	SOC_SINGLE_EXT("DL1 Mono Mixer", MIXDL1, MIX_DL1_MONO, 1, 0,
+		abe_get_mono_mixer, abe_put_mono_mixer),
+	SOC_SINGLE_EXT("DL2 Mono Mixer", MIXDL2, MIX_DL2_MONO, 1, 0,
+		abe_get_mono_mixer, abe_put_mono_mixer),
+	SOC_SINGLE_EXT("AUDUL Mono Mixer", MIXAUDUL, MIX_AUDUL_MONO, 1, 0,
+		abe_get_mono_mixer, abe_put_mono_mixer),
 };
 
 static const struct snd_soc_dapm_widget abe_dapm_widgets[] = {
@@ -1940,6 +1998,9 @@ static int aess_restore_context(struct abe_data *abe)
 
 	for (i = 0; i < abe->hdr.num_equ; i++)
 		abe_dsp_set_equalizer(i, abe->equ_profile[i]);
+
+	for (i = 0; i < ABE_NUM_MONO_MIXERS; i++)
+		abe_dsp_set_mono_mixer(MIX_DL1_MONO + i, abe->mono_mix[i]);
 
        return 0;
 }
