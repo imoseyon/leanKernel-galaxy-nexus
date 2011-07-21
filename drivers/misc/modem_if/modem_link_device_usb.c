@@ -399,9 +399,9 @@ static void if_usb_disconnect(struct usb_interface *intf)
 	/*pm_runtime_forbid(ppdev);*/ /*ehci*/
 
 	usb_kill_urb(usb_ld->devdata[dev_id].urb);
-	usb_put_dev(usbdev);
 
 	if (usb_ld->dev_count == 0) {
+		usb_put_dev(usbdev);
 		usb_ld->usbdev = NULL;
 
 		cancel_delayed_work_sync(&usb_ld->ld.tx_delayed_work);
