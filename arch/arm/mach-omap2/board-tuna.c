@@ -48,6 +48,7 @@
 #include <plat/cpu.h>
 #include <plat/usb.h>
 #include <plat/mmc.h>
+#include <plat/remoteproc.h>
 #include <mach/id.h>
 #include "timer-gp.h"
 
@@ -228,7 +229,10 @@ static struct platform_device twl6030_madc_device = {
 	},
 };
 
-#define PHYS_ADDR_DUCATI_MEM (0x80000000 + SZ_1G - (SZ_1M * 104))
+#define PHYS_ADDR_SMC_SIZE	(SZ_1M * 3)
+#define PHYS_ADDR_SMC_MEM	(0x80000000 + SZ_1G - PHYS_ADDR_SMC_SIZE)
+#define PHYS_ADDR_DUCATI_SIZE	(SZ_1M * 101)
+#define PHYS_ADDR_DUCATI_MEM	(PHYS_ADDR_SMC_MEM - PHYS_ADDR_DUCATI_SIZE)
 #define OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE	SZ_64M
 #define OMAP_TUNA_ION_HEAP_TILER_SIZE		SZ_128M
 #define OMAP_TUNA_ION_HEAP_LARGE_SURFACES_SIZE	SZ_32M
@@ -934,8 +938,11 @@ static void __init tuna_reserve(void)
 	int i;
 	int ret;
 
-	omap_reserve();
+	/* do the static reservations first */
 	memblock_remove(TUNA_RAMCONSOLE_START, TUNA_RAMCONSOLE_SIZE);
+	memblock_remove(PHYS_ADDR_SMC_MEM, PHYS_ADDR_SMC_SIZE);
+	memblock_remove(PHYS_ADDR_DUCATI_MEM, PHYS_ADDR_DUCATI_SIZE);
+	omap_ipu_set_static_mempool(PHYS_ADDR_DUCATI_MEM, PHYS_ADDR_DUCATI_SIZE);
 
 	for (i = 0; i < tuna_ion_data.nr; i++)
 		if (tuna_ion_data.heaps[i].type == ION_HEAP_TYPE_CARVEOUT ||
@@ -947,6 +954,8 @@ static void __init tuna_reserve(void)
 				       tuna_ion_data.heaps[i].size,
 				       tuna_ion_data.heaps[i].base);
 		}
+
+	omap_reserve();
 }
 
 MACHINE_START(TUNA, "Tuna")
