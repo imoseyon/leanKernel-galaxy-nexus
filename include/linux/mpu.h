@@ -73,6 +73,9 @@ enum ext_slave_config_key {
 	MPU_SLAVE_SEARCHOFFSET,
 	/* AKM specific config keys */
 	MPU_SLAVE_READ_SCALE,
+	/* YAS specific config keys */
+	MPU_SLAVE_OFFSET_VALS,
+	MPU_SLAVE_RANGE_CHECK,
 
 	MPU_SLAVE_CONFIG_NUM_CONFIG_KEYS,
 };

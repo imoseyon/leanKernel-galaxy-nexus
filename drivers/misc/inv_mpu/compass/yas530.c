@@ -46,6 +46,16 @@
 #undef MPL_LOG_TAG
 #define MPL_LOG_TAG "MPL-compass"
 
+enum {
+	FLAG_OFFSETS_VALID = 0x00000001,
+	FLAG_RESUMED       = 0x00000002,
+};
+
+struct yas530_private_data {
+	int flags;
+	char offsets[3];
+};
+
 /* -------------------------------------------------------------------------- */
 #define YAS530_REGADDR_DEVICE_ID          (0x80)
 #define YAS530_REGADDR_ACTUATE_INIT_COIL  (0x81)
@@ -270,23 +280,13 @@ static void coordinate_conversion(short x, short y1, short y2, short t,
 	*zo = hz;
 }
 
-static int yas530_suspend(void *mlsl_handle,
-			  struct ext_slave_descr *slave,
-		   struct ext_slave_platform_data *pdata)
-{
-	int result = INV_SUCCESS;
-
-	return result;
-}
-
-static int yas530_resume(void *mlsl_handle,
-			 struct ext_slave_descr *slave,
-			 struct ext_slave_platform_data *pdata)
+static int power_up(void *mlsl_handle,
+		    struct ext_slave_descr *slave,
+		    struct ext_slave_platform_data *pdata)
 {
 	int result = INV_SUCCESS;
 
 	unsigned char dummyData = 0x00;
-	char offset[3] = { 0, 0, 0 };
 	unsigned char data[16];
 	unsigned char read_reg[1];
 
@@ -390,12 +390,36 @@ static int yas530_resume(void *mlsl_handle,
 		return result;
 	}
 
-	/* Offset Measurement and Set */
-	result = measure_and_set_offset(mlsl_handle, slave, pdata, offset);
+	return result;
+
+}
+
+static int yas530_suspend(void *mlsl_handle,
+			  struct ext_slave_descr *slave,
+			  struct ext_slave_platform_data *pdata)
+{
+	int result = INV_SUCCESS;
+
+	return result;
+}
+
+
+static int yas530_resume(void *mlsl_handle,
+			 struct ext_slave_descr *slave,
+			 struct ext_slave_platform_data *pdata)
+{
+	int result = INV_SUCCESS;
+
+	struct yas530_private_data *private_data = pdata->private_data;
+
+	result = power_up(mlsl_handle, slave, pdata);
+
 	if (result) {
 		LOG_RESULT_LOCATION(result);
 		return result;
 	}
+
+	private_data->flags |= FLAG_RESUMED;
 
 	return result;
 }
@@ -435,14 +459,159 @@ static int yas530_read(void *mlsl_handle,
 	return result;
 }
 
+static int yas530_config(void *mlsl_handle,
+			 struct ext_slave_descr *slave,
+			 struct ext_slave_platform_data *pdata,
+			 struct ext_slave_config *data)
+{
+	int result = INV_SUCCESS;
+	struct yas530_private_data *private_data = pdata->private_data;
+	switch (data->key) {
+	case MPU_SLAVE_OFFSET_VALS: {
+		char offs_x, offs_y1, offs_y2;
+		offs_x  = ((char *)(data->data))[0];
+		offs_y1 = ((char *)(data->data))[1];
+		offs_y2 = ((char *)(data->data))[2];
+		result = set_hardware_offset(mlsl_handle, slave, pdata,
+					     offs_x, offs_y1, offs_y2);
+		if (result == INV_SUCCESS) {
+			private_data->flags |= FLAG_OFFSETS_VALID;
+			private_data->offsets[0] = offs_x;
+			private_data->offsets[1] = offs_y1;
+			private_data->offsets[2] = offs_y2;
+		}
+		break;
+	}
+	default:
+		return INV_ERROR_FEATURE_NOT_IMPLEMENTED;
+	}
+
+	return result;
+
+}
+
+static int yas530_get_config(void *mlsl_handle,
+			     struct ext_slave_descr *slave,
+			     struct ext_slave_platform_data *pdata,
+			     struct ext_slave_config *data)
+{
+	int result = INV_SUCCESS;
+	struct yas530_private_data *private_data = pdata->private_data;
+
+	switch (data->key) {
+	case MPU_SLAVE_OFFSET_VALS: {
+		if (!(private_data->flags & FLAG_RESUMED)) {
+			result = power_up(mlsl_handle, slave, pdata);
+			if (result) {
+				LOG_RESULT_LOCATION(result);
+				return result;
+			}
+		}
+		result = measure_and_set_offset(mlsl_handle, slave, pdata,
+						(char *)(data->data));
+		if (result == INV_SUCCESS) {
+			private_data->flags |= FLAG_OFFSETS_VALID;
+			private_data->offsets[0] = ((char *)(data->data))[0];
+			private_data->offsets[1] = ((char *)(data->data))[1];
+			private_data->offsets[2] = ((char *)(data->data))[2];
+		}
+		break;
+	}
+	case MPU_SLAVE_RANGE_CHECK: {
+		int busy;
+		short t, x, y1, y2;
+		char flag_x = 0, flag_y1 = 0, flag_y2 = 0;
+
+		if (!(private_data->flags & FLAG_OFFSETS_VALID))
+			return INV_ERROR_INVALID_CONFIGURATION;
+
+		if (!(private_data->flags & FLAG_RESUMED)) {
+			result = power_up(mlsl_handle, slave, pdata);
+			if (result) {
+				LOG_RESULT_LOCATION(result);
+				return result;
+			}
+		}
+
+		result = measure_normal(mlsl_handle, slave, pdata,
+					&busy, &t, &x, &y1, &y2);
+
+		if (x < 1024)
+			flag_x = -1;
+		if (x > 3072)
+			flag_x = 1;
+		if (y1 < 1024)
+			flag_y1 = -1;
+		if (y1 > 3072)
+			flag_y1 = 1;
+		if (y2 < 1024)
+			flag_y2 = -1;
+		if (y2 > 3072)
+			flag_y2 = 1;
+
+		((char *) (data->data))[0] = (char) flag_x;
+		((char *) (data->data))[1] = (char) flag_y1;
+		((char *) (data->data))[2] = (char) flag_y2;
+		break;
+	}
+	default:
+		return INV_ERROR_FEATURE_NOT_IMPLEMENTED;
+	}
+
+	return result;
+
+}
+
+static int yas530_init(void *mlsl_handle,
+		       struct ext_slave_descr *slave,
+		       struct ext_slave_platform_data *pdata)
+{
+
+	struct yas530_private_data *private_data;
+	int result = INV_SUCCESS;
+	char offset[3] = {0, 0, 0};
+
+	private_data = (struct yas530_private_data *)
+			kzalloc(sizeof(struct yas530_private_data), GFP_KERNEL);
+
+	if (!private_data)
+		return INV_ERROR_MEMORY_EXAUSTED;
+
+	pdata->private_data = private_data;
+
+	result = power_up(mlsl_handle, slave, pdata);
+	if (result) {
+		LOG_RESULT_LOCATION(result);
+		return result;
+	}
+
+	result = measure_and_set_offset(mlsl_handle, slave, pdata, offset);
+	if (result == INV_SUCCESS) {
+		private_data->flags |= FLAG_OFFSETS_VALID;
+		private_data->offsets[0] = offset[0];
+		private_data->offsets[1] = offset[1];
+		private_data->offsets[2] = offset[2];
+	}
+
+	return result;
+}
+
+static int yas530_exit(void *mlsl_handle,
+		       struct ext_slave_descr *slave,
+		       struct ext_slave_platform_data *pdata)
+{
+	kfree(pdata->private_data);
+	return INV_SUCCESS;
+}
+
 static struct ext_slave_descr yas530_descr = {
-	.init             = NULL,
-	.exit             = NULL,
+	.init             = yas530_init,
+	.exit             = yas530_exit,
 	.suspend          = yas530_suspend,
 	.resume           = yas530_resume,
 	.read             = yas530_read,
-	.config           = NULL,
-	.get_config       = NULL,
+	.config           = yas530_config,
+	.get_config       = yas530_get_config,
 	.name             = "yas530",
 	.type             = EXT_SLAVE_TYPE_COMPASS,
 	.id               = COMPASS_ID_YAS530,
