@@ -175,15 +175,6 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 	return;
 }
 
-/* We set the wake-up enable bits for irq's that have to be wakeup capable but
- * are not associated with a specific driver.
- */
-static void omap4_pm_set_wakeups(int enable)
-{
-	irq_set_irq_wake(OMAP44XX_IRQ_PRCM, enable);
-	irq_set_irq_wake(OMAP44XX_IRQ_SYS_1N, enable);
-}
-
 #ifdef CONFIG_PM_DEBUG
 #define GPIO_BANKS		6
 #define MODULEMODE_DISABLED	0x0
@@ -326,9 +317,6 @@ static int omap4_pm_suspend(void)
 		pwrst->saved_logic_state = pwrdm_read_logic_retst(pwrst->pwrdm);
 	}
 
-	/* Enable wake-up irq's */
-	omap4_pm_set_wakeups(1);
-
 	/* Set targeted power domain states by suspend */
 	list_for_each_entry(pwrst, &pwrst_list, node) {
 		if ((!strcmp(pwrst->pwrdm->name, "cpu0_pwrdm")) ||
@@ -356,9 +344,6 @@ static int omap4_pm_suspend(void)
 	 */
 	omap4_enter_sleep(0, PWRDM_POWER_OFF, true);
 	omap4_print_wakeirq();
-
-	/* Disable wake-up irq's */
-	omap4_pm_set_wakeups(0);
 
 	/* Restore next powerdomain state */
 	list_for_each_entry(pwrst, &pwrst_list, node) {
