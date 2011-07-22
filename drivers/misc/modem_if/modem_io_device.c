@@ -344,11 +344,15 @@ static int rx_multipdp(struct io_device *iod)
 
 	ch = raw_header->channel;
 	real_iod = io_raw_devs->raw_devices[ch];
+	if (!real_iod) {
+		pr_err("[MODEM_IF] %s: wrong channel %d\n", __func__, ch);
+		return -1;
+	}
 
 	real_iod->skb_recv = iod->skb_recv;
 	ret = rx_iodev_skb_raw(real_iod);
 	if (ret < 0)
-		pr_err("[MODEM_IF] failed!\n");
+		pr_err("[MODEM_IF] %s: rx_iodev_skb_raw failed!\n", __func__);
 	return ret;
 }
 
