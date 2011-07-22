@@ -35,6 +35,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/mutex.h>
 #include <linux/i2c.h>
+#include <linux/uaccess.h>
 
 
 #include <video/omapdss.h>
@@ -1178,9 +1179,154 @@ static int s6e8aa0_current_gamma_open(struct inode *inode, struct file *file)
 	return single_open(file, s6e8aa0_current_gamma_show, inode->i_private);
 }
 
+static int s6e8aa0_gamma_correction_show(struct seq_file *m, void *unused)
+{
+	struct s6e8aa0_data *s6 = m->private;
+	const struct s6e8aa0_gamma_entry *bte;
+	int n, c;
+
+	mutex_lock(&s6->lock);
+	n = s6->brightness_table_size;
+	bte = s6->brightness_table;
+	while (n--) {
+		seq_printf(m, "0x%08x", bte->brightness);
+		for (c = 0; c < 3; c++)
+			seq_printf(m, " 0x%08x", bte->v[c]);
+		seq_printf(m, "\n");
+		bte++;
+	}
+	seq_printf(m, "\n");
+	seq_printf(m, "0x%08x", BV_255);
+	for (c = 0; c < 3; c++)
+		seq_printf(m, " 0x%08x", s6->brightness_limit[c]);
+	seq_printf(m, "\n");
+	mutex_unlock(&s6->lock);
+	return 0;
+}
+
+static int s6e8aa0_gamma_correction_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, s6e8aa0_gamma_correction_show,
+			   inode->i_private);
+}
+
+static ssize_t s6e8aa0_gamma_correction_write(struct file *file,
+				       const char __user *buf,
+				       size_t size, loff_t *ppos)
+{
+	struct seq_file *m = file->private_data;
+	struct s6e8aa0_data *s6 = m->private;
+	struct omap_dss_device *dssdev = s6->dssdev;
+	char sbuf[80];
+	u32 val[4] = {
+	};
+	u32 last_val[4];
+	struct s6e8aa0_gamma_entry *bt = NULL;
+	struct s6e8aa0_gamma_entry *new_bt;
+	int bt_size = 0;
+
+	int ret;
+	size_t used;
+	size_t sbuf_len = sizeof(sbuf) - 1;
+	size_t rem = size;
+	int c;
+	int i;
+
+	while (rem && val[0] != BV_255) {
+		if (sbuf_len > rem)
+			sbuf_len = rem;
+		if (copy_from_user(sbuf, buf, sbuf_len)) {
+			ret = -EFAULT;
+			goto err;
+		}
+		sbuf[sbuf_len] = '\0';
+
+		for (i = 0; i < ARRAY_SIZE(val); i++)
+			last_val[i] = val[i];
+		ret = sscanf(sbuf, "%i %i %i %i\n%n",
+			     &val[0], &val[1], &val[2], &val[3], &used);
+		if (ret < 4 || !used)
+			break;
+
+		buf += used;
+		rem -= used;
+
+		if (!bt_size) {
+			for (i = 0; i < ARRAY_SIZE(val); i++) {
+				if (val[i] != 0) {
+					pr_info("%s: invalid start value %d: "
+						"0x%08x != 0\n",
+						__func__, i, val[i]);
+					ret = -EINVAL;
+					goto err;
+				}
+			}
+		} else {
+			for (i = 0; i < ARRAY_SIZE(val); i++) {
+				if (val[i] <= last_val[i]) {
+					pr_info("%s: invalid value %d: "
+						"0x%08x <= 0x%08x\n", __func__,
+						i, val[i], last_val[i]);
+					ret = -EINVAL;
+					goto err;
+				}
+			}
+			for (c = 0; c < 3; c++) {
+				if (val[c + 1] > s6->brightness_limit[c]) {
+					pr_info("%s: invalid value %d: "
+						"0x%08x > 0x%08x\n", __func__,
+						c, val[c + 1],
+						s6->brightness_limit[c]);
+					ret = -EOVERFLOW;
+					goto err;
+				}
+			}
+		}
+
+		new_bt = krealloc(bt, (bt_size + 1) * sizeof(*bt), GFP_KERNEL);
+		if (!new_bt) {
+			ret = -ENOMEM;
+			goto err;
+		}
+		bt = new_bt;
+		bt[bt_size].brightness = val[0];
+		for (c = 0; c < 3; c++)
+			bt[bt_size].v[c] = val[c + 1];
+		bt_size++;
+	}
+	if (val[0] != BV_255) {
+		ret = -EINVAL;
+		goto err;
+	}
+
+	ret = size - rem;
+	mutex_lock(&s6->lock);
+	pr_debug("%s: got new brightness_table size %d\n", __func__, bt_size);
+	swap(bt, s6->brightness_table);
+	s6->brightness_table_size = bt_size;
+
+	if (dssdev->state == OMAP_DSS_DISPLAY_ACTIVE) {
+		dsi_bus_lock(dssdev);
+		s6e8aa0_update_brightness(dssdev);
+		dsi_bus_unlock(dssdev);
+	}
+	mutex_unlock(&s6->lock);
+
+err:
+	kfree(bt);
+	return ret;
+}
+
 static const struct file_operations s6e8aa0_current_gamma_fops = {
 	.open = s6e8aa0_current_gamma_open,
 	.read = seq_read,
+	.release = single_release,
+};
+
+static const struct file_operations s6e8aa0_gamma_correction_fops = {
+	.open = s6e8aa0_gamma_correction_open,
+	.read = seq_read,
+	.write = s6e8aa0_gamma_correction_write,
 	.release = single_release,
 };
 
@@ -1249,11 +1395,14 @@ static int s6e8aa0_probe(struct omap_dss_device *dssdev)
 	}
 
 	s6->debug_dir = debugfs_create_dir("s6e8aa0", NULL);
-	if (!s6->debug_dir)
+	if (!s6->debug_dir) {
 		dev_err(&dssdev->dev, "failed to create debug dir\n");
-	else
+	} else {
 		debugfs_create_file("current_gamma", S_IRUGO,
 			s6->debug_dir, s6, &s6e8aa0_current_gamma_fops);
+		debugfs_create_file("gamma_correction", S_IRUGO | S_IWUSR,
+			s6->debug_dir, s6, &s6e8aa0_gamma_correction_fops);
+	}
 
 	if (cpu_is_omap44xx())
 		s6->force_update = true;
