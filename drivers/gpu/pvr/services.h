@@ -441,6 +441,7 @@ typedef struct _PVRSRV_SYNC_TOKEN_
 #endif
 		IMG_UINT32 ui32ReadOpsPendingSnapshot;
 		IMG_UINT32 ui32WriteOpsPendingSnapshot;
+		IMG_UINT32 ui32ReadOps2PendingSnapshot;
 	} sPrivate;
 } PVRSRV_SYNC_TOKEN;
 
