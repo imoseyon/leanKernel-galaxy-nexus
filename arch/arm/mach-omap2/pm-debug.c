@@ -423,6 +423,7 @@ static int pwrdm_dbg_show_timer(struct powerdomain *pwrdm, void *user)
 {
 	struct seq_file *s = (struct seq_file *)user;
 	int i;
+	u64 total = 0;
 
 	if (strcmp(pwrdm->name, "emu_pwrdm") == 0 ||
 		strcmp(pwrdm->name, "wkup_pwrdm") == 0 ||
@@ -435,8 +436,12 @@ static int pwrdm_dbg_show_timer(struct powerdomain *pwrdm, void *user)
 		pwrdm_state_names[pwrdm->state]);
 
 	for (i = 0; i < 4; i++)
-		seq_printf(s, ",%s:%lld", pwrdm_state_names[i],
-			pwrdm->state_timer[i]);
+		total += pwrdm->state_timer[i];
+
+	for (i = 0; i < 4; i++)
+		seq_printf(s, ",%s:%lld (%lld%%)", pwrdm_state_names[i],
+			pwrdm->state_timer[i],
+			total ? div64_u64(pwrdm->state_timer[i] * 100, total) : 0);
 
 	seq_printf(s, "\n");
 	return 0;
