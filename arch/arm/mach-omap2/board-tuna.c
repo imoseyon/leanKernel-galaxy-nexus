@@ -511,7 +511,11 @@ static struct regulator_init_data tuna_clk32kg = {
 };
 
 static struct twl4030_codec_audio_data twl6040_audio = {
-	/* Add audio only data */
+	/* single-step ramp for headset and handsfree */
+	.hs_left_step   = 0x0f,
+	.hs_right_step  = 0x0f,
+	.hf_left_step   = 0x1d,
+	.hf_right_step  = 0x1d,
 };
 
 static struct twl4030_codec_data twl6040_codec = {
