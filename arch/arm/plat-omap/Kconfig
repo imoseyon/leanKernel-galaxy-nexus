@@ -221,7 +221,7 @@ config OMAP_SERIAL_WAKE
 	  system from serial console.
 
 # this carveout should probably become generic and not omap specific
-config OMAP_CARVEOUT_MEMPOOL_SIZE
+config OMAP_REMOTEPROC_MEMPOOL_SIZE
 	hex "Physical carveout memory pool size (Byte)"
 	depends on OMAP_REMOTE_PROC
 	default 0x700000

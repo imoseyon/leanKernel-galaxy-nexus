@@ -31,6 +31,7 @@
 #include <plat/menelaus.h>
 #include <plat/mcbsp.h>
 #include <plat/mcpdm.h>
+#include <plat/remoteproc.h>
 #include <plat/omap44xx.h>
 
 #include <sound/omap-abe-dsp.h>
@@ -331,6 +332,67 @@ phys_addr_t omap_dsp_get_mempool_size(void)
 	return omap_dsp_phys_mempool_size;
 }
 EXPORT_SYMBOL(omap_dsp_get_mempool_size);
+#endif
+
+#if defined(CONFIG_OMAP_REMOTE_PROC)
+static phys_addr_t omap_ipu_phys_mempool_base;
+static u32 omap_ipu_phys_mempool_size;
+static phys_addr_t omap_ipu_phys_st_mempool_base;
+static u32 omap_ipu_phys_st_mempool_size;
+
+void __init omap_ipu_reserve_sdram_memblock(void)
+{
+	/* currently handles only ipu. dsp will be handled later...*/
+	u32 size = CONFIG_OMAP_REMOTEPROC_MEMPOOL_SIZE;
+	phys_addr_t paddr;
+
+	if (!size)
+		return;
+
+	paddr = memblock_alloc(size, SZ_1M);
+	if (!paddr) {
+		pr_err("%s: failed to reserve %x bytes\n",
+				__func__, size);
+		return;
+	}
+	memblock_free(paddr, size);
+	memblock_remove(paddr, size);
+
+	omap_ipu_phys_mempool_base = paddr;
+	omap_ipu_phys_mempool_size = size;
+}
+
+void __init omap_ipu_set_static_mempool(u32 start, u32 size)
+{
+	omap_ipu_phys_st_mempool_base = start;
+	omap_ipu_phys_st_mempool_size = size;
+}
+
+phys_addr_t omap_ipu_get_mempool_base(enum omap_rproc_mempool_type type)
+{
+	switch (type) {
+	case OMAP_RPROC_MEMPOOL_STATIC:
+		return omap_ipu_phys_st_mempool_base;
+	case OMAP_RPROC_MEMPOOL_DYNAMIC:
+		return omap_ipu_phys_mempool_base;
+	default:
+		return 0;
+	}
+}
+EXPORT_SYMBOL(omap_ipu_get_mempool_base);
+
+u32 omap_ipu_get_mempool_size(enum omap_rproc_mempool_type type)
+{
+	switch (type) {
+	case OMAP_RPROC_MEMPOOL_STATIC:
+		return omap_ipu_phys_st_mempool_size;
+	case OMAP_RPROC_MEMPOOL_DYNAMIC:
+		return omap_ipu_phys_mempool_size;
+	default:
+		return 0;
+	}
+}
+EXPORT_SYMBOL(omap_ipu_get_mempool_size);
 #endif
 
 /*
