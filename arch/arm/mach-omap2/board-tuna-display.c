@@ -276,6 +276,90 @@ static const struct s6e8aa0_gamma_entry tuna_oled_gamma_table[] = {
 	{ 0xFFFFFFFF, { 2266945, 2454682, 2022667, }, },
 };
 
+static struct s6e8aa0_factory_calibration_info tuna_oled_factory_info_old = {
+	.regs = {
+		[1][0][6] = 0x090,
+		[1][1][6] = 0x081,
+		[1][2][6] = 0x0c5,
+	},
+	.brightness = {
+		[1][6] = BV_255,	/* 300 cd/m2 */
+	},
+	.color_adj = {
+		/* Convert from 8500K to D65, assuming:
+		 * Rx 0.66950, Ry 0.33100
+		 * Gx 0.18800, Gy 0.74350
+		 * Bx 0.14142, By 0.04258
+		 */
+		.mult = {
+			2318372099U,
+			2117262806U,
+			1729744557U,
+		},
+		.rshift = 31,
+	},
+};
+
+static struct s6e8aa0_factory_calibration_info tuna_oled_factory_info_m2t1 = {
+	.regs = {
+		[1][0][6] = 0x090,
+		[1][1][6] = 0x081,
+		[1][2][6] = 0x0c5,
+	},
+	.brightness = {
+		[1][6] = BV_255,	/* 300 cd/m2 */
+	},
+};
+
+static struct s6e8aa0_factory_calibration_info tuna_oled_factory_info_8500k = {
+	.regs = {
+		[1][0][0] = 0x0f,
+		[1][1][0] = 0x0f,
+		[1][2][0] = 0x0f,
+
+		[1][0][1] = 0xcc,
+		[1][1][1] = 0x9c,
+		[1][2][1] = 0xd7,
+
+		[1][0][2] = 0xc1,
+		[1][1][2] = 0xba,
+		[1][2][2] = 0xc1,
+
+		[1][0][3] = 0xcf,
+		[1][1][3] = 0xcd,
+		[1][2][3] = 0xcf,
+
+		[1][0][4] = 0xaa,
+		[1][1][4] = 0xaa,
+		[1][2][4] = 0xa7,
+
+		[1][0][5] = 0xbe,
+		[1][1][5] = 0xbe,
+		[1][2][5] = 0xba,
+
+		[1][0][6] = 0x090,
+		[1][1][6] = 0x081,
+		[1][2][6] = 0x0c5,
+	},
+	.brightness = {
+		[1][4] = 403193777,	/* 28.16275996 cd/m2 */
+		[1][6] = BV_255,	/* 300 cd/m2 */
+	},
+	.color_adj = {
+		/* Convert from 8500K to D65, assuming:
+		 * Rx 0.66950, Ry 0.33100
+		 * Gx 0.18800, Gy 0.74350
+		 * Bx 0.14142, By 0.04258
+		 */
+		.mult = {
+			2318372099U,
+			2117262806U,
+			1729744557U,
+		},
+		.rshift = 31,
+	},
+};
+
 static struct panel_s6e8aa0_data tuna_oled_data = {
 	.reset_gpio	= TUNA_GPIO_MLCD_RST,
 	.set_power	= tuna_oled_set_power,
@@ -285,11 +369,7 @@ static struct panel_s6e8aa0_data tuna_oled_data = {
 	.seq_etc_set_size = ARRAY_SIZE(tuna_oled_seq_etc_set),
 	.gamma_table = tuna_oled_gamma_table,
 	.gamma_table_size = ARRAY_SIZE(tuna_oled_gamma_table),
-	.factory_v255_regs = {
-		0x090,
-		0x081,
-		0x0c5,
-	},
+	.factory_info = &tuna_oled_factory_info_8500k,
 };
 
 /* width: 58mm */
@@ -417,7 +497,7 @@ void __init omap4_tuna_display_init(void)
 		dss_data = &tuna_dss_data;
 	}
 
-	if (omap4_tuna_get_revision() !=
+	if (omap4_tuna_get_revision() ==
 	    (omap4_tuna_get_type() == TUNA_TYPE_MAGURO ? 2 : 1)) {
 		/*
 		 * Older devices were not calibrated the same way as newer
@@ -426,17 +506,11 @@ void __init omap4_tuna_display_init(void)
 		 * values than they do using the same register values as the
 		 * newer devices.
 		 */
-
-		/* Convert from 8500K to D65, assuming:
-		 * Rx 0.66950, Ry 0.33100
-		 * Gx 0.18800, Gy 0.74350
-		 * Bx 0.14142, By 0.04258
-		 */
-		tuna_oled_data.color_adj.mult[0] = 2318372099U;
-		tuna_oled_data.color_adj.mult[1] = 2117262806U;
-		tuna_oled_data.color_adj.mult[2] = 1729744557U;
-		tuna_oled_data.color_adj.rshift = 31;
+		tuna_oled_data.factory_info = &tuna_oled_factory_info_m2t1;
+	} else if (omap4_tuna_get_revision() <= 1) {
+		tuna_oled_data.factory_info = &tuna_oled_factory_info_old;
 	}
+	pr_info("Using %ps\n", tuna_oled_data.factory_info);
 
 	omap_vram_set_sdram_vram(TUNA_FB_RAM_SIZE, 0);
 	omapfb_set_platform_data(&tuna_fb_pdata);
