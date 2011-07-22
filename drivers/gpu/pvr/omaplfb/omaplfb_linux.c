@@ -791,7 +791,7 @@ OMAPLFB_ERROR OMAPLFBEnableLFBEventNotification(OMAPLFB_DEVINFO *psDevInfo)
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	psDevInfo->sEarlySuspend.suspend = OMAPLFBEarlySuspendHandler;
 	psDevInfo->sEarlySuspend.resume = OMAPLFBEarlyResumeHandler;
-	psDevInfo->sEarlySuspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
+	psDevInfo->sEarlySuspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 1;
 	register_early_suspend(&psDevInfo->sEarlySuspend);
 #endif
 
