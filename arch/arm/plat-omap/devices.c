@@ -294,16 +294,14 @@ static void omap_init_uwire(void)
 static inline void omap_init_uwire(void) {}
 #endif
 
-#if defined(CONFIG_TIDSPBRIDGE) || defined(CONFIG_TIDSPBRIDGE_MODULE) || \
-	defined(CONFIG_OMAP_REMOTE_PROC)
+#if defined(CONFIG_TIDSPBRIDGE) || defined(CONFIG_TIDSPBRIDGE_MODULE)
 
 static phys_addr_t omap_dsp_phys_mempool_base;
 static phys_addr_t omap_dsp_phys_mempool_size;
 
 void __init omap_dsp_reserve_sdram_memblock(void)
 {
-	/* ignoring TIDSPBRIDGE for a moment here... */
-	phys_addr_t size = CONFIG_OMAP_CARVEOUT_MEMPOOL_SIZE;
+	phys_addr_t size = CONFIG_TIDSPBRIDGE_MEMPOOL_SIZE;
 	phys_addr_t paddr;
 
 	if (!size)
