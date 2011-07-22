@@ -17,7 +17,9 @@
  */
 #include <linux/init.h>
 #include <linux/device.h>
+#include <linux/delay.h>
 #include <linux/smp.h>
+#include <linux/hrtimer.h>
 #include <linux/io.h>
 
 #include <asm/cacheflush.h>
@@ -59,6 +61,7 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	static struct clockdomain *cpu1_clkdm;
 	static bool booted;
+
 	/*
 	 * Set synchronisation state between this boot processor
 	 * and the secondary one
@@ -105,10 +108,22 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 		 * 2) CPU1 must re-enable the GIC distributor on
 		 * it's wakeup path.
 		 */
-		if (!cpu_is_omap443x())
+		if (!cpu_is_omap443x()) {
+			local_irq_disable();
 			gic_dist_disable();
+		}
 
 		clkdm_wakeup(cpu1_clkdm);
+
+		if (!cpu_is_omap443x()) {
+			while (gic_dist_disabled()) {
+				udelay(1);
+				cpu_relax();
+			}
+			gic_timer_retrigger();
+			local_irq_enable();
+		}
+
 	} else {
 		dsb_sev();
 		booted = true;
