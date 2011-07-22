@@ -170,22 +170,39 @@ static void xmm6260_get_ops(struct modem_ctl *mc)
 	mc->ops.modem_boot_off = xmm6260_boot_off;
 }
 
-int xmm6260_init_modemctl_device(struct modem_ctl *mc)
+int xmm6260_init_modemctl_device(struct modem_ctl *mc,
+			struct modem_data *pdata)
 {
 	int ret;
+	struct platform_device *pdev;
+
+	mc->gpio_cp_on = pdata->gpio_cp_on;
+	mc->gpio_reset_req_n = pdata->gpio_reset_req_n;
+	mc->gpio_cp_reset = pdata->gpio_cp_reset;
+	mc->gpio_pda_active = pdata->gpio_pda_active;
+	mc->gpio_phone_active = pdata->gpio_phone_active;
+	mc->gpio_cp_dump_int = pdata->gpio_cp_dump_int;
+	mc->gpio_flm_uart_sel = pdata->gpio_flm_uart_sel;
+	mc->gpio_cp_warm_reset = pdata->gpio_cp_warm_reset;
+
+	pdev = to_platform_device(mc->dev);
+	mc->irq_phone_active = platform_get_irq(pdev, 0);
+
 	xmm6260_get_ops(mc);
 
 	ret = request_irq(mc->irq_phone_active, phone_active_irq_handler,
 				IRQF_NO_SUSPEND | IRQF_TRIGGER_HIGH,
 				"phone_active", mc);
 	if (ret) {
-		pr_err("[MODEM_IF] %s: failed to request_irq:%d\n", __func__, ret);
+		pr_err("[MODEM_IF] %s: failed to request_irq:%d\n",
+					__func__, ret);
 		return ret;
 	}
 
 	ret = enable_irq_wake(mc->irq_phone_active);
 	if (ret)
-		pr_err("[MODEM_IF] %s: failed to enable_irq_wake:%d\n", __func__, ret);
+		pr_err("[MODEM_IF] %s: failed to enable_irq_wake:%d\n",
+					__func__, ret);
 
 	return ret;
 }

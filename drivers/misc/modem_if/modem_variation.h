@@ -17,7 +17,8 @@
 #define __MODEM_VARIATION_H__
 
 #define DECLARE_MODEM_INIT(type)	\
-	int type ## _init_modemctl_device(struct modem_ctl *mc)
+	int type ## _init_modemctl_device(struct modem_ctl *mc,	\
+				struct modem_data *pdata)
 #define DECLARE_MODEM_INIT_DUMMY(type)	\
 	DECLARE_MODEM_INIT(type) { return 0; }
 
@@ -81,7 +82,7 @@ DECLARE_LINK_INIT(spi);
 DECLARE_LINK_INIT_DUMMY(spi)
 #endif
 
-typedef int (*modem_init_call)(struct modem_ctl *);
+typedef int (*modem_init_call)(struct modem_ctl *, struct modem_data *);
 modem_init_call modem_init_func[] = {
 	MODEM_INIT_CALL(xmm6260),
 	MODEM_INIT_CALL(cbp71),
@@ -100,7 +101,7 @@ link_init_call link_init_func[] = {
 static int call_modem_init_func(struct modem_ctl *mc, struct modem_data *pdata)
 {
 	if (modem_init_func[pdata->modem_type])
-		return modem_init_func[pdata->modem_type](mc);
+		return modem_init_func[pdata->modem_type](mc, pdata);
 	else
 		return -ENOTSUPP;
 }

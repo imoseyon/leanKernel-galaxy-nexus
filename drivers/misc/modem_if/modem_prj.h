@@ -135,6 +135,8 @@ struct link_device {
 
 	/* init communication - setting link driver */
 	int (*init_comm)(struct link_device *ld, struct io_device *iod);
+	/* terminate communication */
+	void (*terminate_comm)(struct link_device *ld, struct io_device *iod);
 
 	/* called by an io_device when it has a packet to send over link
 	 * - the io device is passed so the link device can look at id and

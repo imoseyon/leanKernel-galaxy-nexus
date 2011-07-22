@@ -169,9 +169,23 @@ static void cbp71_get_ops(struct modem_ctl *mc)
 	mc->ops.modem_boot_off = cbp71_boot_off;
 }
 
-int cbp71_init_modemctl_device(struct modem_ctl *mc)
+int cbp71_init_modemctl_device(struct modem_ctl *mc,
+			struct modem_data *pdata)
 {
 	int ret = 0;
+	struct platform_device *pdev;
+
+	mc->gpio_cp_on = pdata->gpio_cp_on;
+	mc->gpio_reset_req_n = pdata->gpio_reset_req_n;
+	mc->gpio_cp_reset = pdata->gpio_cp_reset;
+	mc->gpio_pda_active = pdata->gpio_pda_active;
+	mc->gpio_phone_active = pdata->gpio_phone_active;
+	mc->gpio_cp_dump_int = pdata->gpio_cp_dump_int;
+	mc->gpio_flm_uart_sel = pdata->gpio_flm_uart_sel;
+	mc->gpio_cp_warm_reset = pdata->gpio_cp_warm_reset;
+
+	pdev = to_platform_device(mc->dev);
+	mc->irq_phone_active = platform_get_irq(pdev, 0);
 
 	cbp71_get_ops(mc);
 

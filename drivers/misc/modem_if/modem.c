@@ -52,29 +52,9 @@ static struct modem_ctl *create_modemctl_device(struct platform_device *pdev)
 	modemctl->dev = dev;
 	modemctl->phone_state = STATE_OFFLINE;
 
-	/* get platform data */
 	pdata = pdev->dev.platform_data;
-
 	modemctl->name = pdata->name;
 
-	modemctl->gpio_cp_on = pdata->gpio_cp_on;
-	modemctl->gpio_reset_req_n = pdata->gpio_reset_req_n;
-	modemctl->gpio_cp_reset = pdata->gpio_cp_reset;
-	modemctl->gpio_pda_active = pdata->gpio_pda_active;
-	modemctl->gpio_phone_active = pdata->gpio_phone_active;
-	modemctl->gpio_cp_dump_int = pdata->gpio_cp_dump_int;
-	modemctl->gpio_flm_uart_sel = pdata->gpio_flm_uart_sel;
-	modemctl->gpio_cp_warm_reset = pdata->gpio_cp_warm_reset;
-
-	modemctl->irq_phone_active = platform_get_irq(pdev, 0);
-
-#ifdef CONFIG_LTE_MODEM_CMC221
-	modemctl->gpio_cp_off = pdata->gpio_cp_off;
-	modemctl->gpio_slave_wakeup = pdata->gpio_slave_wakeup;
-	modemctl->gpio_host_active = pdata->gpio_host_active;
-	modemctl->gpio_host_wakeup = pdata->gpio_host_wakeup;
-	modemctl->irq_host_wakeup = platform_get_irq(pdev, 1);
-#endif
 	/* init modemctl device for getting modemctl operations */
 	ret = call_modem_init_func(modemctl, pdata);
 	if (ret) {
@@ -105,7 +85,8 @@ static struct io_device *create_io_device(struct modem_io_t *io_t,
 
 	/* link between io device and modem control */
 	iod->mc = modemctl;
-	modemctl->iod = iod;
+	if (iod->format == IPC_FMT)
+		modemctl->iod = iod;
 
 	/* register misc device or net device */
 	ret = init_io_device(iod);

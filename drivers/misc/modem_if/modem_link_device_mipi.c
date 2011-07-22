@@ -63,6 +63,33 @@ static int mipi_hsi_init_communication(struct link_device *ld,
 	}
 }
 
+static void mipi_hsi_terminate_communication(
+			struct link_device *ld, struct io_device *iod)
+{
+	int i;
+	struct mipi_link_device *mipi_ld = to_mipi_link_device(ld);
+
+	switch (iod->format) {
+	case IPC_FMT:
+		for (i = 0; i < HSI_NUM_OF_USE_CHANNELS; i++) {
+			if (&mipi_ld->hsi_channles[i].opened)
+				if_hsi_close_channel(&mipi_ld->hsi_channles[i]);
+		}
+		break;
+
+	case IPC_BOOT:
+		if (&mipi_ld->hsi_channles[HSI_FLASHLESS_CHANNEL].opened)
+			if_hsi_close_channel(&mipi_ld->hsi_channles[
+					HSI_FLASHLESS_CHANNEL]);
+		break;
+
+	case IPC_RFS:
+	case IPC_RAW:
+	default:
+		break;
+	}
+}
+
 static int mipi_hsi_send(struct link_device *ld, struct io_device *iod,
 			struct sk_buff *skb)
 {
@@ -353,7 +380,6 @@ static int hsi_init_handshake(struct mipi_link_device *mipi_ld, int mode)
 			del_timer(&mipi_ld->hsi_acwake_down_timer);
 
 		for (i = 0; i < HSI_NUM_OF_USE_CHANNELS; i++) {
-			if_hsi_close_channel(&mipi_ld->hsi_channles[i]);
 			ret = if_hsi_open_channel(&mipi_ld->hsi_channles[i]);
 			if (ret)
 				return ret;
@@ -397,8 +423,6 @@ static int hsi_init_handshake(struct mipi_link_device *mipi_ld, int mode)
 	case HSI_INIT_MODE_CP_RAMDUMP:
 		mipi_ld->ld.com_state = COM_BOOT;
 
-		for (i = 0; i < HSI_NUM_OF_USE_CHANNELS; i++)
-			if_hsi_close_channel(&mipi_ld->hsi_channles[i]);
 		ret = if_hsi_open_channel(
 			&mipi_ld->hsi_channles[HSI_FLASHLESS_CHANNEL]);
 		if (ret)
@@ -1308,6 +1332,7 @@ struct link_device *mipi_create_link_device(struct platform_device *pdev)
 	ld->name = "mipi_hsi";
 	ld->attach = mipi_hsi_attach_io_dev;
 	ld->init_comm = mipi_hsi_init_communication;
+	ld->terminate_comm = mipi_hsi_terminate_communication;
 	ld->send = mipi_hsi_send;
 	ld->com_state = COM_NONE;
 

@@ -512,6 +512,22 @@ static int misc_open(struct inode *inode, struct file *filp)
 {
 	struct io_device *iod = to_io_device(filp->private_data);
 	filp->private_data = (void *)iod;
+
+	pr_info("[MODEM_IF] misc_open : %s\n", iod->name);
+
+	if (iod->link->init_comm)
+		return iod->link->init_comm(iod->link, iod);
+	return 0;
+}
+
+static int misc_release(struct inode *inode, struct file *filp)
+{
+	struct io_device *iod = (struct io_device *)filp->private_data;
+
+	pr_info("[MODEM_IF] misc_release : %s\n", iod->name);
+
+	if (iod->link->terminate_comm)
+		iod->link->terminate_comm(iod->link, iod);
 	return 0;
 }
 
@@ -555,12 +571,13 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long _arg)
 		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_BOOT_OFF\n");
 		return iod->mc->ops.modem_boot_off(iod->mc);
 
+	/* TODO - will remove this command after ril updated */
 	case IOCTL_MODEM_START:
 		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_START\n");
-		return iod->link->init_comm(iod->link, iod);
+		return 0;
 
 	case IOCTL_MODEM_STATUS:
-		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_START\n");
+		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_STATUS\n");
 		return iod->mc->phone_state;
 
 	default:
@@ -654,6 +671,7 @@ static ssize_t misc_read(struct file *filp, char *buf, size_t count,
 static const struct file_operations misc_io_fops = {
 	.owner = THIS_MODULE,
 	.open = misc_open,
+	.release = misc_release,
 	.poll = misc_poll,
 	.unlocked_ioctl = misc_ioctl,
 	.write = misc_write,

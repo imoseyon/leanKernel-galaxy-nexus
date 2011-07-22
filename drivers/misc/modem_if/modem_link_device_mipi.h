@@ -155,5 +155,6 @@ static int if_hsi_read(struct if_hsi_channel *channel, const char *data,
 			unsigned int size);
 static int if_hsi_protocol_send(struct mipi_link_device *mipi_ld, int ch,
 			u32 *data, unsigned int len);
+static int if_hsi_close_channel(struct if_hsi_channel *channel);
 
 #endif
