@@ -65,7 +65,7 @@ static int rpres_iss_shutdown(struct platform_device *pdev)
 	int ret;
 	struct rpres_platform_data *pdata = pdev->dev.platform_data;
 
-	ret = omap_device_shutdown(pdev);
+	ret = omap_device_idle(pdev);
 	if (!ret)
 		_disable_optional_clocks(pdata->oh);
 
@@ -104,7 +104,7 @@ static struct rpres_ops ivahd_ops = {
 
 static struct rpres_ops fdif_ops = {
 	.start = omap_device_enable,
-	.stop = omap_device_shutdown,
+	.stop = omap_device_idle,
 	.set_lat = rpres_set_dev_lat,
 	.set_bw = rpres_set_l3_bw,
 	.scale_dev = rpres_scale_dev,
