@@ -170,7 +170,7 @@ void omap_tiler_heap_free(struct ion_buffer *buffer)
 	tiler_unpin_block(info->tiler_handle);
 	tiler_free_block_area(info->tiler_handle);
 
-	for (i = 0; i < info->n_phys_pages; i--)
+	for (i = 0; i < info->n_phys_pages; i++)
 		ion_carveout_free(buffer->heap, info->phys_addrs[i], PAGE_SIZE);
 
 	kfree(info->tiler_addrs);
