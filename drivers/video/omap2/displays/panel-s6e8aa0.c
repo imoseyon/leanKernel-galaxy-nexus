@@ -397,37 +397,40 @@ static void s6e8aa0_setup_gamma_regs(struct s6e8aa0_data *s6, u8 gamma_regs[])
 
 	for (c = 0; c < 3; c++) {
 		u32 adj;
+		u32 adj_min;
+		u32 adj_max;
+		s16 offset;
 		u32 v0 = s6e8aa0_gamma_lookup(s6, brightness, BV_0, c);
 		u32 v[V_COUNT];
 
 		v[V1] = s6e8aa0_gamma_lookup(s6, brightness, bv->v1, c);
-		adj = v1_to_v1adj(v[V1], v0);
-		adj -= s6->gamma_reg_offsets.v[1][c][V1];
-		if (adj > V1_ADJ_MAX) {
+		offset = s6->gamma_reg_offsets.v[1][c][V1];
+		adj_max = min(V1_ADJ_MAX, V1_ADJ_MAX - offset);
+		adj_min = max(0, 0 - offset);
+		adj = v1_to_v1adj(v[V1], v0) - offset;
+		if (adj < adj_min || adj > adj_max) {
 			pr_debug("%s: bad adj value %d, v0 %d, v1 %d, c %d\n",
 				__func__, adj, v0, v[V1], c);
-			if ((int)adj < 0)
-				adj = 0;
-			else
-				adj = V1_ADJ_MAX;
+			adj = clamp_t(int, adj, adj_min, adj_max);
 		}
 		gamma_regs[gamma_reg_index(c, V1)] = adj;
+		v[V1] = v1adj_to_v1(adj + offset, v0);
 
 		v[V255] = s6e8aa0_gamma_lookup(s6, brightness, BV_255, c);
-		adj = v255_to_v255adj(v[V255], v0);
-		adj -= s6->gamma_reg_offsets.v[1][c][V255];
-		if (adj > V255_ADJ_MAX) {
+		offset = s6->gamma_reg_offsets.v[1][c][V255];
+		adj_max = min(V255_ADJ_MAX, V255_ADJ_MAX - offset);
+		adj_min = max(0, 0 - offset);
+		adj = v255_to_v255adj(v[V255], v0) - offset;
+		if (adj < adj_min || adj > adj_max) {
 			pr_debug("%s: bad adj value %d, v0 %d, v255 %d, c %d\n",
 				__func__, adj, v0, v[V255], c);
-			if ((int)adj < 0)
-				adj = 0;
-			else
-				adj = V255_ADJ_MAX;
+			adj = clamp_t(int, adj, adj_min, adj_max);
 		}
 		gamma_regs[3 * V255 + 2 * c] = adj >> 8;
 		gamma_regs[3 * V255 + 2 * c + 1] = (adj & 0xff);
 		gamma_regs[gamma_reg_index_v255_h(c)] = adj >> 8;
 		gamma_regs[gamma_reg_index_v255_l(c)] = adj;
+		v[V255] = v255adj_to_v255(adj + offset, v0);
 
 		v[V15] = s6e8aa0_gamma_lookup(s6, brightness,  bv->v15, c);
 		v[V35] = s6e8aa0_gamma_lookup(s6, brightness,  bv->v35, c);
@@ -436,22 +439,23 @@ static void s6e8aa0_setup_gamma_regs(struct s6e8aa0_data *s6, u8 gamma_regs[])
 		v[V171] = s6e8aa0_gamma_lookup(s6, brightness, bv->v171, c);
 
 		for (i = V171; i >= V15; i--) {
-			if (v[V1] <= v[i + 1]) {
+			offset = s6->gamma_reg_offsets.v[1][c][i];
+			adj_max = min(255, 255 - offset);
+			adj_min = max(0, 0 - offset);
+			if (v[V1] <= v[i + 1] || v[V1] <= v[i]) {
 				adj = -1;
 			} else {
 				adj = vn_to_vnadj(i, v[i], v[V1], v[i + 1]);
-				adj -= s6->gamma_reg_offsets.v[1][c][i];
+				adj -= offset;
 			}
-			if (adj > 255) {
+			if (adj < adj_min || adj > adj_max) {
 				pr_debug("%s: bad adj value %d, "
 					"vh %d, v %d, c %d\n",
 					__func__, adj, v[i + 1], v[i], c);
-				if ((int)adj < 0)
-					adj = 0;
-				else
-					adj = 255;
+				adj = clamp_t(int, adj, adj_min, adj_max);
 			}
 			gamma_regs[gamma_reg_index(c, i)] = adj;
+			v[i] = vnadj_to_vn(i, adj + offset, v[V1], v[i + 1]);
 		}
 	}
 }
