@@ -36,7 +36,7 @@
 
 #define PVRVERSION_FAMILY           "eurasiacon.pj"
 #define PVRVERSION_BRANCHNAME       "1.8.18"
-#define PVRVERSION_BUILD             943
+#define PVRVERSION_BUILD             945
 #define PVRVERSION_BSCONTROL        "Unknown"
 
 #define PVRVERSION_STRING           "1.8.18." PVR_STR2(PVRVERSION_BUILD)
@@ -45,7 +45,7 @@
 #define COPYRIGHT_TXT               "Copyright (c) Imagination Technologies Ltd. All Rights Reserved."
 
 #define PVRVERSION_BUILD_HI          18
-#define PVRVERSION_BUILD_LO          943
+#define PVRVERSION_BUILD_LO          945
 #define PVRVERSION_STRING_NUMERIC    PVR_STR2(PVRVERSION_MAJ) "." PVR_STR2(PVRVERSION_MIN) "." PVR_STR2(PVRVERSION_BUILD_HI) "." PVR_STR2(PVRVERSION_BUILD_LO)
 
 #endif /* _PVRVERSION_H_ */
