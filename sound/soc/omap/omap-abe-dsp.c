@@ -214,7 +214,7 @@ static irqreturn_t abe_irq_handler(int irq, void *dev_id)
 	pm_runtime_get_sync(abe->dev);
 	abe_clear_irq();  // TODO: why is IRQ not cleared after processing ?
 	abe_irq_processing();
-	pm_runtime_put_sync(abe->dev);
+	pm_runtime_put_sync_suspend(abe->dev);
 	return IRQ_HANDLED;
 }
 
@@ -2171,6 +2171,7 @@ static int abe_probe(struct snd_soc_platform *platform)
 	abe->platform = platform;
 
 	pm_runtime_enable(abe->dev);
+	pm_runtime_irq_safe(abe->dev);
 
 #if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	/* request firmware & coefficients */
