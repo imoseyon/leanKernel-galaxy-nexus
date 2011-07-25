@@ -169,13 +169,6 @@ typedef struct _SGX_BRIDGE_INIT_INFO_
 	IMG_HANDLE hKernelTmpRgnHeaderMemInfo;
 #endif
 #endif
-#if defined(SGX_FEATURE_SPM_MODE_0)
-#if defined (SUPPORT_SID_INTERFACE)
-	IMG_SID		hKernelTmpDPMStateMemInfo;
-#else
-	IMG_HANDLE hKernelTmpDPMStateMemInfo;
-#endif
-#endif
 
 	IMG_UINT32 ui32EDMTaskReg0;
 	IMG_UINT32 ui32EDMTaskReg1;

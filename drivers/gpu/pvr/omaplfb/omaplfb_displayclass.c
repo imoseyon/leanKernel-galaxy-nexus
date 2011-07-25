@@ -831,9 +831,10 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 
 		apsTilerPAs[k] = NULL;
 
-		/* NV12 buffers do not need meminfos */
-		if (psDssData->ovls[k].cfg.color_mode == OMAP_DSS_COLOR_NV12) {
-			/* must have still 2 meminfos in array */
+		
+		if(psDssData->ovls[k].cfg.color_mode == OMAP_DSS_COLOR_NV12)
+		{
+			
 			BUG_ON(i + 1 >= ui32NumMemInfos);
 			psDssData->ovls[k].ba = (u32)LinuxMemAreaToCpuPAddr(psLinuxMemArea, 0).uiAddr;
 

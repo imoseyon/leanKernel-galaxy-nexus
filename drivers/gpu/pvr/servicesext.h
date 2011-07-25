@@ -638,6 +638,10 @@ typedef struct _PVRSRV_SYNC_DATA_
 	volatile IMG_UINT32			ui32ReadOpsComplete;
 
 	
+	IMG_UINT32					ui32ReadOps2Pending;
+	volatile IMG_UINT32			ui32ReadOps2Complete;
+
+	
 	IMG_UINT32					ui32LastOpDumpVal;
 	IMG_UINT32					ui32LastReadOpDumpVal;
 
