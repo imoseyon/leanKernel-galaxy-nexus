@@ -495,7 +495,7 @@ PVRSRV_ERROR SysFinalise(IMG_VOID)
 	eError = EnableSGXClocksWrap(gpsSysData);
 	if (eError != PVRSRV_OK)
 	{
-		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to Enable SGX clocks (%d)", eError));
+		PVR_DPF((PVR_DBG_ERROR,"SysFinalise: Failed to Enable SGX clocks (%d)", eError));
 		return eError;
 	}
 #endif	

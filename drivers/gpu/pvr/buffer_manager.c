@@ -2227,7 +2227,13 @@ BM_ImportMemory (IMG_VOID *pH,
 			ui32Attribs &= ~PVRSRV_HAP_CACHETYPE_MASK;
 			ui32Attribs |= (pMapping->ui32Flags & PVRSRV_HAP_CACHETYPE_MASK);
 		}
-
+		
+		if (pMapping->ui32Flags & PVRSRV_MEM_ALLOCATENONCACHEDMEM)
+		{
+			ui32Attribs &= ~PVRSRV_MEM_ALLOCATENONCACHEDMEM;
+			ui32Attribs |= (pMapping->ui32Flags & PVRSRV_MEM_ALLOCATENONCACHEDMEM);
+		}		
+		
 		
 		if (OSAllocPages(ui32Attribs,
 						 uPSize,

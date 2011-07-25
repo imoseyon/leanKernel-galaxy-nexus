@@ -649,6 +649,31 @@ PVRSRV_ERROR IMG_CALLCONV PollForValueKM (volatile IMG_UINT32*	pui32LinMemAddr,
 										  IMG_UINT32			ui32PollPeriodus,
 										  IMG_BOOL				bAllowPreemption)
 {
+#if defined (EMULATOR)
+	{
+		PVR_UNREFERENCED_PARAMETER(bAllowPreemption);
+		#if !defined(__linux__)
+		PVR_UNREFERENCED_PARAMETER(ui32PollPeriodus);
+		#endif	
+		
+		
+		
+		do
+		{
+			if((*pui32LinMemAddr & ui32Mask) == ui32Value)
+			{
+				return PVRSRV_OK;
+			}
+
+			#if defined(__linux__)
+			OSWaitus(ui32PollPeriodus);
+			#else
+			OSReleaseThreadQuanta();
+			#endif	
+
+		} while (ui32Timeoutus); 
+	}
+#else
 	{
 		IMG_UINT32	ui32ActualValue = 0xFFFFFFFFU; 
 
@@ -679,6 +704,7 @@ PVRSRV_ERROR IMG_CALLCONV PollForValueKM (volatile IMG_UINT32*	pui32LinMemAddr,
 		PVR_DPF((PVR_DBG_ERROR,"PollForValueKM: Timeout. Expected 0x%x but found 0x%x (mask 0x%x).",
 				ui32Value, ui32ActualValue, ui32Mask));
 	}
+#endif 
 
 	return PVRSRV_ERROR_TIMEOUT;
 }
