@@ -38,11 +38,26 @@
 #include "prm2xxx_3xxx.h"
 #include "pm.h"
 
+#define PM_DEBUG_MAX_SAVED_REGS	64
+#define PM_DEBUG_PRM_MIN	0x4A306000
+#define PM_DEBUG_PRM_MAX	(0x4A307F00 + (PM_DEBUG_MAX_SAVED_REGS * 4) - 1)
+#define PM_DEBUG_CM1_MIN	0x4A004000
+#define PM_DEBUG_CM1_MAX	(0x4A004F00 + (PM_DEBUG_MAX_SAVED_REGS * 4) - 1)
+#define PM_DEBUG_CM2_MIN	0x4A008000
+#define PM_DEBUG_CM2_MAX	(0x4A009F00 + (PM_DEBUG_MAX_SAVED_REGS * 4) - 1)
+
 int omap2_pm_debug;
 u32 enable_off_mode;
 u32 sleep_while_idle;
 u32 wakeup_timer_seconds;
 u32 wakeup_timer_milliseconds;
+
+#ifdef CONFIG_PM_ADVANCED_DEBUG
+static u32 saved_reg_num;
+static u32 saved_reg_num_used;
+static u32 saved_reg_addr;
+static u32 saved_reg_buff[2][PM_DEBUG_MAX_SAVED_REGS];
+#endif
 
 #define DUMP_PRM_MOD_REG(mod, reg)    \
 	regs[reg_count].name = #mod "." #reg; \
@@ -544,6 +559,47 @@ static int pwrdm_suspend_set(void *data, u64 val)
 DEFINE_SIMPLE_ATTRIBUTE(pwrdm_suspend_fops, pwrdm_suspend_get,
 			pwrdm_suspend_set, "%llu\n");
 
+#ifdef CONFIG_PM_ADVANCED_DEBUG
+static bool is_addr_valid()
+{
+	int saved_reg_addr_max = 0;
+	/* Only for OMAP4 for the timebeing */
+	if (!cpu_is_omap44xx())
+		return false;
+
+	saved_reg_num = (saved_reg_num > PM_DEBUG_MAX_SAVED_REGS) ?
+		PM_DEBUG_MAX_SAVED_REGS : saved_reg_num;
+
+	saved_reg_addr_max = saved_reg_addr + (saved_reg_num * 4) - 1;
+
+	if (saved_reg_addr >= PM_DEBUG_PRM_MIN &&
+		saved_reg_addr_max <= PM_DEBUG_PRM_MAX)
+			return true;
+	if (saved_reg_addr >= PM_DEBUG_CM1_MIN &&
+		saved_reg_addr_max <= PM_DEBUG_CM1_MAX)
+			return true;
+	if (saved_reg_addr >= PM_DEBUG_CM2_MIN &&
+		saved_reg_addr_max <= PM_DEBUG_CM2_MAX)
+			return true;
+	return false;
+}
+
+void omap4_pm_suspend_save_regs()
+{
+	int i = 0;
+	if (!saved_reg_num || !is_addr_valid())
+		return;
+
+	saved_reg_num_used = saved_reg_num;
+
+	for (i = 0; i < saved_reg_num; i++) {
+		saved_reg_buff[1][i] = omap_readl(saved_reg_addr + (i*4));
+		saved_reg_buff[0][i] = saved_reg_addr + (i*4);
+	}
+	return;
+}
+#endif
+
 static int __init pwrdms_setup(struct powerdomain *pwrdm, void *dir)
 {
 	int i;
@@ -573,6 +629,14 @@ static int option_get(void *data, u64 *val)
 	u32 *option = data;
 
 	*val = *option;
+#ifdef CONFIG_PM_ADVANCED_DEBUG
+	if (option == &saved_reg_addr) {
+		int i;
+		for (i = 0; i < saved_reg_num_used; i++)
+			pr_info(" %x = %x\n", saved_reg_buff[0][i],
+				saved_reg_buff[1][i]);
+	}
+#endif
 
 	return 0;
 }
@@ -658,6 +722,16 @@ skip_reg_debufs:
 	(void) debugfs_create_file("wakeup_timer_milliseconds",
 			S_IRUGO | S_IWUSR, d, &wakeup_timer_milliseconds,
 			&pm_dbg_option_fops);
+
+#ifdef CONFIG_PM_ADVANCED_DEBUG
+	(void) debugfs_create_file("saved_reg_show",
+			S_IRUGO | S_IWUSR, d, &saved_reg_addr,
+			&pm_dbg_option_fops);
+	debugfs_create_u32("saved_reg_addr",  S_IRUGO | S_IWUGO, d,
+				&saved_reg_addr);
+	debugfs_create_u32("saved_reg_num",  S_IRUGO | S_IWUGO, d,
+				 &saved_reg_num);
+#endif
 	pm_dbg_init_done = 1;
 
 	return 0;
