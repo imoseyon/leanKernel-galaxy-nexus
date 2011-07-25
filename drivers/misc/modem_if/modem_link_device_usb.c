@@ -576,8 +576,9 @@ static irqreturn_t usb_resume_irq(int irq, void *data)
 		} else {
 			ret = pm_runtime_get_sync(&usb_ld->usbdev->dev);
 			if (ret < 0) {
-				pr_err("%s pm_runtime_get fail\n", __func__);
-				return ret;
+				pr_err("%s pm_runtime_get fail (%d)\n",
+							__func__, ret);
+				return IRQ_HANDLED;
 			}
 			SET_SLAVE_WAKEUP(usb_ld->pdata, 1);
 		}
