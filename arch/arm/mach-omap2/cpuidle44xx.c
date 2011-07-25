@@ -150,7 +150,7 @@ static int omap4_enter_idle(struct cpuidle_device *dev,
 	if (cx->type > OMAP4_STATE_C1)
 		clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu_id);
 
-	omap4_enter_sleep(dev->cpu, cx->cpu0_state);
+	omap4_enter_sleep(dev->cpu, cx->cpu0_state, false);
 
 	/* restore the MPU and CORE states to ON */
 	omap_set_pwrdm_state(mpu_pd, PWRDM_POWER_ON);
