@@ -470,6 +470,9 @@ static int __devinit twl_rtc_probe(struct platform_device *pdev)
 		goto out1;
 	}
 
+	if (enable_irq_wake(irq) < 0)
+		dev_warn(&pdev->dev, "Cannot enable wakeup for IRQ %d\n", irq);
+
 	if (twl_class_is_6030()) {
 		twl6030_interrupt_unmask(TWL6030_RTC_INT_MASK,
 			REG_INT_MSK_LINE_A);
