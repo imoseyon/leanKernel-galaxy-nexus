@@ -586,6 +586,14 @@ static int __init tuna_i2c_init(void)
 	omap_register_i2c_bus(2, 400, NULL, 0);
 	omap_register_i2c_bus(3, 400, NULL, 0);
 	omap_register_i2c_bus(4, 400, NULL, 0);
+
+	/*
+	 * Drive MSECURE high for TWL6030 write access.
+	 */
+	omap_mux_init_signal("fref_clk0_out.gpio_wk6", OMAP_PIN_OUTPUT);
+	gpio_request(6, "msecure");
+	gpio_direction_output(6, 1);
+
 	return 0;
 }
 
