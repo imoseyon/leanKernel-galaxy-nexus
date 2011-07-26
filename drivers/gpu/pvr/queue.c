@@ -40,6 +40,8 @@ typedef struct _DEVICE_COMMAND_DATA_
 	PFN_CMD_PROC			pfnCmdProc;
 	PCOMMAND_COMPLETE_DATA	apsCmdCompleteData[DC_NUM_COMMANDS_PER_TYPE];
 	IMG_UINT32				ui32CCBOffset;
+	IMG_UINT32				ui32MaxDstSyncCount;	
+	IMG_UINT32				ui32MaxSrcSyncCount;	
 } DEVICE_COMMAND_DATA;
 
 
@@ -557,6 +559,19 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVInsertCommandKM(PVRSRV_QUEUE_INFO	*psQueue,
 	PVRSRV_COMMAND	*psCommand;
 	IMG_SIZE_T		ui32CommandSize;
 	IMG_UINT32		i;
+	SYS_DATA *psSysData;
+	DEVICE_COMMAND_DATA *psDeviceCommandData;
+
+	
+	SysAcquireData(&psSysData);
+	psDeviceCommandData = psSysData->apsDeviceCommandData[ui32DevIndex];
+
+	if ((psDeviceCommandData[CommandType].ui32MaxDstSyncCount < ui32DstSyncCount) ||
+	   (psDeviceCommandData[CommandType].ui32MaxSrcSyncCount < ui32SrcSyncCount))
+	{
+		PVR_DPF((PVR_DBG_ERROR, "PVRSRVInsertCommandKM: Too many syncs"));
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
 
 	
 	ui32DataByteSize = (ui32DataByteSize + 3UL) & ~3UL;
@@ -1081,7 +1096,8 @@ PVRSRV_ERROR PVRSRVRegisterCmdProcListKM(IMG_UINT32		ui32DevIndex,
 	{
 		psDeviceCommandData[ui32CmdTypeCounter].pfnCmdProc = ppfnCmdProcList[ui32CmdTypeCounter];
 		psDeviceCommandData[ui32CmdTypeCounter].ui32CCBOffset = 0;
-		
+		psDeviceCommandData[ui32CmdTypeCounter].ui32MaxDstSyncCount = ui32MaxSyncsPerCmd[ui32CmdTypeCounter][0];
+		psDeviceCommandData[ui32CmdTypeCounter].ui32MaxSrcSyncCount = ui32MaxSyncsPerCmd[ui32CmdTypeCounter][1];
 		for (ui32CmdCounter = 0; ui32CmdCounter < DC_NUM_COMMANDS_PER_TYPE; ui32CmdCounter++)
 		{
 			
