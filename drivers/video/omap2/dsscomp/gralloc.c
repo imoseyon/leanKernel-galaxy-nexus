@@ -47,9 +47,7 @@ static void dsscomp_gralloc_cb(dsscomp_t comp, int status)
 		mutex_lock(&mtx);
 		unpin_tiler_blocks(&comp->slots);
 		mutex_unlock(&mtx);
-	}
-	if ((status == DSS_COMPLETION_DISPLAYED) ||
-	    (status & DSS_COMPLETION_RELEASED)) {
+
 		/* complete composition if eclipsed or displayed */
 		if (comp->gralloc_cb_fn) {
 			if (debug & DEBUG_PHASES)
