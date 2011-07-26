@@ -159,6 +159,12 @@ static int s6e8aa0_write_block(struct omap_dss_device *dssdev, const u8 *data, i
 	return ret;
 }
 
+static int s6e8aa0_write_block_nosync(struct omap_dss_device *dssdev,
+				      const u8 *data, int len)
+{
+	return dsi_vc_dcs_write_nosync(dssdev, 1, (u8 *)data, len);
+}
+
 static int s6e8aa0_read_block(struct omap_dss_device *dssdev,
 			      u8 cmd, u8 *data, int len)
 {
@@ -446,7 +452,7 @@ static int s6e8aa0_update_brightness(struct omap_dss_device *dssdev)
 	gamma_regs[1] = 0x01;
 
 	s6e8aa0_setup_gamma_regs(s6, gamma_regs + 2);
-	s6e8aa0_write_block(dssdev, gamma_regs, sizeof(gamma_regs));
+	s6e8aa0_write_block_nosync(dssdev, gamma_regs, sizeof(gamma_regs));
 	s6e8aa0_write_reg(dssdev, 0xF7, 0x01);
 
 	return ret;
