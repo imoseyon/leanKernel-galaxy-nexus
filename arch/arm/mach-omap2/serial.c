@@ -175,6 +175,8 @@ static struct omap_device_pad default_omap4_uart4_pads[] __initdata = {};
 
 static void omap_serial_fill_default_pads(struct omap_board_data *bdata)
 {
+	BUG_ON(!cpu_is_omap44xx() && !cpu_is_omap34xx());
+
 	switch (bdata->id) {
 	case 0:
 		bdata->pads = default_uart1_pads;
@@ -336,6 +338,22 @@ static int __init omap_serial_early_init(void)
 	return 0;
 }
 core_initcall(omap_serial_early_init);
+
+void __init omap_serial_init_port_pads(int id, struct omap_device_pad *pads,
+	int size, struct omap_uart_port_info *info)
+{
+	struct omap_board_data bdata;
+
+	bdata.id = id;
+	bdata.flags = 0;
+	bdata.pads = pads;
+	bdata.pads_cnt = size;
+
+	if (!bdata.pads)
+		omap_serial_fill_default_pads(&bdata);
+
+	omap_serial_init_port(&bdata, info);
+}
 
 /**
  * omap_serial_init_port() - initialize single serial port
