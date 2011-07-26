@@ -3192,9 +3192,11 @@ int dsi_vc_dcs_write(struct omap_dss_device *dssdev, int channel, u8 *data,
 	if (r)
 		goto err;
 
-	r = dsi_vc_send_bta_sync(dssdev, channel);
-	if (r)
-		goto err;
+	if (dssdev->phy.dsi.type != OMAP_DSS_DSI_TYPE_VIDEO_MODE) {
+		r = dsi_vc_send_bta_sync(dssdev, channel);
+		if (r)
+			goto err;
+	}
 
 	/* RX_FIFO_NOT_EMPTY */
 	if (REG_GET(dsidev, DSI_VC_CTRL(channel), 20, 20)) {
@@ -3244,9 +3246,11 @@ int dsi_vc_dcs_read(struct omap_dss_device *dssdev, int channel, u8 dcs_cmd,
 	if (r)
 		goto err;
 
-	r = dsi_vc_send_bta_sync(dssdev, channel);
-	if (r)
-		goto err;
+	if (dssdev->phy.dsi.type != OMAP_DSS_DSI_TYPE_VIDEO_MODE) {
+		r = dsi_vc_send_bta_sync(dssdev, channel);
+		if (r)
+			goto err;
+	}
 
 	/* RX_FIFO_NOT_EMPTY */
 	if (REG_GET(dsidev, DSI_VC_CTRL(channel), 20, 20) == 0) {
