@@ -838,17 +838,6 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 			BUG_ON(i + 1 >= ui32NumMemInfos);
 			psDssData->ovls[k].ba = (u32)LinuxMemAreaToCpuPAddr(psLinuxMemArea, 0).uiAddr;
 
-			/*
-			 * :HACK: increment display ref count and save pointer
-			 * to it in stride which is not used for 2D buffers.
-			 */
-			atomic_inc(container_of(&ppsMemInfos[i]->psKernelSyncInfo->psSyncData->ui32DisplayRefCount, atomic_t, counter));
-			pr_debug("syncData++ = %p.%d\n",
-				 &ppsMemInfos[i]->psKernelSyncInfo->psSyncData->ui32DisplayRefCount,
-				 ppsMemInfos[i]->psKernelSyncInfo->psSyncData->ui32DisplayRefCount);
-			psDssData->ovls[k].cfg.stride =
-				(u32) &ppsMemInfos[i]->psKernelSyncInfo->psSyncData->ui32DisplayRefCount;
-
 			i++;
 			psLinuxMemArea = ppsMemInfos[i]->sMemBlk.hOSMemHandle;
 			psDssData->ovls[k].uv = (u32)LinuxMemAreaToCpuPAddr(psLinuxMemArea, 0).uiAddr;

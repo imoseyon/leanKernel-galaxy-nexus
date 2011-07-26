@@ -645,7 +645,6 @@ typedef struct _PVRSRV_SYNC_DATA_
 	IMG_UINT32					ui32LastOpDumpVal;
 	IMG_UINT32					ui32LastReadOpDumpVal;
 
-	IMG_INT32				ui32DisplayRefCount;
 } PVRSRV_SYNC_DATA;
 
 typedef struct _PVRSRV_CLIENT_SYNC_INFO_

@@ -558,7 +558,6 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVAllocSyncInfoKM(IMG_HANDLE					hDevCookie,
 	psSyncData->ui32ReadOps2Complete = 0;
 	psSyncData->ui32LastOpDumpVal = 0;
 	psSyncData->ui32LastReadOpDumpVal = 0;
-	psSyncData->ui32DisplayRefCount = 0;
 
 #if defined(PDUMP)
 	PDUMPCOMMENT("Allocating kernel sync object");
