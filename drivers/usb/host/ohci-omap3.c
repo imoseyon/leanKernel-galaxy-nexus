@@ -31,6 +31,7 @@
 
 #include <linux/platform_device.h>
 #include <plat/usb.h>
+#include <linux/pm_runtime.h>
 
 /*-------------------------------------------------------------------------*/
 
@@ -172,11 +173,7 @@ static int __devinit ohci_hcd_omap3_probe(struct platform_device *pdev)
 	hcd->rsrc_len = resource_size(res);
 	hcd->regs =  regs;
 
-	ret = omap_usbhs_enable(dev);
-	if (ret) {
-		dev_dbg(dev, "failed to start ohci\n");
-		goto err_end;
-	}
+	pm_runtime_get_sync(dev->parent);
 
 	ohci_hcd_init(hcd_to_ohci(hcd));
 
@@ -189,7 +186,7 @@ static int __devinit ohci_hcd_omap3_probe(struct platform_device *pdev)
 	return 0;
 
 err_add_hcd:
-	omap_usbhs_disable(dev);
+	pm_runtime_get_sync(dev->parent);
 
 err_end:
 	usb_put_hcd(hcd);
@@ -220,9 +217,8 @@ static int __devexit ohci_hcd_omap3_remove(struct platform_device *pdev)
 
 	iounmap(hcd->regs);
 	usb_remove_hcd(hcd);
-	omap_usbhs_disable(dev);
+	pm_runtime_put_sync(dev->parent);
 	usb_put_hcd(hcd);
-
 	return 0;
 }
 
@@ -234,12 +230,33 @@ static void ohci_hcd_omap3_shutdown(struct platform_device *pdev)
 		hcd->driver->shutdown(hcd);
 }
 
+
+static int omap_ohci_resume(struct device *dev)
+{
+	if (dev->parent)
+		pm_runtime_get_sync(dev->parent);
+	return 0;
+}
+
+static int omap_ohci_suspend(struct device *dev)
+{
+	if (dev->parent)
+		pm_runtime_put_sync(dev->parent);
+	return 0;
+}
+
+static const struct dev_pm_ops omap_ohci_dev_pm_ops = {
+	.suspend	= omap_ohci_suspend,
+	.resume		= omap_ohci_resume,
+};
+
 static struct platform_driver ohci_hcd_omap3_driver = {
 	.probe		= ohci_hcd_omap3_probe,
 	.remove		= __devexit_p(ohci_hcd_omap3_remove),
 	.shutdown	= ohci_hcd_omap3_shutdown,
 	.driver		= {
 		.name	= "ohci-omap3",
+		.pm		= &omap_ohci_dev_pm_ops,
 	},
 };
 
