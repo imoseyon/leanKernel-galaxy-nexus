@@ -41,6 +41,7 @@
 #include <linux/usb/ulpi.h>
 #include <plat/usb.h>
 #include <linux/regulator/consumer.h>
+#include <linux/pm_runtime.h>
 
 /* EHCI Register Set */
 #define EHCI_INSNREG04					(0xA0)
@@ -178,11 +179,7 @@ static int ehci_hcd_omap_probe(struct platform_device *pdev)
 		}
 	}
 
-	ret = omap_usbhs_enable(dev);
-	if (ret) {
-		dev_err(dev, "failed to start usbhs with err %d\n", ret);
-		goto err_enable;
-	}
+	pm_runtime_get_sync(dev->parent);
 
 	/*
 	 * An undocumented "feature" in the OMAP3 EHCI controller,
@@ -228,10 +225,7 @@ static int ehci_hcd_omap_probe(struct platform_device *pdev)
 	return 0;
 
 err_add_hcd:
-	omap_usbhs_disable(dev);
-
-err_enable:
-	usb_put_hcd(hcd);
+	pm_runtime_put_sync(dev->parent);
 
 err_io:
 	return ret;
@@ -252,27 +246,49 @@ static int ehci_hcd_omap_remove(struct platform_device *pdev)
 	struct usb_hcd *hcd	= dev_get_drvdata(dev);
 
 	usb_remove_hcd(hcd);
-	omap_usbhs_disable(dev);
+	pm_runtime_put_sync(dev->parent);
 	usb_put_hcd(hcd);
 	return 0;
 }
 
 static void ehci_hcd_omap_shutdown(struct platform_device *pdev)
 {
+	struct device *dev	= &pdev->dev;
 	struct usb_hcd *hcd = dev_get_drvdata(&pdev->dev);
 
-	if (hcd->driver->shutdown)
+	if (hcd->driver->shutdown) {
+		pm_runtime_get_sync(dev->parent);
 		hcd->driver->shutdown(hcd);
+		pm_runtime_put(dev->parent);
+	}
 }
+
+static int omap_ehci_resume(struct device *dev)
+{
+	if (dev->parent)
+		pm_runtime_get_sync(dev->parent);
+	return 0;
+}
+
+static int omap_ehci_suspend(struct device *dev)
+{
+	if (dev->parent)
+		pm_runtime_put_sync(dev->parent);
+	return 0;
+}
+
+static const struct dev_pm_ops omap_ehci_dev_pm_ops = {
+	.suspend	= omap_ehci_suspend,
+	.resume		= omap_ehci_resume,
+};
 
 static struct platform_driver ehci_hcd_omap_driver = {
 	.probe			= ehci_hcd_omap_probe,
 	.remove			= ehci_hcd_omap_remove,
 	.shutdown		= ehci_hcd_omap_shutdown,
-	/*.suspend		= ehci_hcd_omap_suspend, */
-	/*.resume		= ehci_hcd_omap_resume, */
 	.driver = {
 		.name		= "ehci-omap",
+		.pm		= &omap_ehci_dev_pm_ops,
 	}
 };
 
