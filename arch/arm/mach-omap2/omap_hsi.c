@@ -410,11 +410,17 @@ static void __init omap_4430hsi_pad_conf(void)
 		OMAP_PIN_OFF_NONE);
 }
 
+int __init omap_hsi_dev_init(void)
+{
+	/* Keep this for genericity, although there is only one hwmod for HSI */
+	return omap_hwmod_for_each_by_class(OMAP_HSI_HWMOD_CLASSNAME,
+					    omap_hsi_register, NULL);
+}
+postcore_initcall(omap_hsi_dev_init);
+
 /* HSI devices registration */
 int __init omap_hsi_init(void)
 {
 	omap_4430hsi_pad_conf();
-	/* Keep this for genericity, although there is only one hwmod for HSI */
-	return omap_hwmod_for_each_by_class(OMAP_HSI_HWMOD_CLASSNAME,
-					    omap_hsi_register, NULL);
+	return 0;
 }
