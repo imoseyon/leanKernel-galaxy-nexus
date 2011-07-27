@@ -627,9 +627,40 @@ static struct omap_board_mux board_wkup_mux[] __initdata = {
 #define board_wkup_mux	NULL
 #endif
 
+static struct omap_device_pad tuna_uart1_pads[] __initdata = {
+	{
+		.name   = "uart3_cts_rctx.uart1_tx",
+		.enable = OMAP_PIN_OUTPUT | OMAP_MUX_MODE1,
+	},
+	{
+		.name   = "mcspi1_cs1.uart1_rx",
+		.flags  = OMAP_DEVICE_PAD_REMUX | OMAP_DEVICE_PAD_WAKEUP,
+		.enable = OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE1,
+		.idle   = OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE1,
+	},
+};
+
+static struct omap_device_pad tuna_uart3_pads[] __initdata = {
+	{
+		.name   = "uart3_tx_irtx.uart3_tx_irtx",
+		.enable = OMAP_PIN_OUTPUT | OMAP_MUX_MODE0,
+	},
+	{
+		.name   = "uart3_rx_irrx.uart3_rx_irrx",
+		.flags  = OMAP_DEVICE_PAD_REMUX | OMAP_DEVICE_PAD_WAKEUP,
+		.enable = OMAP_PIN_INPUT | OMAP_MUX_MODE0,
+		.idle   = OMAP_PIN_INPUT | OMAP_MUX_MODE0,
+	},
+};
+
 static inline void __init board_serial_init(void)
 {
-	omap_serial_init();
+	omap_serial_init_port_pads(0, tuna_uart1_pads,
+		ARRAY_SIZE(tuna_uart1_pads), NULL);
+	omap_serial_init_port_pads(1, NULL, 0, NULL);
+	omap_serial_init_port_pads(2, tuna_uart3_pads,
+		ARRAY_SIZE(tuna_uart3_pads), NULL);
+	omap_serial_init_port_pads(3, NULL, 0, NULL);
 }
 
 /*SPI for LTE modem bootloader*/
