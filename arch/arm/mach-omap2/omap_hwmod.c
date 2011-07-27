@@ -149,6 +149,7 @@
 #include "prm2xxx_3xxx.h"
 #include "prm44xx.h"
 #include "mux.h"
+#include "pm.h"
 
 /* Maximum microseconds to wait for OMAP module to softreset */
 #define MAX_MODULE_SOFTRESET_WAIT	10000
@@ -1326,8 +1327,11 @@ static int _idle(struct omap_hwmod *oh)
 	_disable_clocks(oh);
 
 	/* Mux pins for device idle if populated */
-	if (oh->mux && oh->mux->pads_dynamic)
+	if (oh->mux && oh->mux->pads_dynamic) {
 		omap_hwmod_mux(oh->mux, _HWMOD_STATE_IDLE);
+		if (cpu_is_omap44xx())
+			omap4_trigger_ioctrl();
+	}
 
 	oh->_state = _HWMOD_STATE_IDLE;
 

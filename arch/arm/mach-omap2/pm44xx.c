@@ -25,6 +25,7 @@
 #include <asm/hardware/gic.h>
 #include <mach/omap4-common.h>
 #include <plat/common.h>
+#include <plat/usb.h>
 
 #include "powerdomain.h"
 #include "clockdomain.h"
@@ -65,6 +66,14 @@ static struct voltagedomain *mpu_voltdm, *iva_voltdm, *core_voltdm;
 void omap4_trigger_ioctrl(void)
 {
 	int i = 0;
+
+	/* Enable GLOBAL_WUEN */
+	if (!omap4_cminst_read_inst_reg_bits(OMAP4430_PRM_PARTITION,
+			OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_IO_PMCTRL_OFFSET,
+			OMAP4430_GLOBAL_WUEN_MASK))
+		omap4_prminst_rmw_inst_reg_bits(OMAP4430_GLOBAL_WUEN_MASK,
+			OMAP4430_GLOBAL_WUEN_MASK, OMAP4430_PRM_PARTITION,
+			OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_IO_PMCTRL_OFFSET);
 
 	/* Trigger WUCLKIN enable */
 	omap4_prminst_rmw_inst_reg_bits(OMAP4430_WUCLK_CTRL_MASK, OMAP4430_WUCLK_CTRL_MASK,
@@ -135,7 +144,6 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
 
 			omap2_gpio_prepare_for_idle(0);
-			omap4_trigger_ioctrl();
 		}
 	}
 
@@ -456,9 +464,6 @@ static void __init prcm_setup_regs(void)
 	omap4_prminst_rmw_inst_reg_bits(OMAP4430_IO_ST_MASK, OMAP4430_IO_ST_MASK,
 		OMAP4430_PRM_PARTITION, OMAP4430_PRM_OCP_SOCKET_INST, OMAP4_PRM_IRQENABLE_MPU_OFFSET);
 
-	/* Enable GLOBAL_WUEN */
-	omap4_prminst_rmw_inst_reg_bits(OMAP4430_GLOBAL_WUEN_MASK, OMAP4430_GLOBAL_WUEN_MASK,
-		OMAP4430_PRM_PARTITION, OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_IO_PMCTRL_OFFSET);
 	/*
 	 * Errata ID: i608 Impacted OMAP4430 ES 1.0,2.0,2.1,2.2
 	 * On OMAP4, Retention-Till-Access Memory feature is not working
@@ -512,6 +517,7 @@ static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 			omap_writel( (1<<3) | (1<<12), HSI_SYSCONFIG);
 		}
 		omap_uart_resume_idle();
+		usbhs_wakeup();
 		omap4_trigger_ioctrl();
 	}
 
