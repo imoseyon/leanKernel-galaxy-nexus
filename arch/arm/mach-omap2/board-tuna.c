@@ -520,6 +520,22 @@ static struct regulator_init_data tuna_clk32kg = {
 	},
 };
 
+static struct regulator_init_data tuna_vdd3 = {
+	.constraints = {
+		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
+	},
+};
+
+/*
+ * VMEM is unused. Register it to regulator framework and let it
+ * be in disabled state.
+ */
+static struct regulator_init_data tuna_vmem = {
+	.constraints = {
+		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
+	},
+};
+
 static struct twl4030_codec_audio_data twl6040_audio = {
 	/* single-step ramp for headset and handsfree */
 	.hs_left_step   = 0x0f,
@@ -552,6 +568,10 @@ static struct twl4030_platform_data tuna_twldata = {
 	/* children */
 	.codec		= &twl6040_codec,
 	.madc		= &twl6030_madc,
+
+	/* SMPS */
+	.vdd3		= &tuna_vdd3,
+	.vmem		= &tuna_vmem,
 };
 
 static void tuna_audio_init(void)
