@@ -452,7 +452,7 @@ int hsi_do_cawake_process(struct hsi_port *pport)
 		if (omap_readl(0x4A306404) != 0x0) {
 			omap_writel(0x00000002, 0x4A004400);
 			omap_writel(0x003F0703, 0x4A306400);
-			omap_writel(0x003F0700, 0x4A306400);
+			omap_writel(0x003F0701, 0x4A306400);
 			omap_writel(0x00000003, 0x4A004400);
 		}
 		/* Force HSI to ON_ACTIVE when CAWAKE is high */
