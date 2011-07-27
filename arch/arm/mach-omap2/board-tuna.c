@@ -613,6 +613,12 @@ static int __init tuna_i2c_init(void)
 	omap_mux_init_signal("i2c1_sda.i2c1_sda", OMAP_PIN_INPUT_PULLUP);
 
 	/*
+	 * This will allow unused regulator to be shutdown. This flag
+	 * should be set in the board file. Before regulators are registered.
+	 */
+	regulator_has_full_constraints();
+
+	/*
 	 * Phoenix Audio IC needs I2C1 to
 	 * start with 400 KHz or less
 	 */
