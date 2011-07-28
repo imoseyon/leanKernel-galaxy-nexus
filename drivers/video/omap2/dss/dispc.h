@@ -174,7 +174,8 @@ static inline u16 DISPC_DIVISORo(enum omap_channel channel)
 	case OMAP_DSS_CHANNEL_LCD:
 		return 0x0070;
 	case OMAP_DSS_CHANNEL_DIGIT:
-		BUG();
+		/* FIXME venc pclk? */
+		return 0x0070;
 	case OMAP_DSS_CHANNEL_LCD2:
 		return 0x040C;
 	default:
