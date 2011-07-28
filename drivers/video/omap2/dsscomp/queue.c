@@ -381,13 +381,12 @@ static void dsscomp_mgr_delayed_cb(struct work_struct *work)
 	mutex_unlock(&mtx);
 }
 
-static void dsscomp_mgr_callback(void *data, int id, int status)
+static u32 dsscomp_mgr_callback(void *data, int id, int status)
 {
 	struct dsscomp_data *comp = data;
 
 	/* do any other callbacks */
-	if (comp->cb.fn)
-		comp->cb.fn(comp->cb.data, id, status);
+	dss_ovl_cb(&comp->cb, id, status);
 
 	if (status == DSS_COMPLETION_PROGRAMMED ||
 	    (status == DSS_COMPLETION_DISPLAYED &&
@@ -399,6 +398,9 @@ static void dsscomp_mgr_callback(void *data, int id, int status)
 		INIT_WORK(&wk->work, dsscomp_mgr_delayed_cb);
 		queue_work(cb_wkq, &wk->work);
 	}
+
+	/* get each callback only once */
+	return ~status | (comp->cb.fn ? comp->cb.mask : 0);
 }
 
 static inline bool dssdev_manually_updated(struct omap_dss_device *dev)
@@ -511,6 +513,8 @@ skip_ovl_set:
 		comp->cb = mgr->info.cb;
 		mgr->info.cb.fn = dsscomp_mgr_callback;
 		mgr->info.cb.data = comp;
+		mgr->info.cb.mask = DSS_COMPLETION_DISPLAYED |
+			DSS_COMPLETION_PROGRAMMED | DSS_COMPLETION_RELEASED;
 
 		/*
 		 * Check other overlays that may also use this display.
