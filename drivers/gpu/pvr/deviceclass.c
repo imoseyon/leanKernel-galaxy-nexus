@@ -1299,7 +1299,8 @@ IMG_EXPORT
 PVRSRV_ERROR PVRSRVGetDCBuffersKM(IMG_HANDLE	hDeviceKM,
 								  IMG_HANDLE	hSwapChainRef,
 								  IMG_UINT32	*pui32BufferCount,
-								  IMG_HANDLE	*phBuffer)
+								  IMG_HANDLE	*phBuffer,
+								  IMG_SYS_PHYADDR *psPhyAddr)
 {
 	PVRSRV_DISPLAYCLASS_INFO *psDCInfo;
 	PVRSRV_DC_SWAPCHAIN *psSwapChain;
@@ -1307,7 +1308,7 @@ PVRSRV_ERROR PVRSRVGetDCBuffersKM(IMG_HANDLE	hDeviceKM,
 	PVRSRV_ERROR eError;
 	IMG_UINT32 i;
 
-	if(!hDeviceKM || !hSwapChainRef || !phBuffer)
+	if(!hDeviceKM || !hSwapChainRef || !phBuffer || !psPhyAddr)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"PVRSRVGetDCBuffersKM: Invalid parameters"));
 		return PVRSRV_ERROR_INVALID_PARAMS;
@@ -1332,6 +1333,32 @@ PVRSRV_ERROR PVRSRVGetDCBuffersKM(IMG_HANDLE	hDeviceKM,
 		psSwapChain->asBuffer[i].sDeviceClassBuffer.hExtBuffer = ahExtBuffer[i];
 		phBuffer[i] = (IMG_HANDLE)&psSwapChain->asBuffer[i];
 	}
+
+#if defined(SUPPORT_GET_DC_BUFFERS_SYS_PHYADDRS)
+	for(i = 0; i < *pui32BufferCount; i++)
+	{
+		IMG_UINT32 ui32ByteSize, ui32TilingStride;
+		IMG_SYS_PHYADDR *pPhyAddr;
+		IMG_BOOL bIsContiguous;
+		IMG_HANDLE hOSMapInfo;
+		IMG_VOID *pvVAddr;
+
+		eError = psDCInfo->psFuncTable->pfnGetBufferAddr(psDCInfo->hExtDevice,
+														 ahExtBuffer[i],
+														 &pPhyAddr,
+														 &ui32ByteSize,
+														 &pvVAddr,
+														 &hOSMapInfo,
+														 &bIsContiguous,
+														 &ui32TilingStride);
+		if(eError != PVRSRV_OK)
+		{
+			break;
+		}
+
+		psPhyAddr[i] = *pPhyAddr;
+	}
+#endif 
 
 	return eError;
 }
