@@ -34,33 +34,36 @@
 static DEFINE_MUTEX(mtx);
 
 /* free overlay structs */
-static LIST_HEAD(free_ois);
-
-#define QUEUE_SIZE	3
-
-#define MUTEXED(exp) ({ typeof(exp) __r;\
-	mutex_lock(&mtx); __r = (exp); mutex_unlock(&mtx); __r; })
-
-#undef STRICT_CHECK
-
-#define MAGIC_ACTIVE		0xAC54156E
-#define MAGIC_APPLYING		0xA554C591
-#define MAGIC_APPLIED		0xA50504C1
-#define MAGIC_PROGRAMMED	0x50520652
-#define MAGIC_DISPLAYED		0xD15504CA
+struct maskref {
+	u32 mask;
+	u32 refs[MAX_OVERLAYS];
+};
 
 static struct {
-	struct list_head q_ci;		/* compositions */
-
-	wait_queue_head_t wq;
+	struct workqueue_struct *apply_workq;
 
 	u32 ovl_mask;		/* overlays used on this display */
-	u32 ovl_qmask;		/* overlays queued to this display */
+	struct maskref ovl_qmask;		/* overlays queued to this display */
 } mgrq[MAX_MANAGERS];
 
-static struct workqueue_struct *apply_wkq;	/* apply work queue */
 static struct workqueue_struct *cb_wkq;		/* callback work queue */
 static struct dsscomp_dev *cdev;
+
+static inline void maskref_incbit(struct maskref *om, u32 ix)
+{
+	om->refs[ix]++;
+	om->mask |= 1 << ix;
+}
+
+static void maskref_decmask(struct maskref *om, u32 mask)
+{
+	while (mask) {
+		u32 ix = fls(mask) - 1, m = 1 << ix;
+		if (!--om->refs[ix])
+			om->mask &= ~m;
+		mask &= ~m;
+	}
+}
 
 /*
  * ===========================================================================
@@ -74,16 +77,15 @@ int dsscomp_queue_init(struct dsscomp_dev *cdev_)
 	u32 i, j;
 	cdev = cdev_;
 
-	INIT_LIST_HEAD(&free_ois);
-
 	if (ARRAY_SIZE(mgrq) < cdev->num_mgrs)
 		return -EINVAL;
 
 	ZERO(mgrq);
 	for (i = 0; i < cdev->num_mgrs; i++) {
 		struct omap_overlay_manager *mgr;
-		INIT_LIST_HEAD(&mgrq[i].q_ci);
-		init_waitqueue_head(&mgrq[i].wq);
+		mgrq[i].apply_workq = create_singlethread_workqueue("dsscomp_apply");
+		if (!mgrq[i].apply_workq)
+			goto error;
 
 		/* record overlays on this display */
 		mgr = cdev->mgrs[i];
@@ -95,49 +97,16 @@ int dsscomp_queue_init(struct dsscomp_dev *cdev_)
 		}
 	}
 
-	apply_wkq = create_workqueue("dsscomp_apply");
-	if (!apply_wkq)
-		return -EFAULT;
-
-	cb_wkq = create_workqueue("dsscomp_cb");
-	if (!cb_wkq) {
-		destroy_workqueue(apply_wkq);
-		return -EFAULT;
-	}
+	cb_wkq = create_singlethread_workqueue("dsscomp_cb");
+	if (!cb_wkq)
+		goto error;
 
 	return 0;
+error:
+	while (i--)
+		destroy_workqueue(mgrq[i].apply_workq);
+	return -ENOMEM;
 }
-
-/* returns if composition is valid and active */
-static inline struct dsscomp_data *validate(struct dsscomp_data *comp)
-{
-#ifdef STRICT_CHECK
-	u32 ix;
-	struct dsscomp_data *c;
-
-	if (!comp)
-		return ERR_PTR(-EFAULT);
-
-	/* find composition in active compositions */
-	for (ix = 0; ix < cdev->num_mgrs; ix++) {
-		list_for_each_entry(c, &mgrq[ix].q_ci, q) {
-			if (c == comp)
-				return c;
-		}
-	}
-	return ERR_PTR(-ESRCH);
-#else
-	if (!comp)
-		return ERR_PTR(-EFAULT);
-
-	return (comp->magic == MAGIC_PROGRAMMED ||
-		comp->magic == MAGIC_DISPLAYED ||
-		comp->magic == MAGIC_APPLIED ||
-		comp->magic == MAGIC_APPLYING ||
-		comp->magic == MAGIC_ACTIVE) ? comp : ERR_PTR(-ESRCH);
-#endif
-}
-
 
 /* get display index from manager */
 static u32 get_display_ix(struct omap_overlay_manager *mgr)
@@ -183,14 +152,7 @@ dsscomp_t dsscomp_new(struct omap_overlay_manager *mgr)
 	comp->ovl_mask = comp->ovl_dmask = 0;
 	comp->frm.sync_id = 0;
 	comp->frm.mgr.ix = display_ix;
-
-	/* :TODO: retrieve last manager configuration */
-
-	comp->magic = MAGIC_ACTIVE;
-
-	mutex_lock(&mtx);
-	list_add_tail(&comp->q, &mgrq[ix].q_ci);
-	mutex_unlock(&mtx);
+	comp->state = DSSCOMP_STATE_ACTIVE;
 
 	return comp;
 }
@@ -199,83 +161,75 @@ EXPORT_SYMBOL(dsscomp_new);
 /* returns overlays used in a composition */
 u32 dsscomp_get_ovls(dsscomp_t comp)
 {
-	BUG_ON(MUTEXED(IS_ERR(validate(comp))));
+	u32 mask;
 
-	return comp->ovl_mask;
+	mutex_lock(&mtx);
+	BUG_ON(comp->state != DSSCOMP_STATE_ACTIVE);
+	mask = comp->ovl_mask;
+	mutex_unlock(&mtx);
+
+	return mask;
 }
 EXPORT_SYMBOL(dsscomp_get_ovls);
 
 /* set overlay info */
 int dsscomp_set_ovl(dsscomp_t comp, struct dss2_ovl_info *ovl)
 {
-	int r = -EFAULT;
+	int r = -EBUSY;
+	u32 i, mask, oix, ix;
+	struct omap_overlay *o;
 
-	if (comp && ovl) {
-		u32 i, mask = 1 << ovl->cfg.ix;
-		struct omap_overlay *o;
-		u32 oix;
-		u32 ix = comp->frm.mgr.ix;
-		if (ix < cdev->num_displays &&
-		    cdev->displays[ix] &&
-		    cdev->displays[ix]->manager)
-			ix = cdev->displays[ix]->manager->id;
-		else
-			ix = cdev->num_mgrs;
-		if (ix >= cdev->num_mgrs)
-			return -ENODEV;
+	mutex_lock(&mtx);
 
-		mutex_lock(&mtx);
+	BUG_ON(!ovl);
+	BUG_ON(comp->state != DSSCOMP_STATE_ACTIVE);
 
-		/* composition must be active */
-		BUG_ON(IS_ERR(validate(comp)));
-		BUG_ON(comp->magic != MAGIC_ACTIVE);
+	ix = comp->ix;
 
-		if (ovl->cfg.ix >= cdev->num_ovls) {
-			r = -EINVAL;
-			goto done;
-		}
-
-		/* if overlay is already part of the composition */
-		if (mask & comp->ovl_mask) {
-			/* look up overlay */
-			for (oix = 0; oix < comp->frm.num_ovls; oix++)
-				if (comp->ovls[oix].cfg.ix == ovl->cfg.ix)
-					break;
-			BUG_ON(oix == comp->frm.num_ovls);
-		} else {
-			/* check if ovl is free to use */
-			r = -EBUSY;
-			if (comp->frm.num_ovls >= ARRAY_SIZE(comp->ovls))
-				goto done;
-
-			/* not in any other displays queue */
-			if (mask & ~mgrq[ix].ovl_qmask) {
-				for (i = 0; i < cdev->num_mgrs; i++) {
-
-					if (i == ix)
-						continue;
-					if (mgrq[i].ovl_qmask & mask)
-						goto done;
-				}
-			}
-
-			/* and disabled (unless forced) if on another manager */
-			o = cdev->ovls[ovl->cfg.ix];
-			if (o->info.enabled &&
-					(!o->manager || o->manager->id != ix))
-				goto done;
-
-			/* add overlay to composition & display */
-			comp->ovl_mask |= mask;
-			oix = comp->frm.num_ovls++;
-			mgrq[ix].ovl_qmask |= mask;
-		}
-
-		comp->ovls[oix] = *ovl;
-		r = 0;
- done:
-		mutex_unlock(&mtx);
+	if (ovl->cfg.ix >= cdev->num_ovls) {
+		r = -EINVAL;
+		goto done;
 	}
+
+	/* if overlay is already part of the composition */
+	mask = 1 << ovl->cfg.ix;
+	if (mask & comp->ovl_mask) {
+		/* look up overlay */
+		for (oix = 0; oix < comp->frm.num_ovls; oix++) {
+			if (comp->ovls[oix].cfg.ix == ovl->cfg.ix)
+				break;
+		}
+		BUG_ON(oix == comp->frm.num_ovls);
+	} else {
+		/* check if ovl is free to use */
+		if (comp->frm.num_ovls >= ARRAY_SIZE(comp->ovls))
+			goto done;
+
+		/* not in any other displays queue */
+		if (mask & ~mgrq[ix].ovl_qmask.mask) {
+			for (i = 0; i < cdev->num_mgrs; i++) {
+				if (i == ix)
+					continue;
+				if (mgrq[i].ovl_qmask.mask & mask)
+					goto done;
+			}
+		}
+
+		/* and disabled (unless forced) if on another manager */
+		o = cdev->ovls[ovl->cfg.ix];
+		if (o->info.enabled && (!o->manager || o->manager->id != ix))
+			goto done;
+
+		/* add overlay to composition & display */
+		comp->ovl_mask |= mask;
+		oix = comp->frm.num_ovls++;
+		maskref_incbit(&mgrq[ix].ovl_qmask, ovl->cfg.ix);
+	}
+
+	comp->ovls[oix] = *ovl;
+	r = 0;
+done:
+	mutex_unlock(&mtx);
 
 	return r;
 }
@@ -284,33 +238,29 @@ EXPORT_SYMBOL(dsscomp_set_ovl);
 /* get overlay info */
 int dsscomp_get_ovl(dsscomp_t comp, u32 ix, struct dss2_ovl_info *ovl)
 {
-	int r = -EFAULT;
+	int r;
 	u32 oix;
 
-	if (comp && ovl) {
-		mutex_lock(&mtx);
+	mutex_lock(&mtx);
 
-		/* composition must be active */
-		BUG_ON(IS_ERR(validate(comp)));
-		BUG_ON(comp->magic != MAGIC_ACTIVE);
+	BUG_ON(!ovl);
+	BUG_ON(comp->state != DSSCOMP_STATE_ACTIVE);
 
-		if (ix >= cdev->num_ovls) {
-			r = -EINVAL;
-		} else if (comp->ovl_mask & (1 << ix)) {
-			r = 0;
-			for (oix = 0; oix < comp->frm.num_ovls; oix++)
-				if (comp->ovls[oix].cfg.ix == ovl->cfg.ix) {
-					*ovl = comp->ovls[oix];
-					break;
-				}
-			BUG_ON(oix == comp->frm.num_ovls);
-		} else {
-			/* :TODO: get past overlay info */
-			r = -ENOENT;
-		}
-
-		mutex_unlock(&mtx);
+	if (ix >= cdev->num_ovls) {
+		r = -EINVAL;
+	} else if (comp->ovl_mask & (1 << ix)) {
+		r = 0;
+		for (oix = 0; oix < comp->frm.num_ovls; oix++)
+			if (comp->ovls[oix].cfg.ix == ovl->cfg.ix) {
+				*ovl = comp->ovls[oix];
+				break;
+			}
+		BUG_ON(oix == comp->frm.num_ovls);
+	} else {
+		r = -ENOENT;
 	}
+
+	mutex_unlock(&mtx);
 
 	return r;
 }
@@ -321,13 +271,9 @@ int dsscomp_set_mgr(dsscomp_t comp, struct dss2_mgr_info *mgr)
 {
 	mutex_lock(&mtx);
 
-	/* composition must be active */
-	BUG_ON(IS_ERR(validate(comp)));
-	BUG_ON(comp->magic != MAGIC_ACTIVE);
-	BUG_ON(!mgr);
+	BUG_ON(comp->state != DSSCOMP_STATE_ACTIVE);
+	BUG_ON(mgr->ix != comp->frm.mgr.ix);
 
-	/* set display index in manager info */
-	mgr->ix = comp->frm.mgr.ix;
 	comp->frm.mgr = *mgr;
 
 	mutex_unlock(&mtx);
@@ -341,10 +287,8 @@ int dsscomp_get_mgr(dsscomp_t comp, struct dss2_mgr_info *mgr)
 {
 	mutex_lock(&mtx);
 
-	/* composition must be active */
-	BUG_ON(IS_ERR(validate(comp)));
-	BUG_ON(comp->magic != MAGIC_ACTIVE);
 	BUG_ON(!mgr);
+	BUG_ON(comp->state != DSSCOMP_STATE_ACTIVE);
 
 	*mgr = comp->frm.mgr;
 
@@ -360,9 +304,7 @@ int dsscomp_setup(dsscomp_t comp, enum dsscomp_setup_mode mode,
 {
 	mutex_lock(&mtx);
 
-	/* composition must be active */
-	BUG_ON(IS_ERR(validate(comp)));
-	BUG_ON(comp->magic != MAGIC_ACTIVE);
+	BUG_ON(comp->state != DSSCOMP_STATE_ACTIVE);
 
 	comp->frm.mode = mode;
 	comp->frm.win = win;
@@ -378,28 +320,17 @@ EXPORT_SYMBOL(dsscomp_setup);
  *		QUEUING COMMITTING OPERATIONS
  * ===========================================================================
  */
-
-static void refresh_masks(u32 ix)
+void dsscomp_drop(dsscomp_t comp)
 {
-	struct dsscomp_data *c;
+	/* decrement unprogrammed references */
+	if (comp->state < DSSCOMP_STATE_PROGRAMMED)
+		maskref_decmask(&mgrq[comp->ix].ovl_qmask, comp->ovl_mask);
+	comp->state = 0;
 
-	mgrq[ix].ovl_qmask = mgrq[ix].ovl_mask;
-	list_for_each_entry(c, &mgrq[ix].q_ci, q) {
-		if (c->magic != MAGIC_PROGRAMMED)
-			mgrq[ix].ovl_qmask |= c->ovl_mask;
-	}
-
-	wake_up_interruptible_sync(&mgrq[ix].wq);
-}
-
-void dsscomp_drop(dsscomp_t c)
-{
 	if (debug & DEBUG_COMPOSITIONS)
-		dev_info(DEV(cdev), "[%p] released\n", c);
+		dev_info(DEV(cdev), "[%p] released\n", comp);
 
-	list_del(&c->q);
-	c->magic = 0;
-	kfree(c);
+	kfree(comp);
 }
 EXPORT_SYMBOL(dsscomp_drop);
 
@@ -420,46 +351,33 @@ static void dsscomp_mgr_delayed_cb(struct work_struct *work)
 
 	mutex_lock(&mtx);
 
-	/* verify validity */
-	BUG_ON(IS_ERR(validate(comp)));
+	BUG_ON(comp->state == DSSCOMP_STATE_ACTIVE);
+	ix = comp->ix;
 
 	/* call extra callbacks if requested */
 	if (comp->extra_cb)
-		comp->extra_cb(comp, status);
-
-	ix = comp->frm.mgr.ix;
-	if (ix >= cdev->num_displays ||
-	    !cdev->displays[ix] ||
-	    !cdev->displays[ix]->manager)
-		goto done;
-	ix = cdev->displays[ix]->manager->id;
-	if (ix >= cdev->num_mgrs)
-		goto done;
+		comp->extra_cb(comp->extra_cb_data, status);
 
 	/* handle programming & release */
 	if (status == DSS_COMPLETION_PROGRAMMED) {
-		comp->magic = MAGIC_PROGRAMMED;
-		if (debug & DEBUG_PHASES)
-			dev_info(DEV(cdev),
-				"[%p] programmed\n", comp);
+		comp->state = DSSCOMP_STATE_PROGRAMMED;
 
 		/* update used overlay mask */
 		mgrq[ix].ovl_mask = comp->ovl_mask & ~comp->ovl_dmask;
-		refresh_masks(ix);
-	} else if ((status & DSS_COMPLETION_DISPLAYED) &&
-		   comp->magic == MAGIC_PROGRAMMED) {
-		/* composition is 1st displayed */
-		comp->magic = MAGIC_DISPLAYED;
+		maskref_decmask(&mgrq[ix].ovl_qmask, comp->ovl_mask);
+
 		if (debug & DEBUG_PHASES)
-			dev_info(DEV(cdev),
-				"[%p] displayed\n", comp);
-		wake_up_interruptible_sync(&mgrq[ix].wq);
+			dev_info(DEV(cdev), "[%p] programmed\n", comp);
+	} else if ((status == DSS_COMPLETION_DISPLAYED) &&
+		   comp->state == DSSCOMP_STATE_PROGRAMMED) {
+		/* composition is 1st displayed */
+		comp->state = DSSCOMP_STATE_DISPLAYED;
+		if (debug & DEBUG_PHASES)
+			dev_info(DEV(cdev), "[%p] displayed\n", comp);
 	} else if (status & DSS_COMPLETION_RELEASED) {
 		/* composition is no longer displayed */
 		dsscomp_drop(comp);
-		refresh_masks(ix);
 	}
-done:
 	mutex_unlock(&mtx);
 }
 
@@ -473,7 +391,7 @@ static void dsscomp_mgr_callback(void *data, int id, int status)
 
 	if (status == DSS_COMPLETION_PROGRAMMED ||
 	    (status == DSS_COMPLETION_DISPLAYED &&
-	     comp->magic != MAGIC_DISPLAYED) ||
+	     comp->state != DSSCOMP_STATE_DISPLAYED) ||
 	    (status & DSS_COMPLETION_RELEASED)) {
 		struct dsscomp_cb_work *wk = kzalloc(sizeof(*wk), GFP_ATOMIC);
 		wk->comp = comp;
@@ -490,7 +408,8 @@ static inline bool dssdev_manually_updated(struct omap_dss_device *dev)
 }
 
 /* apply composition */
-int dsscomp_apply(dsscomp_t comp)
+/* at this point the composition is not on any queue */
+static int dsscomp_apply(dsscomp_t comp)
 {
 	int i, r = -EFAULT;
 	u32 dmask, display_ix;
@@ -499,16 +418,9 @@ int dsscomp_apply(dsscomp_t comp)
 	struct omap_overlay_manager *mgr;
 	struct omap_overlay *ovl;
 	struct dsscomp_setup_mgr_data *d;
-	struct dsscomp_data *c, *c2;
 	u32 oix;
-	bool change = false;
 
-	mutex_lock(&mtx);
-
-	/* check if composition is active */
-	BUG_ON(IS_ERR(validate(comp)));
-	BUG_ON(comp->magic != MAGIC_ACTIVE &&
-	       comp->magic != MAGIC_APPLYING);
+	BUG_ON(comp->state != DSSCOMP_STATE_APPLYING);
 
 	/* check if the display is valid and used */
 	r = -ENODEV;
@@ -524,18 +436,6 @@ int dsscomp_apply(dsscomp_t comp)
 	mgr = dssdev->manager;
 	if (!mgr || !drv || mgr->id >= cdev->num_mgrs)
 		goto done;
-
-	/* skip all unapplied prior compositions */
-	list_for_each_entry_safe(c, c2, &mgrq[mgr->id].q_ci, q) {
-		if (c == comp)
-			break;
-
-		/* keep applied compositions, as callback has been scheduled */
-		if (c->magic == MAGIC_ACTIVE) {
-			dsscomp_drop(c);
-			change = true;
-		}
-	}
 
 	dump_comp_info(cdev, d, "apply");
 
@@ -599,12 +499,7 @@ skip_ovl_set:
 	if (r && !comp->must_apply) {
 		dev_err(DEV(cdev), "[%p] set failed %d\n", comp, r);
 		/* extra callbacks in case of delayed apply */
-		if (comp->extra_cb)
-			comp->extra_cb(comp, DSS_COMPLETION_ECLIPSED_SET);
-
-		dsscomp_drop(comp);
-		refresh_masks(mgr->id);
-		change = true;
+		dsscomp_mgr_callback(comp, mgr->id, DSS_COMPLETION_ECLIPSED_SET);
 		goto done;
 	} else {
 		if (r)
@@ -620,19 +515,26 @@ skip_ovl_set:
 		/*
 		 * Check other overlays that may also use this display.
 		 * NOTE: This is only needed in case someone changes
-		 * overlays via sysfs.
+		 * overlays via sysfs.  We use comp->ovl_mask to refresh
+		 * the overlays actually used on a manager when the
+		 * composition is programmed.
 		 */
 		for (i = 0; i < cdev->num_ovls; i++) {
 			u32 mask = 1 << i;
 			if ((~comp->ovl_mask & mask) &&
 			    cdev->ovls[i]->info.enabled &&
-			    cdev->ovls[i]->manager == mgr)
+			    cdev->ovls[i]->manager == mgr) {
+				mutex_lock(&mtx);
 				comp->ovl_mask |= mask;
+				maskref_incbit(&mgrq[comp->ix].ovl_qmask, i);
+				mutex_unlock(&mtx);
+			}
 		}
 	}
 
 	/* apply changes and call update on manual panels */
-	comp->magic = MAGIC_APPLIED;
+	/* no need for mutex as no callbacks are scheduled yet */
+	comp->state = DSSCOMP_STATE_APPLIED;
 
 	if (!d->win.w && !d->win.x)
 		d->win.w = dssdev->panel.timings.x_res - d->win.x;
@@ -657,11 +559,6 @@ skip_ovl_set:
 	}
 
 done:
-	if (change)
-		refresh_masks(display_ix);
-
-	mutex_unlock(&mtx);
-
 	return r;
 }
 EXPORT_SYMBOL(dsscomp_apply);
@@ -689,81 +586,18 @@ int dsscomp_delayed_apply(dsscomp_t comp)
 
 	mutex_lock(&mtx);
 
-	/* check if composition is active */
-	BUG_ON(IS_ERR(validate(comp)));
-	BUG_ON(comp->magic != MAGIC_ACTIVE);
+	BUG_ON(comp->state != DSSCOMP_STATE_ACTIVE);
+	comp->state = DSSCOMP_STATE_APPLYING;
 
-	/* mark composition as being queued, so that it does not get skipped */
-	comp->magic = MAGIC_APPLYING;
-
+	if (debug & DEBUG_PHASES)
+		dev_info(DEV(cdev), "[%p] applying\n", comp);
 	mutex_unlock(&mtx);
 
 	wk->comp = comp;
 	INIT_WORK(&wk->work, dsscomp_do_apply);
-	return queue_work(apply_wkq, &wk->work) ? 0 : -EBUSY;
+	return queue_work(mgrq[comp->ix].apply_workq, &wk->work) ? 0 : -EBUSY;
 }
 EXPORT_SYMBOL(dsscomp_delayed_apply);
-
-/*
- * ===========================================================================
- *		WAIT OPERATIONS
- * ===========================================================================
- */
-
-/* return true iff composition phase has passed */
-static bool is_wait_over(dsscomp_t comp, enum dsscomp_wait_phase phase)
-{
-	comp = validate(comp);
-	return IS_ERR(comp) ||
-		(phase == DSSCOMP_WAIT_PROGRAMMED &&
-			(comp->magic == MAGIC_PROGRAMMED ||
-			 comp->magic == MAGIC_DISPLAYED)) ||
-		(phase == DSSCOMP_WAIT_DISPLAYED &&
-			comp->magic == MAGIC_DISPLAYED);
-}
-
-/* wait for programming or release of a composition */
-int dsscomp_wait(dsscomp_t comp, enum dsscomp_wait_phase phase, int timeout)
-{
-	dsscomp_t id;
-
-	mutex_lock(&mtx);
-
-	comp = validate(comp);
-	id = IS_ERR(comp) ? NULL : comp;
-	if (debug & DEBUG_WAITS)
-		dev_info(DEV(cdev), "wait %s on [%p]\n",
-			phase == DSSCOMP_WAIT_DISPLAYED ? "display" :
-			phase == DSSCOMP_WAIT_PROGRAMMED ? "program" :
-			"release", id);
-
-	if (!IS_ERR(comp) && !is_wait_over(comp, phase)) {
-		u32 ix = comp->frm.mgr.ix;
-
-		mutex_unlock(&mtx);
-
-		/*
-		 * we can check being active without mutex because we will
-		 * also check it while holding the mutex before returning
-		 */
-		timeout = wait_event_interruptible_timeout(mgrq[ix].wq,
-			is_wait_over(comp, phase), timeout);
-		if (debug & DEBUG_WAITS)
-			dev_info(DEV(cdev), "wait over [%p]: %s %d\n", id,
-				 timeout < 0 ? "signal" :
-				 timeout > 0 ? "ok" : "timeout",
-				 timeout);
-		if (timeout <= 0)
-			return timeout ? : -ETIME;
-
-		mutex_lock(&mtx);
-	}
-
-	mutex_unlock(&mtx);
-
-	return 0;
-}
-EXPORT_SYMBOL(dsscomp_wait);
 
 /*
  * ===========================================================================
@@ -772,14 +606,10 @@ EXPORT_SYMBOL(dsscomp_wait);
  */
 void dsscomp_queue_exit(void)
 {
-	struct dsscomp_data *c, *c2;
 	if (cdev) {
 		int i;
-		for (i = 0; i < cdev->num_displays; i++) {
-			list_for_each_entry_safe(c, c2, &mgrq[i].q_ci, q)
-				dsscomp_drop(c);
-		}
-		destroy_workqueue(apply_wkq);
+		for (i = 0; i < cdev->num_displays; i++)
+			destroy_workqueue(mgrq[i].apply_workq);
 		destroy_workqueue(cb_wkq);
 		cdev = NULL;
 	}
