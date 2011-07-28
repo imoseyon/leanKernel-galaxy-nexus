@@ -17,6 +17,7 @@
 
 #include <linux/kernel.h>
 #include <linux/err.h>
+#include <linux/slab.h>
 #include <linux/remoteproc.h>
 #include <linux/memblock.h>
 #include <plat/omap_device.h>
@@ -29,68 +30,6 @@
 
 #define OMAP4430_CM_M3_M3_CLKCTRL (OMAP4430_CM2_BASE + OMAP4430_CM2_CORE_INST \
 		+ OMAP4_CM_DUCATI_DUCATI_CLKCTRL_OFFSET)
-
-#define L4_PERIPHERAL_L4CFG	(L4_44XX_BASE)
-#define IPU_PERIPHERAL_L4CFG	0xAA000000
-
-#define L4_PERIPHERAL_L4PER	0x48000000
-#define IPU_PERIPHERAL_L4PER	0xA8000000
-
-#define L4_PERIPHERAL_L4EMU	0x54000000
-#define IPU_PERIPHERAL_L4EMU	0xB4000000
-
-#define L3_IVAHD_CONFIG		0x5A000000
-#define IPU_IVAHD_CONFIG	0xBA000000
-
-#define L3_IVAHD_SL2		0x5B000000
-#define IPU_IVAHD_SL2		0xBB000000
-
-#define L3_TILER_MODE_0_1	0x60000000
-#define IPU_TILER_MODE_0_1	0x60000000
-
-#define L3_TILER_MODE_2		0x70000000
-#define IPU_TILER_MODE_2	0x70000000
-
-#define L3_TILER_MODE_3		0x78000000
-#define IPU_TILER_MODE_3	0x78000000
-
-#define L3_IVAHD_CONFIG		0x5A000000
-#define IPU_IVAHD_CONFIG	0xBA000000
-
-#define L3_IVAHD_SL2		0x5B000000
-#define IPU_IVAHD_SL2		0xBB000000
-
-#define IPU_MEM_TEXT		0x0
-#define IPU_MEM_DATA		0x80000000
-#define IPU_MEM_IPC		0xA0000000
-
-/* TODO: Remove hardcoded RAM Addresses once we have the PA->VA lookup integrated.
- * IPC region should not be hard-coded. Text area is also not hard-coded since
- * VA to PA translation is not required. */
-#define PHYS_MEM_DATA		0xB9800000
-
-/*
- * Memory mappings for the remote M3 subsystem
- *
- * Don't change the device addresses (first parameter), otherwise you'd have
- * to update the firmware (BIOS image) accordingly.
- *
- * A 0 physical address (second parameter) means this physical region should
- * be dynamically carved out at boot time.
- */
-static struct rproc_mem_entry ipu_memory_maps[] = {
-	{IPU_MEM_IPC, 0, SZ_1M}, /* keep this IPC region first */
-	{IPU_MEM_TEXT, 0, SZ_4M},
-	{IPU_MEM_DATA, PHYS_MEM_DATA, SZ_1M * 96},
-	{IPU_PERIPHERAL_L4CFG, L4_PERIPHERAL_L4CFG, SZ_16M},
-	{IPU_PERIPHERAL_L4PER, L4_PERIPHERAL_L4PER, SZ_16M},
-	{IPU_TILER_MODE_0_1, L3_TILER_MODE_0_1, SZ_256M},
-	{IPU_TILER_MODE_2, L3_TILER_MODE_2, SZ_128M},
-	{IPU_TILER_MODE_3, L3_TILER_MODE_3, SZ_128M},
-	{IPU_IVAHD_CONFIG, L3_IVAHD_CONFIG, SZ_16M},
-	{IPU_IVAHD_SL2, L3_IVAHD_SL2, SZ_16M},
-	{ }
-};
 
 static struct omap_rproc_pdata omap4_rproc_data[] = {
 	{
@@ -105,7 +44,6 @@ static struct omap_rproc_pdata omap4_rproc_data[] = {
 		.firmware	= "ducati-m3.bin",
 		.oh_name	= "ipu_c0",
 		.oh_name_opt	= "ipu_c1",
-		.memory_maps	= ipu_memory_maps,
 		.idle_addr	= OMAP4430_CM_M3_M3_CLKCTRL,
 		.idle_mask	= OMAP4430_STBYST_MASK,
 		.suspend_addr	= 0xb98f02d8,
@@ -121,43 +59,55 @@ static struct omap_device_pm_latency omap_rproc_latency[] = {
 	},
 };
 
+static struct rproc_mem_pool *omap_rproc_get_pool(const char *name)
+{
+	struct rproc_mem_pool *pool = NULL;
+
+	/* check for ipu currently. dsp will be handled later */
+	if (!strcmp("ipu", name)) {
+		phys_addr_t paddr1 = omap_ipu_get_mempool_base(
+						OMAP_RPROC_MEMPOOL_STATIC);
+		phys_addr_t paddr2 = omap_ipu_get_mempool_base(
+						OMAP_RPROC_MEMPOOL_DYNAMIC);
+		u32 len1 = omap_ipu_get_mempool_size(OMAP_RPROC_MEMPOOL_STATIC);
+		u32 len2 = omap_ipu_get_mempool_size(OMAP_RPROC_MEMPOOL_DYNAMIC);
+
+		if (!paddr1 && !paddr2) {
+			pr_err("no carveout memory available at all for "
+				"remotproc\n");
+			return pool;
+		}
+		if (!paddr1 || !len1)
+			pr_warn("static memory is unavailable: 0x%x, 0x%x\n",
+				paddr1, len1);
+		if (!paddr2 || !len2)
+			pr_warn("carveout memory is unavailable: 0x%x, 0x%x\n",
+				paddr2, len2);
+
+		pool = kzalloc(sizeof(*pool), GFP_KERNEL);
+		if (pool) {
+			pool->st_base = paddr1;
+			pool->st_size = len1;
+			pool->mem_base = paddr2;
+			pool->mem_size = len2;
+			pool->cur_base = paddr2;
+			pool->cur_size = len2;
+		}
+	}
+
+	return pool;
+}
+
 static int __init omap_rproc_init(void)
 {
 	const char *pdev_name = "omap-rproc";
 	struct omap_hwmod *oh[2];
 	struct omap_device *od;
 	int i, ret = 0, oh_count;
-	phys_addr_t paddr, size;
 
 	/* names like ipu_cx/dsp_cx might show up on other OMAPs, too */
 	if (!cpu_is_omap44xx())
 		return 0;
-
-	paddr = omap_ipu_get_mempool_base(OMAP_RPROC_MEMPOOL_DYNAMIC);
-	size = omap_ipu_get_mempool_size(OMAP_RPROC_MEMPOOL_DYNAMIC);
-	if (!paddr || !size) {
-		pr_warn("carveout memory is unavailable: 0x%x, 0x%x\n",
-								paddr, size);
-		return -ENOMEM;
-	}
-
-	/* dynamically allocate carveout memory as required by the ipu */
-	for (i = 0; i < ARRAY_SIZE(ipu_memory_maps); i++) {
-		struct rproc_mem_entry *me = &ipu_memory_maps[i];
-
-		if (!me->pa && me->size) {
-			if (me->size > size) {
-				pr_warn("out of carveout memory\n");
-				return -ENOMEM;
-			}
-
-			me->pa = paddr;
-			paddr += me->size;
-			size -= me->size;
-
-			pr_info("0x%x bytes at 0x%x %d\n", me->size, me->pa, i);
-		}
-	}
 
 	for (i = 0; i < ARRAY_SIZE(omap4_rproc_data); i++) {
 		const char *oh_name = omap4_rproc_data[i].oh_name;
@@ -180,6 +130,8 @@ static int __init omap_rproc_init(void)
 			oh_count++;
 		}
 
+		omap4_rproc_data[i].memory_pool =
+				omap_rproc_get_pool(omap4_rproc_data[i].name);
 		od = omap_device_build_ss(pdev_name, i, oh, oh_count,
 					&omap4_rproc_data[i],
 					sizeof(struct omap_rproc_pdata),
