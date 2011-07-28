@@ -141,8 +141,7 @@ struct dpram_link_device {
 	int modem_pif_init_wait_condition;
 	wait_queue_head_t modem_pif_init_done_wait_q;
 
-	int gota_download_start_cmd_wait_condition;
-	wait_queue_head_t gota_download_start_cmd_wait_q;
+	struct completion gota_download_start_complete;
 
 	int gota_send_done_cmd_wait_condition;
 	wait_queue_head_t gota_send_done_cmd_wait_q;

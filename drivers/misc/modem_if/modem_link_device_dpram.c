@@ -252,18 +252,17 @@ static int dpram_process_modem_update(struct dpram_link_device *dpld,
 		return -ENOMEM;
 
 	ret = copy_from_user(buff, pfw->firmware, pfw->size);
+	if (ret < 0) {
+		pr_err("[%s:%d] Copy from user failed\n", __func__, __LINE__);
+		goto out;
+	}
 
-	if (ret  < 0) {
-		pr_err("[%s:%d] Copy from user failed\n",
-							__func__, __LINE__);
-		return -EINVAL;
-	} else if (dpram_download(dpld, buff, pfw->size) < 0) {
+	ret = dpram_download(dpld, buff, pfw->size);
+	if (ret < 0)
 		pr_err("firmware write failed\n");
-		return -EIO;
-		}
 
+out:
 	vfree(buff);
-
 	return ret;
 }
 
@@ -465,8 +464,6 @@ static irqreturn_t dpram_irq_handler(int irq, void *p_ld)
 	struct link_device *ld = (struct link_device *)p_ld;
 	struct dpram_link_device *dpld = to_dpram_link_device(ld);
 
-	disable_irq_wake(irq);
-
 	memcpy((u16 *)&irq_mask, (u16 *)dpld->m_region.mbx, sizeof(irq_mask));
 	pr_debug("received mailboxAB = 0x%x\n", irq_mask);
 
@@ -486,10 +483,8 @@ static irqreturn_t dpram_irq_handler(int irq, void *p_ld)
 		irq_mask &= ~INT_MASK_VALID;
 		non_command_handler(dpld, irq_mask);
 	}
-	goto exit_irq;
 
 exit_irq:
-	enable_irq_wake(irq);
 	return IRQ_HANDLED;
 }
 
@@ -847,9 +842,10 @@ static int dpram_download(struct dpram_link_device *dpld,
 			} else {
 				memcpy((u8 *)pDest, (u8 *)buf,
 						fmt_out_size - 7);
+				buffOffest = fmt_out_size - 7;
 				pDest = (u8 *)(dpld->m_region.raw_out);
 
-				memcpy((u8 *)pDest, (u8 *)buf,
+				memcpy((u8 *)pDest, (u8 *)(buf + buffOffest),
 						pLen - (fmt_out_size - 7));
 				pDest = (u8 *)(dpld->m_region.raw_out + pLen -
 						(fmt_out_size - 7));
@@ -875,9 +871,7 @@ static int dpram_download(struct dpram_link_device *dpld,
 		*pDest++ = END_INDEX;
 
 		if (currDownFrame == 0) {
-			dpld->gota_download_start_cmd_wait_condition = 1;
-			wake_up_interruptible(
-			&dpld->gota_download_start_cmd_wait_q);
+			complete(&dpld->gota_download_start_complete);
 		} else {
 			dpram_write_command(dpld, CMD_IMG_SEND_REQ);
 			pr_debug("[GOTA] Send AP-->CP CMD_IMG_SEND_REQ(0x9400)\n");
@@ -929,7 +923,6 @@ static int dpram_download(struct dpram_link_device *dpld,
 
 static void if_gota_cmd_work(struct work_struct *work)
 {
-	int download_start_RetVal = 0;
 	struct dpram_link_device *dpld =
 		container_of(work, struct dpram_link_device, gota_cmd_work);
 
@@ -943,15 +936,9 @@ static void if_gota_cmd_work(struct work_struct *work)
 		break;
 	case MASK_CMD_DOWNLOAD_START_RESPONSE:
 		pr_debug("[GOTA] Send CP-->AP CMD_RECEIVE_READY_NOTIFICATION(0xA301)\n");
-		download_start_RetVal =
-			wait_event_interruptible_timeout(
-			dpld->gota_download_start_cmd_wait_q,
-				dpld->gota_download_start_cmd_wait_condition,
-				GOTA_TIMEOUT);
-		if (!download_start_RetVal) {
-			pr_warn("[GOTA] CP don't send DOWNLOAD_START_RESPONSE.\n");
-			pr_warn("[GOTA] init_cmd_wait_condition is 0 and wait timeout happend\n");
-		}
+		wait_for_completion_interruptible_timeout(
+			&dpld->gota_download_start_complete,
+			GOTA_TIMEOUT);
 		dpram_write_command(dpld, CMD_IMG_SEND_REQ);
 		pr_debug("[GOTA] Send AP-->CP CMD_DL_START_REQ(0x9400)\n");
 		break;
@@ -996,11 +983,11 @@ static int if_dpram_init(struct platform_device *pdev, struct link_device *ld)
 	}
 	init_waitqueue_head(&dpld->dpram_init_cmd_wait_q);
 
-	init_waitqueue_head(&dpld->gota_download_start_cmd_wait_q);
-
 	init_waitqueue_head(&dpld->gota_send_done_cmd_wait_q);
 
 	init_waitqueue_head(&dpld->gota_update_done_cmd_wait_q);
+
+	init_completion(&dpld->gota_download_start_complete);
 
 	INIT_WORK(&dpld->gota_cmd_work, if_gota_cmd_work);
 
