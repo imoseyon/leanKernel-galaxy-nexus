@@ -278,6 +278,28 @@ out:
 		__raw_writel(clkctrl, gpio_clkctrl[bank]);
 }
 
+#define CONTROL_PADCONF_WAKEUPEVENT_0	0x4a1001d8
+
+static void _print_prcm_wakeirq(int irq)
+{
+	int i, bit;
+	int iopad_wake_found = 0;
+
+	for (i = 0; i <= 6; i++) {
+		long unsigned int wkevt =
+			omap_readw(CONTROL_PADCONF_WAKEUPEVENT_0 + i*4);
+
+		for_each_set_bit(bit, &wkevt, 32) {
+			printk("Resume caused by I/O pad: CONTROL_PADCONF_WAKEUPEVENT_%d[%d]\n",
+			       i, bit);
+			iopad_wake_found = 1;
+		}
+	}
+
+	if (!iopad_wake_found)
+		_print_wakeirq(irq);
+}
+
 static void omap4_print_wakeirq(void)
 {
 	int irq;
@@ -292,6 +314,8 @@ static void omap4_print_wakeirq(void)
 	if (irq >= OMAP44XX_IRQ_GPIO1 &&
 	    irq <= OMAP44XX_IRQ_GPIO1 + GPIO_BANKS - 1)
 		_print_gpio_wakeirq(irq);
+	else if (irq == OMAP44XX_IRQ_PRCM)
+		_print_prcm_wakeirq(irq);
 	else
 		_print_wakeirq(irq);
 }
