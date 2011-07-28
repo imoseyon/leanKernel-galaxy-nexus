@@ -239,7 +239,7 @@ static DECLARE_WAIT_QUEUE_HEAD(early_suspend_wq);
 static void dsscomp_early_suspend_cb(void *data, int status)
 {
 	blank_complete = true;
-	wake_up_interruptible_sync(&early_suspend_wq);
+	wake_up(&early_suspend_wq);
 }
 
 static void dsscomp_early_suspend(struct early_suspend *h)
@@ -252,8 +252,8 @@ static void dsscomp_early_suspend(struct early_suspend *h)
 	pr_info("DSSCOMP: %s\n", __func__);
 
 	/* use gralloc queue as we need to blank all screens */
-	dsscomp_gralloc_queue(&d, NULL, dsscomp_early_suspend_cb, NULL);
 	blank_complete = false;
+	dsscomp_gralloc_queue(&d, NULL, dsscomp_early_suspend_cb, NULL);
 
 	/* wait until composition is displayed */
 	err = wait_event_timeout(early_suspend_wq, blank_complete,

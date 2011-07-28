@@ -36,7 +36,7 @@
 
 #include <plat/rpmsg.h>
 #include <plat/mailbox.h>
-#include <plat/dsp.h>
+#include <plat/remoteproc.h>
 
 struct omap_rpmsg_vproc {
 	struct virtio_device vdev;
@@ -455,8 +455,10 @@ static struct omap_rpmsg_vproc omap_rpmsg_vprocs[] = {
 static int __init omap_rpmsg_ini(void)
 {
 	int i, ret = 0;
-	phys_addr_t paddr = omap_dsp_get_mempool_base();
-	phys_addr_t psize = omap_dsp_get_mempool_size();
+	phys_addr_t paddr = omap_ipu_get_mempool_base(
+						OMAP_RPROC_MEMPOOL_DYNAMIC);
+	phys_addr_t psize = omap_ipu_get_mempool_size(
+						OMAP_RPROC_MEMPOOL_DYNAMIC);
 
 	for (i = 0; i < ARRAY_SIZE(omap_rpmsg_vprocs); i++) {
 		struct omap_rpmsg_vproc *rpdev = &omap_rpmsg_vprocs[i];

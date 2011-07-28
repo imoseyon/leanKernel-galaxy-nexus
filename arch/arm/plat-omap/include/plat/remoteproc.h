@@ -17,6 +17,7 @@
 #define _PLAT_REMOTEPROC_H
 
 #include <linux/remoteproc.h>
+#include <plat/omap_device.h>
 
 /*
  * struct omap_rproc_pdata - platform data for the omap rproc implementation
@@ -44,6 +45,30 @@ struct omap_rproc_pdata {
 	unsigned sus_timeout;
 	char *sus_mbox_name;
 };
+
+enum omap_rproc_mempool_type {
+	OMAP_RPROC_MEMPOOL_STATIC,
+	OMAP_RPROC_MEMPOOL_DYNAMIC
+};
+
+#if defined(CONFIG_OMAP_REMOTE_PROC)
+void omap_ipu_reserve_sdram_memblock(void);
+u32 omap_ipu_get_mempool_size(enum omap_rproc_mempool_type type);
+phys_addr_t omap_ipu_get_mempool_base(enum omap_rproc_mempool_type type);
+void omap_ipu_set_static_mempool(u32 start, u32 size);
+#else
+static inline void omap_ipu_reserve_sdram_memblock(void) { }
+static inline u32 omap_ipu_get_mempool_size(enum omap_rproc_mempool_type type)
+{
+	return 0;
+}
+static inline phys_addr_t omap_ipu_get_mempool_base(
+					enum omap_rproc_mempool_type type)
+{
+	return 0;
+}
+static inline void omap_ipu_set_static_mempool(u32 start, u32 size) { }
+#endif
 
 int omap_rproc_deactivate(struct omap_device *od);
 int omap_rproc_activate(struct omap_device *od);
