@@ -24,8 +24,6 @@ int omap_device_scale(struct device *req_dev, struct device *target_dev,
 
 bool omap_dvfs_is_scaling(struct voltagedomain *voltdm);
 #else
-static inline int omap_dvfs_register_device(struct omap_hwmod *oh,
-		struct device *dev)
 static inline int omap_dvfs_register_device(struct device *dev,
 		char *voltdm_name, char *clk_name)
 {
