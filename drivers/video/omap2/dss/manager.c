@@ -1038,7 +1038,8 @@ static int configure_overlay(enum omap_plane plane)
 
 	r = dispc_scaling_decision(w, h, outw, outh,
 			       plane, c->color_mode, c->channel,
-			       c->rotation, c->min_x_decim, c->max_x_decim,
+			       c->rotation, c->rotation_type,
+			       c->min_x_decim, c->max_x_decim,
 			       c->min_y_decim, c->max_y_decim,
 			       &x_decim, &y_decim, &five_taps);
 	r = r ? : dispc_setup_plane(plane,
