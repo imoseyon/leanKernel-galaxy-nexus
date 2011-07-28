@@ -10,99 +10,354 @@
  * published by the Free Software Foundation.
  */
 
+#include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/cpuidle.h>
 #include <linux/clockchips.h>
 #include <linux/notifier.h>
 #include <linux/cpu.h>
+#include <linux/delay.h>
 
+#include <asm/cacheflush.h>
 #include <asm/proc-fns.h>
+#include <asm/hardware/gic.h>
 
 #include <mach/omap4-common.h>
+#include <mach/omap-wakeupgen.h>
 
 #include <plat/gpio.h>
 
+#include "clockdomain.h"
 #include "pm.h"
 #include "prm.h"
 
 #ifdef CONFIG_CPU_IDLE
 
-#define OMAP4_MAX_STATES	4
-
-/* C1 - CPU0 WFI + CPU1 OFF + MPU ON + CORE ON */
+/* C1 is a single-cpu C-state, it can be entered by each cpu independently */
+/* C1 - CPUx WFI + MPU ON + CORE ON */
 #define OMAP4_STATE_C1		0
-/* C2 - CPU0 INA + CPU1 OFF + MPU INA + CORE INA */
+/* C2 through C4 are shared C-states, both CPUs must agree to enter */
+/* C2 - CPU0 INA + CPU1 INA + MPU INA + CORE INA */
 #define OMAP4_STATE_C2		1
 /* C3 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
 #define OMAP4_STATE_C3		2
 /* C4 - CPU0 OFF + CPU1 OFF + MPU OSWR + CORE OSWR */
 #define OMAP4_STATE_C4		3
 
+#define OMAP4_MAX_STATES	4
+
+static bool disallow_smp_idle;
+module_param(disallow_smp_idle, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(disallow_smp_idle,
+	"Don't enter idle if multiple cpus are active");
+
+static bool skip_off;
+module_param(skip_off, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(skip_off,
+	"Do everything except actually enter the low power state (debugging)");
+
+static bool keep_core_on;
+module_param(keep_core_on, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(keep_core_on,
+	"Prevent core powerdomain from entering any low power states (debugging)");
+
+static bool keep_mpu_on;
+module_param(keep_mpu_on, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(keep_mpu_on,
+	"Prevent mpu powerdomain from entering any low power states (debugging)");
+
+static int max_state;
+module_param(max_state, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(max_state,
+	"Select deepest power state allowed (0=any, 1=WFI, 2=INA, 3=CSWR, 4=OSWR)");
+
+static int only_state;
+module_param(only_state, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(only_state,
+	"Select only power state allowed (0=any, 1=WFI, 2=INA, 3=CSWR, 4=OSWR)");
+
+static const int omap4_poke_interrupt[2] = {
+	OMAP44XX_IRQ_CPUIDLE_POKE0,
+	OMAP44XX_IRQ_CPUIDLE_POKE1
+};
+
 struct omap4_processor_cx {
 	u8 valid;
 	u8 type;
 	u32 exit_latency;
 	u32 target_residency;
-	u32 cpu0_state;
 	u32 mpu_state;
 	u32 mpu_logic_state;
 	u32 core_state;
 	u32 core_logic_state;
-	u32 flags;
 	const char *desc;
 };
 
 struct omap4_processor_cx omap4_power_states[OMAP4_MAX_STATES];
 static struct powerdomain *mpu_pd, *cpu1_pd, *core_pd;
-static int needs_state_data_update;
-static unsigned int state_flags = CPUIDLE_FLAG_IGNORE;
+static struct omap4_processor_cx *omap4_idle_requested_cx[NR_CPUS];
+static int omap4_idle_ready_count;
+static DEFINE_SPINLOCK(omap4_idle_lock);
+static struct clockdomain *cpu1_cd;
 
 /*
- * FIXME: Full latency numbers needs to be updated as part of
- * cpuidle CORE retention support.
- * Currently only MPUSS latency numbers are added based on
- * measurements done internally. The numbers for MPUSS are
- * not board dependent and hence set directly here instead of
- * passing it from board files.
+ * Raw measured exit latency numbers (us):
+ * state	average		max
+ * C2		1597		3418
+ * C3		2167		4153
+ * C4		2225		4943
  */
+
 static struct cpuidle_params cpuidle_params_table[] = {
-	/* C1 - CPU0 WFI + CPU1 OFF + MPU ON  + CORE ON */
+	/* C1 - CPUx WFI + MPU ON  + CORE ON */
 	{.exit_latency = 2 + 2,	.target_residency = 5, .valid = 1},
-	/* C2 - CPU0 INA + CPU1 OFF + MPU INA  + CORE INA */
-	{.exit_latency = 140 + 160, .target_residency = 300, .valid = 1},
+	/* C2 - CPU0 INA + CPU1 INA + MPU INA  + CORE INA */
+	{.exit_latency = 3500, .target_residency = 3500, .valid = 1},
 	/* C3 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
-	{.exit_latency = 1516 + 3220, .target_residency = 15000, .valid = 1},
+	{.exit_latency = 4200, .target_residency = 4200, .valid = 1},
 #ifdef CONFIG_OMAP_ALLOW_OSWR
 	/* C4 - CPU0 OFF + CPU1 OFF + MPU OSWR + CORE OSWR */
-	{.exit_latency = 1644 + 3298, .target_residency = 39000, .valid = 1},
+	{.exit_latency = 5000, .target_residency = 5000, .valid = 1},
 #else
-	{.exit_latency = 1644 + 3298, .target_residency = 39000, .valid = 0},
+	{.exit_latency = 5000, .target_residency = 5000, .valid = 0},
 #endif
 };
 
-/**
- * omap4_prepare_idle - Update C-state parameters dynamically
- * @dev: cpuidle device
- *
- * Called from the CPUidle framework to prepare the device
- * for idle before before calling the governor's select function.
- */
-static int omap4_prepare_idle(struct cpuidle_device *dev)
+static void omap4_update_actual_state(struct cpuidle_device *dev,
+	struct omap4_processor_cx *cx)
 {
-	int i, ret = 0;
+	int i;
 
-	if (!needs_state_data_update)
-		return ret;
+	for (i = 0; i < dev->state_count; i++) {
+		if (dev->states[i].driver_data == cx) {
+			dev->last_state = &dev->states[i];
+			return;
+		}
+	}
+}
 
-	/*
-	 * Update the C-state flags based on CPU1 online
-	 * or offline state. On OMAP4, the low power C-states
-	 * are made available when only CPU1 is offline.
-	 */
-	for (i = OMAP4_STATE_C2; i < OMAP4_MAX_STATES; i++)
-		dev->states[i].flags = state_flags;
+/**
+ * omap4_idle_wait
+ *
+ * similar to WFE, but can be woken by an interrupt even though interrupts
+ * are masked.  An "event" is emulated by per-cpu unused interrupt in the GIC.
+ * Returns false if wake caused by an interrupt, true if by an "event".
+ */
+static bool omap4_idle_wait(void)
+{
+	int cpu = hard_smp_processor_id();
+	void __iomem *gic_dist = omap4_get_gic_dist_base();
+	u32 bit = BIT(omap4_poke_interrupt[cpu] % 32);
+	u32 reg = (omap4_poke_interrupt[cpu] / 32) * 4;
+	bool poked;
 
-	return ret;
+	/* Unmask the "event" interrupt */
+	__raw_writel(bit, gic_dist + GIC_DIST_ENABLE_SET + reg);
+
+	dsb();
+	__asm__ volatile ("wfi");
+
+	/* Read the "event" interrupt pending bit */
+	poked = __raw_readl(gic_dist + GIC_DIST_PENDING_SET + reg) & bit;
+
+	/* Mask the "event" */
+	__raw_writel(bit, gic_dist + GIC_DIST_ENABLE_CLEAR + reg);
+
+	/* Clear the event */
+	if (poked)
+		__raw_writel(bit, gic_dist + GIC_DIST_PENDING_CLEAR + reg);
+
+	return poked;
+}
+
+/**
+ * omap4_poke_cpu
+ * @cpu: cpu to wake
+ *
+ * trigger an "event" to wake a cpu from omap4_idle_wait.
+ */
+static void omap4_poke_cpu(int cpu)
+{
+	void __iomem *gic_dist = omap4_get_gic_dist_base();
+	u32 bit = BIT(omap4_poke_interrupt[cpu] % 32);
+	u32 reg = (omap4_poke_interrupt[cpu] / 32) * 4;
+
+	__raw_writel(bit, gic_dist + GIC_DIST_PENDING_SET + reg);
+}
+
+/**
+ * omap4_enter_idle
+ * @dev: cpuidle device
+ * @state: The target state to be programmed
+ *
+ * Idle function for C1 state, WFI on a single CPU.
+ * Called with irqs off, returns with irqs on.
+ * Returns the amount of time spent in the low power state.
+ */
+static int omap4_enter_idle_wfi(struct cpuidle_device *dev,
+	struct cpuidle_state *state)
+{
+	ktime_t preidle, postidle;
+
+	local_fiq_disable();
+
+	preidle = ktime_get();
+
+	omap_do_wfi();
+
+	postidle = ktime_get();
+
+	local_fiq_enable();
+	local_irq_enable();
+
+	omap4_update_actual_state(dev, &omap4_power_states[OMAP4_STATE_C1]);
+
+	return ktime_to_us(ktime_sub(postidle, preidle));
+}
+
+static inline bool omap4_all_cpus_idle(void)
+{
+	int i;
+
+	assert_spin_locked(&omap4_idle_lock);
+
+	for_each_online_cpu(i)
+		if (omap4_idle_requested_cx[i] == NULL)
+			return false;
+
+	return true;
+}
+
+static inline struct omap4_processor_cx *omap4_get_idle_state(void)
+{
+	struct omap4_processor_cx *cx = NULL;
+	int i;
+
+	assert_spin_locked(&omap4_idle_lock);
+
+	for_each_online_cpu(i)
+		if (!cx || omap4_idle_requested_cx[i]->type < cx->type)
+			cx = omap4_idle_requested_cx[i];
+
+	return cx;
+}
+
+static void omap4_cpu_poke_others(int cpu)
+{
+	int i;
+
+	for_each_online_cpu(i)
+		if (i != cpu)
+			omap4_poke_cpu(i);
+}
+
+static void omap4_cpu_update_state(int cpu, struct omap4_processor_cx *cx)
+{
+	assert_spin_locked(&omap4_idle_lock);
+
+	omap4_idle_requested_cx[cpu] = cx;
+	omap4_cpu_poke_others(cpu);
+}
+
+/**
+ * omap4_enter_idle_primary
+ * @cx: target idle state
+ *
+ * Waits for cpu1 to be off, then starts the transition to the target power
+ * state for cpu0, mpu and core power domains.
+ */
+static void omap4_enter_idle_primary(struct omap4_processor_cx *cx)
+{
+	int cpu = 0;
+	int ret;
+	int count = 1000000;
+
+	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu);
+
+	if (!keep_mpu_on) {
+		pwrdm_set_logic_retst(mpu_pd, cx->mpu_logic_state);
+		omap_set_pwrdm_state(mpu_pd, cx->mpu_state);
+	}
+
+	if (!keep_core_on) {
+		pwrdm_set_logic_retst(core_pd, cx->core_logic_state);
+		omap_set_pwrdm_state(core_pd, cx->core_state);
+	}
+
+	if (skip_off)
+		goto out;
+
+	/* spin until cpu1 is really off */
+	while ((pwrdm_read_pwrst(cpu1_pd) != PWRDM_POWER_OFF) && count--)
+		cpu_relax();
+
+	if (pwrdm_read_pwrst(cpu1_pd) != PWRDM_POWER_OFF)
+		goto wake_cpu1;
+
+	ret = pwrdm_wait_transition(cpu1_pd);
+	if (ret)
+		goto wake_cpu1;
+
+	pr_debug("%s: cpu0 down\n", __func__);
+
+	omap4_enter_sleep(0, PWRDM_POWER_OFF, false);
+
+	pr_debug("%s: cpu0 up\n", __func__);
+
+	/* restore the MPU and CORE states to ON */
+	omap_set_pwrdm_state(mpu_pd, PWRDM_POWER_ON);
+	omap_set_pwrdm_state(core_pd, PWRDM_POWER_ON);
+
+wake_cpu1:
+	if (!cpu_is_offline(1)) {
+		/*
+		 * Work around a ROM bug that causes CPU1 to corrupt the
+		 * gic distributor enable register on 4460 by disabling
+		 * the gic distributor before waking CPU1, and then waiting
+		 * for CPU1 to re-enable the gic distributor before continuing.
+		 */
+		if (!cpu_is_omap443x())
+			gic_dist_disable();
+
+		clkdm_wakeup(cpu1_cd);
+
+		if (!cpu_is_omap443x())
+			while (gic_dist_disabled())
+				cpu_relax();
+	}
+
+out:
+	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &cpu);
+}
+
+/**
+ * omap4_enter_idle_secondary
+ * @cpu: target cpu number
+ *
+ * Puts target cpu powerdomain into OFF.
+ */
+static void omap4_enter_idle_secondary(int cpu)
+{
+	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu);
+
+	pr_debug("%s: cpu1 down\n", __func__);
+	flush_cache_all();
+	dsb();
+
+	/* TODO: merge CPU1 wakeup masks into CPU0 */
+	omap_wakeupgen_irqmask_all(cpu, 1);
+	gic_cpu_disable();
+
+	if (!skip_off)
+		omap4_enter_lowpower(cpu, PWRDM_POWER_OFF);
+
+	omap_wakeupgen_irqmask_all(cpu, 0);
+	gic_cpu_enable();
+
+	pr_debug("%s: cpu1 up\n", __func__);
+
+	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &cpu);
 }
 
 /**
@@ -112,59 +367,179 @@ static int omap4_prepare_idle(struct cpuidle_device *dev)
  *
  * Called from the CPUidle framework to program the device to the
  * specified low power state selected by the governor.
+ * Called with irqs off, returns with irqs on.
  * Returns the amount of time spent in the low power state.
  */
 static int omap4_enter_idle(struct cpuidle_device *dev,
 			struct cpuidle_state *state)
 {
 	struct omap4_processor_cx *cx = cpuidle_get_statedata(state);
-	struct timespec ts_preidle, ts_postidle, ts_idle;
-	u32 cpu1_state;
-	int cpu_id = smp_processor_id();
-
-	/* Used to keep track of the total time in idle */
-	getnstimeofday(&ts_preidle);
-
-	local_irq_disable();
-	local_fiq_disable();
+	struct omap4_processor_cx *actual_cx;
+	ktime_t preidle, postidle;
+	bool idle = true;
+	int cpu = dev->cpu;
 
 	/*
-	 * Continue to do only WFI on CPU0 till CPU1 hits OFF state.
-	 * This is necessary to honour hardware recommondation
-	 * of triggeing all the possible low power modes once CPU1 is
-	 * out of coherency and in OFF mode.
-	 * Update dev->last_state so that governor stats reflects right
-	 * data.
+	 * If disallow_smp_idle is set, revert to the old hotplug governor
+	 * behavior
 	 */
-	cpu1_state = pwrdm_read_pwrst(cpu1_pd);
-	if ((cpu1_state != PWRDM_POWER_OFF) || (!cx->valid)) {
-		dev->last_state = dev->safe_state;
-		cx = cpuidle_get_statedata(dev->safe_state);
+	if (dev->cpu != 0 && disallow_smp_idle)
+		return omap4_enter_idle_wfi(dev, state);
+
+	/* Clamp the power state at max_state */
+	if (max_state > 0 && (cx->type > max_state - 1))
+		cx = &omap4_power_states[max_state - 1];
+
+	/*
+	 * If only_state is set, use wfi if asking for a shallower idle state,
+	 * or the specified state if asking for a deeper idle state
+	 */
+	if (only_state > 0) {
+		if (cx->type < only_state - 1)
+			cx = &omap4_power_states[OMAP4_STATE_C1];
+		else
+			cx = &omap4_power_states[only_state - 1];
 	}
 
-	pwrdm_set_logic_retst(mpu_pd, cx->mpu_logic_state);
-	omap_set_pwrdm_state(mpu_pd, cx->mpu_state);
-	pwrdm_set_logic_retst(core_pd, cx->core_logic_state);
-	omap_set_pwrdm_state(core_pd, cx->core_state);
+	if (cx->type == OMAP4_STATE_C1)
+		return omap4_enter_idle_wfi(dev, state);
 
-	if (cx->type > OMAP4_STATE_C1)
-		clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu_id);
+	preidle = ktime_get();
 
-	omap4_enter_sleep(dev->cpu, cx->cpu0_state, false);
+	local_fiq_disable();
 
-	/* restore the MPU and CORE states to ON */
-	omap_set_pwrdm_state(mpu_pd, PWRDM_POWER_ON);
-	omap_set_pwrdm_state(core_pd, PWRDM_POWER_ON);
-	if (cx->type > OMAP4_STATE_C1)
-		clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &cpu_id);
+	actual_cx = &omap4_power_states[OMAP4_STATE_C1];
 
-	getnstimeofday(&ts_postidle);
-	ts_idle = timespec_sub(ts_postidle, ts_preidle);
+	spin_lock(&omap4_idle_lock);
+	omap4_cpu_update_state(cpu, cx);
+
+	/* Wait for both cpus to be idle, exiting if an interrupt occurs */
+	while (idle && !omap4_all_cpus_idle()) {
+		spin_unlock(&omap4_idle_lock);
+		idle = omap4_idle_wait();
+		spin_lock(&omap4_idle_lock);
+	}
+
+	/*
+	 * If we waited for longer than a millisecond, pop out to the governor
+	 * to let it recalculate the desired state.
+	 */
+	if (ktime_to_us(ktime_sub(preidle, ktime_get())) > 1000)
+		idle = false;
+
+	if (!idle) {
+		omap4_cpu_update_state(cpu, NULL);
+		spin_unlock(&omap4_idle_lock);
+		goto out;
+	}
+
+	/*
+	 * Both cpus are probably idle.  There is a small chance the other cpu
+	 * just became active.  cpu 0 will set omap4_idle_ready_count to 1,
+	 * then each other cpu will increment it.  Once a cpu has incremented
+	 * the count, it cannot abort idle and must spin until either the count
+	 * has hit num_online_cpus(), or is reset to 0 by an aborting cpu.
+	 */
+	if (cpu == 0) {
+		BUG_ON(omap4_idle_ready_count != 0);
+		/* cpu0 requests shared-OFF */
+		omap4_idle_ready_count = 1;
+		/* cpu0 can no longer abort shared-OFF, but cpu1 can */
+
+		/* wait for cpu1 to ack shared-OFF, or leave idle */
+		while (omap4_idle_ready_count != num_online_cpus() &&
+		    omap4_idle_ready_count != 0 && omap4_all_cpus_idle()) {
+			spin_unlock(&omap4_idle_lock);
+			cpu_relax();
+			spin_lock(&omap4_idle_lock);
+		}
+
+		if (omap4_idle_ready_count != num_online_cpus() ||
+		    !omap4_all_cpus_idle()) {
+			pr_debug("%s: cpu1 aborted: %d %p\n", __func__,
+				omap4_idle_ready_count,
+				omap4_idle_requested_cx[1]);
+			omap4_idle_ready_count = 0;
+			omap4_cpu_update_state(cpu, NULL);
+			spin_unlock(&omap4_idle_lock);
+			goto out;
+		}
+
+		actual_cx = omap4_get_idle_state();
+		spin_unlock(&omap4_idle_lock);
+
+		/* cpu1 is turning itself off, continue with turning cpu0 off */
+
+		omap4_enter_idle_primary(actual_cx);
+
+		spin_lock(&omap4_idle_lock);
+		omap4_idle_ready_count = 0;
+		omap4_cpu_update_state(cpu, NULL);
+		spin_unlock(&omap4_idle_lock);
+	} else {
+		/* wait for cpu0 to request the shared-OFF, or leave idle */
+		while ((omap4_idle_ready_count == 0) && omap4_all_cpus_idle()) {
+			spin_unlock(&omap4_idle_lock);
+			cpu_relax();
+			spin_lock(&omap4_idle_lock);
+		}
+
+		if (!omap4_all_cpus_idle()) {
+			pr_debug("%s: cpu0 aborted: %d %p\n", __func__,
+				omap4_idle_ready_count,
+				omap4_idle_requested_cx[0]);
+			omap4_cpu_update_state(cpu, NULL);
+			spin_unlock(&omap4_idle_lock);
+			goto out;
+		}
+
+		pr_debug("%s: cpu1 acks\n", __func__);
+		/* ack shared-OFF */
+		if (omap4_idle_ready_count > 0)
+			omap4_idle_ready_count++;
+		BUG_ON(omap4_idle_ready_count > num_online_cpus());
+
+		while (omap4_idle_ready_count != num_online_cpus() &&
+		    omap4_idle_ready_count != 0) {
+			spin_unlock(&omap4_idle_lock);
+			cpu_relax();
+			spin_lock(&omap4_idle_lock);
+		}
+
+		if (omap4_idle_ready_count == 0) {
+			pr_debug("%s: cpu0 aborted: %d %p\n", __func__,
+				omap4_idle_ready_count,
+				omap4_idle_requested_cx[0]);
+			omap4_cpu_update_state(cpu, NULL);
+			spin_unlock(&omap4_idle_lock);
+			goto out;
+		}
+
+		/* cpu1 can no longer abort shared-OFF */
+
+		actual_cx = omap4_get_idle_state();
+		spin_unlock(&omap4_idle_lock);
+
+		omap4_enter_idle_secondary(cpu);
+
+		spin_lock(&omap4_idle_lock);
+		omap4_idle_ready_count = 0;
+		omap4_cpu_update_state(cpu, NULL);
+		spin_unlock(&omap4_idle_lock);
+
+		clkdm_allow_idle(cpu1_cd);
+
+	}
+
+out:
+	postidle = ktime_get();
+
+	omap4_update_actual_state(dev, actual_cx);
 
 	local_irq_enable();
 	local_fiq_enable();
 
-	return ts_idle.tv_nsec / NSEC_PER_USEC + ts_idle.tv_sec * USEC_PER_SEC;
+	return ktime_to_us(ktime_sub(postidle, preidle));
 }
 
 DEFINE_PER_CPU(struct cpuidle_device, omap4_idle_dev);
@@ -187,13 +562,7 @@ void omap4_init_power_states(void)
 			cpuidle_params_table[OMAP4_STATE_C1].exit_latency;
 	omap4_power_states[OMAP4_STATE_C1].target_residency =
 			cpuidle_params_table[OMAP4_STATE_C1].target_residency;
-	omap4_power_states[OMAP4_STATE_C1].cpu0_state = PWRDM_POWER_ON;
-	omap4_power_states[OMAP4_STATE_C1].mpu_state = PWRDM_POWER_ON;
-	omap4_power_states[OMAP4_STATE_C1].mpu_logic_state = PWRDM_POWER_RET;
-	omap4_power_states[OMAP4_STATE_C1].core_state = PWRDM_POWER_ON;
-	omap4_power_states[OMAP4_STATE_C1].core_logic_state = PWRDM_POWER_RET;
-	omap4_power_states[OMAP4_STATE_C1].flags = CPUIDLE_FLAG_TIME_VALID;
-	omap4_power_states[OMAP4_STATE_C1].desc = "MPU ON + CORE ON";
+	omap4_power_states[OMAP4_STATE_C1].desc = "CPU WFI";
 
 	/*
 	 * C2 - CPU0 INA + CPU1 OFF + MPU INA + CORE INA
@@ -205,13 +574,11 @@ void omap4_init_power_states(void)
 			cpuidle_params_table[OMAP4_STATE_C2].exit_latency;
 	omap4_power_states[OMAP4_STATE_C2].target_residency =
 			cpuidle_params_table[OMAP4_STATE_C2].target_residency;
-	omap4_power_states[OMAP4_STATE_C2].cpu0_state = PWRDM_POWER_INACTIVE;
 	omap4_power_states[OMAP4_STATE_C2].mpu_state = PWRDM_POWER_INACTIVE;
 	omap4_power_states[OMAP4_STATE_C2].mpu_logic_state = PWRDM_POWER_RET;
 	omap4_power_states[OMAP4_STATE_C2].core_state = PWRDM_POWER_INACTIVE;
 	omap4_power_states[OMAP4_STATE_C2].core_logic_state = PWRDM_POWER_RET;
-	omap4_power_states[OMAP4_STATE_C2].flags = CPUIDLE_FLAG_TIME_VALID;
-	omap4_power_states[OMAP4_STATE_C2].desc = "MPU INA + CORE INA";
+	omap4_power_states[OMAP4_STATE_C2].desc = "CPUs OFF, MPU + CORE INA";
 
 	/*
 	 * C3 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR
@@ -223,13 +590,11 @@ void omap4_init_power_states(void)
 			cpuidle_params_table[OMAP4_STATE_C3].exit_latency;
 	omap4_power_states[OMAP4_STATE_C3].target_residency =
 			cpuidle_params_table[OMAP4_STATE_C3].target_residency;
-	omap4_power_states[OMAP4_STATE_C3].cpu0_state = PWRDM_POWER_OFF;
 	omap4_power_states[OMAP4_STATE_C3].mpu_state = PWRDM_POWER_RET;
 	omap4_power_states[OMAP4_STATE_C3].mpu_logic_state = PWRDM_POWER_RET;
 	omap4_power_states[OMAP4_STATE_C3].core_state = PWRDM_POWER_RET;
 	omap4_power_states[OMAP4_STATE_C3].core_logic_state = PWRDM_POWER_RET;
-	omap4_power_states[OMAP4_STATE_C3].flags = CPUIDLE_FLAG_TIME_VALID;
-	omap4_power_states[OMAP4_STATE_C3].desc = "MPU CSWR + CORE CSWR";
+	omap4_power_states[OMAP4_STATE_C3].desc = "CPUs OFF, MPU + CORE CSWR";
 
 	/*
 	 * C4 - CPU0 OFF + CPU1 OFF + MPU OFF + CORE CSWR
@@ -241,49 +606,17 @@ void omap4_init_power_states(void)
 			cpuidle_params_table[OMAP4_STATE_C4].exit_latency;
 	omap4_power_states[OMAP4_STATE_C4].target_residency =
 			cpuidle_params_table[OMAP4_STATE_C4].target_residency;
-	omap4_power_states[OMAP4_STATE_C4].cpu0_state = PWRDM_POWER_OFF;
 	omap4_power_states[OMAP4_STATE_C4].mpu_state = PWRDM_POWER_RET;
 	omap4_power_states[OMAP4_STATE_C4].mpu_logic_state = PWRDM_POWER_OFF;
 	omap4_power_states[OMAP4_STATE_C4].core_state = PWRDM_POWER_RET;
 	omap4_power_states[OMAP4_STATE_C4].core_logic_state = PWRDM_POWER_OFF;
-	omap4_power_states[OMAP4_STATE_C4].flags = CPUIDLE_FLAG_TIME_VALID;
-	omap4_power_states[OMAP4_STATE_C4].desc = "MPU OSWR + CORE OSWR";
+	omap4_power_states[OMAP4_STATE_C4].desc = "CPUs OFF, MPU + CORE OSWR";
 
 }
 
 struct cpuidle_driver omap4_idle_driver = {
 	.name =		"omap4_idle",
 	.owner =	THIS_MODULE,
-};
-
-/*
- * CPU hotplug notifier to update the C-states when
- * CPU1 is offline or onine. While updating C-state flag,
- * keep the cpuidle disabled.
- */
-static int __cpuinit omap_cpu_hotplug_notify(struct notifier_block *self,
-					 unsigned long action, void *unused)
-{
-	switch (action) {
-	case CPU_ONLINE:
-		disable_hlt();
-		needs_state_data_update = 1;
-		state_flags = CPUIDLE_FLAG_IGNORE;
-		enable_hlt();
-		break;
-	case CPU_DEAD:
-		disable_hlt();
-		needs_state_data_update = 1;
-		state_flags = CPUIDLE_FLAG_TIME_VALID;
-		enable_hlt();
-		break;
-	}
-
-	return NOTIFY_OK;
-}
-
-static struct notifier_block __refdata omap_ilde_hotplug_notifier = {
-	.notifier_call = omap_cpu_hotplug_notify,
 };
 
 /**
@@ -294,53 +627,61 @@ static struct notifier_block __refdata omap_ilde_hotplug_notifier = {
  */
 int __init omap4_idle_init(void)
 {
-	int cpu_id = 0, i, count = 0, ret;
+	int cpu_id = 0, i, count = 0;
 	struct omap4_processor_cx *cx;
 	struct cpuidle_state *state;
 	struct cpuidle_device *dev;
 
 	mpu_pd = pwrdm_lookup("mpu_pwrdm");
+	BUG_ON(!mpu_pd);
 	cpu1_pd = pwrdm_lookup("cpu1_pwrdm");
+	BUG_ON(!cpu1_pd);
+	cpu1_cd = clkdm_lookup("mpu1_clkdm");
+	BUG_ON(!cpu1_cd);
 	core_pd = pwrdm_lookup("core_pwrdm");
+	BUG_ON(!core_pd);
 
 	omap4_init_power_states();
 	cpuidle_register_driver(&omap4_idle_driver);
 
-	dev = &per_cpu(omap4_idle_dev, cpu_id);
-	dev->cpu = cpu_id;
-	count = 0;
-	for (i = OMAP4_STATE_C1; i < OMAP4_MAX_STATES; i++) {
-		cx = &omap4_power_states[i];
-		state = &dev->states[count];
+	for_each_possible_cpu(cpu_id) {
+		dev = &per_cpu(omap4_idle_dev, cpu_id);
+		dev->cpu = cpu_id;
+		count = 0;
+		for (i = OMAP4_STATE_C1; i < OMAP4_MAX_STATES; i++) {
+			cx = &omap4_power_states[i];
+			state = &dev->states[count];
 
-		if (!cx->valid)
-			continue;
-		cpuidle_set_statedata(state, cx);
-		state->exit_latency = cx->exit_latency;
-		state->target_residency = cx->target_residency;
-		state->flags = cx->flags;
-		if (cx->type == OMAP4_STATE_C1)
-			dev->safe_state = state;
-		state->enter = omap4_enter_idle;
+			if (!cx->valid)
+				continue;
+			cpuidle_set_statedata(state, cx);
+			state->exit_latency = cx->exit_latency;
+			state->target_residency = cx->target_residency;
+			state->flags = CPUIDLE_FLAG_TIME_VALID;
+			if (cx->type == OMAP4_STATE_C1) {
+				dev->safe_state = state;
+				state->enter = omap4_enter_idle_wfi;
+			} else {
+				state->enter = omap4_enter_idle;
+			}
 
-		sprintf(state->name, "C%d", count+1);
-		strncpy(state->desc, cx->desc, CPUIDLE_DESC_LEN);
-		count++;
-	}
+			sprintf(state->name, "C%d", count+1);
+			strncpy(state->desc, cx->desc, CPUIDLE_DESC_LEN);
+			count++;
+		}
 
-	if (!count)
-		return -EINVAL;
-	dev->state_count = count;
-	dev->prepare = omap4_prepare_idle;
+		if (!count)
+			return -EINVAL;
+		dev->state_count = count;
 
-	if (cpuidle_register_device(dev)) {
-		pr_err("%s: CPUidle register device failed\n", __func__);
+		if (cpuidle_register_device(dev)) {
+			pr_err("%s: CPUidle register device failed\n", __func__);
 			return -EIO;
 		}
 
-	ret = register_hotcpu_notifier(&omap_ilde_hotplug_notifier);
-	if (ret)
-		return ret;
+		__raw_writeb(BIT(cpu_id), omap4_get_gic_dist_base() +
+			GIC_DIST_TARGET + omap4_poke_interrupt[cpu_id]);
+	}
 
 	return 0;
 }
