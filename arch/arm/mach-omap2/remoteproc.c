@@ -133,8 +133,8 @@ static int __init omap_rproc_init(void)
 	if (!cpu_is_omap44xx())
 		return 0;
 
-	paddr = omap_dsp_get_mempool_base();
-	size = omap_dsp_get_mempool_size();
+	paddr = omap_ipu_get_mempool_base(OMAP_RPROC_MEMPOOL_DYNAMIC);
+	size = omap_ipu_get_mempool_size(OMAP_RPROC_MEMPOOL_DYNAMIC);
 	if (!paddr || !size) {
 		pr_warn("carveout memory is unavailable: 0x%x, 0x%x\n",
 								paddr, size);

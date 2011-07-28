@@ -1148,6 +1148,9 @@ void dispc_setup_plane_fifo(enum omap_plane plane, u32 low, u32 high)
 				hi_start, hi_end),
 			low, high);
 
+	/* preload to high threshold to avoid FIFO underflow */
+	dispc_write_reg(DISPC_OVL_PRELOAD(plane), min(high, 0xfffu));
+
 	dispc_write_reg(DISPC_OVL_FIFO_THRESHOLD(plane),
 			FLD_VAL(high, hi_start, hi_end) |
 			FLD_VAL(low, lo_start, lo_end));
@@ -1828,6 +1831,7 @@ int dispc_scaling_decision(u16 width, u16 height,
 				enum omap_plane plane,
 				enum omap_color_mode color_mode,
 				enum omap_channel channel, u8 rotation,
+				enum omap_dss_rotation_type type,
 				u16 min_x_decim, u16 max_x_decim,
 				u16 min_y_decim, u16 max_y_decim,
 				u16 *x_decim, u16 *y_decim, bool *five_taps)
@@ -1849,6 +1853,7 @@ int dispc_scaling_decision(u16 width, u16 height,
 	int min_factor, max_factor;	/* decimation search limits */
 	int x, y;			/* decimation search variables */
 	unsigned long fclk_max = dispc_fclk_rate();
+	u16 y_decim_limit = type == OMAP_DSS_ROT_TILER ? 2 : 16;
 
 	/* No decimation for bitmap formats */
 	if (color_mode == OMAP_DSS_COLOR_CLUT1 ||
@@ -1875,6 +1880,9 @@ int dispc_scaling_decision(u16 width, u16 height,
 		if (min_y_decim > 1)
 			return -EINVAL;
 		min_y_decim = max_y_decim = 1;
+	} else {
+		if (max_y_decim > y_decim_limit)
+			max_y_decim = y_decim_limit;
 	}
 
 	/*
