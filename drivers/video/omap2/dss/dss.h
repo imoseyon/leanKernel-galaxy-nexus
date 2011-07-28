@@ -433,6 +433,7 @@ int dispc_scaling_decision(u16 width, u16 height,
 		enum omap_plane plane,
 		enum omap_color_mode color_mode,
 		enum omap_channel channel, u8 rotation,
+		enum omap_dss_rotation_type type,
 		u16 min_x_decim, u16 max_x_decim,
 		u16 min_y_decim, u16 max_y_decim,
 		u16 *x_decim, u16 *y_decim, bool *three_tap);
