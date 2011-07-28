@@ -229,6 +229,9 @@ static struct platform_device twl6030_madc_device = {
 };
 
 #define PHYS_ADDR_DUCATI_MEM (0x80000000 + SZ_1G - (SZ_1M * 104))
+#define OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE	SZ_64M
+#define OMAP_TUNA_ION_HEAP_TILER_SIZE		SZ_128M
+#define OMAP_TUNA_ION_HEAP_LARGE_SURFACES_SIZE	SZ_32M
 
 static struct ion_platform_data tuna_ion_data = {
 	.nr = 3,
@@ -237,21 +240,24 @@ static struct ion_platform_data tuna_ion_data = {
 			.type = ION_HEAP_TYPE_CARVEOUT,
 			.id = OMAP_ION_HEAP_SECURE_INPUT,
 			.name = "secure_input",
-			.base = PHYS_ADDR_DUCATI_MEM - SZ_256M - SZ_64M,
-			.size = SZ_64M,
+			.base = PHYS_ADDR_DUCATI_MEM -
+					OMAP_TUNA_ION_HEAP_TILER_SIZE -
+					OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE,
+			.size = OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE,
 		},
 		{	.type = OMAP_ION_HEAP_TYPE_TILER,
 			.id = OMAP_ION_HEAP_TILER,
 			.name = "tiler",
-			.base = PHYS_ADDR_DUCATI_MEM - SZ_256M,
-			.size = SZ_256M,
+			.base = PHYS_ADDR_DUCATI_MEM -
+					OMAP_TUNA_ION_HEAP_TILER_SIZE,
+			.size = OMAP_TUNA_ION_HEAP_TILER_SIZE,
 		},
 		{
 			.type = ION_HEAP_TYPE_CARVEOUT,
 			.id = OMAP_ION_HEAP_LARGE_SURFACES,
 			.name = "large_surfaces",
 			.base = 0x80000000 + SZ_512M + SZ_2M,
-			.size = SZ_32M,
+			.size = OMAP_TUNA_ION_HEAP_LARGE_SURFACES_SIZE,
 		},
 	},
 };
