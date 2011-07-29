@@ -1424,6 +1424,7 @@ void dss_start_update(struct omap_dss_device *dssdev)
 
 	mgr = dssdev->manager;
 
+	spin_lock_irqsave(&dss_cache.lock, flags);
 	for (i = 0; i < num_ovls; ++i) {
 		oc = &dss_cache.overlay_cache[i];
 		notify |= oc->enabled;
@@ -1448,7 +1449,6 @@ void dss_start_update(struct omap_dss_device *dssdev)
 		mc->shadow_dirty = false;
 	}
 
-	spin_lock_irqsave(&dss_cache.lock, flags);
 	if (!dss_cache.comp_irq_enabled && notify) {
 		omap_dispc_register_isr(dss_completion_irq_handler, NULL,
 			DISPC_IRQ_FRAMEDONE | DISPC_IRQ_VSYNC |
