@@ -33,6 +33,7 @@
 #include <plat/omap_hwmod.h>
 #include <plat/omap_device.h>
 #include <plat/omap4-keypad.h>
+#include <plat/mcpdm.h>
 
 #include "mux.h"
 #include "control.h"
@@ -293,6 +294,48 @@ static inline void omap_init_mbox(void) { }
 #endif /* CONFIG_OMAP_MBOX_FWK */
 
 static inline void omap_init_sti(void) {}
+
+#if defined(CONFIG_SND_OMAP_SOC_MCPDM) || \
+		defined(CONFIG_SND_OMAP_SOC_MCPDM_MODULE)
+
+static struct omap_device_pm_latency omap_mcpdm_latency[] = {
+	{
+		.deactivate_func = omap_device_idle_hwmods,
+		.activate_func = omap_device_enable_hwmods,
+		.flags = OMAP_DEVICE_LATENCY_AUTO_ADJUST,
+	},
+};
+
+static void omap_init_mcpdm(void)
+{
+	struct omap_hwmod *oh;
+	struct omap_device *od;
+	struct omap_mcpdm_platform_data *pdata;
+	char *oh_name = "mcpdm";
+	char *dev_name = "omap-mcpdm";
+
+	oh = omap_hwmod_lookup(oh_name);
+	if (!oh) {
+		pr_err("%s: could not look up %s\n", __func__, oh_name);
+		return;
+	}
+
+	pdata = kzalloc(sizeof(struct omap_mcpdm_platform_data), GFP_KERNEL);
+	if (!pdata) {
+		pr_err("%s: could not allocate platform data\n", __func__);
+		return;
+	}
+
+	od = omap_device_build(dev_name, -1, oh, pdata,
+				sizeof(struct omap_mcpdm_platform_data),
+				omap_mcpdm_latency,
+				ARRAY_SIZE(omap_mcpdm_latency), 0);
+	WARN(IS_ERR(od), "could not build omap_device for %s:%s\n",
+				oh_name, dev_name);
+}
+#else
+static inline void omap_init_mcpdm(void) {}
+#endif
 
 #if defined CONFIG_ARCH_OMAP4
 
@@ -760,6 +803,7 @@ static int __init omap2_init_devices(void)
 	 * please keep these calls, and their implementations above,
 	 * in alphabetical order so they're easier to sort through.
 	 */
+	omap_init_mcpdm();
 	omap_init_abe();
 	omap_init_audio();
 	omap_init_camera();
