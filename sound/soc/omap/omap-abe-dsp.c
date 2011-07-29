@@ -2058,43 +2058,6 @@ static struct snd_pcm_ops omap_aess_pcm_ops = {
 	.mmap		= aess_mmap,
 };
 
-#if CONFIG_PM
-static int aess_suspend(struct device *dev)
-{
-	struct abe_data *abe = dev_get_drvdata(dev);
-
-	pm_runtime_get_sync(abe->dev);
-
-	aess_save_context(abe);
-
-	pm_runtime_put_sync(abe->dev);
-
-	return 0;
-}
-
-static int aess_resume(struct device *dev)
-{
-	struct abe_data *abe = dev_get_drvdata(dev);
-
-	pm_runtime_get_sync(abe->dev);
-
-	aess_restore_context(abe);
-
-	pm_runtime_put_sync(abe->dev);
-
-	return 0;
-}
-
-#else
-#define aess_suspend	NULL
-#define aess_resume	NULL
-#endif
-
-static const struct dev_pm_ops aess_pm_ops = {
-	.suspend = aess_suspend,
-	.resume = aess_resume,
-};
-
 static int aess_stream_event(struct snd_soc_dapm_context *dapm)
 {
 	struct snd_soc_platform *platform = dapm->platform;
@@ -2158,6 +2121,123 @@ static int abe_add_widgets(struct snd_soc_platform *platform)
 
 	return 0;
 }
+
+#ifdef CONFIG_PM
+static int abe_suspend(struct snd_soc_dai *dai)
+{
+	struct abe_data *abe = the_abe;
+	struct omap4_abe_dsp_pdata *pdata = abe->abe_pdata;
+	int ret = 0;
+
+	dev_dbg(dai->dev, "%s: %s active %d\n",
+		__func__, dai->name, dai->active);
+
+	if (!dai->active)
+		return 0;
+
+	pm_runtime_get_sync(abe->dev);
+
+	switch (dai->id) {
+	case OMAP_ABE_DAI_PDM_UL:
+		abe_mute_gain(GAINS_AMIC, GAIN_LEFT_OFFSET);
+		abe_mute_gain(GAINS_AMIC, GAIN_RIGHT_OFFSET);
+		break;
+	case OMAP_ABE_DAI_PDM_DL1:
+	case OMAP_ABE_DAI_PDM_DL2:
+	case OMAP_ABE_DAI_PDM_VIB:
+	case OMAP_ABE_DAI_BT_VX:
+	case OMAP_ABE_DAI_MM_FM:
+	case OMAP_ABE_DAI_MODEM:
+		break;
+	case OMAP_ABE_DAI_DMIC0:
+		abe_mute_gain(GAINS_DMIC1, GAIN_LEFT_OFFSET);
+		abe_mute_gain(GAINS_DMIC1, GAIN_RIGHT_OFFSET);
+		break;
+	case OMAP_ABE_DAI_DMIC1:
+		abe_mute_gain(GAINS_DMIC2, GAIN_LEFT_OFFSET);
+		abe_mute_gain(GAINS_DMIC2, GAIN_RIGHT_OFFSET);
+		break;
+	case OMAP_ABE_DAI_DMIC2:
+		abe_mute_gain(GAINS_DMIC3, GAIN_LEFT_OFFSET);
+		abe_mute_gain(GAINS_DMIC3, GAIN_RIGHT_OFFSET);
+		break;
+	default:
+		dev_err(dai->dev, "%s: invalid DAI id %d\n",
+				__func__, dai->id);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (pdata->get_context_loss_count)
+	        abe->loss_count = pdata->get_context_loss_count(abe->dev);
+
+out:
+	pm_runtime_put_sync(abe->dev);
+	return ret;
+}
+
+static int abe_resume(struct snd_soc_dai *dai)
+{
+	struct abe_data *abe = the_abe;
+	struct omap4_abe_dsp_pdata *pdata = abe->abe_pdata;
+	int loss_count = 0, ret = 0;
+
+	dev_dbg(dai->dev, "%s: %s active %d\n",
+		__func__, dai->name, dai->active);
+
+	if (!dai->active)
+		return 0;
+
+	if (pdata->get_context_loss_count)
+		loss_count = pdata->get_context_loss_count(abe->dev);
+
+	pm_runtime_get_sync(abe->dev);
+	omap_device_set_rate(&abe->dev, &abe->dev, 98000000);
+
+	if (loss_count != abe->loss_count)
+	        abe_reload_fw();
+
+	switch (dai->id) {
+	case OMAP_ABE_DAI_PDM_UL:
+		abe_unmute_gain(GAINS_AMIC, GAIN_LEFT_OFFSET);
+		abe_unmute_gain(GAINS_AMIC, GAIN_RIGHT_OFFSET);
+		break;
+	case OMAP_ABE_DAI_PDM_DL1:
+	case OMAP_ABE_DAI_PDM_DL2:
+	case OMAP_ABE_DAI_PDM_VIB:
+	case OMAP_ABE_DAI_BT_VX:
+	case OMAP_ABE_DAI_MM_FM:
+	case OMAP_ABE_DAI_MODEM:
+		break;
+	case OMAP_ABE_DAI_DMIC0:
+		abe_unmute_gain(GAINS_DMIC1, GAIN_LEFT_OFFSET);
+		abe_unmute_gain(GAINS_DMIC1, GAIN_RIGHT_OFFSET);
+		break;
+	case OMAP_ABE_DAI_DMIC1:
+		abe_unmute_gain(GAINS_DMIC2, GAIN_LEFT_OFFSET);
+		abe_unmute_gain(GAINS_DMIC2, GAIN_RIGHT_OFFSET);
+		break;
+	case OMAP_ABE_DAI_DMIC2:
+		abe_unmute_gain(GAINS_DMIC3, GAIN_LEFT_OFFSET);
+		abe_unmute_gain(GAINS_DMIC3, GAIN_RIGHT_OFFSET);
+		break;
+	default:
+		dev_err(dai->dev, "%s: invalid DAI id %d\n",
+				__func__, dai->id);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	abe_set_router_configuration(UPROUTE, 0, (u32 *)abe->router);
+
+out:
+	pm_runtime_put_sync(abe->dev);
+	return ret;
+}
+#else
+#define abe_suspend	NULL
+#define abe_resume	NULL
+#endif
 
 static int abe_probe(struct snd_soc_platform *platform)
 {
@@ -2324,6 +2404,8 @@ static struct snd_soc_platform_driver omap_aess_platform = {
 	.ops		= &omap_aess_pcm_ops,
 	.probe		= abe_probe,
 	.remove		= abe_remove,
+	.suspend	= abe_suspend,
+	.resume		= abe_resume,
 	.read		= abe_dsp_read,
 	.write		= abe_dsp_write,
 	.stream_event = aess_stream_event,
@@ -2404,7 +2486,6 @@ static struct platform_driver omap_aess_driver = {
 	.driver = {
 		.name = "aess",
 		.owner = THIS_MODULE,
-		.pm = &aess_pm_ops,
 	},
 	.probe = abe_engine_probe,
 	.remove = __devexit_p(abe_engine_remove),
