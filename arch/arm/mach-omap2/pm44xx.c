@@ -257,6 +257,9 @@ static void _print_gpio_wakeirq(int irq)
 	wkirqs = irqst & wken;
 
 	if (!wkirqs)
+		wkirqs = irqst;
+
+	if (!wkirqs)
 		goto punt;
 
 	for_each_set_bit(bit, &wkirqs, 32) {
