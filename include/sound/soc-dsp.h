@@ -104,12 +104,10 @@ int soc_dsp_runtime_update(struct snd_soc_dapm_widget *widget);
 
 /* Backend DSP suspend and resume */
 int soc_dsp_be_digital_mute(struct snd_soc_pcm_runtime *fe, int mute);
-int soc_dsp_be_cpu_dai_suspend(struct snd_soc_pcm_runtime *fe);
+int soc_dsp_fe_suspend(struct snd_soc_pcm_runtime *fe);
 int soc_dsp_be_ac97_cpu_dai_suspend(struct snd_soc_pcm_runtime *fe);
-int soc_dsp_be_platform_suspend(struct snd_soc_pcm_runtime *fe);
-int soc_dsp_be_cpu_dai_resume(struct snd_soc_pcm_runtime *fe);
+int soc_dsp_fe_resume(struct snd_soc_pcm_runtime *fe);
 int soc_dsp_be_ac97_cpu_dai_resume(struct snd_soc_pcm_runtime *fe);
-int soc_dsp_be_platform_resume(struct snd_soc_pcm_runtime *fe);
 
 /* DAPM stream events for Backend DSP paths */
 int soc_dsp_dapm_stream_event(struct snd_soc_pcm_runtime *fe,
