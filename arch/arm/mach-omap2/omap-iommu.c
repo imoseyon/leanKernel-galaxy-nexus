@@ -83,7 +83,7 @@ static struct omap_device_pm_latency omap_iommu_latency[] = {
 	},
 };
 
-int iommu_get_plat_data_size()
+int iommu_get_plat_data_size(void)
 {
 	return num_iommu_devices;
 }
