@@ -31,7 +31,8 @@ static u16 control_mmc1;
 
 #define HSMMC_NAME_LEN	9
 
-#if defined(CONFIG_ARCH_OMAP3) && defined(CONFIG_PM)
+#if defined(CONFIG_ARCH_OMAP3) || defined(CONFIG_ARCH_OMAP4) \
+					&& defined(CONFIG_PM)
 
 static int hsmmc_get_context_loss(struct device *dev)
 {

@@ -31,6 +31,7 @@
 
 #include <linux/platform_device.h>
 #include <plat/usb.h>
+#include <plat/omap_hwmod.h>
 #include <linux/pm_runtime.h>
 
 /*-------------------------------------------------------------------------*/
@@ -41,6 +42,51 @@ static int ohci_omap3_init(struct usb_hcd *hcd)
 
 	return ohci_init(hcd_to_ohci(hcd));
 }
+
+static int ohci_omap3_bus_suspend(struct usb_hcd *hcd)
+{
+	struct device *dev = hcd->self.controller;
+	struct omap_hwmod	*oh;
+	int ret = 0;
+
+	dev_dbg(dev, "ohci_omap3_bus_suspend\n");
+
+	ret = ohci_bus_suspend(hcd);
+
+	/* Delay required so that after ohci suspend
+	 * smart stand by can be set in the driver.
+	 * required for power mangament
+	 */
+	msleep(5);
+
+	if (ret != 0) {
+		dev_dbg(dev, "ohci_omap3_bus_suspend failed %d\n", ret);
+		return ret;
+	}
+
+	oh = omap_hwmod_lookup(USBHS_OHCI_HWMODNAME);
+
+	omap_hwmod_enable_ioring_wakeup(oh);
+
+	if (dev->parent)
+		pm_runtime_put_sync(dev->parent);
+
+	return ret;
+}
+
+
+static int ohci_omap3_bus_resume(struct usb_hcd *hcd)
+{
+	struct device *dev = hcd->self.controller;
+
+	dev_dbg(dev, "ohci_omap3_bus_resume\n");
+
+	if (dev->parent)
+		pm_runtime_get_sync(dev->parent);
+
+	return ohci_bus_resume(hcd);
+}
+
 
 /*-------------------------------------------------------------------------*/
 
@@ -105,8 +151,8 @@ static const struct hc_driver ohci_omap3_hc_driver = {
 	.hub_status_data =	ohci_hub_status_data,
 	.hub_control =		ohci_hub_control,
 #ifdef	CONFIG_PM
-	.bus_suspend =		ohci_bus_suspend,
-	.bus_resume =		ohci_bus_resume,
+	.bus_suspend =		ohci_omap3_bus_suspend,
+	.bus_resume =		ohci_omap3_bus_resume,
 #endif
 	.start_port_reset =	ohci_start_port_reset,
 };
@@ -230,33 +276,12 @@ static void ohci_hcd_omap3_shutdown(struct platform_device *pdev)
 		hcd->driver->shutdown(hcd);
 }
 
-
-static int omap_ohci_resume(struct device *dev)
-{
-	if (dev->parent)
-		pm_runtime_get_sync(dev->parent);
-	return 0;
-}
-
-static int omap_ohci_suspend(struct device *dev)
-{
-	if (dev->parent)
-		pm_runtime_put_sync(dev->parent);
-	return 0;
-}
-
-static const struct dev_pm_ops omap_ohci_dev_pm_ops = {
-	.suspend	= omap_ohci_suspend,
-	.resume		= omap_ohci_resume,
-};
-
 static struct platform_driver ohci_hcd_omap3_driver = {
 	.probe		= ohci_hcd_omap3_probe,
 	.remove		= __devexit_p(ohci_hcd_omap3_remove),
 	.shutdown	= ohci_hcd_omap3_shutdown,
 	.driver		= {
 		.name	= "ohci-omap3",
-		.pm		= &omap_ohci_dev_pm_ops,
 	},
 };
 

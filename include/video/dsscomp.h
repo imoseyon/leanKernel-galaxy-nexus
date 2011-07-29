@@ -91,18 +91,18 @@ struct omap_video_timings {
 
 /* YUV to RGB color conversion info */
 struct omap_dss_cconv_coefs {
-	s16 ry, rcr, rcb;
-	s16 gy, gcr, gcb;
-	s16 by, bcr, bcb;
+	__s16 ry, rcr, rcb;
+	__s16 gy, gcr, gcb;
+	__s16 by, bcr, bcb;
 
 	/* Y is 16..235, UV is 16..240 if not fullrange.  Otherwise 0..255 */
-	u16 full_range;
+	__u16 full_range;
 } __attribute__ ((aligned(4)));
 
 struct omap_dss_cpr_coefs {
-	s16 rr, rg, rb;
-	s16 gr, gg, gb;
-	s16 br, bg, bb;
+	__s16 rr, rg, rb;
+	__s16 gr, gg, gb;
+	__s16 br, bg, bb;
 };
 
 #endif
@@ -534,14 +534,12 @@ struct dsscomp_display_info {
  * Returns: >=0 on success, <0 error value on failure (e.g. -ETIME).
  */
 enum dsscomp_wait_phase {
-	DSSCOMP_WAIT_RELEASED,
-	DSSCOMP_WAIT_PROGRAMMED,
+	DSSCOMP_WAIT_PROGRAMMED = 1,
 	DSSCOMP_WAIT_DISPLAYED,
+	DSSCOMP_WAIT_RELEASED,
 };
 
 struct dsscomp_wait_data {
-	__u32 ix;		/* display index */
-	__u32 sync_id;
 	__u32 timeout_us;	/* timeout in microseconds */
 	enum dsscomp_wait_phase phase;	/* phase to wait for */
 };

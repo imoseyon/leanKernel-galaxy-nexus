@@ -320,21 +320,25 @@ extern const struct omap_video_timings omap_dss_ntsc_timings;
 #endif
 
 enum omapdss_completion_status {
-	DSS_COMPLETION_PROGRAMMED = 0,
-	DSS_COMPLETION_DISPLAYED = 4,
-	DSS_COMPLETION_CHANGED_SET,
-	DSS_COMPLETION_CHANGED_CACHE,
-	DSS_COMPLETION_RELEASED = 8,
-	DSS_COMPLETION_ECLIPSED_SET,
-	DSS_COMPLETION_ECLIPSED_CACHE,
-	DSS_COMPLETION_ECLIPSED_SHADOW,
-	DSS_COMPLETION_TORN,
+	DSS_COMPLETION_PROGRAMMED	= (1 << 1),
+	DSS_COMPLETION_DISPLAYED	= (1 << 2),
+
+	DSS_COMPLETION_CHANGED_SET	= (1 << 3),
+	DSS_COMPLETION_CHANGED_CACHE	= (1 << 4),
+	DSS_COMPLETION_CHANGED		= (3 << 3),
+
+	DSS_COMPLETION_RELEASED		= (15 << 5),
+	DSS_COMPLETION_ECLIPSED_SET	= (1 << 5),
+	DSS_COMPLETION_ECLIPSED_CACHE	= (1 << 6),
+	DSS_COMPLETION_ECLIPSED_SHADOW	= (1 << 7),
+	DSS_COMPLETION_TORN		= (1 << 8),
 };
 
 struct omapdss_ovl_cb {
 	/* optional callback method */
-	void (*fn)(void *data, int id, int status);
+	u32 (*fn)(void *data, int id, int status);
 	void *data;
+	u32 mask;
 };
 
 struct omap_dss_cpr_coefs {
@@ -699,5 +703,16 @@ int omap_rfbi_update(struct omap_dss_device *dssdev,
 		void (*callback)(void *), void *data);
 int omap_rfbi_configure(struct omap_dss_device *dssdev, int pixel_size,
 		int data_lines);
+
+/* generic callback handling */
+static inline void dss_ovl_cb(struct omapdss_ovl_cb *cb, int id, int status)
+{
+	if (cb->fn && (cb->mask & status))
+		cb->mask &= cb->fn(cb->data, id, status);
+	if (status & DSS_COMPLETION_RELEASED)
+		cb->mask = 0;
+	if (!cb->mask)
+		cb->fn = NULL;
+}
 
 #endif

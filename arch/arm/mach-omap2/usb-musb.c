@@ -119,7 +119,7 @@ void __init usb_musb_init(struct omap_musb_board_data *musb_board_data)
 	struct omap_hwmod		*oh;
 	struct omap_device		*od;
 	struct platform_device		*pdev;
-	struct device			*dev;
+	struct device			*dev = NULL;
 	int				bus_id = -1;
 	const char			*oh_name, *name;
 	struct omap_musb_board_data	*board_data;
@@ -140,7 +140,7 @@ void __init usb_musb_init(struct omap_musb_board_data *musb_board_data)
 	musb_plat.extvbus = board_data->extvbus;
 
 	if (cpu_is_omap44xx())
-		omap4430_phy_init(dev);
+		omap4430_phy_init(dev); /* power down the phy */
 
 	if (cpu_is_omap3517() || cpu_is_omap3505()) {
 		oh_name = "am35x_otg_hs";

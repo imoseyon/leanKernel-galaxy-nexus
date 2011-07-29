@@ -290,4 +290,9 @@ static inline u32 omap1_usb2_init(unsigned nwires, unsigned alt_pingroup)
 }
 #endif
 
+extern void usbhs_wakeup(void);
+extern void omap4_trigger_ioctrl(void);
+
+#define USBHS_EHCI_HWMODNAME	"usbhs_ehci"
+
 #endif	/* __ASM_ARCH_OMAP_USB_H */

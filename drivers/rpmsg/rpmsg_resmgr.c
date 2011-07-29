@@ -30,10 +30,13 @@
 #include <linux/list.h>
 #include <linux/debugfs.h>
 #include <linux/rpmsg_resmgr.h>
+#include <linux/pm_runtime.h>
 #include <plat/dmtimer.h>
 #include <plat/rpres.h>
 #include <plat/clock.h>
 #include <plat/dma.h>
+#include <plat/i2c.h>
+#include <plat/omap_hwmod.h>
 
 #define NAME_SIZE	50
 #define REGULATOR_MAX	1
@@ -71,6 +74,7 @@ static const char const *rnames[] = {
 	[RPRM_SDMA]		= "SDMA",
 	[RPRM_IPU]		= "IPU",
 	[RPRM_DSP]		= "DSP",
+	[RPRM_I2C]		= "I2C",
 };
 
 static const char *rname(u32 type) {
@@ -127,6 +131,8 @@ static int _get_rprm_size(u32 type)
 		return sizeof(struct rprm_gpio);
 	case RPRM_SDMA:
 		return sizeof(struct rprm_sdma);
+	case RPRM_I2C:
+		return sizeof(struct rprm_i2c);
 	}
 	return 0;
 }
@@ -414,6 +420,45 @@ static void rprm_sdma_release(struct rprm_sdma *obj)
 	kfree(obj);
 }
 
+static int rprm_i2c_request(struct rprm_elem *e, struct rprm_i2c *obj)
+{
+	struct device *i2c_dev;
+	char i2c_name[NAME_SIZE];
+	int ret = -EINVAL;
+
+	sprintf(i2c_name, "i2c%d", obj->id);
+	i2c_dev = omap_hwmod_name_get_dev(i2c_name);
+	if (IS_ERR_OR_NULL(i2c_dev)) {
+		pr_err("%s: unable to lookup %s\n", __func__, i2c_name);
+		return ret;
+	}
+
+	ret = pm_runtime_get_sync(i2c_dev);
+	if (!ret)
+		e->handle = i2c_dev;
+	else
+		dev_warn(i2c_dev, "%s: failed get sync %d\n", __func__, ret);
+
+	return ret;
+}
+
+static int rprm_i2c_release(struct device *i2c_dev)
+{
+	int ret = -EINVAL;
+
+	if (IS_ERR_OR_NULL(i2c_dev)) {
+		pr_err("%s: invalid device passed\n", __func__);
+		return ret;
+	}
+
+	ret = pm_runtime_put_sync(i2c_dev);
+	if (ret)
+		dev_warn(i2c_dev, "%s: failed put sync %d\n", __func__, ret);
+
+	return ret;
+
+}
+
 static const char *_get_rpres_name(int type)
 {
 	switch (type) {
@@ -617,6 +662,7 @@ static void rprm_rproc_release(struct rproc *rp)
 
 static int _resource_free(struct rprm_elem *e)
 {
+	int ret = 0;
 	if (e->constraints && e->constraints->mask) {
 		def_data.mask = e->constraints->mask;
 		_set_constraints(e, &def_data);
@@ -642,6 +688,9 @@ static int _resource_free(struct rprm_elem *e)
 	case RPRM_AUXCLK:
 		rprm_auxclk_release(e->handle);
 		break;
+	case RPRM_I2C:
+		ret = rprm_i2c_release(e->handle);
+		break;
 	case RPRM_REGULATOR:
 		rprm_regulator_release(e->handle);
 		break;
@@ -658,7 +707,7 @@ static int _resource_free(struct rprm_elem *e)
 		return -EINVAL;
 	}
 
-	return 0;
+	return ret;
 }
 
 static int rprm_resource_free(struct rprm *rprm, u32 addr, int res_id)
@@ -714,6 +763,9 @@ static int _resource_alloc(struct rprm_elem *e, int type, void *data)
 		break;
 	case RPRM_AUXCLK:
 		ret = rprm_auxclk_request(e, data);
+		break;
+	case RPRM_I2C:
+		ret = rprm_i2c_request(e, data);
 		break;
 	case RPRM_REGULATOR:
 		ret = rprm_regulator_request(e, data);
@@ -953,6 +1005,11 @@ static int _printf_gpio_args(char *buf, struct rprm_gpio *obj)
 	return sprintf(buf, "Id:%d\n", obj->id);
 }
 
+static int _printf_i2c_args(char *buf, struct rprm_i2c *obj)
+{
+	return sprintf(buf, "Id:%d\n", obj->id);
+}
+
 static int _printf_sdma_args(char *buf, struct rprm_sdma *obj)
 {
 	int i, ret = 0;
@@ -972,6 +1029,8 @@ static int _print_res_args(char *buf, struct rprm_elem *e)
 		return _printf_gptimer_args(buf, res);
 	case RPRM_AUXCLK:
 		return _printf_auxclk_args(buf, res);
+	case RPRM_I2C:
+		return _printf_i2c_args(buf, res);
 	case RPRM_REGULATOR:
 		return _printf_regulator_args(buf, res);
 	case RPRM_GPIO:
