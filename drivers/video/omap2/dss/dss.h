@@ -553,11 +553,4 @@ static inline void dss_collect_irq_stats(u32 irqstatus, unsigned *irq_arr)
 }
 #endif
 
-/* callback is optional */
-static inline void dss_ovl_cb(struct omapdss_ovl_cb *cb, int id, int status)
-{
-	if (cb->fn)
-		cb->fn(cb->data, id, status);
-}
-
 #endif

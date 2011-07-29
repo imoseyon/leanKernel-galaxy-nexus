@@ -32,6 +32,8 @@ static struct device *l3_dev;
 static struct device *dsp_dev;
 static struct device *fdif_dev;
 
+bool omap_pm_is_ready_status;
+
 struct device *omap2_get_mpuss_device(void)
 {
 	WARN_ON_ONCE(!mpu_dev);
@@ -335,6 +337,10 @@ static int __init omap2_common_pm_late_init(void)
 
 	/* Smartreflex device init */
 	omap_devinit_smartreflex();
+
+	omap_pm_is_ready_status = true;
+	/* let the other CPU know as well */
+	smp_wmb();
 
 	return 0;
 }

@@ -25,6 +25,18 @@ static DEFINE_MUTEX(mtx);
 static struct semaphore free_slots_sem =
 				__SEMAPHORE_INITIALIZER(free_slots_sem, 0);
 
+/* gralloc composition sync object */
+struct dsscomp_gralloc_t {
+	void (*cb_fn)(void *, int);
+	void *cb_arg;
+	struct list_head q;
+	struct list_head slots;
+	atomic_t refs;
+};
+
+/* queued gralloc compositions */
+static LIST_HEAD(flip_queue);
+
 static u32 ovl_set_mask;
 
 static void unpin_tiler_blocks(struct list_head *slots)
@@ -41,21 +53,33 @@ static void unpin_tiler_blocks(struct list_head *slots)
 	list_splice_init(slots, &free_slots);
 }
 
-static void dsscomp_gralloc_cb(dsscomp_t comp, int status)
+static void dsscomp_gralloc_cb(void *data, int status)
 {
-	if (status & DSS_COMPLETION_RELEASED) {
-		mutex_lock(&mtx);
-		unpin_tiler_blocks(&comp->slots);
-		mutex_unlock(&mtx);
+	struct dsscomp_gralloc_t *gsync = data, *gsync_;
+	LIST_HEAD(done);
 
-		/* complete composition if eclipsed or displayed */
-		if (comp->gralloc_cb_fn) {
-			if (debug & DEBUG_PHASES)
-				dev_info(DEV(cdev), "[%p] complete flip\n",
-									comp);
-			comp->gralloc_cb_fn(comp->gralloc_cb_arg, 1);
-		}
-		comp->gralloc_cb_fn = NULL;
+	mutex_lock(&mtx);
+	if (status & DSS_COMPLETION_RELEASED) {
+		if (atomic_dec_and_test(&gsync->refs))
+			unpin_tiler_blocks(&gsync->slots);
+	}
+
+	/* get completed list items in order, if any */
+	while (!list_empty(&flip_queue)) {
+		gsync = list_first_entry(&flip_queue, typeof(*gsync), q);
+		if (gsync->refs.counter)
+			break;
+		list_move_tail(&gsync->q, &done);
+	}
+	mutex_unlock(&mtx);
+
+	/* call back for completed composition with mutex unlocked */
+	list_for_each_entry_safe(gsync, gsync_, &done, q) {
+		if (debug & DEBUG_GRALLOC_PHASES)
+			dev_info(DEV(cdev), "[%p] completed flip\n", gsync);
+		if (gsync->cb_fn)
+			gsync->cb_fn(gsync->cb_arg, 1);
+		kfree(gsync);
 	}
 }
 
@@ -95,20 +119,18 @@ int dsscomp_gralloc_queue_ioctl(struct dsscomp_setup_mgr_data *d)
 	return ret;
 }
 
-/* This is just test code for now that does the setup + apply.
-   It still uses userspace virtual addresses, but maps non
-   TILER buffers into 1D */
 int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 			struct tiler_pa_info **pas,
 			void (*cb_fn)(void *, int), void *cb_arg)
 {
 	u32 i;
-	int r;
+	int r = 0;
 	struct omap_dss_device *dev;
 	struct omap_overlay_manager *mgr;
 	dsscomp_t comp;
 	u32 ovl_new_set_mask = 0;
 	int skip;
+	struct dsscomp_gralloc_t *gsync;
 
 	/* reserve tiler areas if not already done so */
 	dsscomp_gralloc_init(cdev);
@@ -117,36 +139,53 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 	for (i = 0; i < d->num_ovls; i++)
 		dump_ovl_info(cdev, d->ovls + i);
 
-	/* ignore frames while we are blanked */
 	mutex_lock(&mtx);
+
+	/* create sync object with 1 temporary ref */
+	gsync = kzalloc(sizeof(*gsync), GFP_KERNEL);
+	gsync->cb_arg = cb_arg;
+	gsync->cb_fn = cb_fn;
+	gsync->refs.counter = 1;
+	INIT_LIST_HEAD(&gsync->slots);
+	list_add_tail(&gsync->q, &flip_queue);
+	if (debug & DEBUG_GRALLOC_PHASES)
+		dev_info(DEV(cdev), "[%p] queuing flip\n", gsync);
+
+	/* ignore frames while we are blanked */
 	skip = blanked;
+	if (skip && (debug & DEBUG_PHASES))
+		dev_info(DEV(cdev), "[%p,%08x] ignored\n", gsync, d->sync_id);
+
 	/* mark blank frame by NULL tiler pa pointer */
 	if (!skip && pas == NULL)
 		blanked = true;
+
 	mutex_unlock(&mtx);
 
-	if (skip) {
-		if (debug & DEBUG_PHASES)
-			dev_info(DEV(cdev), "[%08x] ignored\n", d->sync_id);
-		if (cb_fn)
-			cb_fn(cb_arg, 0);
-		return 0;
-	}
+	if (skip)
+		goto skip_mgr;
 
 	/* verify display is valid and connected */
-	if (d->mgr.ix >= cdev->num_displays)
-		return -EINVAL;
+	if (d->mgr.ix >= cdev->num_displays) {
+		r = -EINVAL;
+		goto skip_mgr;
+	}
 	dev = cdev->displays[d->mgr.ix];
-	if (!dev)
-		return -EINVAL;
+	if (!dev) {
+		r = -EINVAL;
+		goto skip_mgr;
+	}
 	mgr = dev->manager;
-	if (!mgr)
-		return -ENODEV;
+	if (!mgr) {
+		r = -ENODEV;
+		goto skip_mgr;
+	}
 
 	comp = dsscomp_new(mgr);
-	if (IS_ERR(comp))
-		return PTR_ERR(comp);
-	INIT_LIST_HEAD(&comp->slots);
+	if (IS_ERR(comp)) {
+		r = PTR_ERR(comp);
+		goto skip_mgr;
+	}
 
 	comp->frm.mode = DSSCOMP_SETUP_DISPLAY;
 	comp->must_apply = true;
@@ -180,10 +219,10 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 				mutex_unlock(&mtx);
 				up(&free_slots_sem);
 				/* disable unpinned layers */
-				oi->cfg.enabled = true;
+				oi->cfg.enabled = false;
 				break;
 			}
-			list_move(&slot->q, &comp->slots);
+			list_move(&slot->q, &gsync->slots);
 			oi->ba = slot->phys + (oi->ba & ~PAGE_MASK);
 			mutex_unlock(&mtx);
 		}
@@ -215,19 +254,19 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 			dsscomp_set_ovl(comp, &oi);
 			mask &= ~(1 << oi.cfg.ix);
 		}
+
 		comp->extra_cb = dsscomp_gralloc_cb;
-		comp->gralloc_cb_fn = cb_fn;
-		comp->gralloc_cb_arg = cb_arg;
+		comp->extra_cb_data = gsync;
+		atomic_inc(&gsync->refs);
 		r = dsscomp_delayed_apply(comp);
 		if (r)
 			dev_err(DEV(cdev), "failed to apply comp (%d)\n", r);
 		else
 			ovl_set_mask = ovl_new_set_mask;
 	}
-
-	/* complete composition if failed to queue */
-	if (r && cb_fn)
-		cb_fn(cb_arg, 0);
+skip_mgr:
+	/* release sync object ref - this completes unapplied compositions */
+	dsscomp_gralloc_cb(gsync, DSS_COMPLETION_RELEASED);
 
 	return r;
 }

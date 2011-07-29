@@ -35,6 +35,7 @@
 #include <linux/debugfs.h>
 #include <linux/uaccess.h>
 #include <linux/sched.h>
+#include <linux/syscalls.h>
 
 #define MODULE_NAME	"dsscomp"
 
@@ -42,6 +43,9 @@
 #include <video/dsscomp.h>
 #include <plat/dsscomp.h>
 #include "dsscomp.h"
+
+static DECLARE_WAIT_QUEUE_HEAD(waitq);
+static DEFINE_MUTEX(wait_mtx);
 
 static u32 hwc_virt_to_phys(u32 arg)
 {
@@ -63,6 +67,132 @@ static u32 hwc_virt_to_phys(u32 arg)
 	return 0;
 }
 
+/*
+ * ===========================================================================
+ *		WAIT OPERATIONS
+ * ===========================================================================
+ */
+
+static void sync_drop(struct dsscomp_sync_obj *sync)
+{
+	if (sync && atomic_dec_and_test(&sync->refs)) {
+		if (debug & DEBUG_WAITS)
+			pr_info("free sync [%p]\n", sync);
+
+		kfree(sync);
+	}
+}
+
+static int sync_setup(const char *name, const struct file_operations *fops,
+				struct dsscomp_sync_obj *sync, int flags)
+{
+	if (!sync)
+		return -ENOMEM;
+
+	sync->refs.counter = 1;
+	sync->fd = anon_inode_getfd(name, fops, sync, flags);
+	return sync->fd < 0 ? sync->fd : 0;
+}
+
+static int sync_finalize(struct dsscomp_sync_obj *sync, int r)
+{
+	if (sync) {
+		if (r < 0)
+			/* delete sync object on failure */
+			sys_close(sync->fd);
+		else
+			/* return file descriptor on success */
+			r = sync->fd;
+	}
+	return r;
+}
+
+/* wait for programming or release of a composition */
+int dsscomp_wait(struct dsscomp_sync_obj *sync, enum dsscomp_wait_phase phase,
+								int timeout)
+{
+	mutex_lock(&wait_mtx);
+	if (debug & DEBUG_WAITS)
+		pr_info("wait %s on [%p]\n",
+			phase == DSSCOMP_WAIT_DISPLAYED ? "display" :
+			phase == DSSCOMP_WAIT_PROGRAMMED ? "program" :
+			"release", sync);
+
+	if (sync->state < phase) {
+		mutex_unlock(&wait_mtx);
+
+		timeout = wait_event_interruptible_timeout(waitq,
+			sync->state >= phase, timeout);
+		if (debug & DEBUG_WAITS)
+			pr_info("wait over [%p]: %s %d\n", sync,
+				 timeout < 0 ? "signal" :
+				 timeout > 0 ? "ok" : "timeout",
+				 timeout);
+		if (timeout <= 0)
+			return timeout ? : -ETIME;
+
+		mutex_lock(&wait_mtx);
+	}
+	mutex_unlock(&wait_mtx);
+
+	return 0;
+}
+EXPORT_SYMBOL(dsscomp_wait);
+
+static void dsscomp_queue_cb(void *data, int status)
+{
+	struct dsscomp_sync_obj *sync = data;
+	enum dsscomp_wait_phase phase =
+		status == DSS_COMPLETION_PROGRAMMED ? DSSCOMP_WAIT_PROGRAMMED :
+		status == DSS_COMPLETION_DISPLAYED ? DSSCOMP_WAIT_DISPLAYED :
+		DSSCOMP_WAIT_RELEASED, old_phase;
+
+	mutex_lock(&wait_mtx);
+	old_phase = sync->state;
+	if (old_phase < phase)
+		sync->state = phase;
+	mutex_unlock(&wait_mtx);
+
+	if (status & DSS_COMPLETION_RELEASED)
+		sync_drop(sync);
+	if (old_phase < phase)
+		wake_up_interruptible_sync(&waitq);
+}
+
+static int sync_release(struct inode *inode, struct file *filp)
+{
+	struct dsscomp_sync_obj *sync = filp->private_data;
+	sync_drop(sync);
+	return 0;
+}
+
+static long sync_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	int r = 0;
+	struct dsscomp_sync_obj *sync = filp->private_data;
+	void __user *ptr = (void __user *)arg;
+
+	switch (cmd) {
+	case DSSCOMP_WAIT:
+	{
+		struct dsscomp_wait_data wd;
+		r = copy_from_user(&wd, ptr, sizeof(wd)) ? :
+		    dsscomp_wait(sync, wd.phase,
+					usecs_to_jiffies(wd.timeout_us));
+		break;
+	}
+	default:
+		r = -EINVAL;
+	}
+	return r;
+}
+
+static const struct file_operations sync_fops = {
+	.owner		= THIS_MODULE,
+	.release	= sync_release,
+	.unlocked_ioctl = sync_ioctl,
+};
+
 static long setup_mgr(struct dsscomp_dev *cdev,
 					struct dsscomp_setup_mgr_data *d)
 {
@@ -70,6 +200,7 @@ static long setup_mgr(struct dsscomp_dev *cdev,
 	struct omap_dss_device *dev;
 	struct omap_overlay_manager *mgr;
 	dsscomp_t comp;
+	struct dsscomp_sync_obj *sync = NULL;
 
 	dump_comp_info(cdev, d, "queue");
 	for (i = 0; i < d->num_ovls; i++)
@@ -112,11 +243,38 @@ static long setup_mgr(struct dsscomp_dev *cdev,
 	}
 
 	r = r ? : dsscomp_setup(comp, d->mode, d->win);
-	if (r)
-		dsscomp_drop(comp);
-	else if (d->mode & DSSCOMP_SETUP_APPLY)
-		r = dsscomp_apply(comp);
 
+	/* create sync object */
+	if (d->get_sync_obj) {
+		sync = kzalloc(sizeof(*sync), GFP_KERNEL);
+		r = sync_setup("dsscomp_sync", &sync_fops, sync, O_RDONLY);
+		if (sync && (debug & DEBUG_WAITS))
+			dev_info(DEV(cdev), "new sync [%p] on #%d\n", sync,
+								sync->fd);
+		if (r)
+			sync_drop(sync);
+	}
+
+	/* drop composition if failed to create */
+	if (r) {
+		dsscomp_drop(comp);
+		return r;
+	}
+
+	if (sync) {
+		sync->refs.counter++;
+		comp->extra_cb = dsscomp_queue_cb;
+		comp->extra_cb_data = sync;
+	}
+	if (d->mode & DSSCOMP_SETUP_APPLY)
+		r = dsscomp_delayed_apply(comp);
+
+	/* delete sync object if failed to apply or create file */
+	if (sync) {
+		r = sync_finalize(sync, r);
+		if (r < 0)
+			sync_drop(sync);
+	}
 	return r;
 }
 
@@ -184,26 +342,6 @@ static long check_ovl(struct dsscomp_dev *cdev,
 {
 	/* for now return all overlays as possible */
 	return (1 << cdev->num_ovls) - 1;
-}
-
-static long wait(struct dsscomp_dev *cdev, struct dsscomp_wait_data *wd)
-{
-	struct omap_overlay_manager *mgr;
-	dsscomp_t comp;
-
-	/* get manager */
-	if (wd->ix >= cdev->num_displays || !cdev->displays[wd->ix])
-		return -EINVAL;
-	mgr = cdev->displays[wd->ix]->manager;
-	if (!mgr)
-		return -ENODEV;
-
-	/* get composition - we don't have a handle to the composition */
-	comp = ERR_PTR(-EINVAL);
-	if (IS_ERR(comp))
-		return 0;
-
-	return dsscomp_wait(comp, wd->phase, usecs_to_jiffies(wd->timeout_us));
 }
 
 static void fill_cache(struct dsscomp_dev *cdev)
@@ -282,13 +420,6 @@ static long comp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		struct dsscomp_check_ovl_data chk;
 		r = copy_from_user(&chk, ptr, sizeof(chk)) ? :
 		    check_ovl(cdev, &chk);
-		break;
-	}
-	case DSSCOMP_WAIT:
-	{
-		struct dsscomp_wait_data wd;
-		r = copy_from_user(&wd, ptr, sizeof(wd)) ? :
-		    wait(cdev, &wd);
 		break;
 	}
 	default:

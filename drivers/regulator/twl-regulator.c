@@ -108,6 +108,14 @@ struct twlreg_info {
 #define TWL6030_MISC2		0xE5
 #define TWL6030_CFG_LDO_PD2	0xF5
 
+/*
+ * TWL603X SMPS has 6 bits xxxx_CFG_VOLTAGE.VSEL[5:0] to configure voltages and
+ * each bit combination corresponds to a particular voltage (value 63 is
+ * reserved).
+ */
+#define TWL603X_SMPS_VSEL_MASK	0x3F
+#define TWL603X_SMPS_NUMBER_VOLTAGES TWL603X_SMPS_VSEL_MASK
+
 static inline int
 twlreg_read(struct twlreg_info *info, unsigned slave_subgp, unsigned offset)
 {
@@ -917,6 +925,20 @@ static struct regulator_ops twlsmps_ops = {
 		}, \
 	}
 
+#define TWL6030_ADJUSTABLE_SMPS(label, offset, min_mVolts, max_mVolts) { \
+	.base = offset, \
+	.min_mV = min_mVolts, \
+	.max_mV = max_mVolts, \
+	.desc = { \
+		.name = #label, \
+		.id = TWL6030_REG_##label, \
+		.n_voltages = TWL603X_SMPS_NUMBER_VOLTAGES, \
+		.ops = &twlsmps_ops, \
+		.type = REGULATOR_VOLTAGE, \
+		.owner = THIS_MODULE, \
+		}, \
+	}
+
 #define TWL6025_ADJUSTABLE_SMPS(label, offset) { \
 	.base = offset, \
 	.min_mV = 600, \
@@ -924,7 +946,7 @@ static struct regulator_ops twlsmps_ops = {
 	.desc = { \
 		.name = #label, \
 		.id = TWL6025_REG_##label, \
-		.n_voltages = 63, \
+		.n_voltages = TWL603X_SMPS_NUMBER_VOLTAGES, \
 		.ops = &twlsmps_ops, \
 		.type = REGULATOR_VOLTAGE, \
 		.owner = THIS_MODULE, \
@@ -972,6 +994,8 @@ static struct twlreg_info twl_regs[] = {
 	TWL6030_FIXED_LDO(VDAC, 0x64, 1800, 0),
 	TWL6030_FIXED_LDO(VUSB, 0x70, 3300, 0),
 	TWL6030_FIXED_RESOURCE(CLK32KG, 0x8C, 0),
+	TWL6030_ADJUSTABLE_SMPS(VDD3, 0x2e, 600, 4000),
+	TWL6030_ADJUSTABLE_SMPS(VMEM, 0x34, 600, 4000),
 
 	/* 6025 are renamed compared to 6030 versions */
 	TWL6025_ADJUSTABLE_LDO(LDO2, 0x54, 1000, 3300),

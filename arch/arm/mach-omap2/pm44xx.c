@@ -26,6 +26,7 @@
 #include <mach/omap4-common.h>
 #include <plat/omap_hsi.h>
 #include <plat/common.h>
+#include <plat/usb.h>
 
 #include "powerdomain.h"
 #include "clockdomain.h"
@@ -66,6 +67,14 @@ static struct voltagedomain *mpu_voltdm, *iva_voltdm, *core_voltdm;
 void omap4_trigger_ioctrl(void)
 {
 	int i = 0;
+
+	/* Enable GLOBAL_WUEN */
+	if (!omap4_cminst_read_inst_reg_bits(OMAP4430_PRM_PARTITION,
+			OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_IO_PMCTRL_OFFSET,
+			OMAP4430_GLOBAL_WUEN_MASK))
+		omap4_prminst_rmw_inst_reg_bits(OMAP4430_GLOBAL_WUEN_MASK,
+			OMAP4430_GLOBAL_WUEN_MASK, OMAP4430_PRM_PARTITION,
+			OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_IO_PMCTRL_OFFSET);
 
 	/* Trigger WUCLKIN enable */
 	omap4_prminst_rmw_inst_reg_bits(OMAP4430_WUCLK_CTRL_MASK, OMAP4430_WUCLK_CTRL_MASK,
@@ -136,7 +145,6 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
 
 			omap2_gpio_prepare_for_idle(0);
-			omap4_trigger_ioctrl();
 		}
 	}
 
@@ -166,15 +174,6 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 	}
 
 	return;
-}
-
-/* We set the wake-up enable bits for irq's that have to be wakeup capable but
- * are not associated with a specific driver.
- */
-static void omap4_pm_set_wakeups(int enable)
-{
-	irq_set_irq_wake(OMAP44XX_IRQ_PRCM, enable);
-	irq_set_irq_wake(OMAP44XX_IRQ_SYS_1N, enable);
 }
 
 #ifdef CONFIG_PM_DEBUG
@@ -319,9 +318,6 @@ static int omap4_pm_suspend(void)
 		pwrst->saved_logic_state = pwrdm_read_logic_retst(pwrst->pwrdm);
 	}
 
-	/* Enable wake-up irq's */
-	omap4_pm_set_wakeups(1);
-
 	/* Set targeted power domain states by suspend */
 	list_for_each_entry(pwrst, &pwrst_list, node) {
 		if ((!strcmp(pwrst->pwrdm->name, "cpu0_pwrdm")) ||
@@ -349,9 +345,6 @@ static int omap4_pm_suspend(void)
 	 */
 	omap4_enter_sleep(0, PWRDM_POWER_OFF, true);
 	omap4_print_wakeirq();
-
-	/* Disable wake-up irq's */
-	omap4_pm_set_wakeups(0);
 
 	/* Restore next powerdomain state */
 	list_for_each_entry(pwrst, &pwrst_list, node) {
@@ -457,9 +450,6 @@ static void __init prcm_setup_regs(void)
 	omap4_prminst_rmw_inst_reg_bits(OMAP4430_IO_ST_MASK, OMAP4430_IO_ST_MASK,
 		OMAP4430_PRM_PARTITION, OMAP4430_PRM_OCP_SOCKET_INST, OMAP4_PRM_IRQENABLE_MPU_OFFSET);
 
-	/* Enable GLOBAL_WUEN */
-	omap4_prminst_rmw_inst_reg_bits(OMAP4430_GLOBAL_WUEN_MASK, OMAP4430_GLOBAL_WUEN_MASK,
-		OMAP4430_PRM_PARTITION, OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_IO_PMCTRL_OFFSET);
 	/*
 	 * Errata ID: i608 Impacted OMAP4430 ES 1.0,2.0,2.1,2.2
 	 * On OMAP4, Retention-Till-Access Memory feature is not working
@@ -506,6 +496,7 @@ static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 		if (omap_hsi_is_io_wakeup_from_hsi())
 			omap_hsi_wakeup(0);
 		omap_uart_resume_idle();
+		usbhs_wakeup();
 		omap4_trigger_ioctrl();
 	}
 
@@ -515,6 +506,24 @@ static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 					OMAP4_PRM_IRQSTATUS_MPU_OFFSET);
 
 	return IRQ_HANDLED;
+}
+
+/**
+ * omap_default_idle() - implement a default idle for !CONFIG_CPUIDLE
+ *
+ * Implements OMAP4 memory, IO ordering requirements which can't be addressed
+ * with default arch_idle() hook. Used by all CPUs with !CONFIG_CPUIDLE and
+ * by secondary CPU with CONFIG_CPUIDLE.
+ */
+static void omap_default_idle(void)
+{
+	local_irq_disable();
+	local_fiq_disable();
+
+	omap_do_wfi();
+
+	local_fiq_enable();
+	local_irq_enable();
 }
 
 /**
@@ -634,6 +643,9 @@ static int __init omap4_pm_init(void)
 
 	 /* Enable wakeup for PRCM IRQ for system wide suspend */
 	enable_irq_wake(OMAP44XX_IRQ_PRCM);
+
+	/* Overwrite the default arch_idle() */
+	pm_idle = omap_default_idle;
 
 	omap4_idle_init();
 

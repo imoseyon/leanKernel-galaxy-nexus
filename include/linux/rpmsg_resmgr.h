@@ -50,6 +50,7 @@ enum {
 	RPRM_SDMA	= 11,
 	RPRM_IPU	= 12,
 	RPRM_DSP	= 13,
+	RPRM_I2C	= 14,
 	RPRM_MAX
 };
 
@@ -102,6 +103,16 @@ struct rprm_regulator {
 };
 
 struct rprm_gpio {
+	u32 id;
+};
+
+/**
+ * struct rprm_i2c - resource i2c
+ * @id:	i2c id
+ *
+ * meant to store the i2c related information
+ */
+struct rprm_i2c {
 	u32 id;
 };
 

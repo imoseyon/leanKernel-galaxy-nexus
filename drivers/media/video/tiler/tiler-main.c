@@ -31,6 +31,8 @@
 #include <linux/pagemap.h>		/* page_cache_release() */
 #include <linux/slab.h>
 #include <linux/sched.h>
+#include <linux/seq_file.h>
+#include <linux/debugfs.h>
 
 #include <mach/dmm.h>
 #include "tmm.h"
@@ -39,6 +41,7 @@
 
 static bool ssptr_id = CONFIG_TILER_SSPTR_ID;
 static uint granularity = CONFIG_TILER_GRANULARITY;
+static uint tiler_alloc_debug;
 
 /*
  * We can only change ssptr_id if there are no blocks allocated, so that
@@ -49,10 +52,14 @@ module_param(ssptr_id, bool, 0444);
 MODULE_PARM_DESC(ssptr_id, "Use ssptr as block ID");
 module_param_named(grain, granularity, uint, 0644);
 MODULE_PARM_DESC(grain, "Granularity (bytes)");
+module_param_named(alloc_debug, tiler_alloc_debug, uint, 0644);
+MODULE_PARM_DESC(alloc_debug, "Allocation debug flag");
 
 struct tiler_dev {
 	struct cdev cdev;
 };
+static struct dentry *dbgfs;
+static struct dentry *dbg_map;
 
 struct platform_driver tiler_driver_ldm = {
 	.driver = {
@@ -159,6 +166,178 @@ static u32 _m_get_id(void)
 
 	return id;
 }
+
+/*
+ *  Debugfs support
+ *  ==========================================================================
+ */
+struct tiler_debugfs_data {
+	char name[17];
+	void (*func)(struct seq_file *, u32 arg);
+	u32 arg;
+};
+
+static void fill_map(char **map, int xdiv, int ydiv, struct tcm_area *a,
+							char c, bool ovw)
+{
+	int x, y;
+	for (y = a->p0.y / ydiv; y <= a->p1.y / ydiv; y++)
+		for (x = a->p0.x / xdiv; x <= a->p1.x / xdiv; x++)
+			if (map[y][x] == ' ' || ovw)
+				map[y][x] = c;
+}
+
+static void fill_map_pt(char **map, int xdiv, int ydiv, struct tcm_pt *p,
+									char c)
+{
+	map[p->y / ydiv][p->x / xdiv] = c;
+}
+
+static char read_map_pt(char **map, int xdiv, int ydiv, struct tcm_pt *p)
+{
+	return map[p->y / ydiv][p->x / xdiv];
+}
+
+static int map_width(int xdiv, int x0, int x1)
+{
+	return (x1 / xdiv) - (x0 / xdiv) + 1;
+}
+
+static void text_map(char **map, int xdiv, char *nice, int yd, int x0, int x1)
+{
+	char *p = map[yd] + (x0 / xdiv);
+	int w = (map_width(xdiv, x0, x1) - strlen(nice)) / 2;
+	if (w >= 0) {
+		p += w;
+		while (*nice)
+			*p++ = *nice++;
+	}
+}
+
+static void map_1d_info(char **map, int xdiv, int ydiv, char *nice,
+							struct tcm_area *a)
+{
+	sprintf(nice, "%dK", tcm_sizeof(*a) * 4);
+	if (a->p0.y + 1 < a->p1.y) {
+		text_map(map, xdiv, nice, (a->p0.y + a->p1.y) / 2 / ydiv, 0,
+							tiler.width - 1);
+	} else if (a->p0.y < a->p1.y) {
+		if (strlen(nice) < map_width(xdiv, a->p0.x, tiler.width - 1))
+			text_map(map, xdiv, nice, a->p0.y / ydiv,
+					a->p0.x + xdiv,	tiler.width - 1);
+		else if (strlen(nice) < map_width(xdiv, 0, a->p1.x))
+			text_map(map, xdiv, nice, a->p1.y / ydiv,
+					0, a->p1.y - xdiv);
+	} else if (strlen(nice) + 1 < map_width(xdiv, a->p0.x, a->p1.x)) {
+		text_map(map, xdiv, nice, a->p0.y / ydiv, a->p0.x, a->p1.x);
+	}
+}
+
+static void map_2d_info(char **map, int xdiv, int ydiv, char *nice,
+							struct tcm_area *a)
+{
+	sprintf(nice, "(%d*%d)", tcm_awidth(*a), tcm_aheight(*a));
+	if (strlen(nice) + 1 < map_width(xdiv, a->p0.x, a->p1.x))
+		text_map(map, xdiv, nice, (a->p0.y + a->p1.y) / 2 / ydiv,
+							a->p0.x, a->p1.x);
+}
+
+static void debug_allocation_map(struct seq_file *s, u32 arg)
+{
+	int xdiv = (arg >> 8) & 0xFF;
+	int ydiv = arg & 0xFF;
+	int i;
+	char **map, *global_map;
+	struct area_info *ai;
+	struct mem_info *mi;
+	struct tcm_area a, p;
+	static char *m2d = "abcdefghijklmnopqrstuvwxyz"
+					"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+	static char *a2d = ".,:;'\"`~!^-+";
+	char *m2dp = m2d, *a2dp = a2d;
+	char nice[128];
+
+	/* allocate map */
+	map = kzalloc(tiler.height / ydiv * sizeof(*map), GFP_KERNEL);
+	global_map = kzalloc((tiler.width / xdiv + 1) * tiler.height / ydiv,
+								GFP_KERNEL);
+	if (!map || !global_map) {
+		printk(KERN_ERR "could not allocate map for debug print\n");
+		goto error;
+	}
+	memset(global_map, ' ', (tiler.width / xdiv + 1) * tiler.height / ydiv);
+	for (i = 0; i < tiler.height / ydiv; i++) {
+		map[i] = global_map + i * (tiler.width / xdiv + 1);
+		map[i][tiler.width / xdiv] = 0;
+	}
+
+	/* get all allocations */
+	mutex_lock(&mtx);
+
+	list_for_each_entry(mi, &blocks, global) {
+		if (mi->area.is2d) {
+			ai = mi->parent;
+			fill_map(map, xdiv, ydiv, &ai->area, *a2dp, false);
+			fill_map(map, xdiv, ydiv, &mi->area, *m2dp, true);
+			if (!*++a2dp)
+				a2dp = a2d;
+			if (!*++m2dp)
+				m2dp = m2d;
+			map_2d_info(map, xdiv, ydiv, nice, &mi->area);
+		} else {
+			bool start = read_map_pt(map, xdiv, ydiv, &mi->area.p0)
+									== ' ';
+			bool end = read_map_pt(map, xdiv, ydiv, &mi->area.p1)
+									== ' ';
+			tcm_for_each_slice(a, mi->area, p)
+				fill_map(map, xdiv, ydiv, &a, '=', true);
+			fill_map_pt(map, xdiv, ydiv, &mi->area.p0,
+							start ? '<' : 'X');
+			fill_map_pt(map, xdiv, ydiv, &mi->area.p1,
+							end ? '>' : 'X');
+			map_1d_info(map, xdiv, ydiv, nice, &mi->area);
+		}
+	}
+
+	seq_printf(s, "BEGIN TILER MAP\n");
+	for (i = 0; i < tiler.height / ydiv; i++)
+		seq_printf(s, "%03d:%s\n", i * ydiv, map[i]);
+	seq_printf(s, "END TILER MAP\n");
+
+	mutex_unlock(&mtx);
+
+error:
+	kfree(map);
+	kfree(global_map);
+}
+
+const struct tiler_debugfs_data debugfs_maps[] = {
+	{ "1x1", debug_allocation_map, 0x0101 },
+	{ "2x1", debug_allocation_map, 0x0201 },
+	{ "4x1", debug_allocation_map, 0x0401 },
+	{ "2x2", debug_allocation_map, 0x0202 },
+	{ "4x2", debug_allocation_map, 0x0402 },
+	{ "4x4", debug_allocation_map, 0x0404 },
+};
+
+static int tiler_debug_show(struct seq_file *s, void *unused)
+{
+	struct tiler_debugfs_data *fn = s->private;
+	fn->func(s, fn->arg);
+	return 0;
+}
+
+static int tiler_debug_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, tiler_debug_show, inode->i_private);
+}
+
+static const struct file_operations tiler_debug_fops = {
+	.open           = tiler_debug_open,
+	.read           = seq_read,
+	.llseek         = seq_lseek,
+	.release        = single_release,
+};
 
 /*
  *  gid_info handling methods
@@ -436,6 +615,15 @@ static struct mem_info *get_2d_area(u16 w, u16 h, u16 align, u16 band,
 
 			/* remove from reserved list */
 			list_del(&mi->global);
+			if (tiler_alloc_debug & 1)
+				 printk(KERN_ERR "(=2d (%d-%d,%d-%d) in (%d-%d,%d-%d) prereserved)\n",
+				 mi->area.p0.x, mi->area.p1.x,
+				 mi->area.p0.y, mi->area.p1.y,
+				 ((struct area_info *) mi->parent)->area.p0.x,
+				 ((struct area_info *) mi->parent)->area.p1.x,
+				 ((struct area_info *) mi->parent)->area.p0.y,
+				 ((struct area_info *) mi->parent)->area.p1.y);
+
 			goto done;
 		}
 	}
@@ -456,7 +644,17 @@ static struct mem_info *get_2d_area(u16 w, u16 h, u16 align, u16 band,
 			x = _m_blk_find_fit(w, align, ai, &before);
 			if (x) {
 				_m_add2area(mi, ai, x - w, w, before);
-				goto done;
+
+			if (tiler_alloc_debug & 1)
+				printk(KERN_ERR "(+2d (%d-%d,%d-%d) in (%d-%d,%d-%d) existing)\n",
+				mi->area.p0.x, mi->area.p1.x,
+				mi->area.p0.y, mi->area.p1.y,
+				((struct area_info *) mi->parent)->area.p0.x,
+				((struct area_info *) mi->parent)->area.p1.x,
+				((struct area_info *) mi->parent)->area.p0.y,
+				((struct area_info *) mi->parent)->area.p1.y);
+
+			goto done;
 			}
 		}
 	}
@@ -467,6 +665,12 @@ static struct mem_info *get_2d_area(u16 w, u16 h, u16 align, u16 band,
 		      max(band, align), tcm, gi);
 	if (ai) {
 		_m_add2area(mi, ai, ai->area.p0.x, w, &ai->blocks);
+		if (tiler_alloc_debug & 1)
+			printk(KERN_ERR "(+2d (%d-%d,%d-%d) in (%d-%d,%d-%d) new)\n",
+					mi->area.p0.x, mi->area.p1.x,
+					mi->area.p0.y, mi->area.p1.y,
+					ai->area.p0.x, ai->area.p1.x,
+					ai->area.p0.y, ai->area.p1.y);
 	} else {
 		/* clean up */
 		kfree(mi);
@@ -610,14 +814,31 @@ static s32 _m_free(struct mem_info *mi)
 
 		/* check to see if area needs removing also */
 		if (ai && !--ai->nblocks) {
+				if (tiler_alloc_debug & 1)
+					printk(KERN_ERR "(-2d (%d-%d,%d-%d) in (%d-%d,%d-%d) last)\n",
+							   mi->area.p0.x, mi->area.p1.x,
+							   mi->area.p0.y, mi->area.p1.y,
+							   ai->area.p0.x, ai->area.p1.x,
+							   ai->area.p0.y, ai->area.p1.y);
+
 			res = tcm_free(&ai->area);
 			list_del(&ai->by_gid);
 			/* try to remove parent if it became empty */
 			_m_try_free_group(ai->gi);
 			kfree(ai);
 			ai = NULL;
-		}
+		} else if (tiler_alloc_debug & 1)
+					printk(KERN_ERR "(-2d (%d-%d,%d-%d) in (%d-%d,%d-%d) remaining)\n",
+						mi->area.p0.x, mi->area.p1.x,
+						mi->area.p0.y, mi->area.p1.y,
+						ai->area.p0.x, ai->area.p1.x,
+						ai->area.p0.y, ai->area.p1.y);
+
 	} else {
+		if (tiler_alloc_debug & 1)
+			printk(KERN_ERR "(-1d: %d,%d..%d,%d)\n",
+			mi->area.p0.x, mi->area.p0.y,
+			mi->area.p1.x, mi->area.p1.y);
 		/* remove 1D area */
 		res = tcm_free(&mi->area);
 		/* try to remove parent if it became empty */
@@ -890,6 +1111,11 @@ static struct mem_info *alloc_area(enum tiler_fmt fmt, u32 width, u32 height,
 			kfree(mi);
 			return NULL;
 		}
+
+		if (tiler_alloc_debug & 1)
+			 printk(KERN_ERR "(+1d: %d,%d..%d,%d)\n",
+						mi->area.p0.x, mi->area.p0.y,
+						mi->area.p1.x, mi->area.p1.y);
 
 		mutex_lock(&mtx);
 		mi->parent = gi;
@@ -1356,6 +1582,19 @@ static s32 __init tiler_init(void)
 	INIT_LIST_HEAD(&orphan_areas);
 	INIT_LIST_HEAD(&orphan_onedim);
 
+	dbgfs = debugfs_create_dir("tiler", NULL);
+	if (IS_ERR_OR_NULL(dbgfs))
+		dev_warn(device, "failed to create debug files.\n");
+	else
+		dbg_map = debugfs_create_dir("map", dbgfs);
+	if (!IS_ERR_OR_NULL(dbg_map)) {
+		int i;
+		for (i = 0; i < ARRAY_SIZE(debugfs_maps); i++)
+			debugfs_create_file(debugfs_maps[i].name, S_IRUGO,
+				dbg_map, (void *) (debugfs_maps + i),
+				&tiler_debug_fops);
+	}
+
 error:
 	/* TODO: error handling for device registration */
 	if (r) {
@@ -1374,6 +1613,8 @@ static void __exit tiler_exit(void)
 	int i, j;
 
 	mutex_lock(&mtx);
+
+	debugfs_remove_recursive(dbgfs);
 
 	/* free all process data */
 	tiler.cleanup();

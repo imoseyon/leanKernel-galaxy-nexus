@@ -142,6 +142,7 @@
 #include "powerdomain.h"
 #include <plat/clock.h>
 #include <plat/omap_hwmod.h>
+#include <plat/omap_device.h>
 #include <plat/prcm.h>
 
 #include "cm2xxx_3xxx.h"
@@ -149,6 +150,7 @@
 #include "prm2xxx_3xxx.h"
 #include "prm44xx.h"
 #include "mux.h"
+#include "pm.h"
 
 /* Maximum microseconds to wait for OMAP module to softreset */
 #define MAX_MODULE_SOFTRESET_WAIT	10000
@@ -1326,8 +1328,11 @@ static int _idle(struct omap_hwmod *oh)
 	_disable_clocks(oh);
 
 	/* Mux pins for device idle if populated */
-	if (oh->mux && oh->mux->pads_dynamic)
+	if (oh->mux && oh->mux->pads_dynamic) {
 		omap_hwmod_mux(oh->mux, _HWMOD_STATE_IDLE);
+		if (cpu_is_omap44xx())
+			omap4_trigger_ioctrl();
+	}
 
 	oh->_state = _HWMOD_STATE_IDLE;
 
@@ -2469,3 +2474,35 @@ int omap_hwmod_pad_get_wakeup_status(struct omap_hwmod *oh)
 		return omap_hwmod_mux_get_wake_status(oh->mux);
 	return -EINVAL;
 }
+
+/**
+ * omap_hwmod_name_get_dev() - convert a hwmod name to device pointer
+ * @oh_name: name of the hwmod device
+ *
+ * returns back a struct device * pointer associated with a hwmod
+ * device represented by a hwmod_name
+ */
+struct device *omap_hwmod_name_get_dev(const char *oh_name)
+{
+	struct omap_hwmod *oh;
+
+	if (!oh_name) {
+		WARN(1, "%s: no hwmod name!\n", __func__);
+		return ERR_PTR(-EINVAL);
+	}
+
+	oh = _lookup(oh_name);
+	if (IS_ERR_OR_NULL(oh)) {
+		WARN(1, "%s: no hwmod for %s\n", __func__,
+			oh_name);
+		return ERR_PTR(oh ? PTR_ERR(oh) : -ENODEV);
+	}
+	if (IS_ERR_OR_NULL(oh->od)) {
+		WARN(1, "%s: no omap_device for %s\n", __func__,
+			oh_name);
+		return ERR_PTR(oh ? PTR_ERR(oh) : -ENODEV);
+	}
+
+	return &oh->od->pdev.dev;
+}
+EXPORT_SYMBOL(omap_hwmod_name_get_dev);

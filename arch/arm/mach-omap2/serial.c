@@ -173,7 +173,7 @@ static struct omap_device_pad default_omap36xx_uart4_pads[] __initdata = {};
 static struct omap_device_pad default_omap4_uart4_pads[] __initdata = {};
 #endif
 
-static void omap_serial_fill_default_pads(struct omap_board_data *bdata)
+static __init void omap_serial_fill_default_pads(struct omap_board_data *bdata)
 {
 	BUG_ON(!cpu_is_omap44xx() && !cpu_is_omap34xx());
 

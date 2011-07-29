@@ -33,6 +33,7 @@
 #define DEBUG_COMPOSITIONS	(1 << 1)
 #define DEBUG_PHASES		(1 << 2)
 #define DEBUG_WAITS		(1 << 3)
+#define DEBUG_GRALLOC_PHASES	(1 << 4)
 
 /*
  * Utility macros
@@ -62,8 +63,16 @@ struct dsscomp_dev {
 
 extern int debug;
 
+enum dsscomp_state {
+	DSSCOMP_STATE_ACTIVE		= 0xAC54156E,
+	DSSCOMP_STATE_APPLYING		= 0xB554C591,
+	DSSCOMP_STATE_APPLIED		= 0xB60504C1,
+	DSSCOMP_STATE_PROGRAMMED	= 0xC0520652,
+	DSSCOMP_STATE_DISPLAYED		= 0xD15504CA,
+};
+
 struct dsscomp_data {
-	u32 magic;
+	enum dsscomp_state state;
 	/*
 	 * :TRICKY: before applying, overlays used in a composition are stored
 	 * in ovl_mask and the other masks are empty.  Once composition is
@@ -79,15 +88,18 @@ struct dsscomp_data {
 	u32 ovl_mask;		/* overlays used on this frame */
 	u32 ovl_dmask;		/* overlays disabled on this frame */
 	u32 ix;			/* manager index that this frame is on */
-	struct list_head q;
 	struct omapdss_ovl_cb cb;
 	struct dsscomp_setup_mgr_data frm;
 	struct dss2_ovl_info ovls[5];
-	struct list_head slots;	/* tiler slots used by the composition */
-	void (*extra_cb)(dsscomp_t comp, int status);
-	void (*gralloc_cb_fn)(void *, int);
-	void *gralloc_cb_arg;
+	void (*extra_cb)(void *data, int status);
+	void *extra_cb_data;
 	bool must_apply;	/* whether composition must be applied */
+};
+
+struct dsscomp_sync_obj {
+	int state;
+	int fd;
+	atomic_t refs;
 };
 
 /*
@@ -98,6 +110,8 @@ void dsscomp_queue_exit(void);
 void dsscomp_gralloc_init(struct dsscomp_dev *cdev);
 void dsscomp_gralloc_exit(void);
 int dsscomp_gralloc_queue_ioctl(struct dsscomp_setup_mgr_data *d);
+int dsscomp_wait(struct dsscomp_sync_obj *sync, enum dsscomp_wait_phase phase,
+								int timeout);
 
 /* basic operation - if not using queues */
 int set_dss_ovl_info(struct dss2_ovl_info *oi);

@@ -64,6 +64,7 @@ extern void gic_dist_disable(void);
 extern u32 gic_cpu_read(u32 reg);
 extern void omap_smc1(u32 fn, u32 arg);
 extern void omap_bus_sync(void);
+extern void omap_do_wfi(void);
 
 extern bool gic_dist_disabled(void);
 extern void gic_timer_retrigger(void);

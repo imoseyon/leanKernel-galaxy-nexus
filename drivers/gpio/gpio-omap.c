@@ -677,7 +677,7 @@ exit:
 	if (!unmasked)
 		chained_irq_exit(chip, desc);
 
-	pm_runtime_put_sync(bank->dev);
+	pm_runtime_put_sync_suspend(bank->dev);
 }
 
 static void gpio_irq_shutdown(struct irq_data *d)

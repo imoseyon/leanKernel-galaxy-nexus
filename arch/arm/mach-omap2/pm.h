@@ -204,4 +204,22 @@ static inline int omap_tps6236x_update(char *name, u16 old_chip_id,
 }
 #endif
 
+#ifdef CONFIG_PM
+extern bool omap_pm_is_ready_status;
+/**
+ * omap_pm_is_ready() - tells if OMAP pm framework is done it's initialization
+ *
+ * In few cases, to sequence operations properly, we'd like to know if OMAP's PM
+ * framework has completed all it's expected initializations.
+ */
+static inline bool omap_pm_is_ready(void)
+{
+	return omap_pm_is_ready_status;
+}
+#else
+static inline bool omap_pm_is_ready(void)
+{
+	return false;
+}
+#endif
 #endif

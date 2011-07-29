@@ -1169,7 +1169,7 @@ exit_rls:
  *
  * Finds minimum latency value from all entries in the list and
  * the power domain power state neeting the constraint. Programs
- * new state if it is different from current power state.
+ * new state if it is different from next power state.
  * Returns -EINVAL if the powerdomain or device pointer is NULL or
  * no such entry exists in the list, or -ERANGE if constraint can't be met,
  * or returns 0 upon success.
@@ -1202,7 +1202,7 @@ int pwrdm_wakeuplat_update_pwrst(struct powerdomain *pwrdm)
 	if (new_state == PWRDM_FUNC_PWRST_OSWR)
 		new_state = PWRDM_FUNC_PWRST_CSWR;
 
-	if (pwrdm->state != new_state) {
+	if (pwrdm_read_next_pwrst(pwrdm) != new_state) {
 		if (cpu_is_omap44xx() || cpu_is_omap34xx())
 			omap_set_pwrdm_state(pwrdm, new_state);
 	}

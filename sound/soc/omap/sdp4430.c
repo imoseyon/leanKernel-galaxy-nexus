@@ -615,6 +615,7 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 
 		.no_codec = 1, /* TODO: have a dummy CODEC */
 		.ops = &sdp4430_mcbsp_ops,
+		.ignore_suspend = 1,
 	},
 	{
 		.name = "Legacy McPDM",
@@ -629,6 +630,7 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 		.codec_name = "twl6040-codec",
 
 		.ops = &sdp4430_mcpdm_ops,
+		.ignore_suspend = 1,
 	},
 
 /*
