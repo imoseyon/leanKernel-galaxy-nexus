@@ -34,13 +34,6 @@
 #define IF_USB_RAW_EP		1
 #define IF_USB_RFS_EP		2
 
-#define HOST_WUP_LEVEL 1
-
-enum HOST_WAKEUP_STATE {
-	HOST_WAKEUP_LOW = 1,
-	HOST_WAKEUP_WAIT_RESET,
-};
-
 enum RESUME_STATUS {
 	CP_INITIATED_RESUME,
 	AP_INITIATED_RESUME,
@@ -80,10 +73,7 @@ struct usb_link_device {
 	struct wake_lock	dormancy_lock;
 	long	wake_time;
 #endif
-	int resume_debug;
-	int dpm_suspending;
 	int if_usb_connected;
-	int skip_hostwakeup;
 	int reconnect_cnt;
 	int flow_suspend;
 	struct urb		*urbs[0];

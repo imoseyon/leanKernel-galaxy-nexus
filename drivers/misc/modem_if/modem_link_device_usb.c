@@ -27,6 +27,9 @@
 #include "modem_prj.h"
 #include "modem_link_device_usb.h"
 
+static irqreturn_t usb_resume_irq(int irq, void *data);
+static void usb_rx_complete(struct urb *urb);
+
 static int usb_attach_io_dev(struct link_device *ld,
 			struct io_device *iod)
 {
@@ -46,7 +49,6 @@ static int usb_init_communication(struct link_device *ld,
 	return 0;
 }
 
-static void usb_rx_complete(struct urb *urb);
 static int usb_rx_submit(struct usb_link_device *usb_ld,
 					struct if_usb_devdata *pipe_data,
 					gfp_t gfp_flags)
@@ -386,6 +388,9 @@ static void if_usb_disconnect(struct usb_interface *intf)
 	if (usb_ld->devdata[dev_id].disconnected)
 		return;
 
+	if (usb_ld->if_usb_connected)
+		free_irq(usb_ld->pdata->irq_host_wakeup, usb_ld);
+
 	usb_ld->if_usb_connected = 0;
 	usb_ld->flow_suspend = 1;
 
@@ -534,6 +539,16 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 		}
 		usb_ld->if_usb_connected = 1;
 		usb_ld->flow_suspend = 0;
+
+		err = request_threaded_irq(usb_ld->pdata->irq_host_wakeup,
+			NULL,
+			usb_resume_irq,
+			IRQF_TRIGGER_HIGH | IRQF_ONESHOT,
+			"modem_usb_wake",
+			usb_ld);
+		if (err)
+			pr_err("Failed to allocate an interrupt(%d)\n",
+					usb_ld->pdata->irq_host_wakeup);
 	}
 
 	return 0;
@@ -555,34 +570,29 @@ static void if_usb_free_pipe_data(struct usb_link_device *usb_ld)
 static irqreturn_t usb_resume_irq(int irq, void *data)
 {
 	int ret;
-	struct usb_link_device *usb_ld = (struct usb_link_device *)data;
-	struct device *dev = &usb_ld->usbdev->dev;
-	int val = gpio_get_value(usb_ld->pdata->gpio_host_wakeup);
+	struct usb_link_device *usb_ld = data;
+	int val;
+
+	val = gpio_get_value(usb_ld->pdata->gpio_host_wakeup);
+	irq_set_irq_type(irq, val ? IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH);
 
 	pr_debug("< H-WUP %d\n", val);
 
-	if (!gpio_get_value(usb_ld->pdata->gpio_phone_active)) {
-		pr_debug("phone is not active. Ignore\n");
-		return IRQ_HANDLED;
+	if (val) {
+		ret = pm_runtime_get_sync(&usb_ld->usbdev->dev);
+		if (ret < 0) {
+			pr_err("%s pm_runtime_get fail (%d)\n", __func__, ret);
+			return IRQ_HANDLED;
+		}
+		SET_SLAVE_WAKEUP(usb_ld->pdata, 1);
+	} else {
+		if (usb_ld->resume_status == AP_INITIATED_RESUME)
+			wake_up(&usb_ld->l2_wait);
+		SET_SLAVE_WAKEUP(usb_ld->pdata, 0);
+		usb_ld->resume_status = CP_INITIATED_RESUME;
+		pm_runtime_put(&usb_ld->usbdev->dev);
 	}
 
-	if (usb_ld->usbdev && dev->parent) {
-		if (val != HOST_WUP_LEVEL) {
-			if (usb_ld->resume_status == AP_INITIATED_RESUME)
-				wake_up(&usb_ld->l2_wait);
-			SET_SLAVE_WAKEUP(usb_ld->pdata, 0);
-			usb_ld->resume_status = CP_INITIATED_RESUME;
-			pm_runtime_put(&usb_ld->usbdev->dev);
-		} else {
-			ret = pm_runtime_get_sync(&usb_ld->usbdev->dev);
-			if (ret < 0) {
-				pr_err("%s pm_runtime_get fail (%d)\n",
-							__func__, ret);
-				return IRQ_HANDLED;
-			}
-			SET_SLAVE_WAKEUP(usb_ld->pdata, 1);
-		}
-	}
 	return IRQ_HANDLED;
 }
 
@@ -668,18 +678,6 @@ struct link_device *usb_create_link_device(void *data)
 	}
 
 	usb_ld->pdata->irq_host_wakeup = platform_get_irq(pdev, 1);
-
-	ret = request_threaded_irq(usb_ld->pdata->irq_host_wakeup,
-			NULL,
-			usb_resume_irq,
-			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
-			"IPC_HOST_WAKEUP",
-			usb_ld);
-	if (ret) {
-		pr_err("Failed to allocate an interrupt(%d)\n",
-					usb_ld->pdata->irq_host_wakeup);
-		return NULL;
-	}
 
 	INIT_DELAYED_WORK(&ld->tx_delayed_work, usb_tx_work);
 
