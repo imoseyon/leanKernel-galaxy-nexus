@@ -34,7 +34,7 @@ CONFIG_SMP=y
 CONFIG_NR_CPUS=2
 CONFIG_PREEMPT=y
 CONFIG_HIGHMEM=y
-CONFIG_CMDLINE="console=ttyO2,115200n8 mem=512M androidboot.console=ttyO2 omap_wdt.timer_margin=30"
+CONFIG_CMDLINE="console=ttyO2,115200n8 mem=1G androidboot.console=ttyO2 omap_wdt.timer_margin=30"
 CONFIG_CMDLINE_EXTEND=y
 CONFIG_CPU_FREQ=y
 CONFIG_CPU_FREQ_DEFAULT_GOV_HOTPLUG=y
