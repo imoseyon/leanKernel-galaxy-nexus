@@ -805,7 +805,7 @@ static __initdata struct emif_device_details emif_devices = {
 	.cs1_device = &lpddr2_elpida_2G_S4_dev
 };
 
-static inline void board_serial_init(void)
+static inline void __init board_serial_init(void)
 {
 	omap_serial_init();
 }
