@@ -184,7 +184,9 @@ static void _print_wakeirq(int irq)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
 
-	if (!desc || !desc->action || !desc->action->name)
+	if (irq == OMAP44XX_IRQ_LOCALTIMER)
+		pr_info("Resume caused by IRQ %d, localtimer\n", irq);
+	else if (!desc || !desc->action || !desc->action->name)
 		pr_info("Resume caused by IRQ %d\n", irq);
 	else
 		pr_info("Resume caused by IRQ %d, %s\n", irq,
