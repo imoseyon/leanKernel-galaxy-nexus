@@ -157,7 +157,7 @@ static struct i2c_board_info __initdata tuna_sensors_i2c4_boardinfo[] = {
 
 static void omap4_tuna_fixup_orientations_maguro(int revision)
 {
-	if (revision >= 4) {
+	if (revision >= 3) {
 		rotcpy(mpu_data.orientation, orientation_back_right_90);
 		rotcpy(mpu_data.accel.orientation, orientation_back_left_90);
 	} else if (revision >= 2) {
