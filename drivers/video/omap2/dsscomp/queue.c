@@ -579,7 +579,6 @@ skip_ovl_set:
 done:
 	return r;
 }
-EXPORT_SYMBOL(dsscomp_apply);
 
 struct dsscomp_apply_work {
 	struct work_struct work;

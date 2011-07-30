@@ -228,8 +228,8 @@ struct dss2_decim {
  *
  * 2) configure DSS pipelines for display/manager using DSSCOMP_SETUP_MANAGER
  * ioctl.  You can delay applying the settings until an dss2_manager_apply()
- * with the same sync_id is called if the APPLY bit of setup mode is not
- * set.  However the CAPTURE/DISPLAY bits of the setup mode settings will
+ * is called for the internal composition object, if the APPLY bit of setup mode
+ * is not set.  However the CAPTURE/DISPLAY bits of the setup mode settings will
  * determine if at this time a capture will take place (in case of capture
  * only mode).  You may also set up additional pipelines with
  * dss2_overlay_setup() before this.
@@ -237,7 +237,15 @@ struct dss2_decim {
  * 3) On OMAP4/5 you can use the DSS WB pipeline to copy (and convert) a buffer
  * using DSS.  Use the DSSCOMP_WB_COPY ioctl for this.  This is a blocking
  * call, and it may possibly fail if an ongoing WB capture mode has been
- * schedule (which is outside of the current scope of the DSS2 interface.)
+ * scheduled (which is outside of the current scope of the DSS2 interface.)
+ *
+ * There is also a one-shot configuration API (DSSCOMP_SETUP_DISPC).  This
+ * allows you to set-up all overlays on all managers in one call.  This call
+ * performs additional functionality:
+ *
+ * - it maps userspace 1D buffers into TILER 1D for the duration of the display
+ * - it disables all overlays that were specified before, but are no longer
+ *   specified
  *
  */
 
@@ -312,6 +320,7 @@ struct dss2_ovl_cfg {
 	__u8 zorder;	/* 0..3 */
 	__u8 enabled;	/* bool */
 	__u8 zonly;	/* only set zorder and enabled bit */
+	__u8 mgr_ix;	/* mgr index */
 } __attribute__ ((aligned(4)));
 
 enum omapdss_buffer_type {
@@ -356,9 +365,7 @@ struct dss2_ovl_info {
  *
  * The following information is deemed to be set globally, so it is not
  * included:
- *   - gamma correction
- *   - color phase correction
- *
+ *   gamma correction
  *   whether to enable zorder (always enabled)
  *   whether to replicate/truncate color fields (it is decided per the
  *   whole manager/overlay settings, and is enabled unless overlay is
@@ -369,7 +376,7 @@ struct dss2_ovl_info {
  *    trans_enabled is true, and alpha_blending is false.
  */
 struct dss2_mgr_info {
-	__u32 ix;	/* display index same as sysfs/display# */
+	__u32 ix;		/* display index same as sysfs/display# */
 
 	__u32 default_color;
 
@@ -379,7 +386,7 @@ struct dss2_mgr_info {
 
 	__u8 trans_enabled;	/* bool */
 
-	__u8 interlaced;		/* bool */
+	__u8 interlaced;	/* bool */
 	__u8 alpha_blending;	/* bool - overrides trans_enabled */
 	__u8 cpr_enabled;	/* bool */
 	__u8 swap_rb;		/* bool - swap red and blue */
@@ -410,12 +417,14 @@ struct dss2_mgr_info {
  * on failure.
  *
  * If get_sync_obj is true, it returns fd on success, or a negative value
- * on failure.  You can use the fd to wait on (using poll()).  It gets
- * ready when frame has been eclipsed by another frame.
+ * on failure.  You can use the fd to wait on (using DSSCOMP_WAIT ioctl()).
  *
  * Note: frames do not get eclipsed when the display turns off.  Queue a
  * blank frame to eclipse old frames.  Blank frames get eclipsed when
  * programmed into DSS.
+ *
+ * (A blank frame is queued to the display automatically in Android before
+ * the display is turned off.)
  *
  * All overlays to be used on the frame must be listed.  There is no way
  * to add another overlay to a defined frame.
@@ -439,7 +448,7 @@ enum dsscomp_setup_mode {
 };
 
 struct dsscomp_setup_mgr_data {
-	__u32 sync_id;		/* synchronization ID */
+	__u32 sync_id;		/* synchronization ID - for debugging */
 
 	struct dss2_rect_t win; /* update region, set w/h to 0 for fullscreen */
 	enum dsscomp_setup_mode mode;
@@ -479,18 +488,28 @@ struct dsscomp_check_ovl_data {
 };
 
 /*
- * This structure is used to set up the entire DISPC (all managers).
- * For now we only have LCD manager supported.
+ * This structure is used to set up the entire DISPC (all managers),
+ * and is analogous to dsscomp_setup_mgr_data.
+ *
+ * Additional features:
+ * - all overlays that were specified in a prior use of this
+ * structure, and are no longer specified, will be disabled.
+ * - 1D buffers under 4M will be mapped into TILER1D.
+ *
+ * Limitations:
+ * - only DISPLAY mode is supported (DISPLAY and APPLY bits will
+ *   automatically be set)
+ * - getting a sync object is not supported.
  */
 struct dsscomp_setup_dispc_data {
-	__u32 sync_id;		/* synchronization ID */
+	__u32 sync_id;		/* synchronization ID - for debugging */
 
-	struct dss2_rect_t win; /* update region, set w/h to 0 for fullscreen */
 	enum dsscomp_setup_mode mode;
 	__u16 num_ovls;		/* # of overlays used in the composition */
+	__u16 num_mgrs;		/* # of managers used in the composition */
 	__u16 get_sync_obj;	/* ioctl should return a sync object */
 
-	struct dss2_mgr_info mgr;
+	struct dss2_mgr_info mgrs[3];
 	struct dss2_ovl_info ovls[5]; /* up to 5 overlays to set up */
 };
 
@@ -539,13 +558,10 @@ struct dsscomp_display_info {
  * subsequent composition does not update/specify all overlays used by
  * the prior composition; moreover, even if it uses the same buffers.)
  *
- * Non-existing sync IDs are assumed to have been programmed, displayed and
- * released.  (They are assumed to be no-longer existing sync IDs.)
+ * Set timeout to desired timeout value in microseconds.
  *
- * Set timeout to desired timeout value in microseconds.  Set timeout
- * to 0 if you want to return a sync object (file descriptor) instead of
- * waiting for the event.  You can then poll on this sync object to
- * wait for the specified event.
+ * This ioctl must be used on the sync object returned by the
+ * DSSCOMP_SETUP_MGR or DSSCOMP_SETUP_DISPC ioctls.
  *
  * Returns: >=0 on success, <0 error value on failure (e.g. -ETIME).
  */
@@ -559,17 +575,6 @@ struct dsscomp_wait_data {
 	__u32 timeout_us;	/* timeout in microseconds */
 	enum dsscomp_wait_phase phase;	/* phase to wait for */
 };
-
-/*
- * ioctl: DSSCOMP_LAST_RELEASED, struct dsscomp_wait_data
- *
- * Non-blocking sync.
- *
- * Fills in the sync_id of the last released frame on a
- * display specified by ix.
- *
- * Returns 0 on success, non-0 error value on failure.
- */
 
 /* IOCTLS */
 #define DSSCOMP_SETUP_MGR	_IOW('O', 128, struct dsscomp_setup_mgr_data)

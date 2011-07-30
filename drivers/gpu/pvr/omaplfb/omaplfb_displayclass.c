@@ -422,7 +422,6 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 		goto ExitUnLock;
 	}		
 
-	
 	UNREFERENCED_PARAMETER(ui32Flags);
 	
 #if defined(PVR_OMAPFB3_UPDATE_MODE)
@@ -820,7 +819,18 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 	struct tiler_pa_info *apsTilerPAs[5];
 	IMG_UINT32 i, k;
 
-	BUG_ON(uiDssDataLength != sizeof(*psDssData));
+	if(uiDssDataLength != sizeof(*psDssData))
+	{
+		WARN(1, "invalid size of private data (%d vs %d)",
+		     uiDssDataLength, sizeof(*psDssData));
+		return IMG_FALSE;
+	}
+
+	if(psDssData->num_ovls == 0 || ui32NumMemInfos == 0)
+	{
+		WARN(1, "must have at least one layer");
+		return IMG_FALSE;
+	}
 
 	for(i = k = 0; i < ui32NumMemInfos && i < ARRAY_SIZE(apsTilerPAs); i++, k++)
 	{
@@ -870,12 +880,19 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 				(u32)LinuxMemAreaToCpuPAddr(psLinuxMemArea, j << PAGE_SHIFT).uiAddr;
 		}
 
-		
+		/* need base address for in-page offset */
 		psDssData->ovls[k].ba = (u32)ppsMemInfos[i]->pvLinAddrKM;
 		apsTilerPAs[k] = psTilerInfo;
 	}
 
-	BUG_ON(psDssData->num_ovls == 0);
+	/* set up cloned layer addresses (but don't duplicate tiler_pas) */
+	for(i = k; i < psDssData->num_ovls && i < ARRAY_SIZE(apsTilerPAs); i++)
+	{
+		unsigned int ix = psDssData->ovls[i].ba;
+		apsTilerPAs[i] = apsTilerPAs[ix];
+		psDssData->ovls[i].ba = psDssData->ovls[ix].ba;
+		psDssData->ovls[i].uv = psDssData->ovls[ix].uv;
+	}
 
 	dsscomp_gralloc_queue(psDssData, apsTilerPAs,
 						  (void *)psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete,
@@ -895,13 +912,8 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
                             IMG_UINT32  ui32DataSize,
                             IMG_VOID   *pvData)
 {
-	DISPLAYCLASS_FLIP_COMMAND2 *psFlipCmd2;
 	DISPLAYCLASS_FLIP_COMMAND *psFlipCmd;
 	OMAPLFB_DEVINFO *psDevInfo;
-
-	struct dsscomp_setup_mgr_data *dss_data;
-	struct tiler_pa_info *tiler_pas[5];
-	unsigned long i;
 
 	if(!hCmdCookie || !pvData)
 	{

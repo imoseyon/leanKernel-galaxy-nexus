@@ -478,6 +478,8 @@ void dump_total_comp_info(struct dsscomp_dev *cdev,
 			struct dsscomp_setup_dispc_data *d,
 			const char *phase)
 {
+	int i;
+
 	if (!(debug & DEBUG_COMPOSITIONS))
 		return;
 
@@ -486,6 +488,8 @@ void dump_total_comp_info(struct dsscomp_dev *cdev,
 		 (d->mode & DSSCOMP_SETUP_MODE_APPLY) ? 'A' : '-',
 		 (d->mode & DSSCOMP_SETUP_MODE_DISPLAY) ? 'D' : '-',
 		 (d->mode & DSSCOMP_SETUP_MODE_CAPTURE) ? 'C' : '-');
-	print_mgr_info(cdev, &d->mgr);
+
+	for (i = 0; i < d->num_mgrs && i < ARRAY_SIZE(d->mgrs); i++)
+		print_mgr_info(cdev, d->mgrs + i);
 	printk("n=%d\n", d->num_ovls);
 }
