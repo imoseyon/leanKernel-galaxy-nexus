@@ -736,18 +736,15 @@ static int volume_get_gain(struct snd_kcontrol *kcontrol,
 static int abe_get_equalizer(struct snd_kcontrol *kcontrol,
 			struct snd_ctl_elem_value *ucontrol)
 {
-#if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	struct soc_enum *eqc = (struct soc_enum *)kcontrol->private_value;
 
 	ucontrol->value.integer.value[0] = the_abe->equ_profile[eqc->reg];
-#endif
 	return 0;
 }
 
 static int abe_put_equalizer(struct snd_kcontrol *kcontrol,
 			struct snd_ctl_elem_value *ucontrol)
 {
-#if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	struct soc_enum *eqc = (struct soc_enum *)kcontrol->private_value;
 	u16 val = ucontrol->value.enumerated.item[0];
 	abe_equ_t equ_params;
@@ -764,7 +761,7 @@ static int abe_put_equalizer(struct snd_kcontrol *kcontrol,
 	pm_runtime_get_sync(the_abe->dev);
 	abe_write_equalizer(eqc->reg, &equ_params);
 	pm_runtime_put_sync(the_abe->dev);
-#endif
+
 	return 1;
 }
 
@@ -2125,7 +2122,6 @@ static int abe_add_widgets(struct snd_soc_platform *platform)
 	struct fw_header *hdr = &abe->hdr;
 	int i, j;
 
-#if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	/* create equalizer controls */
 	for (i = 0; i < hdr->num_equ; i++) {
 		struct soc_enum *equalizer_enum = &abe->equalizer_enum[i];
@@ -2153,7 +2149,6 @@ static int abe_add_widgets(struct snd_soc_platform *platform)
 
 	snd_soc_add_platform_controls(platform, abe->equalizer_control,
 			hdr->num_equ);
-#endif
 
 	snd_soc_add_platform_controls(platform, abe_controls,
 			ARRAY_SIZE(abe_controls));
@@ -2296,11 +2291,13 @@ out:
 static int abe_probe(struct snd_soc_platform *platform)
 {
 	struct abe_data *abe = snd_soc_platform_get_drvdata(platform);
-	const struct firmware *fw;
-	struct omap4_abe_dsp_pdata *pdata = abe->abe_pdata;
 	struct opp *opp;
+	const u8 *fw_data;
 	unsigned long freq = ULONG_MAX;
 	int ret = 0, i, opp_count, offset = 0;
+#if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
+	const struct firmware *fw;
+#endif
 
 	abe->platform = platform;
 
@@ -2313,9 +2310,13 @@ static int abe_probe(struct snd_soc_platform *platform)
 		dev_err(abe->dev, "Failed to load firmware: %d\n", ret);
 		return ret;
 	}
+	fw_data = fw->data;
+#else
+	fw_data = (u8 *)abe_get_default_fw();
+#endif
 
 	/* get firmware and coefficients header info */
-	memcpy(&abe->hdr, fw->data, sizeof(struct fw_header));
+	memcpy(&abe->hdr, fw_data, sizeof(struct fw_header));
 	if (abe->hdr.firmware_size > ABE_MAX_FW_SIZE) {
 		dev_err(abe->dev, "Firmware too large at %d bytes: %d\n",
 					abe->hdr.firmware_size, ret);
@@ -2345,7 +2346,7 @@ static int abe_probe(struct snd_soc_platform *platform)
 		goto err_fw;
 	}
 	offset = sizeof(struct fw_header);
-	memcpy(abe->equ_texts, fw->data + offset,
+	memcpy(abe->equ_texts, fw_data + offset,
 			abe->hdr.num_equ * sizeof(struct coeff_config));
 
 	/* get coefficients from firmware */
@@ -2355,7 +2356,7 @@ static int abe_probe(struct snd_soc_platform *platform)
 		goto err_equ;
 	}
 	offset += abe->hdr.num_equ * sizeof(struct coeff_config);
-	memcpy(abe->equ[0], fw->data + offset, abe->hdr.coeff_size);
+	memcpy(abe->equ[0], fw_data + offset, abe->hdr.coeff_size);
 
 	/* allocate coefficient mixer texts */
 	dev_dbg(abe->dev, "loaded %d equalizers\n", abe->hdr.num_equ);
@@ -2390,11 +2391,8 @@ static int abe_probe(struct snd_soc_platform *platform)
 	}
 
 	memcpy(abe->firmware,
-		fw->data + sizeof(struct fw_header) + abe->hdr.coeff_size,
+		fw_data + sizeof(struct fw_header) + abe->hdr.coeff_size,
 		abe->hdr.firmware_size);
-#else
-	abe->firmware = abe_get_default_fw();
-#endif
 
 	ret = request_irq(abe->irq, abe_irq_handler, 0, "ABE", (void *)abe);
 	if (ret) {
@@ -2460,7 +2458,6 @@ err_opp:
 	rcu_read_unlock();
 	free_irq(abe->irq, (void *)abe);
 err_irq:
-#if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	kfree(abe->firmware);
 err_texts:
 	for (i = 0; i < abe->hdr.num_equ; i++)
@@ -2469,6 +2466,7 @@ err_texts:
 err_equ:
 	kfree(abe->equ_texts);
 err_fw:
+#if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	release_firmware(fw);
 #endif
 	return ret;
@@ -2481,13 +2479,11 @@ static int abe_remove(struct snd_soc_platform *platform)
 
 	free_irq(abe->irq, (void *)abe);
 
-#if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	for (i = 0; i < abe->hdr.num_equ; i++)
 		kfree(abe->equalizer_enum[i].texts);
 
 	kfree(abe->equ[0]);
 	kfree(abe->equ_texts);
-#endif
 	kfree(abe->firmware);
 
 	pm_runtime_disable(abe->dev);
