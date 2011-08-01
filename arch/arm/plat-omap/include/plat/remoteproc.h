@@ -20,6 +20,17 @@
 #include <plat/omap_device.h>
 
 /*
+ * struct omap_rproc_timers_info - optional timers for the omap rproc
+ *
+ * @id: timer id to use by the remoteproc
+ * @odt: timer pointer
+ */
+struct omap_rproc_timers_info {
+	int id;
+	struct omap_dm_timer *odt;
+};
+
+/*
  * struct omap_rproc_pdata - platform data for the omap rproc implementation
  *
  * @name: human readable name of the rproc, cannot exceed RPROC_MAN_NAME bytes
@@ -30,6 +41,7 @@
  * @ops: platform-specific start/stop rproc handlers
  * @memory_maps: table of da-to-pa iommu memory maps
  * @memory_pool: platform-specific pool data
+ * @omap_rproc_timers_info: optional, timer(s) rproc can use
  */
 struct omap_rproc_pdata {
 	const char *name;
@@ -39,12 +51,14 @@ struct omap_rproc_pdata {
 	const char *firmware;
 	const struct rproc_ops *ops;
 	struct rproc_mem_pool *memory_pool;
+	struct omap_rproc_timers_info *timers;
 	u32 idle_addr;
 	u32 idle_mask;
 	u32 suspend_addr;
 	u32 suspend_mask;
 	unsigned sus_timeout;
 	char *sus_mbox_name;
+	u8 timers_cnt;
 };
 
 enum omap_rproc_mempool_type {
