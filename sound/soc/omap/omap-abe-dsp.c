@@ -733,6 +733,30 @@ static int volume_get_gain(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int abe_dsp_set_equalizer(unsigned int id, unsigned int profile)
+{
+	abe_equ_t equ_params;
+	int len;
+
+	if (id >= the_abe->hdr.num_equ)
+		return -EINVAL;
+
+	if (profile >= the_abe->equ_texts[id].count)
+		return -EINVAL;
+
+	len = the_abe->equ_texts[id].coeff;
+	equ_params.equ_length = len;
+	memcpy(equ_params.coef.type1, the_abe->equ[id] + profile * len,
+		len * sizeof(u32));
+	the_abe->equ_profile[id] = profile;
+
+	pm_runtime_get_sync(the_abe->dev);
+	abe_write_equalizer(id + 1, &equ_params);
+	pm_runtime_put_sync(the_abe->dev);
+
+	return 0;
+}
+
 static int abe_get_equalizer(struct snd_kcontrol *kcontrol,
 			struct snd_ctl_elem_value *ucontrol)
 {
@@ -747,24 +771,11 @@ static int abe_put_equalizer(struct snd_kcontrol *kcontrol,
 {
 	struct soc_enum *eqc = (struct soc_enum *)kcontrol->private_value;
 	u16 val = ucontrol->value.enumerated.item[0];
-	abe_equ_t equ_params;
-	int len;
+	int ret;
 
-	if (eqc->reg >= the_abe->hdr.num_equ)
-		return -EINVAL;
-
-	if (val >= the_abe->equ_texts[eqc->reg].count)
-		return -EINVAL;
-
-	len = the_abe->equ_texts[eqc->reg].coeff;
-	equ_params.equ_length = len;
-	memcpy(equ_params.coef.type1, the_abe->equ[eqc->reg] + val * len,
-		len * sizeof(u32));
-	the_abe->equ_profile[eqc->reg] = val;
-
-	pm_runtime_get_sync(the_abe->dev);
-	abe_write_equalizer(eqc->reg + 1, &equ_params);
-	pm_runtime_put_sync(the_abe->dev);
+	ret = abe_dsp_set_equalizer(eqc->reg, val);
+	if (ret < 0)
+		return ret;
 
 	return 1;
 }
@@ -1878,7 +1889,7 @@ static int aess_save_context(struct abe_data *abe)
 static int aess_restore_context(struct abe_data *abe)
 {
 	struct omap4_abe_dsp_pdata *pdata = abe->abe_pdata;
-	int loss_count = 0, ret;
+	int i, loss_count = 0, ret;
 
 	if (pdata && pdata->device_scale) {
 		ret = pdata->device_scale(the_abe->dev, the_abe->dev,
@@ -1926,6 +1937,9 @@ static int aess_restore_context(struct abe_data *abe)
 	abe_unmute_gain(GAINS_AMIC, GAIN_RIGHT_OFFSET);
 
 	abe_set_router_configuration(UPROUTE, 0, (u32 *)abe->router);
+
+	for (i = 0; i < abe->hdr.num_equ; i++)
+		abe_dsp_set_equalizer(i, abe->equ_profile[i]);
 
        return 0;
 }
@@ -2225,7 +2239,7 @@ static int abe_resume(struct snd_soc_dai *dai)
 {
 	struct abe_data *abe = the_abe;
 	struct omap4_abe_dsp_pdata *pdata = abe->abe_pdata;
-	int loss_count = 0, ret = 0;
+	int i, loss_count = 0, ret = 0;
 
 	dev_dbg(dai->dev, "%s: %s active %d\n",
 		__func__, dai->name, dai->active);
@@ -2282,6 +2296,9 @@ static int abe_resume(struct snd_soc_dai *dai)
 	}
 
 	abe_set_router_configuration(UPROUTE, 0, (u32 *)abe->router);
+
+	for (i = 0; i < abe->hdr.num_equ; i++)
+		abe_dsp_set_equalizer(i, abe->equ_profile[i]);
 
 out:
 	pm_runtime_put_sync(abe->dev);
