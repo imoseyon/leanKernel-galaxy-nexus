@@ -117,6 +117,7 @@ struct abe_data {
 
 	/* coefficients */
 	struct fw_header hdr;
+	u32 *firmware;
 	s32 *equ[ABE_MAX_EQU];
 	int equ_profile[ABE_MAX_EQU];
 	struct soc_enum equalizer_enum[ABE_MAX_EQU];
@@ -1891,7 +1892,7 @@ static int aess_restore_context(struct abe_data *abe)
 		loss_count = pdata->get_context_loss_count(abe->dev);
 
 	if  (loss_count != the_abe->loss_count)
-	        abe_reload_fw();
+		abe_reload_fw(abe->firmware);
 
 	/* TODO: Find a better way to save/retore gains after dor OFF mode */
 	abe_unmute_gain(MIXSDT, MIX_SDT_INPUT_UP_MIXER);
@@ -2248,7 +2249,7 @@ static int abe_resume(struct snd_soc_dai *dai)
 	}
 
 	if (loss_count != abe->loss_count)
-	        abe_reload_fw();
+		abe_reload_fw(abe->firmware);
 
 	switch (dai->id) {
 	case OMAP_ABE_DAI_PDM_UL:
@@ -2316,10 +2317,10 @@ static int abe_probe(struct snd_soc_platform *platform)
 	/* get firmware and coefficients header info */
 	memcpy(&abe->hdr, fw->data, sizeof(struct fw_header));
 	if (abe->hdr.firmware_size > ABE_MAX_FW_SIZE) {
-			dev_err(abe->dev, "Firmware too large at %d bytes: %d\n",
+		dev_err(abe->dev, "Firmware too large at %d bytes: %d\n",
 					abe->hdr.firmware_size, ret);
-			ret = -EINVAL;
-			goto err_fw;
+		ret = -EINVAL;
+		goto err_fw;
 	}
 	dev_dbg(abe->dev, "ABE firmware size %d bytes\n", abe->hdr.firmware_size);
 
@@ -2380,12 +2381,26 @@ static int abe_probe(struct snd_soc_platform *platform)
 		abe->equ[i] = abe->equ[i - 1] +
 			abe->equ_texts[i - 1].count * abe->equ_texts[i - 1].coeff * sizeof(s32);
 	}
+
+	/* store ABE firmware for later context restore */
+	abe->firmware = kzalloc(abe->hdr.firmware_size, GFP_KERNEL);
+	if (abe->firmware == NULL) {
+		ret = -ENOMEM;
+		goto err_texts;
+	}
+
+	memcpy(abe->firmware,
+		fw->data + sizeof(struct fw_header) + abe->hdr.coeff_size,
+		abe->hdr.firmware_size);
+#else
+	abe->firmware = abe_get_default_fw();
 #endif
+
 	ret = request_irq(abe->irq, abe_irq_handler, 0, "ABE", (void *)abe);
 	if (ret) {
 		dev_err(platform->dev, "request for ABE IRQ %d failed %d\n",
 				abe->irq, ret);
-		goto err_texts;
+		goto err_irq;
 	}
 
 	/* query supported opps */
@@ -2425,12 +2440,7 @@ static int abe_probe(struct snd_soc_platform *platform)
 
 	abe_reset_hal();
 
-#if 0
-#warning fixup load fw args
-	//abe_load_fw(fw->data + sizeof(struct fw_header) + abe->hdr.coeff_size);
-#else
-	abe_load_fw();
-#endif
+	abe_load_fw(abe->firmware);
 
 	/* "tick" of the audio engine */
 	abe_write_event_generator(EVENT_TIMER);
@@ -2449,8 +2459,10 @@ static int abe_probe(struct snd_soc_platform *platform)
 err_opp:
 	rcu_read_unlock();
 	free_irq(abe->irq, (void *)abe);
-err_texts:
+err_irq:
 #if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
+	kfree(abe->firmware);
+err_texts:
 	for (i = 0; i < abe->hdr.num_equ; i++)
 		kfree(abe->equalizer_enum[i].texts);
 	kfree(abe->equ[0]);
@@ -2476,6 +2488,8 @@ static int abe_remove(struct snd_soc_platform *platform)
 	kfree(abe->equ[0]);
 	kfree(abe->equ_texts);
 #endif
+	kfree(abe->firmware);
+
 	pm_runtime_disable(abe->dev);
 
 	return 0;
