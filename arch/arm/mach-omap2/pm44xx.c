@@ -26,6 +26,7 @@
 #include <mach/omap4-common.h>
 #include <plat/omap_hsi.h>
 #include <plat/common.h>
+#include <plat/temperature_sensor.h>
 #include <plat/usb.h>
 
 #include "powerdomain.h"
@@ -144,6 +145,7 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 			omap_vc_set_auto_trans(iva_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
 
+			omap_temp_sensor_prepare_idle();
 			omap2_gpio_prepare_for_idle(0);
 		}
 	}
@@ -159,6 +161,8 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE);
 		omap_vc_set_auto_trans(iva_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE);
+
+		omap_temp_sensor_resume_idle();
 		omap2_gpio_resume_after_idle();
 		if (!suspend) {
 			omap_sr_enable(iva_voltdm);
