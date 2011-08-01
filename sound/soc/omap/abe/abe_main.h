@@ -640,6 +640,7 @@ u32 abe_write_gain(u32 id, s32 f_g, u32 ramp, u32 p);
 u32 abe_write_mixer(u32 id, s32 f_g, u32 f_ramp, u32 p);
 u32 abe_read_gain(u32 id, u32 *f_g, u32 p);
 u32 abe_read_mixer(u32 id, u32 *f_g, u32 p);
+int abe_mono_mixer(u32 id, u32 on_off);
 u32 abe_set_router_configuration(u32 id, u32 k, u32 *param);
 u32 abe_set_opp_processing(u32 opp);
 u32 abe_disable_data_transfer(u32 id);

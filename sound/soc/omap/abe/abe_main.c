@@ -151,6 +151,7 @@ int omap_abe_read_gain(struct omap_abe *abe,
 		       u32 id, u32 *f_g, u32 p);
 int omap_abe_read_mixer(struct omap_abe *abe,
 			u32 id, u32 *f_g, u32 p);
+int omap_abe_mono_mixer(struct omap_abe *abe, u32 id, u32 on_off);
 
 extern struct omap_abe *abe;
 
@@ -744,4 +745,19 @@ abehal_status abe_use_compensated_gain(u32 on_off)
 	omap_abe_use_compensated_gain(abe, (int)(on_off));
 	return 0;
 }
+
+/**
+ * abe_mono_mixer
+ * @id: name of the mixer (MIXDL1, MIXDL2, MIXAUDUL)
+ * on_off: enable\disable flag
+ *
+ * This API Programs DL1Mixer or DL2Mixer to output mono data
+ * on both left and right data paths.
+ */
+int abe_mono_mixer(u32 id, u32 on_off)
+{
+	return omap_abe_mono_mixer(abe, id, on_off);
+}
+EXPORT_SYMBOL(abe_mono_mixer);
+
 EXPORT_SYMBOL(abe_use_compensated_gain);

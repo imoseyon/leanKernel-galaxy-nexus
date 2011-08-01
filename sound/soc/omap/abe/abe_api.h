@@ -70,10 +70,14 @@
 
 #define ABE_TASK_ID(ID) (OMAP_ABE_D_TASKSLIST_ADDR + sizeof(ABE_STask)*(ID))
 
-#define TASK_ASRC_VX_DL_SLT 1
-#define TASK_ASRC_VX_DL_IDX 2
+#define TASK_ASRC_VX_DL_SLT 0
+#define TASK_ASRC_VX_DL_IDX 3
 #define TASK_VX_DL_SLT 1
 #define TASK_VX_DL_IDX 3
+#define TASK_DL2Mixer_SLT 1
+#define TASK_DL2Mixer_IDX 6
+#define TASK_DL1Mixer_SLT 2
+#define TASK_DL1Mixer_IDX 0
 #define TASK_VX_UL_SLT 12
 #define TASK_VX_UL_IDX 5
 #define TASK_BT_DL_48_8_SLT 14
@@ -88,6 +92,7 @@
 #define TASK_IO_MM_DL_IDX 0
 #define TASK_ASRC_BT_DL_SLT 18
 #define TASK_ASRC_BT_DL_IDX 6
+
 
 struct omap_abe {
 	void __iomem *io_base[5];
@@ -511,5 +516,16 @@ abehal_status abe_set_debug_trace(abe_dbg_t debug);
  * Memory map of ABE memory space for PMEM/DMEM/SMEM/DMEM
  */
 void abe_init_mem(void __iomem **_io_base);
+
+/**
+ * abe_write_pdmdl_offset - write the desired offset on the DL1/DL2 paths
+ *
+ * Parameters:
+ *   path: 1 for the DL1 ABE path, 2 for the DL2 ABE path
+ *   offset_left: integer value that will be added on all PDM left samples
+ *   offset_right: integer value that will be added on all PDM right samples
+ *
+ */
+void abe_write_pdmdl_offset(u32 path, u32 offset_left, u32 offset_right);
 
 #endif/* _ABE_API_H_ */
