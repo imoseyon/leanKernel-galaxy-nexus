@@ -40,9 +40,10 @@ struct omap_vdd_info;
 /**
  * struct omap_vfsm_instance - per-voltage manager FSM register/bitfield
  * data
- * @voltsetup_mask: SETUP_TIME* bitmask in the PRM_VOLTSETUP* register
- * @voltsetup_reg: register offset of PRM_VOLTSETUP from PRM base
+ * @voltsetup_mask: SETUP_TIME* bitmask of PRM_VOLTSETUP* register(RET/SLEEP)
+ * @voltsetup_reg: register offset of PRM_VOLTSETUP from PRM base(RET/SLEEP)
  * @voltsetup_shift: SETUP_TIME* field shift in the PRM_VOLTSETUP* register
+ * @voltsetupoff_reg: register offset of PRM_VOLTSETUP*_OFF from PRM base
  *
  * XXX What about VOLTOFFSET/VOLTCTRL?
  * XXX It is not necessary to have both a _mask and a _shift for the same
@@ -52,6 +53,7 @@ struct omap_vfsm_instance {
 	u32 voltsetup_mask;
 	u8 voltsetup_reg;
 	u8 voltsetup_shift;
+	u8 voltsetupoff_reg;
 };
 
 /**

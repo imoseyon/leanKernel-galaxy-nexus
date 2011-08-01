@@ -419,12 +419,14 @@ static void __init omap_vc_i2c_init(struct voltagedomain *voltdm)
 /**
  * omap_vc_setup_lp_time() - configure the voltage ramp time for low states.
  * @voltdm:	voltagedomain we are interested in.
+ * @is_retention:	Are we interested in retention or OFF?
  *
  * The ramp times are calculated based on the worst case voltage drop,
  * which is the difference of on_volt and the ret_volt. This time is used
  * for computing the duration necessary for low power states such as retention.
  */
-static int __init omap_vc_setup_lp_time(struct voltagedomain *voltdm)
+static int __init omap_vc_setup_lp_time(struct voltagedomain *voltdm,
+					bool is_retention)
 {
 	u32 volt_drop = 0, volt_ramptime = 0, volt_rampcount;
 	u32 sys_clk_mhz = 0, sysclk_cycles = 0, max_latency_for_prescaler = 0;
@@ -464,7 +466,10 @@ static int __init omap_vc_setup_lp_time(struct voltagedomain *voltdm)
 	 */
 	max_latency_for_prescaler = (63 * sysclk_cycles) / sys_clk_mhz;
 
-	volt_drop = pmic->on_volt - pmic->ret_volt;
+	if (is_retention)
+		volt_drop = pmic->on_volt - pmic->ret_volt;
+	else
+		volt_drop = pmic->on_volt;
 	volt_ramptime = DIV_ROUND_UP(volt_drop, pmic->slew_rate);
 	volt_ramptime += OMAP_VC_I2C_ACK_DELAY;
 
@@ -524,7 +529,7 @@ void __init omap_vc_init_channel(struct voltagedomain *voltdm)
 	vc->volt_reg_addr = voltdm->pmic->volt_reg_addr;
 	vc->cmd_reg_addr = voltdm->pmic->cmd_reg_addr;
 	/* Calculate the RET voltage setup time and update volt_setup_time */
-	vc->setup_time = omap_vc_setup_lp_time(voltdm);
+	vc->setup_time = omap_vc_setup_lp_time(voltdm, true);
 
 	if ((vc->flags & OMAP_VC_CHANNEL_DEFAULT) &&
 		((vc->i2c_slave_addr == USE_DEFAULT_CHANNEL_I2C_PARAM) ||
@@ -585,6 +590,10 @@ void __init omap_vc_init_channel(struct voltagedomain *voltdm)
 	voltdm->rmw(voltdm->vfsm->voltsetup_mask,
 		    vc->setup_time << __ffs(voltdm->vfsm->voltsetup_mask),
 		    voltdm->vfsm->voltsetup_reg);
+	voltdm->rmw(voltdm->vfsm->voltsetup_mask,
+		    omap_vc_setup_lp_time(voltdm, false) <<
+			ffs(voltdm->vfsm->voltsetup_mask),
+		    voltdm->vfsm->voltsetupoff_reg);
 
 	omap_vc_i2c_init(voltdm);
 
