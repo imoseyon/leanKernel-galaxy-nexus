@@ -429,12 +429,24 @@ static void omap4_configure_pwdm_suspend(bool is_off_mode)
 		if ((!strcmp(pwrst->pwrdm->name, "cpu0_pwrdm")) ||
 			(!strcmp(pwrst->pwrdm->name, "cpu1_pwrdm")))
 				continue;
-		als = get_achievable_state(pwrst->pwrdm->pwrsts_logic_ret,
-				logic_state);
-		pwrdm_set_logic_retst(pwrst->pwrdm, als);
-		pwrst->next_state = get_achievable_state(pwrst->pwrdm->pwrsts,
-					state);
-		omap_set_pwrdm_state(pwrst->pwrdm, pwrst->next_state);
+		/*
+		 * Write only to registers which are writable! Don't touch
+		 * read-only/reserved registers. If pwrdm->pwrsts_logic_ret or
+		 * pwrdm->pwrsts are 0, consider those power domains containing
+		 * readonly/reserved registers which cannot be controlled by
+		 * software.
+		 */
+		if (pwrst->pwrdm->pwrsts_logic_ret) {
+			als =
+			   get_achievable_state(pwrst->pwrdm->pwrsts_logic_ret,
+					logic_state);
+			pwrdm_set_logic_retst(pwrst->pwrdm, als);
+		}
+		if (pwrst->pwrdm->pwrsts) {
+			pwrst->next_state =
+			   get_achievable_state(pwrst->pwrdm->pwrsts, state);
+			omap_set_pwrdm_state(pwrst->pwrdm, pwrst->next_state);
+		}
 	}
 }
 
