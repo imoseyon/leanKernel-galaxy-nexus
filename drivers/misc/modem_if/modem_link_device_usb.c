@@ -388,9 +388,10 @@ static void if_usb_disconnect(struct usb_interface *intf)
 	if (usb_ld->devdata[dev_id].disconnected)
 		return;
 
-	if (usb_ld->if_usb_connected)
+	if (usb_ld->if_usb_connected) {
+		disable_irq_wake(usb_ld->pdata->irq_host_wakeup);
 		free_irq(usb_ld->pdata->irq_host_wakeup, usb_ld);
-
+	}
 	usb_ld->if_usb_connected = 0;
 	usb_ld->flow_suspend = 1;
 
@@ -549,6 +550,8 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 		if (err)
 			pr_err("Failed to allocate an interrupt(%d)\n",
 					usb_ld->pdata->irq_host_wakeup);
+
+		enable_irq_wake(usb_ld->pdata->irq_host_wakeup);
 	}
 
 	return 0;
