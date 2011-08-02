@@ -321,7 +321,8 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 	struct device *dev = rproc->dev;
 	phys_addr_t pa;
 	u64 da;
-	void *ptr;
+	u64 trace_da0 = 0;
+	u64 trace_da1 = 0;
 	int ret = 0;
 
 	while (len >= sizeof(*rsc) && !ret) {
@@ -337,32 +338,19 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 
 		switch (rsc->type) {
 		case RSC_TRACE:
-			if (rproc->trace_buf0 && rproc->trace_buf1) {
+			if (trace_da0 && trace_da1) {
 				dev_warn(dev, "skipping extra trace rsc %s\n",
 						rsc->name);
 				break;
 			}
 
-			/*
-			 * trace buffer memory _is_ normal memory, so we cast
-			 * away the __iomem to make sparse happy
-			 */
-			ptr = (__force void *) ioremap_nocache(pa, rsc->len);
-			if (!ptr) {
-				dev_err(dev, "can't ioremap trace buffer %s\n",
-								rsc->name);
-				ret = PTR_ERR(ptr);
-				break;
-			}
-
-			if (!rproc->trace_buf0) {
+			/* store the da for processing at the end */
+			if (!trace_da0) {
 				rproc->trace_len0 = rsc->len;
-				rproc->trace_buf0 = ptr;
-				DEBUGFS_ADD(trace0);
+				trace_da0 = da;
 			} else {
 				rproc->trace_len1 = rsc->len;
-				rproc->trace_buf1 = ptr;
-				DEBUGFS_ADD(trace1);
+				trace_da1 = da;
 			}
 			break;
 		case RSC_BOOTADDR:
@@ -410,6 +398,40 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 
 		rsc++;
 		len -= sizeof(*rsc);
+	}
+
+	/*
+	 * post-process trace buffers, as we cannot rely on the order of the
+	 * trace section and the carveout sections.
+	 *
+	 * trace buffer memory _is_ normal memory, so we cast away the
+	 * __iomem to make sparse happy
+	 */
+	if (!ret && trace_da0) {
+		ret = rproc_da_to_pa(rproc->memory_maps, trace_da0, &pa);
+		if (!ret) {
+			rproc->trace_buf0 = (__force void *)
+					ioremap_nocache(pa, rproc->trace_len0);
+			if (rproc->trace_buf0)
+				DEBUGFS_ADD(trace0);
+			else {
+				dev_err(dev, "can't ioremap trace buffer0\n");
+				ret = -EIO;
+			}
+		}
+	}
+	if (!ret && trace_da1) {
+		ret = rproc_da_to_pa(rproc->memory_maps, trace_da1, &pa);
+		if (!ret) {
+			rproc->trace_buf1 = (__force void *)
+					ioremap_nocache(pa, rproc->trace_len1);
+			if (rproc->trace_buf1)
+				DEBUGFS_ADD(trace1);
+			else {
+				dev_err(dev, "can't ioremap trace buffer1\n");
+				ret = -EIO;
+			}
+		}
 	}
 
 	return ret;
