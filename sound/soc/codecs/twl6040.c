@@ -131,12 +131,12 @@ static const u8 twl6040_reg[TWL6040_CACHEREGNUM] = {
 	0x1B, /* TWL6040_LINEGAIN	0x0F	*/
 	0x00, /* TWL6040_HSLCTL		0x10	*/
 	0x00, /* TWL6040_HSRCTL		0x11	*/
-	0x00, /* TWL6040_HSGAIN		0x12	*/
-	0x00, /* TWL6040_EARCTL		0x13	*/
+	0xFF, /* TWL6040_HSGAIN		0x12	*/
+	0x1E, /* TWL6040_EARCTL		0x13	*/
 	0x00, /* TWL6040_HFLCTL		0x14	*/
-	0x00, /* TWL6040_HFLGAIN	0x15	*/
+	0x1D, /* TWL6040_HFLGAIN	0x15	*/
 	0x00, /* TWL6040_HFRCTL		0x16	*/
-	0x00, /* TWL6040_HFRGAIN	0x17	*/
+	0x1D, /* TWL6040_HFRGAIN	0x17	*/
 	0x00, /* TWL6040_VIBCTLL	0x18	*/
 	0x00, /* TWL6040_VIBDATL	0x19	*/
 	0x00, /* TWL6040_VIBCTLR	0x1A	*/
@@ -1359,14 +1359,6 @@ static int twl6040_set_bias_level(struct snd_soc_codec *codec,
 		/* initialize vdd/vss registers with reg_cache */
 		twl6040_init_vdd_regs(codec);
 
-		/* Set external boost GPO */
-		twl6040_write(codec, TWL6040_REG_GPOCTL, 0x02);
-
-		/* Set initial minimal gain values */
-		twl6040_write(codec, TWL6040_REG_HSGAIN, 0xFF);
-		twl6040_write(codec, TWL6040_REG_EARCTL, 0x1E);
-		twl6040_write(codec, TWL6040_REG_HFLGAIN, 0x1D);
-		twl6040_write(codec, TWL6040_REG_HFRGAIN, 0x1D);
 		break;
 	case SND_SOC_BIAS_OFF:
 		if (!priv->codec_powered)
