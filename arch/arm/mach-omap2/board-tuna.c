@@ -515,9 +515,11 @@ static struct regulator_init_data tuna_vusb = {
 	.consumer_supplies	= tuna_vusb_supply,
 };
 
+/* clk32kg is a twl6030 32khz clock modeled as a regulator, used by GPS */
 static struct regulator_init_data tuna_clk32kg = {
 	.constraints = {
 		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
+		.always_on	= true,
 	},
 };
 
