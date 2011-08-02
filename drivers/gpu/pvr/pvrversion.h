@@ -34,18 +34,18 @@
 #define PVRVERSION_MIN               8
 #define PVRVERSION_BRANCH            18
 
-#define PVRVERSION_FAMILY           "eurasiacon.pj"
-#define PVRVERSION_BRANCHNAME       "1.8.18"
-#define PVRVERSION_BUILD             964
-#define PVRVERSION_BSCONTROL        "Unknown"
+#define PVRVERSION_FAMILY           "sgxddk"
+#define PVRVERSION_BRANCHNAME       "1.8"
+#define PVRVERSION_BUILD             273945
+#define PVRVERSION_BSCONTROL        "CustomerGoogle_Android_ogles1_ogles2_GPL"
 
-#define PVRVERSION_STRING           "1.8.18." PVR_STR2(PVRVERSION_BUILD)
-#define PVRVERSION_STRING_SHORT     "1.8.18." PVR_STR2(PVRVERSION_BUILD)
+#define PVRVERSION_STRING           "CustomerGoogle_Android_ogles1_ogles2_GPL sgxddk 18 1.8@" PVR_STR2(PVRVERSION_BUILD)
+#define PVRVERSION_STRING_SHORT     "1.8@" PVR_STR2(PVRVERSION_BUILD)
 
 #define COPYRIGHT_TXT               "Copyright (c) Imagination Technologies Ltd. All Rights Reserved."
 
-#define PVRVERSION_BUILD_HI          18
-#define PVRVERSION_BUILD_LO          964
+#define PVRVERSION_BUILD_HI          3945
+#define PVRVERSION_BUILD_LO          27
 #define PVRVERSION_STRING_NUMERIC    PVR_STR2(PVRVERSION_MAJ) "." PVR_STR2(PVRVERSION_MIN) "." PVR_STR2(PVRVERSION_BUILD_HI) "." PVR_STR2(PVRVERSION_BUILD_LO)
 
 #endif /* _PVRVERSION_H_ */
