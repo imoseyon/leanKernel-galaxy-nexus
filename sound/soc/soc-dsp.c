@@ -150,7 +150,7 @@ static int dsp_add_new_paths(struct snd_soc_pcm_runtime *fe,
 {
 	struct snd_soc_dai *cpu_dai = fe->cpu_dai;
 	struct snd_soc_card *card = fe->card;
-	struct snd_soc_dapm_widget_list *list;
+	struct snd_soc_dapm_widget_list *list = NULL;
 	enum snd_soc_dapm_type fe_type, be_type;
 	int i, count = 0, err, paths;
 
@@ -203,7 +203,9 @@ static int dsp_add_new_paths(struct snd_soc_pcm_runtime *fe,
 	}
 
 out:
-	kfree(list);
+	/* list could be not initialized if root widget not found */
+	if (list != NULL)
+		kfree(list);
 	return count;
 }
 
@@ -217,7 +219,7 @@ static int dsp_prune_old_paths(struct snd_soc_pcm_runtime *fe, int stream,
 	struct snd_soc_dai *cpu_dai = fe->cpu_dai;
 	struct snd_soc_card *card = fe->card;
 	struct snd_soc_dsp_params *dsp_params;
-	struct snd_soc_dapm_widget_list *list;
+	struct snd_soc_dapm_widget_list *list = NULL;
 	int count = 0, paths;
 	enum snd_soc_dapm_type fe_type, be_type;
 	struct snd_soc_dapm_widget *widget;
@@ -278,7 +280,9 @@ static int dsp_prune_old_paths(struct snd_soc_pcm_runtime *fe, int stream,
 
 	/* the number of old paths pruned */
 out:
-	kfree(list);
+	/* list could be not initialized if root widget not found */
+	if (list != NULL)
+		kfree(list);
 	return count;
 }
 
