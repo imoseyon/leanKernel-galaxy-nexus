@@ -685,6 +685,10 @@ static int __init omap4_pm_init(void)
 
 	omap4_idle_init();
 
+	omap_pm_is_ready_status = true;
+	/* let the other CPU know as well */
+	smp_wmb();
+
 err2:
 	return ret;
 }

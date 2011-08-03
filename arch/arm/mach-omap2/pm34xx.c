@@ -920,6 +920,7 @@ static int __init omap3_pm_init(void)
 	}
 
 	omap3_save_scratchpad_contents();
+	omap_pm_is_ready_status = true;
 err1:
 	return ret;
 err2:
