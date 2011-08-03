@@ -389,7 +389,7 @@ static void dpram_cfg_gpio(void)
 	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_NWE_OFFSET, 1, 0x0);
 
 	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_WAIT1_OFFSET,
-					1, 0x00004103); /*0x008c*/
+					1, 0x00000103); /*0x008c*/
 	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_DPM_EMU3_OFFSET,
 					0, 0x00030000); /*0x01b4*/
 
