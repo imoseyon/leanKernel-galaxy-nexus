@@ -153,6 +153,13 @@ int omap_abe_read_mixer(struct omap_abe *abe,
 			u32 id, u32 *f_g, u32 p);
 int omap_abe_mono_mixer(struct omap_abe *abe, u32 id, u32 on_off);
 
+int omap_abe_reset_vx_ul_src_filters(struct omap_abe *abe);
+int omap_abe_reset_mic_ul_src_filters(struct omap_abe *abe);
+int omap_abe_reset_vx_dl_src_filters(struct omap_abe *abe);
+int omap_abe_reset_dl1_src_filters(struct omap_abe *abe);
+int omap_abe_reset_dl2_src_filters(struct omap_abe *abe);
+int omap_abe_reset_bt_dl_src_filters(struct omap_abe *abe);
+
 extern struct omap_abe *abe;
 
 #if 0
@@ -761,3 +768,69 @@ int abe_mono_mixer(u32 id, u32 on_off)
 EXPORT_SYMBOL(abe_mono_mixer);
 
 EXPORT_SYMBOL(abe_use_compensated_gain);
+
+/**
+* abe_reset_vx_ul_src_filters - reset VX UL path filters
+*
+* it is assumed that filters are located in SMEM
+*/
+u32 abe_reset_vx_ul_src_filters(void)
+{
+	return (u32)omap_abe_reset_vx_ul_src_filters(abe);
+}
+EXPORT_SYMBOL(abe_reset_vx_ul_src_filters);
+
+/**
+* abe_reset_mic_ul_src_filters - reset mic path filters
+*
+* it is assumed that filters are located in SMEM
+*/
+u32 abe_reset_mic_ul_src_filters(void)
+{
+	return (u32)omap_abe_reset_mic_ul_src_filters(abe);
+}
+EXPORT_SYMBOL(abe_reset_mic_ul_src_filters);
+
+/**
+* abe_reset_vx_dl_src_filters - reset VX DL path filters
+*
+* it is assumed that filters are located in SMEM
+*/
+u32 abe_reset_vx_dl_src_filters(void)
+{
+	return (u32)omap_abe_reset_vx_dl_src_filters(abe);
+}
+EXPORT_SYMBOL(abe_reset_vx_dl_src_filters);
+
+/**
+* abe_reset_dl1_src_filters - reset DL1 path filters
+*
+* it is assumed that filters are located in SMEM
+*/
+u32 abe_reset_dl1_src_filters(void)
+{
+	return (u32)omap_abe_reset_dl1_src_filters(abe);
+}
+EXPORT_SYMBOL(abe_reset_dl1_src_filters);
+
+/**
+* abe_reset_dl2_src_filters - reset DL2 path filters
+*
+* it is assumed that filters are located in SMEM
+*/
+u32 abe_reset_dl2_src_filters(void)
+{
+	return (u32)omap_abe_reset_dl2_src_filters(abe);
+}
+EXPORT_SYMBOL(abe_reset_dl2_src_filters);
+
+/**
+* abe_reset_bt_dl_src_filters - reset BT DL path filters
+*
+* it is assumed that filters are located in SMEM
+*/
+u32 abe_reset_bt_dl_src_filters(void)
+{
+	return (u32)omap_abe_reset_bt_dl_src_filters(abe);
+}
+EXPORT_SYMBOL(abe_reset_bt_dl_src_filters);
