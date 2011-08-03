@@ -759,12 +759,19 @@ static int _dvfs_scale(struct device *req_dev, struct device *target_dev,
 			node = plist_last(&temp_dev->freq_user_list);
 			freq = node->prio;
 		} else {
-			/* dep domain? we'd probably have a voltage request */
-			rcu_read_lock();
-			opp = _volt_to_opp(dev, new_volt);
-			if (!IS_ERR(opp))
-				freq = opp_get_freq(opp);
-			rcu_read_unlock();
+			/*
+			 * Is the dev of dep domain target_device?
+			 * we'd probably have a voltage request without
+			 * a frequency dependency, scale appropriate frequency
+			 * if there are none pending
+			 */
+			if (target_dev == dev) {
+				rcu_read_lock();
+				opp = _volt_to_opp(dev, new_volt);
+				if (!IS_ERR(opp))
+					freq = opp_get_freq(opp);
+				rcu_read_unlock();
+			}
 			if (!freq)
 				continue;
 		}
