@@ -338,10 +338,6 @@ static int __init omap2_common_pm_late_init(void)
 	/* Smartreflex device init */
 	omap_devinit_smartreflex();
 
-	omap_pm_is_ready_status = true;
-	/* let the other CPU know as well */
-	smp_wmb();
-
 	return 0;
 }
 late_initcall(omap2_common_pm_late_init);

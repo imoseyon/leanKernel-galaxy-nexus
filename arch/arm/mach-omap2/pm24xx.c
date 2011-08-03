@@ -501,6 +501,8 @@ static int __init omap2_pm_init(void)
 	suspend_set_ops(&omap_pm_ops);
 	pm_idle = omap2_pm_idle;
 
+	omap_pm_is_ready_status = true;
+
 	return 0;
 }
 
