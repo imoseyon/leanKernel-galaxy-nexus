@@ -651,8 +651,7 @@ static void omap_lte_mux_init(void)
 	omap_mux_init_gpio(OMAP_GPIO_221_PMIC_PWRHOLD_OFF , OMAP_PIN_OUTPUT);
 	omap_mux_init_gpio(OMAP_GPIO_CMC_RST, OMAP_PIN_OUTPUT);
 	omap_mux_init_gpio(OMAP_GPIO_AP2CMC_INT1, OMAP_PIN_OUTPUT);
-	omap_mux_init_gpio(OMAP_GPIO_CMC2AP_INT2,
-			OMAP_PIN_INPUT | OMAP_PIN_OFF_WAKEUPENABLE);
+	omap_mux_init_gpio(OMAP_GPIO_CMC2AP_INT2, OMAP_PIN_INPUT);
 	omap_mux_init_gpio(OMAP_GPIO_AP2CMC_INT2, OMAP_PIN_OUTPUT);
 	omap_mux_init_gpio(OMAP_GPIO_LTE_ACTIVE, OMAP_PIN_INPUT);
 }
