@@ -163,11 +163,11 @@ rproc_da_to_pa(const struct rproc_mem_entry *maps, u64 da, phys_addr_t *pa)
 
 static int rproc_mmu_fault_isr(struct rproc *rproc, u64 da, u32 flags)
 {
-	dev_err(rproc->dev, "Enter %s\n", __func__);
+	dev_err(rproc->dev, "%s\n", __func__);
 	rproc->state = RPROC_CRASHED;
 	schedule_work(&rproc->mmufault_work);
 
-	return -EFAULT;
+	return -EIO;
 }
 
 static int _event_notify(struct rproc *rproc, int type, void *data)
