@@ -75,6 +75,9 @@ typedef struct _SGX_BRIDGE_INIT_INFO_
 	IMG_SID		hKernelCCBEventKickerMemInfo;
 	IMG_SID		hKernelSGXHostCtlMemInfo;
 	IMG_SID		hKernelSGXTA3DCtlMemInfo;
+#if defined(FIX_HW_BRN_31272) || defined(FIX_HW_BRN_31780) || defined(FIX_HW_BRN_33920)
+	IMG_SID		hKernelSGXPTLAWriteBackMemInfo;
+#endif
 	IMG_SID		hKernelSGXMiscMemInfo;
 #else
 	IMG_HANDLE	hKernelCCBMemInfo;
@@ -82,6 +85,9 @@ typedef struct _SGX_BRIDGE_INIT_INFO_
 	IMG_HANDLE	hKernelCCBEventKickerMemInfo;
 	IMG_HANDLE	hKernelSGXHostCtlMemInfo;
 	IMG_HANDLE	hKernelSGXTA3DCtlMemInfo;
+#if defined(FIX_HW_BRN_31272) || defined(FIX_HW_BRN_31780) || defined(FIX_HW_BRN_33920)
+	IMG_HANDLE	hKernelSGXPTLAWriteBackMemInfo;
+#endif
 	IMG_HANDLE	hKernelSGXMiscMemInfo;
 #endif
 

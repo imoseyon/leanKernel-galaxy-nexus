@@ -258,14 +258,16 @@
 		#define FIX_HW_BRN_30954
 		#define FIX_HW_BRN_31093
 		#define FIX_HW_BRN_31195
+		#define FIX_HW_BRN_31272
 		#define FIX_HW_BRN_31278
  		#if defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_31425
 		#endif
 		#define FIX_HW_BRN_31620
+ 		#define FIX_HW_BRN_31780
 		#define FIX_HW_BRN_31542
 		#define FIX_HW_BRN_32044 
-			
+		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 122
 		#define FIX_HW_BRN_29954
@@ -273,57 +275,69 @@
 		#define FIX_HW_BRN_30954
 		#define FIX_HW_BRN_31093
 		#define FIX_HW_BRN_31195
+		#define FIX_HW_BRN_31272
 		#define FIX_HW_BRN_31278
  		#if defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_31425
 		#endif
 		#define FIX_HW_BRN_31620
+		#define FIX_HW_BRN_31780
 		#define FIX_HW_BRN_31542
 		#define FIX_HW_BRN_32044 
 		#define FIX_HW_BRN_32085 
 			
+		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 1221
 		#define FIX_HW_BRN_29954
         #define FIX_HW_BRN_31195
+		#define FIX_HW_BRN_31272
 		#define FIX_HW_BRN_31278
  		#if defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_31425
 		#endif
 		#define FIX_HW_BRN_31542
 		#define FIX_HW_BRN_31671		
+ 		#define FIX_HW_BRN_31780
 		#define FIX_HW_BRN_32044
 		#define FIX_HW_BRN_32085 
 			
+		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 140
 		#define FIX_HW_BRN_29954
 		#define FIX_HW_BRN_30954
 		#define FIX_HW_BRN_31093
 		#define FIX_HW_BRN_31195
+		#define FIX_HW_BRN_31272
 		#define FIX_HW_BRN_31278
  		#if defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_31425
 		#endif
 		#define FIX_HW_BRN_31620
+ 		#define FIX_HW_BRN_31780
 		#define FIX_HW_BRN_31542
 		#define FIX_HW_BRN_32044 
 		#define FIX_HW_BRN_32085 
 			
+		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 1401
 		#define FIX_HW_BRN_29954
 		#define FIX_HW_BRN_30954
 		#define FIX_HW_BRN_31195
+		#define FIX_HW_BRN_31272
 		#define FIX_HW_BRN_31278
  		#if defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_31425
 		#endif
 		#define FIX_HW_BRN_31620
 		#define FIX_HW_BRN_31542
+ 		#define FIX_HW_BRN_31780
 		#define FIX_HW_BRN_32044 
 		#define FIX_HW_BRN_32085 
 			
+		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 141
 		#define FIX_HW_BRN_29954
@@ -332,6 +346,7 @@
 		#endif
 		#define FIX_HW_BRN_31671 
 			
+ 		#define FIX_HW_BRN_31780
 	#else
 	#if SGX_CORE_REV == 142
 		#define FIX_HW_BRN_29954
@@ -340,41 +355,51 @@
 		#endif
 		#define FIX_HW_BRN_31671 
 			
+ 		#define FIX_HW_BRN_31780
 	#else
 	#if SGX_CORE_REV == 211
 		#define FIX_HW_BRN_31093
 		#define FIX_HW_BRN_31195
+		#define FIX_HW_BRN_31272
 		#define FIX_HW_BRN_31278
  		#if defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_31425
 		#endif
 		#define FIX_HW_BRN_31620
+ 		#define FIX_HW_BRN_31780
 		#define FIX_HW_BRN_31542
 		#define FIX_HW_BRN_32044 
 		#define FIX_HW_BRN_32085 
 			
+		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 2111
 		#define FIX_HW_BRN_30982 
 		#define FIX_HW_BRN_31093
 		#define FIX_HW_BRN_31195
+		#define FIX_HW_BRN_31272
 		#define FIX_HW_BRN_31278
  		#if defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_31425
 		#endif
 		#define FIX_HW_BRN_31620
+ 		#define FIX_HW_BRN_31780
 		#define FIX_HW_BRN_31542
 		#define FIX_HW_BRN_32044 
 		#define FIX_HW_BRN_32085 
 			
+		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 213
+		#define FIX_HW_BRN_31272
 		#if defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_31425
 		#endif
 		#define FIX_HW_BRN_31671 
+ 		#define FIX_HW_BRN_31780
 		#define FIX_HW_BRN_32085 
 			
+		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 216
 	#else
@@ -416,22 +441,29 @@
 	#else
 	#if SGX_CORE_REV == 102
 		#define FIX_HW_BRN_29954
+		#define FIX_HW_BRN_31272
  		#if defined(SGX_FEATURE_MP)
  			#define FIX_HW_BRN_31425
  		#endif
+ 		#define FIX_HW_BRN_31780
 		#define FIX_HW_BRN_32085 
+		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 103
 		#define FIX_HW_BRN_29954
+		#define FIX_HW_BRN_31272
  		#if defined(SGX_FEATURE_MP)
  			#define FIX_HW_BRN_31425
  		#endif
+ 		#define FIX_HW_BRN_31780
 		#define FIX_HW_BRN_32085 
+		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 104
 		#define FIX_HW_BRN_29954
 		#define FIX_HW_BRN_31093
 		#define FIX_HW_BRN_31195
+		#define FIX_HW_BRN_31272
 		#define FIX_HW_BRN_31278
  		#if defined(SGX_FEATURE_MP)
  			#define FIX_HW_BRN_31425
@@ -439,32 +471,47 @@
 		#define FIX_HW_BRN_31542 
  		#define FIX_HW_BRN_31620
 		#define FIX_HW_BRN_31671 
+ 		#define FIX_HW_BRN_31780
 		#define FIX_HW_BRN_32044 
 		#define FIX_HW_BRN_32085 
+		#define FIX_HW_BRN_33920
 	#else	
 	#if SGX_CORE_REV == 105
  		#if defined(SGX_FEATURE_MP)
  			#define FIX_HW_BRN_31425
  		#endif
+ 		#define FIX_HW_BRN_31780
+		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 106
+		#define FIX_HW_BRN_31272
+ 		#define FIX_HW_BRN_31780
+		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 110
+		#define FIX_HW_BRN_31272
  		#if defined(SGX_FEATURE_MP)
  			#define FIX_HW_BRN_31425
  		#endif
+ 		#define FIX_HW_BRN_31780
+		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 112
+		#define FIX_HW_BRN_31272
+ 		#define FIX_HW_BRN_31780
+		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 114
  		#if defined(SGX_FEATURE_MP)
  			#define FIX_HW_BRN_31425
  		#endif
+ 		#define FIX_HW_BRN_31780
 	#else
 	#if SGX_CORE_REV == 115
  		#if defined(SGX_FEATURE_MP)
  			#define FIX_HW_BRN_31425
  		#endif
+ 		#define FIX_HW_BRN_31780
 	#else
 	#if SGX_CORE_REV == SGX_CORE_REV_HEAD
 		
