@@ -34,6 +34,10 @@
 static struct omap_rproc_timers_info ipu_timers[] = {
 	{ .id = 3 },
 	{ .id = 4 },
+#ifdef CONFIG_REMOTEPROC_WATCHDOG
+	{ .id = 9 },
+	{ .id = 11 },
+#endif
 };
 
 static struct omap_rproc_pdata omap4_rproc_data[] = {

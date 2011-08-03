@@ -153,6 +153,8 @@ struct rproc_ops {
 	int (*set_lat)(struct rproc *rproc, long v);
 	int (*set_bw)(struct rproc *rproc, long v);
 	int (*scale)(struct rproc *rproc, long v);
+	int (*watchdog_init)(struct rproc *, int (*)(struct rproc *));
+	int (*watchdog_exit)(struct rproc *);
 };
 
 /*
@@ -248,7 +250,7 @@ struct rproc {
 	int trace_len0, trace_len1;
 	int last_trace_len0, last_trace_len1;
 	struct completion firmware_loading_complete;
-	struct work_struct mmufault_work;
+	struct work_struct error_work;
 	struct blocking_notifier_head nb_error;
 	struct completion error_comp;
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND

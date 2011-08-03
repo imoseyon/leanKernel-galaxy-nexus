@@ -198,10 +198,17 @@ rproc_da_to_pa(const struct rproc_mem_entry *maps, u64 da, phys_addr_t *pa)
 static int rproc_mmu_fault_isr(struct rproc *rproc, u64 da, u32 flags)
 {
 	dev_err(rproc->dev, "%s\n", __func__);
-	rproc->state = RPROC_CRASHED;
-	schedule_work(&rproc->mmufault_work);
+	schedule_work(&rproc->error_work);
 
 	return -EIO;
+}
+
+static int rproc_watchdog_isr(struct rproc *rproc)
+{
+	dev_err(rproc->dev, "Enter %s\n", __func__);
+	schedule_work(&rproc->error_work);
+
+	return 0;
 }
 
 static int _event_notify(struct rproc *rproc, int type, void *data)
@@ -265,6 +272,15 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 		err = rproc->ops->iommu_init(rproc, rproc_mmu_fault_isr);
 		if (err) {
 			dev_err(dev, "can't configure iommu %d\n", err);
+			goto unlock_mutext;
+		}
+	}
+
+	if (rproc->ops->watchdog_init) {
+		err = rproc->ops->watchdog_init(rproc, rproc_watchdog_isr);
+		if (err) {
+			dev_err(dev, "can't configure watchdog timer %d\n",
+				err);
 			goto unlock_mutext;
 		}
 	}
@@ -796,6 +812,14 @@ void rproc_put(struct rproc *rproc)
 									ret);
 			goto out;
 		}
+		if (rproc->ops->watchdog_exit) {
+			ret = rproc->ops->watchdog_exit(rproc);
+			if (ret) {
+				dev_err(rproc->dev, "error watchdog_exit %d\n",
+					ret);
+				goto out;
+			}
+		}
 		if (rproc->ops->iommu_exit) {
 			ret = rproc->ops->iommu_exit(rproc);
 			if (ret) {
@@ -820,9 +844,9 @@ out:
 }
 EXPORT_SYMBOL_GPL(rproc_put);
 
-static void rproc_mmufault_work(struct work_struct *work)
+static void rproc_error_work(struct work_struct *work)
 {
-	struct rproc *rproc = container_of(work, struct rproc, mmufault_work);
+	struct rproc *rproc = container_of(work, struct rproc, error_work);
 
 	dev_dbg(rproc->dev, "Enter %s\n", __func__);
 	_event_notify(rproc, RPROC_ERROR, NULL);
@@ -1129,7 +1153,7 @@ int rproc_register(struct device *dev, const char *name,
 	mutex_init(&rproc->pm_lock);
 #endif
 	mutex_init(&rproc->lock);
-	INIT_WORK(&rproc->mmufault_work, rproc_mmufault_work);
+	INIT_WORK(&rproc->error_work, rproc_error_work);
 	BLOCKING_INIT_NOTIFIER_HEAD(&rproc->nb_error);
 
 	rproc->state = RPROC_OFFLINE;
