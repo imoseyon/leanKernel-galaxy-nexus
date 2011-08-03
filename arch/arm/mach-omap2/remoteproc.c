@@ -42,6 +42,7 @@ static struct omap_rproc_pdata omap4_rproc_data[] = {
 		.iommu_name	= "tesla",
 		.firmware	= "tesla-dsp.bin",
 		.oh_name	= "dsp_c0",
+		.clkdm_name	= "dsp_clkdm",
 	},
 	{
 		.name		= "ipu",
@@ -49,6 +50,7 @@ static struct omap_rproc_pdata omap4_rproc_data[] = {
 		.firmware	= "ducati-m3.bin",
 		.oh_name	= "ipu_c0",
 		.oh_name_opt	= "ipu_c1",
+		.clkdm_name	= "ducati_clkdm",
 		.timers		= ipu_timers,
 		.timers_cnt	= ARRAY_SIZE(ipu_timers),
 		.idle_addr	= OMAP4430_CM_M3_M3_CLKCTRL,

@@ -38,6 +38,8 @@ struct omap_rproc_timers_info {
  * @oh_name: omap hwmod device
  * @oh_name_opt: optional, secondary omap hwmod device
  * @firmware: name of firmware file to be loaded
+ * @clkdm_name: name of clock domain in which this device is located
+ * @clkdm: clock domain in which this device is located
  * @ops: platform-specific start/stop rproc handlers
  * @memory_maps: table of da-to-pa iommu memory maps
  * @memory_pool: platform-specific pool data
@@ -49,6 +51,8 @@ struct omap_rproc_pdata {
 	const char *oh_name;
 	const char *oh_name_opt;
 	const char *firmware;
+	const char *clkdm_name;
+	struct clockdomain *clkdm;
 	const struct rproc_ops *ops;
 	struct rproc_mem_pool *memory_pool;
 	struct omap_rproc_timers_info *timers;

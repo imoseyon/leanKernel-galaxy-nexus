@@ -31,6 +31,7 @@
 #include <plat/omap-pm.h>
 #include <plat/dmtimer.h>
 #include "../../arch/arm/mach-omap2/dvfs.h"
+#include "../../arch/arm/mach-omap2/clockdomain.h"
 
 #define PM_SUSPEND_MBOX		0xffffff07
 #define PM_SUSPEND_TIMEOUT	300
@@ -161,6 +162,14 @@ int omap_rproc_activate(struct omap_device *od)
 	}
 #endif
 
+	/**
+	 * Domain is in HW SUP thus in hw_auto but
+	 * since remoteproc will be enabled clkdm
+	 * needs to be in sw_sup (Do not let it idle).
+	 */
+	if (pdata->clkdm)
+		clkdm_wakeup(pdata->clkdm);
+
 	for (i = 0; i < pdata->timers_cnt; i++)
 		omap_dm_timer_start(timers[i].odt);
 
@@ -172,6 +181,14 @@ int omap_rproc_activate(struct omap_device *od)
 			break;
 		}
 	}
+
+	/**
+	 * Domain is in force_wkup but since remoteproc
+	 * was enabled it is safe now to switch clkdm
+	 * to hw_auto (let it idle).
+	 */
+	if (pdata->clkdm)
+		clkdm_allow_idle(pdata->clkdm);
 
 	return ret;
 }
@@ -401,6 +418,8 @@ static struct rproc_ops omap_rproc_ops = {
 static int omap_rproc_probe(struct platform_device *pdev)
 {
 	struct omap_rproc_pdata *pdata = pdev->dev.platform_data;
+
+	pdata->clkdm = clkdm_lookup(pdata->clkdm_name);
 
 	return rproc_register(&pdev->dev, pdata->name, &omap_rproc_ops,
 				pdata->firmware, pdata->memory_pool,
