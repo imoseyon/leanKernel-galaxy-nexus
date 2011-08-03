@@ -804,7 +804,7 @@ int iommu_set_da_range(struct iommu *obj, u32 start, u32 end)
 {
 
 	if (!obj)
-		return -EFAULT;
+		return -EIO;
 
 	if (end < start || !PAGE_ALIGN(start | end))
 		return -EINVAL;
