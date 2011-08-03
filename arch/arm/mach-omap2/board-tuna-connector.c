@@ -330,6 +330,25 @@ static int tuna_otg_set_suspend(struct otg_transceiver *otg, int suspend)
 	return omap4430_phy_suspend(otg->dev, suspend);
 }
 
+static void omap4_tuna_uart_switch_init(void)
+{
+	struct device *uartswitch_dev;
+
+	uartswitch_dev = device_create(sec_class, NULL, 0, NULL, "uart_switch");
+	if (IS_ERR(uartswitch_dev)) {
+		pr_err("Failed to create device(uart_switch)!\n");
+		return;
+	}
+
+	/* IF_UART_SEL - GPIO 101 */
+	omap_mux_init_gpio(GPIO_IF_UART_SEL, OMAP_PIN_OUTPUT);
+	gpio_request(GPIO_IF_UART_SEL, "uart_sel");
+	gpio_direction_output(GPIO_IF_UART_SEL, 1);
+
+	gpio_export(GPIO_IF_UART_SEL, 1);
+	gpio_export_link(uartswitch_dev, "UART_SEL", GPIO_IF_UART_SEL);
+}
+
 int __init omap4_tuna_connector_init(void)
 {
 	struct tuna_otg *tuna_otg = &tuna_otg_xceiv;
@@ -389,6 +408,8 @@ int __init omap4_tuna_connector_init(void)
 
 	i2c_register_board_info(4, tuna_connector_i2c4_boardinfo,
 				ARRAY_SIZE(tuna_connector_i2c4_boardinfo));
+
+	omap4_tuna_uart_switch_init();
 
 	return 0;
 }
