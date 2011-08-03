@@ -123,7 +123,7 @@ static void *get_header(struct io_device *iod, size_t count,
 		raw_h = (struct raw_hdr *)frame_header_buf;
 
 		raw_h->len = count + sizeof(struct raw_hdr);
-		raw_h->channel = iod->id;
+		raw_h->channel = iod->id & 0x1F;
 		raw_h->control = 0;
 
 		return (void *)frame_header_buf;
