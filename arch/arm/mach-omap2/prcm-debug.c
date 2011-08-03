@@ -34,8 +34,6 @@
 
 struct d_dpll_info {
 	char *name;
-	void *clkmodereg;
-	void *autoidlereg;
 	void *idlestreg;
 	struct d_dpll_derived *derived[];
 };
@@ -85,8 +83,7 @@ static struct d_dpll_derived derived_dpll_per_m7 = {
 
 static struct d_dpll_info dpll_per = {
 	.name = "DPLL_PER",
-	.clkmodereg = OMAP4430_CM_CLKMODE_DPLL_PER,
-	.autoidlereg = OMAP4430_CM_AUTOIDLE_DPLL_PER,
+	.idlestreg = OMAP4430_CM_IDLEST_DPLL_PER,
 	.derived = {&derived_dpll_per_m2, &derived_dpll_per_m3,
 		    &derived_dpll_per_m4, &derived_dpll_per_m5,
 		    &derived_dpll_per_m6, &derived_dpll_per_m7,
@@ -131,8 +128,7 @@ static struct d_dpll_derived derived_dpll_core_m7 = {
 
 static struct d_dpll_info dpll_core = {
 	.name = "DPLL_CORE",
-	.clkmodereg = OMAP4430_CM_CLKMODE_DPLL_CORE,
-	.autoidlereg = OMAP4430_CM_AUTOIDLE_DPLL_CORE,
+	.idlestreg = OMAP4430_CM_IDLEST_DPLL_CORE,
 	.derived = {&derived_dpll_core_m2, &derived_dpll_core_m3,
 		    &derived_dpll_core_m4, &derived_dpll_core_m5,
 		    &derived_dpll_core_m6, &derived_dpll_core_m7,
@@ -141,8 +137,7 @@ static struct d_dpll_info dpll_core = {
 
 static struct d_dpll_info dpll_abe = {
 	.name = "DPLL_ABE",
-	.clkmodereg = OMAP4430_CM_CLKMODE_DPLL_ABE,
-	.autoidlereg = OMAP4430_CM_AUTOIDLE_DPLL_ABE,
+	.idlestreg = OMAP4430_CM_IDLEST_DPLL_ABE,
 	.derived = {/* &derived_dpll_abe_m2, &derived_dpll_abe_m3,
 		    &derived_dpll_abe_m4, &derived_dpll_abe_m5,
 		    &derived_dpll_abe_m6, &derived_dpll_abe_m7,
@@ -151,22 +146,18 @@ static struct d_dpll_info dpll_abe = {
 
 static struct d_dpll_info dpll_mpu = {
 	.name = "DPLL_MPU",
-	.clkmodereg = OMAP4430_CM_CLKMODE_DPLL_MPU,
-	.autoidlereg = OMAP4430_CM_AUTOIDLE_DPLL_MPU,
+	.idlestreg = OMAP4430_CM_IDLEST_DPLL_MPU,
 	.derived = {/* &derived_dpll_mpu_m2, */ NULL},
 };
 
 static struct d_dpll_info dpll_iva = {
 	.name = "DPLL_IVA",
-	.clkmodereg = OMAP4430_CM_CLKMODE_DPLL_IVA,
-	.autoidlereg = OMAP4430_CM_AUTOIDLE_DPLL_IVA,
+	.idlestreg = OMAP4430_CM_IDLEST_DPLL_IVA,
 	.derived = {/* &derived_dpll_iva_m4, &derived_dpll_iva_m5, */ NULL},
 };
 
 static struct d_dpll_info dpll_usb = {
 	.name = "DPLL_USB",
-	.clkmodereg = OMAP4430_CM_CLKMODE_DPLL_USB,
-	.autoidlereg = OMAP4430_CM_AUTOIDLE_DPLL_USB,
 	.idlestreg = OMAP4430_CM_IDLEST_DPLL_USB,
 	.derived = {/* &derived_dpll_usb_m2, */ NULL},
 };
@@ -1403,20 +1394,16 @@ static void prcmdebug_dump_dpll(struct seq_file *sf,
 				struct d_dpll_info *dpll,
 				int flags)
 {
-	u32 en = __raw_readl(dpll->clkmodereg) & 0x7;
-	u32 autoidle = __raw_readl(dpll->autoidlereg) & 0x7;
+	u32 idlest = __raw_readl(dpll->idlestreg);
+	u32 st_bypass = idlest & OMAP4430_ST_MN_BYPASS_MASK;
+	u32 st_dpll_clk = idlest & OMAP4430_ST_DPLL_CLK_MASK;
 	struct d_dpll_derived **derived;
 
-	if (flags & (PRCMDEBUG_LASTSLEEP | PRCMDEBUG_ON) &&
-	    (en == 0x5))
+	if (flags & (PRCMDEBUG_LASTSLEEP | PRCMDEBUG_ON) && !st_dpll_clk)
 		return;
 
-	d_pr(sf, "         %s auto=0x%x en=0x%x", dpll->name, autoidle, en);
-
-	if (dpll->idlestreg)
-		d_pr_ctd(sf, " st=0x%x", 	__raw_readl(dpll->idlestreg));
-
-	d_pr_ctd(sf, "\n");
+	d_pr(sf, "         %s status=%s\n", dpll->name,
+	     st_dpll_clk ? "locked" : st_bypass ? "bypass" : "stopped");
 
 	derived = dpll->derived;
 
