@@ -686,6 +686,22 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVMapDeviceMemory2(IMG_CONST PVRSRV_DEV_DATA	*psDe
 												 PVRSRV_CLIENT_MEM_INFO		**ppsDstMemInfo);
 #endif 
 
+#if defined(SUPPORT_ION)
+PVRSRV_ERROR PVRSRVMapIonHandle(const PVRSRV_DEV_DATA *psDevData,
+#if defined (SUPPORT_SID_INTERFACE)
+								 IMG_SID    hDevMemContext,
+#else
+								 IMG_HANDLE hDevMemContext,
+#endif
+								IMG_INT32 uiFD,
+								IMG_UINT32 uiSize,
+								IMG_UINT32 ui32Attribs,
+								PVRSRV_CLIENT_MEM_INFO **ppsMemInfo);
+
+PVRSRV_ERROR PVRSRVUnmapIonHandle(const PVRSRV_DEV_DATA *psDevData,
+								  PVRSRV_CLIENT_MEM_INFO *psMemInfo);
+#endif 
+
 typedef enum _PVRSRV_SYNCVAL_MODE_
 {
 	PVRSRV_SYNCVAL_READ				= IMG_TRUE,
@@ -820,6 +836,17 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVGetDCBuffers(IMG_HANDLE hDevice,
 									IMG_HANDLE hSwapChain,
 									IMG_HANDLE *phBuffer);
 #endif
+
+IMG_IMPORT
+PVRSRV_ERROR IMG_CALLCONV PVRSRVGetDCBuffers2(IMG_HANDLE hDevice,
+#if defined (SUPPORT_SID_INTERFACE)
+											  IMG_SID    hSwapChain,
+											  IMG_SID   *phBuffer,
+#else
+											  IMG_HANDLE hSwapChain,
+											  IMG_HANDLE *phBuffer,
+#endif
+											  IMG_SYS_PHYADDR *psPhyAddr);
 
 IMG_IMPORT
 PVRSRV_ERROR IMG_CALLCONV PVRSRVSwapToDCBuffer (IMG_HANDLE hDevice,

@@ -668,6 +668,7 @@ struct twl4030_codec_audio_data {
 	u16 hs_right_step;
 	u16 hf_left_step;
 	u16 hf_right_step;
+	u16 ep_step;
 	void (*set_hs_extmute)(int mute);
 };
 

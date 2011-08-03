@@ -2837,10 +2837,11 @@ PVRSRVGetDCBuffersBW(IMG_UINT32 ui32BridgeID,
 							 pvSwapChain,
 							 &psGetDispClassBuffersOUT->ui32BufferCount,
 #if defined (SUPPORT_SID_INTERFACE)
-							 pahBuffer);
+							 pahBuffer,
 #else
-							 psGetDispClassBuffersOUT->ahBuffer);
+							 psGetDispClassBuffersOUT->ahBuffer,
 #endif
+							 psGetDispClassBuffersOUT->asPhyAddr);
 	if (psGetDispClassBuffersOUT->eError != PVRSRV_OK)
 	{
 		return 0;

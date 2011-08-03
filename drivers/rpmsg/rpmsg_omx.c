@@ -51,6 +51,7 @@ enum rpc_omx_map_info_type {
 	RPC_OMX_MAP_INFO_NONE          = 0,
 	RPC_OMX_MAP_INFO_ONE_BUF       = 1,
 	RPC_OMX_MAP_INFO_TWO_BUF       = 2,
+	RPC_OMX_MAP_INFO_THREE_BUF     = 3,
 	RPC_OMX_MAP_INFO_MAX           = 0x7FFFFFFF
 };
 
@@ -132,7 +133,7 @@ static u32 _rpmsg_omx_buffer_lookup(struct rpmsg_omx_instance *omx, long buffer)
 
 static int _rpmsg_omx_map_buf(struct rpmsg_omx_instance *omx, char *packet)
 {
-	int ret = -1, offset = 0;
+	int ret = -EINVAL, offset = 0;
 	long *buffer;
 	char *data;
 	enum rpc_omx_map_info_type maptype;
@@ -144,7 +145,8 @@ static int _rpmsg_omx_map_buf(struct rpmsg_omx_instance *omx, char *packet)
 	/*Nothing to map*/
 	if (maptype == RPC_OMX_MAP_INFO_NONE)
 		return 0;
-	if ((maptype != RPC_OMX_MAP_INFO_TWO_BUF) &&
+	if ((maptype != RPC_OMX_MAP_INFO_THREE_BUF) &&
+		(maptype != RPC_OMX_MAP_INFO_TWO_BUF) &&
 			(maptype != RPC_OMX_MAP_INFO_ONE_BUF))
 		return ret;
 
@@ -158,18 +160,30 @@ static int _rpmsg_omx_map_buf(struct rpmsg_omx_instance *omx, char *packet)
 		ret = 0;
 	}
 
-	if (!ret && maptype == RPC_OMX_MAP_INFO_TWO_BUF) {
+	if (!ret && (maptype >= RPC_OMX_MAP_INFO_TWO_BUF)) {
 		buffer = (long *)((int)data + offset + sizeof(*buffer));
-		ret = -1;
+		if (*buffer != 0) {
+			ret = -EIO;
+			pa = _rpmsg_omx_buffer_lookup(omx, *buffer);
 
-		pa = _rpmsg_omx_buffer_lookup(omx, *buffer);
-
-		if (pa) {
-			*buffer = pa;
-			ret = 0;
+			if (pa) {
+				*buffer = pa;
+				ret = 0;
+			}
 		}
 	}
 
+	if (!ret && maptype >= RPC_OMX_MAP_INFO_THREE_BUF) {
+		buffer = (long *)((int)data + offset + 2*sizeof(*buffer));
+		if (*buffer != 0) {
+			ret = -EIO;
+			pa = _rpmsg_omx_buffer_lookup(omx, *buffer);
+			if (pa) {
+				*buffer = pa;
+				ret = 0;
+			}
+		}
+	}
 	return ret;
 }
 
@@ -296,7 +310,9 @@ long rpmsg_omx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case OMX_IOCCONNECT:
 		ret = copy_from_user(buf, (char __user *) arg, sizeof(buf));
 		if (ret) {
-			dev_err(omxserv->dev, "copy_from_user fail: %d\n", ret);
+			dev_err(omxserv->dev,
+				"%s: %d: copy_from_user fail: %d\n", __func__,
+				_IOC_NR(cmd), ret);
 			ret = -EFAULT;
 			break;
 		}
@@ -308,23 +324,39 @@ long rpmsg_omx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case OMX_IOCIONREGISTER:
 	{
 		struct ion_fd_data data;
-		if (copy_from_user(&data, (char __user *) arg, sizeof(data)))
+		if (copy_from_user(&data, (char __user *) arg, sizeof(data))) {
+			dev_err(omxserv->dev,
+				"%s: %d: copy_from_user fail: %d\n", __func__,
+				_IOC_NR(cmd), ret);
 			return -EFAULT;
+		}
 		data.handle = ion_import_fd(omx->ion_client, data.fd);
 		if (IS_ERR(data.handle))
 			data.handle = NULL;
-		if (copy_to_user(&data, (char __user *) arg, sizeof(data)))
+		if (copy_to_user(&data, (char __user *) arg, sizeof(data))) {
+			dev_err(omxserv->dev,
+				"%s: %d: copy_to_user fail: %d\n", __func__,
+				_IOC_NR(cmd), ret);
 			return -EFAULT;
+		}
 		break;
 	}
 	case OMX_IOCIONUNREGISTER:
 	{
 		struct ion_fd_data data;
-		if (copy_from_user(&data, (char __user *) arg, sizeof(data)))
+		if (copy_from_user(&data, (char __user *) arg, sizeof(data))) {
+			dev_err(omxserv->dev,
+				"%s: %d: copy_from_user fail: %d\n", __func__,
+				_IOC_NR(cmd), ret);
 			return -EFAULT;
+		}
 		ion_free(omx->ion_client, data.handle);
-		if (copy_to_user(&data, (char __user *) arg, sizeof(data)))
+		if (copy_to_user(&data, (char __user *) arg, sizeof(data))) {
+			dev_err(omxserv->dev,
+				"%s: %d: copy_to_user fail: %d\n", __func__,
+				_IOC_NR(cmd), ret);
 			return -EFAULT;
+		}
 		break;
 	}
 #endif
@@ -444,15 +476,17 @@ static ssize_t rpmsg_omx_read(struct file *filp, char __user *buf,
 	skb = skb_dequeue(&omx->queue);
 	if (!skb) {
 		dev_err(omx->omxserv->dev, "err is rmpsg_omx racy ?\n");
-		return -EFAULT;
+		return -EIO;
 	}
 
 	mutex_unlock(&omx->lock);
 
 	use = min(len, skb->len);
 
-	if (copy_to_user(buf, skb->data, use))
+	if (copy_to_user(buf, skb->data, use)) {
+		dev_err(omx->omxserv->dev, "%s: copy_to_user fail\n", __func__);
 		use = -EFAULT;
+	}
 
 	kfree_skb(skb);
 	return use;
@@ -483,8 +517,9 @@ static ssize_t rpmsg_omx_write(struct file *filp, const char __user *ubuf,
 	if (copy_from_user(hdr->data, ubuf, use))
 		return -EMSGSIZE;
 
-	if (_rpmsg_omx_map_buf(omx, hdr->data))
-		return -EFAULT;
+	ret = _rpmsg_omx_map_buf(omx, hdr->data);
+	if (ret < 0)
+		return ret;
 
 	hdr->type = OMX_RAW_MSG;
 	hdr->flags = 0;
