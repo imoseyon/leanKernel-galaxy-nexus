@@ -479,6 +479,22 @@ struct dsscomp_check_ovl_data {
 };
 
 /*
+ * This structure is used to set up the entire DISPC (all managers).
+ * For now we only have LCD manager supported.
+ */
+struct dsscomp_setup_dispc_data {
+	__u32 sync_id;		/* synchronization ID */
+
+	struct dss2_rect_t win; /* update region, set w/h to 0 for fullscreen */
+	enum dsscomp_setup_mode mode;
+	__u16 num_ovls;		/* # of overlays used in the composition */
+	__u16 get_sync_obj;	/* ioctl should return a sync object */
+
+	struct dss2_mgr_info mgr;
+	struct dss2_ovl_info ovls[5]; /* up to 5 overlays to set up */
+};
+
+/*
  * ioctl: DSSCOMP_WB_COPY, struct dsscomp_wb_copy_data
  *
  * Requirements:
