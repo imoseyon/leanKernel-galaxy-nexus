@@ -812,12 +812,15 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 							  OMAPLFB_DEVINFO *psDevInfo,
 							  IMG_VOID **ppvMemInfos,
 							  IMG_UINT32 ui32NumMemInfos,
-							  struct dsscomp_setup_mgr_data *psDssData)
+							  struct dsscomp_setup_dispc_data *psDssData,
+							  IMG_UINT32 uiDssDataLength)
 {
 	PVRSRV_KERNEL_MEM_INFO **ppsMemInfos =
 		(PVRSRV_KERNEL_MEM_INFO **)ppvMemInfos;
 	struct tiler_pa_info *apsTilerPAs[5];
 	IMG_UINT32 i, k;
+
+	BUG_ON(uiDssDataLength != sizeof(*psDssData));
 
 	for(i = k = 0; i < ui32NumMemInfos && i < ARRAY_SIZE(apsTilerPAs); i++, k++)
 	{
@@ -931,7 +934,8 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
 							 psDevInfo,
 							 psFlipCmd2->ppvMemInfos,
 							 psFlipCmd2->ui32NumMemInfos,
-							 psFlipCmd2->pvPrivData);
+							 psFlipCmd2->pvPrivData,
+							 psFlipCmd2->ui32PrivDataLength);
 #else
 		BUG();
 #endif

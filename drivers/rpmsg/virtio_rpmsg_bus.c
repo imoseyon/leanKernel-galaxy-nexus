@@ -418,13 +418,20 @@ static int rpmsg_destroy_channel_by_info(struct virtproc_info *vrp,
 static void *get_a_buf(struct virtproc_info *vrp)
 {
 	unsigned int len;
+	void *buf = NULL;
+
+	/* protect svq from simultaneous concurrent manipulations */
+	mutex_lock(&vrp->svq_lock);
 
 	/* either pick the next unused buffer */
 	if (vrp->last_sbuf < vrp->num_bufs / 2)
-		return vrp->sbufs + vrp->buf_size * vrp->last_sbuf++;
+		buf = vrp->sbufs + vrp->buf_size * vrp->last_sbuf++;
 	/* or recycle a used one */
 	else
-		return virtqueue_get_buf(vrp->svq, &len);
+		buf = virtqueue_get_buf(vrp->svq, &len);
+
+	mutex_unlock(&vrp->svq_lock);
+	return buf;
 }
 
 /* XXX: the blocking 'wait' mechanism hasn't been tested yet */

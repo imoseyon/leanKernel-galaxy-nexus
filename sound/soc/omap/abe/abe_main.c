@@ -97,7 +97,9 @@ int omap_abe_connect_debug_trace(struct omap_abe *abe,
 				 struct omap_abe_dma *dma2);
 
 int omap_abe_reset_hal(struct omap_abe *abe);
-int omap_abe_load_fw(struct omap_abe *abe);
+int omap_abe_load_fw(struct omap_abe *abe, u32 *firmware);
+int omap_abe_reload_fw(struct omap_abe *abe, u32 *firmware);
+u32* omap_abe_get_default_fw(struct omap_abe *abe);
 int omap_abe_wakeup(struct omap_abe *abe);
 int omap_abe_irq_processing(struct omap_abe *abe);
 int omap_abe_clear_irq(struct omap_abe *abe);
@@ -149,6 +151,7 @@ int omap_abe_read_gain(struct omap_abe *abe,
 		       u32 id, u32 *f_g, u32 p);
 int omap_abe_read_mixer(struct omap_abe *abe,
 			u32 id, u32 *f_g, u32 p);
+int omap_abe_mono_mixer(struct omap_abe *abe, u32 id, u32 on_off);
 
 extern struct omap_abe *abe;
 
@@ -205,12 +208,29 @@ EXPORT_SYMBOL(abe_reset_hal);
  * abe_load_fw - Load ABE Firmware and initialize memories
  *
  */
-u32 abe_load_fw(void)
+u32 abe_load_fw(u32 *firmware)
 {
-	omap_abe_load_fw(abe);
+	omap_abe_load_fw(abe, firmware);
 	return 0;
 }
 EXPORT_SYMBOL(abe_load_fw);
+
+/**
+ * abe_reload_fw - Reload ABE Firmware and initialize memories
+ *
+ */
+u32 abe_reload_fw(u32 *firmware)
+{
+	omap_abe_reload_fw(abe, firmware);
+	return 0;
+}
+EXPORT_SYMBOL(abe_reload_fw);
+
+u32* abe_get_default_fw(void)
+{
+	return omap_abe_get_default_fw(abe);
+}
+EXPORT_SYMBOL(abe_get_default_fw);
 
 /**
  * abe_wakeup - Wakeup ABE
@@ -725,4 +745,19 @@ abehal_status abe_use_compensated_gain(u32 on_off)
 	omap_abe_use_compensated_gain(abe, (int)(on_off));
 	return 0;
 }
+
+/**
+ * abe_mono_mixer
+ * @id: name of the mixer (MIXDL1, MIXDL2, MIXAUDUL)
+ * on_off: enable\disable flag
+ *
+ * This API Programs DL1Mixer or DL2Mixer to output mono data
+ * on both left and right data paths.
+ */
+int abe_mono_mixer(u32 id, u32 on_off)
+{
+	return omap_abe_mono_mixer(abe, id, on_off);
+}
+EXPORT_SYMBOL(abe_mono_mixer);
+
 EXPORT_SYMBOL(abe_use_compensated_gain);

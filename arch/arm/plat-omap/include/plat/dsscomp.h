@@ -18,7 +18,7 @@ int dsscomp_delayed_apply(dsscomp_t comp);
 void dsscomp_drop(dsscomp_t c);
 
 struct tiler_pa_info;
-int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
+int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 			struct tiler_pa_info **pas,
 			void (*cb_fn)(void *, int), void *cb_arg);
 #endif

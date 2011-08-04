@@ -80,18 +80,6 @@ struct rpmsg_omx_instance {
 #endif
 };
 
-/* the packet structure (actual message sent to omx service) */
-struct omx_packet {
-	uint16_t      desc;	/* descriptor, and omx service status */
-	uint16_t      msg_id;	/* message id */
-	uint32_t      flags;	/* Set to a fixed value for now. */
-	uint32_t      fxn_idx;	/* Index into OMX service's function table.*/
-	int32_t       result;	/* The OMX function status. */
-	uint32_t      data_size;/* Size of in/out data to/from the function. */
-	uint32_t      data[0];	/* Payload of data_size char's passed to
-				   function. */
-};
-
 static struct class *rpmsg_omx_class;
 static dev_t rpmsg_omx_dev;
 

@@ -1036,6 +1036,124 @@ static struct omap_hwmod omap44xx_aess_hwmod = {
 };
 
 /*
+ * 'ctrl_module' class
+ * attila core control module
+ */
+
+static struct omap_hwmod_class_sysconfig omap44xx_ctrl_module_sysc = {
+	.rev_offs       = 0x0000,
+	.sysc_offs      = 0x0010,
+	.sysc_flags     = SYSC_HAS_SIDLEMODE,
+	.idlemodes      = (SIDLE_FORCE | SIDLE_NO | SIDLE_SMART |
+				SIDLE_SMART_WKUP),
+	.sysc_fields    = &omap_hwmod_sysc_type2,
+};
+
+static struct omap_hwmod_class omap44xx_ctrl_module_hwmod_class = {
+	.name   = "ctrl_module",
+	.sysc   = &omap44xx_ctrl_module_sysc,
+};
+
+/* ctrl_module_core */
+static struct omap_hwmod omap44xx_ctrl_module_core_hwmod;
+static struct omap_hwmod_irq_info omap44xx_ctrl_module_core_irqs[] = {
+	{ .name = "sec_evts", .irq = 8 + OMAP44XX_IRQ_GIC_START },
+	{ .name = "thermal_alert", .irq = 126 + OMAP44XX_IRQ_GIC_START },
+};
+
+static struct omap_hwmod_addr_space omap44xx_ctrl_module_core_addrs[] = {
+	{
+		.pa_start       = 0x4a002000,
+		.pa_end         = 0x4a0027ff,
+
+		.flags          = ADDR_TYPE_RT
+	},
+};
+
+/* l4_cfg -> ctrl_module_core */
+static struct omap_hwmod_ocp_if omap44xx_l4_cfg__ctrl_module_core = {
+	.master         = &omap44xx_l4_cfg_hwmod,
+	.slave          = &omap44xx_ctrl_module_core_hwmod,
+	.clk            = "l4_div_ck",
+	.addr           = omap44xx_ctrl_module_core_addrs,
+	.addr_cnt       = ARRAY_SIZE(omap44xx_ctrl_module_core_addrs),
+	.user           = OCP_USER_MPU | OCP_USER_SDMA,
+};
+
+/* ctrl_module_core slave ports */
+static struct omap_hwmod_ocp_if *omap44xx_ctrl_module_core_slaves[] = {
+	&omap44xx_l4_cfg__ctrl_module_core,
+};
+
+static struct omap_hwmod omap44xx_ctrl_module_core_hwmod = {
+	.name           = "ctrl_module_core",
+	.class          = &omap44xx_ctrl_module_hwmod_class,
+	.mpu_irqs       = omap44xx_ctrl_module_core_irqs,
+	.mpu_irqs_cnt   = ARRAY_SIZE(omap44xx_ctrl_module_core_irqs),
+	.main_clk       = "l4_div_ck",
+	.slaves         = omap44xx_ctrl_module_core_slaves,
+	.slaves_cnt     = ARRAY_SIZE(omap44xx_ctrl_module_core_slaves),
+	.omap_chip      = OMAP_CHIP_INIT(CHIP_IS_OMAP446X),
+};
+/*
+ * 'thermal_sensor' class
+ * thermal sensor module inside the bandgap / control module
+ */
+
+static struct omap_hwmod_class omap44xx_thermal_sensor_hwmod_class = {
+	.name   = "thermal_sensor",
+};
+
+static struct omap_hwmod_irq_info omap44xx_thermal_sensor_irqs[] = {
+	{ .name = "thermal_alert", .irq = 126 + OMAP44XX_IRQ_GIC_START },
+};
+
+static struct omap_hwmod_addr_space omap44xx_thermal_sensor_addrs[] = {
+	{
+		.pa_start       = 0x4a002378,
+		.pa_end         = 0x4a0023ff,
+	},
+};
+
+static struct omap_hwmod omap44xx_thermal_sensor_hwmod;
+/* l4_cfg -> ctrl_module_core */
+static struct omap_hwmod_ocp_if omap44xx_l4_cfg__thermal_sensor = {
+	.master         = &omap44xx_l4_cfg_hwmod,
+	.slave          = &omap44xx_thermal_sensor_hwmod,
+	.clk            = "l4_div_ck",
+	.addr           = omap44xx_thermal_sensor_addrs,
+	.addr_cnt       = ARRAY_SIZE(omap44xx_thermal_sensor_addrs),
+	.user           = OCP_USER_MPU | OCP_USER_SDMA,
+};
+
+/* ctrl_module_core slave ports */
+static struct omap_hwmod_ocp_if *omap44xx_thermal_sensor_slaves[] = {
+	&omap44xx_l4_cfg__thermal_sensor,
+};
+
+static struct omap_hwmod_opt_clk thermal_sensor446x_opt_clks[] = {
+	{ .role = "fclk", .clk = "bandgap_ts_fclk" },
+};
+
+static struct omap_hwmod omap44xx_thermal_sensor_hwmod = {
+	.name           = "thermal_sensor",
+	.class          = &omap44xx_thermal_sensor_hwmod_class,
+	.mpu_irqs       = omap44xx_thermal_sensor_irqs,
+	.mpu_irqs_cnt   = ARRAY_SIZE(omap44xx_thermal_sensor_irqs),
+	.main_clk       = "bandgap_ts_fclk",
+	.slaves		= omap44xx_thermal_sensor_slaves,
+	.slaves_cnt     = ARRAY_SIZE(omap44xx_thermal_sensor_slaves),
+	.prcm           = {
+		.omap4 = {
+			.clkctrl_reg = OMAP4430_CM_WKUP_BANDGAP_CLKCTRL,
+		},
+	},
+	.opt_clks       = thermal_sensor446x_opt_clks,
+	.opt_clks_cnt   = ARRAY_SIZE(thermal_sensor446x_opt_clks),
+	.omap_chip      = OMAP_CHIP_INIT(CHIP_IS_OMAP446X),
+};
+
+/*
  * 'bandgap' class
  * bangap reference for ldo regulators
  */
@@ -5946,6 +6064,12 @@ static __initdata struct omap_hwmod *omap44xx_hwmods[] = {
 	&omap44xx_timer9_hwmod,
 	&omap44xx_timer10_hwmod,
 	&omap44xx_timer11_hwmod,
+
+	/* ctrl module class */
+	&omap44xx_ctrl_module_core_hwmod,
+
+	/* thermal sensor hwmod */
+	&omap44xx_thermal_sensor_hwmod,
 
 	/* uart class */
 	&omap44xx_uart1_hwmod,

@@ -41,7 +41,7 @@
 #define OMX_IOCIONREGISTER	_IOWR(OMX_IOC_MAGIC, 2, struct ion_fd_data)
 #define OMX_IOCIONUNREGISTER	_IOWR(OMX_IOC_MAGIC, 3, struct ion_fd_data)
 
-#define OMX_IOC_MAXNR	(1)
+#define OMX_IOC_MAXNR	(3)
 
 #ifdef __KERNEL__
 
@@ -128,5 +128,17 @@ struct omx_disc_req {
 struct omx_conn_req {
 	char name[48];
 } __packed;
+
+/* the packet structure (actual message sent to omx service) */
+struct omx_packet {
+	uint16_t      desc;	/* descriptor, and omx service status */
+	uint16_t      msg_id;	/* message id */
+	uint32_t      flags;	/* Set to a fixed value for now. */
+	uint32_t      fxn_idx;	/* Index into OMX service's function table.*/
+	int32_t       result;	/* The OMX function status. */
+	uint32_t      data_size;/* Size of in/out data to/from the function. */
+	uint32_t      data[0];	/* Payload of data_size char's passed to
+				   function. */
+};
 
 #endif /* RPMSG_OMX_H */

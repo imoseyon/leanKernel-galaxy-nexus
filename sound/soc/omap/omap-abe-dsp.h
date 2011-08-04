@@ -46,8 +46,12 @@
 #define MIX_SWITCH_PDM_DL		ABE_MIXER(17)
 #define MIX_SWITCH_BT_VX_DL		ABE_MIXER(18)
 #define MIX_SWITCH_MM_EXT_DL		ABE_MIXER(19)
+#define MIX_DL1_MONO		ABE_MIXER(20)
+#define MIX_DL2_MONO		ABE_MIXER(21)
+#define MIX_AUDUL_MONO		ABE_MIXER(22)
 
-#define ABE_NUM_MIXERS		(MIX_SWITCH_MM_EXT_DL + 1)
+#define ABE_NUM_MONO_MIXERS	(MIX_AUDUL_MONO - MIX_DL1_MONO + 1)
+#define ABE_NUM_MIXERS		(MIX_AUDUL_MONO + 1)
 
 #define ABE_MUX(x)		(x + ABE_NUM_MIXERS)
 
@@ -155,6 +159,11 @@
 #define ABE_COEFF_NUM_TEXTS	10
 #define ABE_MAX_EQU		10
 #define ABE_MAX_PROFILES	30
+
+#define OMAP_ABE_OPP25		0
+#define OMAP_ABE_OPP50		1
+#define OMAP_ABE_OPP100		2
+#define OMAP_ABE_OPP_COUNT	3
 
 void abe_dsp_shutdown(void);
 void abe_dsp_pm_get(void);
