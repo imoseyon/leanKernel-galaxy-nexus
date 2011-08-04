@@ -61,16 +61,6 @@ struct tiler_dev {
 static struct dentry *dbgfs;
 static struct dentry *dbg_map;
 
-struct platform_driver tiler_driver_ldm = {
-	.driver = {
-		.owner = THIS_MODULE,
-		.name = "tiler",
-	},
-	.probe = NULL,
-	.shutdown = NULL,
-	.remove = NULL,
-};
-
 static struct tiler_ops tiler;		/* shared methods and variables */
 
 static struct list_head blocks;		/* all tiler blocks */
@@ -1462,6 +1452,44 @@ EXPORT_SYMBOL(tiler_pin_block);
  *  Driver code
  *  ==========================================================================
  */
+
+#ifdef CONFIG_PM
+static int tiler_resume(struct device *pdev)
+{
+	struct mem_info *mi;
+	struct pat_area area = {0};
+
+	/* clear out PAT entries and set dummy page */
+	area.x1 = tiler.width - 1;
+	area.y1 = tiler.height - 1;
+	tmm_unpin(tmm[TILFMT_8BIT], area);
+
+	/* iterate over all the blocks and refresh the PAT entries */
+	list_for_each_entry(mi, &blocks, global) {
+		if (mi->pa.mem)
+			if (pin_mem_to_area(tmm[tiler_fmt(mi->blk.phys)],
+						&mi->area, mi->pa.mem))
+				printk(KERN_ERR "Failed PAT restore - %08x\n",
+					mi->blk.phys);
+	}
+
+	return 0;
+}
+
+static const struct dev_pm_ops tiler_pm_ops = {
+	.resume = tiler_resume,
+};
+#endif
+
+static struct platform_driver tiler_driver_ldm = {
+	.driver = {
+		.owner = THIS_MODULE,
+		.name = "tiler",
+#ifdef CONFIG_PM
+		.pm = &tiler_pm_ops,
+#endif
+	},
+};
 
 static s32 __init tiler_init(void)
 {
