@@ -578,6 +578,6 @@ struct dsscomp_wait_data {
 #define DSSCOMP_QUERY_DISPLAY	_IOWR('O', 131, struct dsscomp_display_info)
 #define DSSCOMP_WAIT		_IOW('O', 132, struct dsscomp_wait_data)
 
-#define DSSCOMP_SETUP_MGR_G	_IOW('O', 127, struct dsscomp_setup_mgr_data)
+#define DSSCOMP_SETUP_DISPC	_IOW('O', 127, struct dsscomp_setup_dispc_data)
 
 #endif

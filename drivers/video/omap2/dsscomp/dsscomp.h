@@ -109,7 +109,7 @@ int dsscomp_queue_init(struct dsscomp_dev *cdev);
 void dsscomp_queue_exit(void);
 void dsscomp_gralloc_init(struct dsscomp_dev *cdev);
 void dsscomp_gralloc_exit(void);
-int dsscomp_gralloc_queue_ioctl(struct dsscomp_setup_mgr_data *d);
+int dsscomp_gralloc_queue_ioctl(struct dsscomp_setup_dispc_data *d);
 int dsscomp_wait(struct dsscomp_sync_obj *sync, enum dsscomp_wait_phase phase,
 								int timeout);
 
@@ -125,6 +125,9 @@ void swap_rb_in_mgr_info(struct dss2_mgr_info *mi);
  */
 void dump_ovl_info(struct dsscomp_dev *cdev, struct dss2_ovl_info *oi);
 void dump_comp_info(struct dsscomp_dev *cdev, struct dsscomp_setup_mgr_data *d,
+				const char *phase);
+void dump_total_comp_info(struct dsscomp_dev *cdev,
+				struct dsscomp_setup_dispc_data *d,
 				const char *phase);
 
 #endif
