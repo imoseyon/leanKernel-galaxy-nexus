@@ -448,24 +448,44 @@ void dump_ovl_info(struct dsscomp_dev *cdev, struct dss2_ovl_info *oi)
 		(void *) oi->ba, (void *) oi->uv, c->stride);
 }
 
+static void print_mgr_info(struct dsscomp_dev *cdev,
+			struct dss2_mgr_info *mi)
+{
+	printk("(dis%d(%s) alpha=%d col=%08x ilace=%d) ",
+		mi->ix,
+		(mi->ix < cdev->num_displays && cdev->displays[mi->ix]) ?
+		cdev->displays[mi->ix]->name : "NONE",
+		mi->alpha_blending, mi->default_color,
+		mi->interlaced);
+}
+
 void dump_comp_info(struct dsscomp_dev *cdev, struct dsscomp_setup_mgr_data *d,
 			const char *phase)
 {
-	struct dss2_mgr_info *mi = &d->mgr;
-
 	if (!(debug & DEBUG_COMPOSITIONS))
 		return;
 
-	dev_info(DEV(cdev), "[%p] %s: %c%c%c"
-		 "(dis%d(%s) alpha=%d col=%08x ilace=%d n=%d)\n",
+	dev_info(DEV(cdev), "[%p] %s: %c%c%c ",
 		 *phase == 'q' ? (void *) d->sync_id : d, phase,
 		 (d->mode & DSSCOMP_SETUP_MODE_APPLY) ? 'A' : '-',
 		 (d->mode & DSSCOMP_SETUP_MODE_DISPLAY) ? 'D' : '-',
-		 (d->mode & DSSCOMP_SETUP_MODE_CAPTURE) ? 'C' : '-',
-		 mi->ix,
-		 (mi->ix < cdev->num_displays && cdev->displays[mi->ix]) ?
-		 cdev->displays[mi->ix]->name : "NONE",
-		 mi->alpha_blending, mi->default_color,
-		 mi->interlaced,
-		 d->num_ovls);
+		 (d->mode & DSSCOMP_SETUP_MODE_CAPTURE) ? 'C' : '-');
+	print_mgr_info(cdev, &d->mgr);
+	printk("n=%d\n", d->num_ovls);
+}
+
+void dump_total_comp_info(struct dsscomp_dev *cdev,
+			struct dsscomp_setup_dispc_data *d,
+			const char *phase)
+{
+	if (!(debug & DEBUG_COMPOSITIONS))
+		return;
+
+	dev_info(DEV(cdev), "[%p] %s: %c%c%c ",
+		 *phase == 'q' ? (void *) d->sync_id : d, phase,
+		 (d->mode & DSSCOMP_SETUP_MODE_APPLY) ? 'A' : '-',
+		 (d->mode & DSSCOMP_SETUP_MODE_DISPLAY) ? 'D' : '-',
+		 (d->mode & DSSCOMP_SETUP_MODE_CAPTURE) ? 'C' : '-');
+	print_mgr_info(cdev, &d->mgr);
+	printk("n=%d\n", d->num_ovls);
 }

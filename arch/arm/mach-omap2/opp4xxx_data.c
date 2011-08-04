@@ -19,8 +19,10 @@
  * GNU General Public License for more details.
  */
 #include <linux/module.h>
+#include <linux/opp.h>
 
 #include <plat/cpu.h>
+#include <plat/common.h>
 
 #include "control.h"
 #include "omap_opp_data.h"
@@ -228,12 +230,7 @@ static struct omap_opp_def __initdata omap446x_opp_def_list[] = {
 	OPP_INITIALIZER("mpu", "virt_dpll_mpu_ck", "mpu", true, 700000000, OMAP4460_VDD_MPU_OPP100_UV),
 	/* MPU OPP3 - OPP-Turbo */
 	OPP_INITIALIZER("mpu", "virt_dpll_mpu_ck", "mpu", true, 920000000, OMAP4460_VDD_MPU_OPPTURBO_UV),
-	/*
-	 * MPU OPP4 - OPP-Nitro + Disabled as the reference schematics
-	 * recommends TPS623631 - confirm and enable the opp in board file
-	 * XXX: May be we should enable these based on mpu capability and
-	 * Exception board files disable it...
-	 */
+	/* MPU OPP4 - OPP-Nitro */
 	OPP_INITIALIZER("mpu", "virt_dpll_mpu_ck", "mpu", false, 1200000000, OMAP4460_VDD_MPU_OPPNITRO_UV),
 	/* MPU OPP4 - OPP-Nitro SpeedBin */
 	OPP_INITIALIZER("mpu", "virt_dpll_mpu_ck", "mpu", false, 1500000000, OMAP4460_VDD_MPU_OPPNITRO_UV),
@@ -286,6 +283,28 @@ static struct omap_opp_def __initdata omap446x_opp_def_list[] = {
 };
 
 /**
+ * omap4_mpu_opp_enable() - helper to enable the OPP
+ * @freq:	frequency to enable
+ */
+static void __init omap4_mpu_opp_enable(unsigned long freq)
+{
+	struct device *mpu_dev;
+	int r;
+
+	mpu_dev = omap2_get_mpuss_device();
+	if (!mpu_dev) {
+		pr_err("%s: no mpu_dev, did not enable f=%ld\n", __func__,
+			freq);
+		return;
+	}
+
+	r = opp_enable(mpu_dev, freq);
+	if (r < 0)
+		dev_err(mpu_dev, "%s: opp_enable failed(%d) f=%ld\n", __func__,
+			r, freq);
+}
+
+/**
  * omap4_opp_init() - initialize omap4 opp table
  */
 int __init omap4_opp_init(void)
@@ -300,6 +319,14 @@ int __init omap4_opp_init(void)
 	else if (cpu_is_omap446x())
 		r = omap_init_opp_table(omap446x_opp_def_list,
 			ARRAY_SIZE(omap446x_opp_def_list));
+
+	if (!r) {
+		if (omap4_has_mpu_1_2ghz())
+			omap4_mpu_opp_enable(1200000000);
+		if (omap4_has_mpu_1_5ghz())
+			omap4_mpu_opp_enable(1500000000);
+	}
+
 	return r;
 }
 device_initcall(omap4_opp_init);

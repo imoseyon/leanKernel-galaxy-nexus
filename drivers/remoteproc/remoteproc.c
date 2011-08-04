@@ -250,6 +250,19 @@ unlock_mutext:
 	mutex_unlock(&rproc->lock);
 }
 
+static void rproc_reset_poolmem(struct rproc *rproc)
+{
+	struct rproc_mem_pool *pool = rproc->memory_pool;
+
+	if (!pool || !pool->mem_base || !pool->mem_size) {
+		pr_warn("invalid pool\n");
+		return;
+	}
+
+	pool->cur_base = pool->mem_base;
+	pool->cur_size = pool->mem_size;
+}
+
 static int rproc_add_mem_entry(struct rproc *rproc, struct fw_resource *rsc)
 {
 	struct rproc_mem_entry *me = rproc->memory_maps;
@@ -279,7 +292,7 @@ static int rproc_alloc_poolmem(struct rproc *rproc, u32 size, phys_addr_t *pa)
 	struct rproc_mem_pool *pool = rproc->memory_pool;
 
 	*pa = 0;
-	if (!pool || !pool->mem_base) {
+	if (!pool || !pool->mem_base || !pool->mem_size) {
 		pr_warn("invalid pool\n");
 		return -EINVAL;
 	}
@@ -679,6 +692,9 @@ void rproc_put(struct rproc *rproc)
 		iounmap((__force void __iomem *) rproc->trace_buf1);
 
 	rproc->trace_buf0 = rproc->trace_buf1 = NULL;
+
+	rproc_reset_poolmem(rproc);
+	memset(rproc->memory_maps, 0, sizeof(rproc->memory_maps));
 
 	/*
 	 * make sure rproc is really running before powering it off.

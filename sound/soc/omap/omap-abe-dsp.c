@@ -41,6 +41,7 @@
 #include <linux/wait.h>
 #include <linux/firmware.h>
 #include <linux/debugfs.h>
+#include <linux/opp.h>
 
 #include <plat/omap_hwmod.h>
 #include <plat/omap_device.h>
@@ -59,9 +60,6 @@
 #include "omap-abe.h"
 #include "abe/abe_main.h"
 #include "abe/port_mgr.h"
-
-#warning need omap_device_set_rate
-#define omap_device_set_rate(x, y, z)
 
 static const char *abe_memory_bank[5] = {
 	"dmem",
@@ -114,15 +112,19 @@ struct abe_data {
 	void __iomem *io_base[5];
 	int irq;
 	int opp;
+	unsigned long opp_freqs[OMAP_ABE_OPP_COUNT];
 	int active;
 
 	/* coefficients */
 	struct fw_header hdr;
+	u32 *firmware;
 	s32 *equ[ABE_MAX_EQU];
 	int equ_profile[ABE_MAX_EQU];
 	struct soc_enum equalizer_enum[ABE_MAX_EQU];
 	struct snd_kcontrol_new equalizer_control[ABE_MAX_EQU];
 	struct coeff_config *equ_texts;
+
+	int mono_mix[ABE_NUM_MONO_MIXERS];
 
 	/* DAPM mixer config - TODO: some of this can be replaced with HAL update */
 	u32 widget_opp[ABE_NUM_DAPM_REG + 1];
@@ -233,12 +235,21 @@ EXPORT_SYMBOL_GPL(abe_dsp_pm_put);
 
 void abe_dsp_shutdown(void)
 {
+	struct omap4_abe_dsp_pdata *pdata = the_abe->abe_pdata;
+	int ret;
+
 	if (!the_abe->active && !abe_check_activity()) {
 		abe_set_opp_processing(ABE_OPP25);
 		the_abe->opp = 25;
 		abe_stop_event_generator();
 		udelay(250);
-		omap_device_set_rate(the_abe->dev, the_abe->dev, 0);
+		if (pdata && pdata->device_scale) {
+			ret = pdata->device_scale(the_abe->dev, the_abe->dev,
+				the_abe->opp_freqs[0]);
+			if (ret)
+				dev_err(the_abe->dev,
+					"failed to scale to lowest OPP\n");
+		}
 	}
 }
 EXPORT_SYMBOL_GPL(abe_dsp_shutdown);
@@ -439,6 +450,55 @@ static int abe_get_mixer(struct snd_kcontrol *kcontrol,
 		(struct soc_mixer_control *)kcontrol->private_value;
 
 	ucontrol->value.integer.value[0] = the_abe->widget_opp[mc->shift];
+	return 0;
+}
+
+static int abe_dsp_set_mono_mixer(int id, int enable)
+{
+	int mixer;
+
+	switch (id) {
+	case MIX_DL1_MONO:
+		mixer = MIXDL1;
+		break;
+	case MIX_DL2_MONO:
+		mixer = MIXDL2;
+		break;
+	case MIX_AUDUL_MONO:
+		mixer = MIXAUDUL;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	pm_runtime_get_sync(the_abe->dev);
+	abe_mono_mixer(mixer, enable);
+	pm_runtime_put_sync(the_abe->dev);
+
+	return 0;
+}
+
+static int abe_put_mono_mixer(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_mixer_control *mc =
+		(struct soc_mixer_control *)kcontrol->private_value;
+	int id = mc->shift - MIX_DL1_MONO;
+
+	the_abe->mono_mix[id] = ucontrol->value.integer.value[0];
+	abe_dsp_set_mono_mixer(mc->shift, the_abe->mono_mix[id]);
+
+	return 1;
+}
+
+static int abe_get_mono_mixer(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_mixer_control *mc =
+		(struct soc_mixer_control *)kcontrol->private_value;
+	int id = mc->shift - MIX_DL1_MONO;
+
+	ucontrol->value.integer.value[0] = the_abe->mono_mix[id];
 	return 0;
 }
 
@@ -724,38 +784,50 @@ static int volume_get_gain(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int abe_dsp_set_equalizer(unsigned int id, unsigned int profile)
+{
+	abe_equ_t equ_params;
+	int len;
+
+	if (id >= the_abe->hdr.num_equ)
+		return -EINVAL;
+
+	if (profile >= the_abe->equ_texts[id].count)
+		return -EINVAL;
+
+	len = the_abe->equ_texts[id].coeff;
+	equ_params.equ_length = len;
+	memcpy(equ_params.coef.type1, the_abe->equ[id] + profile * len,
+		len * sizeof(u32));
+	the_abe->equ_profile[id] = profile;
+
+	pm_runtime_get_sync(the_abe->dev);
+	abe_write_equalizer(id + 1, &equ_params);
+	pm_runtime_put_sync(the_abe->dev);
+
+	return 0;
+}
+
 static int abe_get_equalizer(struct snd_kcontrol *kcontrol,
 			struct snd_ctl_elem_value *ucontrol)
 {
-#if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	struct soc_enum *eqc = (struct soc_enum *)kcontrol->private_value;
 
 	ucontrol->value.integer.value[0] = the_abe->equ_profile[eqc->reg];
-#endif
 	return 0;
 }
 
 static int abe_put_equalizer(struct snd_kcontrol *kcontrol,
 			struct snd_ctl_elem_value *ucontrol)
 {
-#if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	struct soc_enum *eqc = (struct soc_enum *)kcontrol->private_value;
 	u16 val = ucontrol->value.enumerated.item[0];
-	abe_equ_t equ_params;
-	int size;
+	int ret;
 
-	if (val >= the_abe->hdr.num_equ)
-		return -EINVAL;
+	ret = abe_dsp_set_equalizer(eqc->reg, val);
+	if (ret < 0)
+		return ret;
 
-	equ_params.equ_length = the_abe->equ_texts[eqc->reg].coeff;
-	size = the_abe->equ_texts[eqc->reg].coeff * sizeof(s32);
-	memcpy(equ_params.coef.type1, the_abe->equ[eqc->reg] + val * size, size);
-	the_abe->equ_profile[eqc->reg] = val;
-
-	pm_runtime_get_sync(the_abe->dev);
-	abe_write_equalizer(eqc->reg, &equ_params);
-	pm_runtime_put_sync(the_abe->dev);
-#endif
 	return 1;
 }
 
@@ -1000,6 +1072,13 @@ static const struct snd_kcontrol_new abe_controls[] = {
 	SOC_DOUBLE_EXT_TLV("BT UL Volume",
 		GAINS_BTUL, GAIN_LEFT_OFFSET, GAIN_RIGHT_OFFSET, 149, 0,
 		volume_get_gain, volume_put_gain, btul_tlv),
+
+	SOC_SINGLE_EXT("DL1 Mono Mixer", MIXDL1, MIX_DL1_MONO, 1, 0,
+		abe_get_mono_mixer, abe_put_mono_mixer),
+	SOC_SINGLE_EXT("DL2 Mono Mixer", MIXDL2, MIX_DL2_MONO, 1, 0,
+		abe_get_mono_mixer, abe_put_mono_mixer),
+	SOC_SINGLE_EXT("AUDUL Mono Mixer", MIXAUDUL, MIX_AUDUL_MONO, 1, 0,
+		abe_get_mono_mixer, abe_put_mono_mixer),
 };
 
 static const struct snd_soc_dapm_widget abe_dapm_widgets[] = {
@@ -1730,7 +1809,8 @@ static const struct snd_pcm_hardware omap_abe_hardware = {
 
 static int abe_set_opp_mode(struct abe_data *abe)
 {
-	int i, opp = 0;
+	struct omap4_abe_dsp_pdata *pdata = abe->abe_pdata;
+	int i, opp = 0, ret = 0;
 
 	/* now calculate OPP level based upon DAPM widget status */
 	for (i = 0; i < ABE_NUM_WIDGETS; i++) {
@@ -1748,29 +1828,54 @@ static int abe_set_opp_mode(struct abe_data *abe)
 		case 25:
 			abe_set_opp_processing(ABE_OPP25);
 			udelay(250);
-			omap_device_set_rate(abe->dev, abe->dev, 49150000);
+			if (pdata && pdata->device_scale) {
+				ret = pdata->device_scale(abe->dev, abe->dev,
+					abe->opp_freqs[OMAP_ABE_OPP25]);
+				if (ret)
+					goto err_scale;
+			}
 			break;
 		case 50:
 		default:
 			abe_set_opp_processing(ABE_OPP50);
 			udelay(250);
-			omap_device_set_rate(abe->dev, abe->dev, 98300000);
+			if (pdata && pdata->device_scale) {
+				ret = pdata->device_scale(abe->dev, abe->dev,
+					abe->opp_freqs[OMAP_ABE_OPP50]);
+				if (ret)
+					goto err_scale;
+			}
 			break;
 		}
 	} else if (abe->opp < opp) {
 		/* Increase OPP mode */
 		switch (opp) {
 		case 25:
-			omap_device_set_rate(abe->dev, abe->dev, 49000000);
+			if (pdata && pdata->device_scale) {
+				pdata->device_scale(abe->dev, abe->dev,
+					abe->opp_freqs[OMAP_ABE_OPP25]);
+				if (ret)
+					goto err_scale;
+			}
 			abe_set_opp_processing(ABE_OPP25);
 			break;
 		case 50:
-			omap_device_set_rate(abe->dev, abe->dev, 98300000);
+			if (pdata && pdata->device_scale) {
+				ret = pdata->device_scale(abe->dev, abe->dev,
+					abe->opp_freqs[OMAP_ABE_OPP50]);
+				if (ret)
+					goto err_scale;
+			}
 			abe_set_opp_processing(ABE_OPP50);
 			break;
 		case 100:
 		default:
-			omap_device_set_rate(abe->dev, abe->dev, 196600000);
+			if (pdata && pdata->device_scale) {
+				ret = pdata->device_scale(abe->dev, abe->dev,
+					abe->opp_freqs[OMAP_ABE_OPP100]);
+				if (ret)
+					goto err_scale;
+			}
 			abe_set_opp_processing(ABE_OPP100);
 			break;
 		}
@@ -1779,6 +1884,10 @@ static int abe_set_opp_mode(struct abe_data *abe)
 	dev_dbg(abe->dev, "new OPP level is %d\n", opp);
 
 	return 0;
+
+err_scale:
+	dev_err(abe->dev, "failed to scale to OPP%d\n", opp);
+	return ret;
 }
 
 static int aess_set_runtime_opp_level(struct abe_data *abe)
@@ -1838,15 +1947,22 @@ static int aess_save_context(struct abe_data *abe)
 static int aess_restore_context(struct abe_data *abe)
 {
 	struct omap4_abe_dsp_pdata *pdata = abe->abe_pdata;
-	int loss_count = 0;
+	int i, loss_count = 0, ret;
 
-	omap_device_set_rate(&abe->dev, &abe->dev, 98000000);
+	if (pdata && pdata->device_scale) {
+		ret = pdata->device_scale(the_abe->dev, the_abe->dev,
+				abe->opp_freqs[OMAP_ABE_OPP50]);
+		if (ret) {
+			dev_err(abe->dev, "failed to scale to OPP50\n");
+			return ret;
+		}
+	}
 
 	if (pdata->get_context_loss_count)
 		loss_count = pdata->get_context_loss_count(abe->dev);
 
 	if  (loss_count != the_abe->loss_count)
-	        abe_reload_fw();
+		abe_reload_fw(abe->firmware);
 
 	/* TODO: Find a better way to save/retore gains after dor OFF mode */
 	abe_unmute_gain(MIXSDT, MIX_SDT_INPUT_UP_MIXER);
@@ -1879,6 +1995,12 @@ static int aess_restore_context(struct abe_data *abe)
 	abe_unmute_gain(GAINS_AMIC, GAIN_RIGHT_OFFSET);
 
 	abe_set_router_configuration(UPROUTE, 0, (u32 *)abe->router);
+
+	for (i = 0; i < abe->hdr.num_equ; i++)
+		abe_dsp_set_equalizer(i, abe->equ_profile[i]);
+
+	for (i = 0; i < ABE_NUM_MONO_MIXERS; i++)
+		abe_dsp_set_mono_mixer(MIX_DL1_MONO + i, abe->mono_mix[i]);
 
        return 0;
 }
@@ -2079,7 +2201,6 @@ static int abe_add_widgets(struct snd_soc_platform *platform)
 	struct fw_header *hdr = &abe->hdr;
 	int i, j;
 
-#if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	/* create equalizer controls */
 	for (i = 0; i < hdr->num_equ; i++) {
 		struct soc_enum *equalizer_enum = &abe->equalizer_enum[i];
@@ -2107,7 +2228,6 @@ static int abe_add_widgets(struct snd_soc_platform *platform)
 
 	snd_soc_add_platform_controls(platform, abe->equalizer_control,
 			hdr->num_equ);
-#endif
 
 	snd_soc_add_platform_controls(platform, abe_controls,
 			ARRAY_SIZE(abe_controls));
@@ -2180,7 +2300,7 @@ static int abe_resume(struct snd_soc_dai *dai)
 {
 	struct abe_data *abe = the_abe;
 	struct omap4_abe_dsp_pdata *pdata = abe->abe_pdata;
-	int loss_count = 0, ret = 0;
+	int i, loss_count = 0, ret = 0;
 
 	dev_dbg(dai->dev, "%s: %s active %d\n",
 		__func__, dai->name, dai->active);
@@ -2192,10 +2312,18 @@ static int abe_resume(struct snd_soc_dai *dai)
 		loss_count = pdata->get_context_loss_count(abe->dev);
 
 	pm_runtime_get_sync(abe->dev);
-	omap_device_set_rate(&abe->dev, &abe->dev, 98000000);
+
+	if (pdata && pdata->device_scale) {
+		ret = pdata->device_scale(abe->dev, abe->dev,
+				abe->opp_freqs[OMAP_ABE_OPP50]);
+		if (ret) {
+			dev_err(abe->dev, "failed to scale to OPP50\n");
+			goto out;
+		}
+	}
 
 	if (loss_count != abe->loss_count)
-	        abe_reload_fw();
+		abe_reload_fw(abe->firmware);
 
 	switch (dai->id) {
 	case OMAP_ABE_DAI_PDM_UL:
@@ -2230,6 +2358,9 @@ static int abe_resume(struct snd_soc_dai *dai)
 
 	abe_set_router_configuration(UPROUTE, 0, (u32 *)abe->router);
 
+	for (i = 0; i < abe->hdr.num_equ; i++)
+		abe_dsp_set_equalizer(i, abe->equ_profile[i]);
+
 out:
 	pm_runtime_put_sync(abe->dev);
 	return ret;
@@ -2242,11 +2373,13 @@ out:
 static int abe_probe(struct snd_soc_platform *platform)
 {
 	struct abe_data *abe = snd_soc_platform_get_drvdata(platform);
+	struct opp *opp;
+	const u8 *fw_data;
+	unsigned long freq = ULONG_MAX;
+	int ret = 0, i, opp_count, offset = 0;
+#if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	const struct firmware *fw;
-#ifndef CONFIG_PM_RUNTIME
-	struct omap4_abe_dsp_pdata *pdata = priv->abe_pdata;
 #endif
-	int ret = 0, i, offset = 0;
 
 	abe->platform = platform;
 
@@ -2260,14 +2393,18 @@ static int abe_probe(struct snd_soc_platform *platform)
 		dev_err(abe->dev, "Failed to load firmware: %d\n", ret);
 		return ret;
 	}
+	fw_data = fw->data;
+#else
+	fw_data = (u8 *)abe_get_default_fw();
+#endif
 
 	/* get firmware and coefficients header info */
-	memcpy(&abe->hdr, fw->data, sizeof(struct fw_header));
+	memcpy(&abe->hdr, fw_data, sizeof(struct fw_header));
 	if (abe->hdr.firmware_size > ABE_MAX_FW_SIZE) {
-			dev_err(abe->dev, "Firmware too large at %d bytes: %d\n",
+		dev_err(abe->dev, "Firmware too large at %d bytes: %d\n",
 					abe->hdr.firmware_size, ret);
-			ret = -EINVAL;
-			goto err_fw;
+		ret = -EINVAL;
+		goto err_fw;
 	}
 	dev_dbg(abe->dev, "ABE firmware size %d bytes\n", abe->hdr.firmware_size);
 
@@ -2292,7 +2429,7 @@ static int abe_probe(struct snd_soc_platform *platform)
 		goto err_fw;
 	}
 	offset = sizeof(struct fw_header);
-	memcpy(abe->equ_texts, fw->data + offset,
+	memcpy(abe->equ_texts, fw_data + offset,
 			abe->hdr.num_equ * sizeof(struct coeff_config));
 
 	/* get coefficients from firmware */
@@ -2302,7 +2439,7 @@ static int abe_probe(struct snd_soc_platform *platform)
 		goto err_equ;
 	}
 	offset += abe->hdr.num_equ * sizeof(struct coeff_config);
-	memcpy(abe->equ[0], fw->data + offset, abe->hdr.coeff_size);
+	memcpy(abe->equ[0], fw_data + offset, abe->hdr.coeff_size);
 
 	/* allocate coefficient mixer texts */
 	dev_dbg(abe->dev, "loaded %d equalizers\n", abe->hdr.num_equ);
@@ -2326,15 +2463,54 @@ static int abe_probe(struct snd_soc_platform *platform)
 	/* initialise coefficient equalizers */
 	for (i = 1; i < abe->hdr.num_equ; i++) {
 		abe->equ[i] = abe->equ[i - 1] +
-			abe->equ_texts[i - 1].count * abe->equ_texts[i - 1].coeff * sizeof(s32);
+			abe->equ_texts[i - 1].count * abe->equ_texts[i - 1].coeff;
 	}
-#endif
+
+	/* store ABE firmware for later context restore */
+	abe->firmware = kzalloc(abe->hdr.firmware_size, GFP_KERNEL);
+	if (abe->firmware == NULL) {
+		ret = -ENOMEM;
+		goto err_texts;
+	}
+
+	memcpy(abe->firmware,
+		fw_data + sizeof(struct fw_header) + abe->hdr.coeff_size,
+		abe->hdr.firmware_size);
+
 	ret = request_irq(abe->irq, abe_irq_handler, 0, "ABE", (void *)abe);
 	if (ret) {
 		dev_err(platform->dev, "request for ABE IRQ %d failed %d\n",
 				abe->irq, ret);
-		goto err_texts;
+		goto err_irq;
 	}
+
+	/* query supported opps */
+	rcu_read_lock();
+	opp_count = opp_get_opp_count(abe->dev);
+	if (opp_count <= 0) {
+		dev_err(abe->dev, "invalid OPP data\n");
+		ret = opp_count;
+		goto err_opp;
+	} else if (opp_count > OMAP_ABE_OPP_COUNT) {
+		dev_err(abe->dev, "unsupported OPP count %d (max:%d)\n",
+			opp_count, OMAP_ABE_OPP_COUNT);
+		ret = -EINVAL;
+		goto err_opp;
+	}
+
+	/* assume provided opps are always higher */
+	for (i = OMAP_ABE_OPP_COUNT - 1; i >= 0; i--) {
+		opp = opp_find_freq_floor(abe->dev, &freq);
+		if (IS_ERR_OR_NULL(opp))
+			break;
+		abe->opp_freqs[i] = freq;
+		/* prepare to obtain next available opp */
+		freq--;
+	}
+	/* use lowest available opp for non-populated items */
+	for (freq++; i >= 0; i--)
+		abe->opp_freqs[i] = freq;
+	rcu_read_unlock();
 
 	/* aess_clk has to be enabled to access hal register.
 	 * Disable the clk after it has been used.
@@ -2345,14 +2521,7 @@ static int abe_probe(struct snd_soc_platform *platform)
 
 	abe_reset_hal();
 
-#if 0
-#warning fixup load fw args
-	//abe_load_fw(fw->data + sizeof(struct fw_header) + abe->hdr.coeff_size);
-#else
-	abe_load_fw();
-#endif
-	/* Config OPP 100 for now */
-	abe_set_opp_processing(ABE_OPP100);
+	abe_load_fw(abe->firmware);
 
 	/* "tick" of the audio engine */
 	abe_write_event_generator(EVENT_TIMER);
@@ -2368,14 +2537,19 @@ static int abe_probe(struct snd_soc_platform *platform)
 #endif
 	return ret;
 
+err_opp:
+	rcu_read_unlock();
+	free_irq(abe->irq, (void *)abe);
+err_irq:
+	kfree(abe->firmware);
 err_texts:
-#if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	for (i = 0; i < abe->hdr.num_equ; i++)
 		kfree(abe->equalizer_enum[i].texts);
 	kfree(abe->equ[0]);
 err_equ:
 	kfree(abe->equ_texts);
 err_fw:
+#if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	release_firmware(fw);
 #endif
 	return ret;
@@ -2388,13 +2562,13 @@ static int abe_remove(struct snd_soc_platform *platform)
 
 	free_irq(abe->irq, (void *)abe);
 
-#if defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	for (i = 0; i < abe->hdr.num_equ; i++)
 		kfree(abe->equalizer_enum[i].texts);
 
 	kfree(abe->equ[0]);
 	kfree(abe->equ_texts);
-#endif
+	kfree(abe->firmware);
+
 	pm_runtime_disable(abe->dev);
 
 	return 0;

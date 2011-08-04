@@ -86,7 +86,7 @@ static void dsscomp_gralloc_cb(void *data, int status)
 /* This is just test code for now that does the setup + apply.
    It still uses userspace virtual addresses, but maps non
    TILER buffers into 1D */
-int dsscomp_gralloc_queue_ioctl(struct dsscomp_setup_mgr_data *d)
+int dsscomp_gralloc_queue_ioctl(struct dsscomp_setup_dispc_data *d)
 {
 	struct tiler_pa_info *pas[MAX_OVERLAYS];
 	s32 ret;
@@ -119,7 +119,7 @@ int dsscomp_gralloc_queue_ioctl(struct dsscomp_setup_mgr_data *d)
 	return ret;
 }
 
-int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
+int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 			struct tiler_pa_info **pas,
 			void (*cb_fn)(void *, int), void *cb_arg)
 {
@@ -135,7 +135,7 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_mgr_data *d,
 	/* reserve tiler areas if not already done so */
 	dsscomp_gralloc_init(cdev);
 
-	dump_comp_info(cdev, d, "queue");
+	dump_total_comp_info(cdev, d, "queue");
 	for (i = 0; i < d->num_ovls; i++)
 		dump_ovl_info(cdev, d->ovls + i);
 
@@ -283,7 +283,7 @@ static void dsscomp_early_suspend_cb(void *data, int status)
 
 static void dsscomp_early_suspend(struct early_suspend *h)
 {
-	struct dsscomp_setup_mgr_data d = {
+	struct dsscomp_setup_dispc_data d = {
 		.mgr.alpha_blending = 1,
 	};
 	int err;

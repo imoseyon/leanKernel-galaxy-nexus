@@ -381,45 +381,46 @@ static long comp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	struct dsscomp_dev *cdev = container_of(dev, struct dsscomp_dev, dev);
 	void __user *ptr = (void __user *)arg;
 
-	struct {
-		struct dsscomp_setup_mgr_data set;
-		struct dss2_ovl_info ovl[MAX_OVERLAYS];
-	} p;
+	union {
+		struct {
+			struct dsscomp_setup_mgr_data set;
+			struct dss2_ovl_info ovl[MAX_OVERLAYS];
+		} m;
+		struct dsscomp_setup_dispc_data dispc;
+		struct dsscomp_display_info dis;
+		struct dsscomp_check_ovl_data chk;
+	} u;
 
 	dsscomp_gralloc_init(cdev);
 
 	switch (cmd) {
 	case DSSCOMP_SETUP_MGR:
 	{
-		r = copy_from_user(&p.set, ptr, sizeof(p.set)) ? :
-		    p.set.num_ovls >= ARRAY_SIZE(p.ovl) ? -EINVAL :
-		    copy_from_user(&p.ovl, (void __user *)arg + sizeof(p.set),
-					sizeof(*p.ovl) * p.set.num_ovls) ? :
-		    setup_mgr(cdev, &p.set);
+		r = copy_from_user(&u.m.set, ptr, sizeof(u.m.set)) ? :
+		    u.m.set.num_ovls >= ARRAY_SIZE(u.m.ovl) ? -EINVAL :
+		    copy_from_user(&u.m.ovl,
+				(void __user *)arg + sizeof(u.m.set),
+				sizeof(*u.m.ovl) * u.m.set.num_ovls) ? :
+		    setup_mgr(cdev, &u.m.set);
 		break;
 	}
-	case DSSCOMP_SETUP_MGR_G:
+	case DSSCOMP_SETUP_DISPC:
 	{
-		r = copy_from_user(&p.set, ptr, sizeof(p.set)) ? :
-		    p.set.num_ovls >= ARRAY_SIZE(p.ovl) ? -EINVAL :
-		    copy_from_user(&p.ovl, (void __user *)arg + sizeof(p.set),
-					sizeof(*p.ovl) * p.set.num_ovls) ? :
-		    dsscomp_gralloc_queue_ioctl(&p.set);
+		r = copy_from_user(&u.dispc, ptr, sizeof(u.dispc)) ? :
+		    dsscomp_gralloc_queue_ioctl(&u.dispc);
 		break;
 	}
 	case DSSCOMP_QUERY_DISPLAY:
 	{
-		struct dsscomp_display_info dis;
-		r = copy_from_user(&dis, ptr, sizeof(dis)) ? :
-		    query_display(cdev, &dis) ? :
-		    copy_to_user(ptr, &dis, sizeof(dis));
+		r = copy_from_user(&u.dis, ptr, sizeof(u.dis)) ? :
+		    query_display(cdev, &u.dis) ? :
+		    copy_to_user(ptr, &u.dis, sizeof(u.dis));
 		break;
 	}
 	case DSSCOMP_CHECK_OVL:
 	{
-		struct dsscomp_check_ovl_data chk;
-		r = copy_from_user(&chk, ptr, sizeof(chk)) ? :
-		    check_ovl(cdev, &chk);
+		r = copy_from_user(&u.chk, ptr, sizeof(u.chk)) ? :
+		    check_ovl(cdev, &u.chk);
 		break;
 	}
 	default:
