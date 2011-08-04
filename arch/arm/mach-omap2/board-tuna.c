@@ -64,6 +64,7 @@
 #include "control.h"
 #include "mux.h"
 #include "board-tuna.h"
+#include <mach/dmm.h>
 
 #define TUNA_RAMCONSOLE_START	(PLAT_PHYS_OFFSET + SZ_512M)
 #define TUNA_RAMCONSOLE_SIZE	SZ_2M
@@ -1119,6 +1120,7 @@ static void __init tuna_init(void)
 		spi_register_board_info(tuna_lte_modem,
 				ARRAY_SIZE(tuna_lte_modem));
 	}
+	omap_dmm_init();
 	omap4_tuna_display_init();
 	omap4_tuna_input_init();
 	omap4_tuna_nfc_init();
