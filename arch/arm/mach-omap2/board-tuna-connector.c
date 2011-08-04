@@ -79,6 +79,7 @@ struct tuna_otg {
 
 	struct regulator		*vusb;
 	bool				reg_on;
+	bool				jig_attached;
 };
 static struct tuna_otg tuna_otg_xceiv;
 
@@ -262,9 +263,21 @@ static void tuna_fsa_usb_detected(int device)
 		tuna_otg->otg.state = OTG_STATE_B_IDLE;
 		tuna_otg->otg.default_a = false;
 		tuna_otg->otg.last_event = USB_EVENT_NONE;
+
+		/* If the previously attached cable was a JIG cable then don't
+		 * notify the USB driver of the cable detach.
+		 */
+		if (tuna_otg->jig_attached) {
+			tuna_otg->jig_attached = false;
+			break;
+		}
+
 		atomic_notifier_call_chain(&tuna_otg->otg.notifier,
 					   USB_EVENT_NONE,
 					   tuna_otg->otg.gadget);
+		break;
+	case FSA9480_DETECT_JIG:
+		tuna_otg->jig_attached = true;
 		break;
 	}
 }
