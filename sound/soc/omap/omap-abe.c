@@ -205,6 +205,8 @@ static void mute_be(struct snd_soc_pcm_runtime *be,
 static void unmute_be(struct snd_soc_pcm_runtime *be,
 		struct snd_soc_dai *dai, int stream)
 {
+	struct omap_abe_data *abe_priv = snd_soc_dai_get_drvdata(dai);
+
 	dev_dbg(&be->dev, "%s: %s %d\n", __func__, be->cpu_dai->name, stream);
 
 	if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
@@ -224,7 +226,17 @@ static void unmute_be(struct snd_soc_pcm_runtime *be,
 		case OMAP_ABE_DAI_PDM_VIB:
 		case OMAP_ABE_DAI_BT_VX:
 		case OMAP_ABE_DAI_MM_FM:
+			break;
 		case OMAP_ABE_DAI_MODEM:
+			if (omap_abe_port_is_enabled(abe_priv->abe,
+					abe_priv->port[OMAP_ABE_BE_PORT_PDM_DL1]))
+				abe_reset_dl1_src_filters();
+			if (omap_abe_port_is_enabled(abe_priv->abe,
+					abe_priv->port[OMAP_ABE_BE_PORT_PDM_DL2]))
+				abe_reset_dl2_src_filters();
+			if (omap_abe_port_is_enabled(abe_priv->abe,
+					abe_priv->port[OMAP_ABE_BE_PORT_BT_VX_DL]))
+				abe_reset_bt_dl_src_filters();
 			break;
 		}
 	} else {
@@ -238,6 +250,7 @@ static void unmute_be(struct snd_soc_pcm_runtime *be,
 		case OMAP_ABE_DAI_DMIC0:
 		case OMAP_ABE_DAI_DMIC1:
 		case OMAP_ABE_DAI_DMIC2:
+			abe_reset_mic_ul_src_filters();
 			break;
 		}
 	}
