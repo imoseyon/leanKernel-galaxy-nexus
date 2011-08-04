@@ -82,6 +82,8 @@ enum fw_section_type {
 	FW_RESOURCE	= 0,
 	FW_TEXT		= 1,
 	FW_DATA		= 2,
+	FW_MMU		= 3,
+	FW_SIGNATURE	= 4,
 };
 
 struct fw_resource {

@@ -1000,6 +1000,7 @@ static int rproc_process_fw(struct rproc *rproc, struct fw_section *section,
 	u64 da;
 	int ret = 0;
 	void *ptr;
+	bool copy;
 
 	/* first section should be FW_RESOURCE section */
 	if (section->type != FW_RESOURCE) {
@@ -1013,6 +1014,7 @@ static int rproc_process_fw(struct rproc *rproc, struct fw_section *section,
 		da = section->da;
 		len = section->len;
 		type = section->type;
+		copy = true;
 
 		dev_dbg(dev, "section: type %d da 0x%llx len 0x%x\n",
 								type, da, len);
@@ -1034,26 +1036,35 @@ static int rproc_process_fw(struct rproc *rproc, struct fw_section *section,
 			}
 		}
 
-		ret = rproc_da_to_pa(rproc->memory_maps, da, &pa);
-		if (ret) {
-			dev_err(dev, "rproc_da_to_pa failed: %d\n", ret);
-			break;
-		}
+		if (section->type <= FW_DATA) {
+			ret = rproc_da_to_pa(rproc->memory_maps, da, &pa);
+			if (ret) {
+				dev_err(dev, "rproc_da_to_pa failed:%d\n", ret);
+				break;
+			}
+		} else if (rproc->secure_mode) {
+			pa = da;
+			if (section->type == FW_MMU)
+				rproc->secure_ttb = (void *)pa;
+		} else
+			copy = false;
 
 		dev_dbg(dev, "da 0x%llx pa 0x%x len 0x%x\n", da, pa, len);
 
-		/* ioremaping normal memory, so make sparse happy */
-		ptr = (__force void *) ioremap_nocache(pa, len);
-		if (!ptr) {
-			dev_err(dev, "can't ioremap 0x%x\n", pa);
-			ret = -ENOMEM;
-			break;
+		if (copy) {
+			/* ioremaping normal memory, so make sparse happy */
+			ptr = (__force void *) ioremap_nocache(pa, len);
+			if (!ptr) {
+				dev_err(dev, "can't ioremap 0x%x\n", pa);
+				ret = -ENOMEM;
+				break;
+			}
+
+			memcpy(ptr, section->content, len);
+
+			/* iounmap normal memory, so make sparse happy */
+			iounmap((__force void __iomem *) ptr);
 		}
-
-		memcpy(ptr, section->content, len);
-
-		/* iounmap normal memory, so make sparse happy */
-		iounmap((__force void __iomem *) ptr);
 
 		section = (struct fw_section *)(section->content + len);
 		left -= len;
