@@ -159,6 +159,7 @@ int omap_abe_reset_vx_dl_src_filters(struct omap_abe *abe);
 int omap_abe_reset_dl1_src_filters(struct omap_abe *abe);
 int omap_abe_reset_dl2_src_filters(struct omap_abe *abe);
 int omap_abe_reset_bt_dl_src_filters(struct omap_abe *abe);
+void omap_abe_src_filters_saturation_monitoring(struct omap_abe *abe);
 
 extern struct omap_abe *abe;
 
@@ -834,3 +835,13 @@ u32 abe_reset_bt_dl_src_filters(void)
 	return (u32)omap_abe_reset_bt_dl_src_filters(abe);
 }
 EXPORT_SYMBOL(abe_reset_bt_dl_src_filters);
+
+/**
+* abe_src_ilters_saturation_monitoring - monitor for saturation
+* in abe filters
+*/
+void abe_src_filters_saturation_monitoring(void)
+{
+	omap_abe_src_filters_saturation_monitoring(abe);
+}
+EXPORT_SYMBOL(abe_src_filters_saturation_monitoring);

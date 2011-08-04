@@ -661,6 +661,7 @@ u32 abe_reset_vx_dl_src_filters(void);
 u32 abe_reset_dl1_src_filters(void);
 u32 abe_reset_dl2_src_filters(void);
 u32 abe_reset_bt_dl_src_filters(void);
+void abe_src_filters_saturation_monitoring(void);
 u32 abe_check_activity(void);
 void abe_add_subroutine(u32 *id, abe_subroutine2 f,
 						u32 nparam, u32 *params);

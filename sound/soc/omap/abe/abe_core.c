@@ -78,6 +78,7 @@ void abe_init_asrc_mm_ext_in(s32 dppm);
 void abe_init_asrc_bt_ul(s32 dppm);
 void abe_init_asrc_bt_dl(s32 dppm);
 
+void abe_src_filters_saturation_monitoring(void);
 void abe_irq_aps(u32 aps_info);
 void abe_irq_ping_pong(void);
 void abe_irq_check_for_sequences(u32 seq_info);
@@ -146,6 +147,7 @@ EXPORT_SYMBOL(omap_abe_wakeup);
  */
 void abe_monitoring(void)
 {
+	abe_src_filters_saturation_monitoring();
 }
 
 /**
@@ -746,6 +748,130 @@ int omap_abe_reset_bt_dl_src_filters(struct omap_abe *abe)
 	return 0;
 }
 EXPORT_SYMBOL(omap_abe_reset_bt_dl_src_filters);
+
+/**
+ * abe_check_filter_is_saturating
+ * @abe: pointer to omap_abe struct
+ * @address: filter address
+ * @size: filter size in byte
+ *
+ * Check if filter is saturating
+ * it is assumed that filter is located in SMEM
+ * if saturated return 1 otherwise 0.
+ */
+int abe_check_filter_is_saturating(struct omap_abe *abe, u32 address, u32 size)
+{
+	/* largest buffer size among all filter buffers in SMEM */
+	u32 filter[OMAP_ABE_S_XINASRC_UL_VX_SIZE >> 2];
+	int found = 0, i = 0;
+
+	omap_abe_mem_read(abe, ABE_SMEM, address, filter, size);
+
+	size >>= 2;
+	while ((i < size) && (filter[i] < 0x700000 || filter[i] > 0x900000))
+		i++;
+
+	if (i < size)
+		found = 1;
+
+	return found;
+}
+
+/**
+ * abe_ul_src_filters_saturation_monitoring - monitor ABE UL SRC filters and
+ * check if some are saturating, if it's the case then reset these filters.
+ *
+ * it is assumed that filter is located in SMEM
+ */
+void abe_ul_src_filters_saturation_monitoring(struct omap_abe *abe)
+{
+	int saturating = 0;
+	u16 vx[NBROUTE_UL];
+
+	omap_abe_mem_read(abe, ABE_DMEM,
+			OMAP_ABE_D_AUPLINKROUTING_ADDR,
+			(u32 *)vx, OMAP_ABE_D_AUPLINKROUTING_SIZE);
+
+	switch (vx[12]) {
+	case ZERO_labelID:
+		/* no MIC used */
+		return;
+	case DMIC1_L_labelID:
+	case DMIC1_R_labelID:
+		/* DMIC0 used */
+		saturating = abe_check_filter_is_saturating(abe,
+						OMAP_ABE_S_DMIC1_ADDR,
+						OMAP_ABE_S_DMIC1_SIZE);
+		break;
+	case DMIC2_L_labelID:
+	case DMIC2_R_labelID:
+		/* DMIC1 used */
+		saturating = abe_check_filter_is_saturating(abe,
+						OMAP_ABE_S_DMIC2_ADDR,
+						OMAP_ABE_S_DMIC2_SIZE);
+		break;
+	case DMIC3_L_labelID:
+	case DMIC3_R_labelID:
+		/* DMIC2 used */
+		saturating = abe_check_filter_is_saturating(abe,
+						OMAP_ABE_S_DMIC3_ADDR,
+						OMAP_ABE_S_DMIC3_SIZE);
+		break;
+	case BT_UL_L_labelID:
+	case BT_UL_R_labelID:
+		/* BT MIC used */
+		saturating = abe_check_filter_is_saturating(abe,
+						OMAP_ABE_S_BT_UL_ADDR,
+						OMAP_ABE_S_BT_UL_SIZE);
+		break;
+	case AMIC_L_labelID:
+	case AMIC_R_labelID:
+		/* AMIC used */
+		saturating = abe_check_filter_is_saturating(abe,
+						OMAP_ABE_S_AMIC_ADDR,
+						OMAP_ABE_S_AMIC_SIZE);
+		break;
+	default:
+		return;
+	}
+
+	if (saturating) {
+		omap_abe_reset_mic_ul_src_filters(abe);
+		omap_abe_reset_vx_ul_src_filters(abe);
+	}
+}
+
+/**
+ * abe_vx_dl_src_filters_saturation_monitoring - monitor ABE VX-DL SRC filters and
+ * check if some are saturating, if it's the case then reset these filters.
+ *
+ * it is assumed that filter is located in SMEM
+ */
+void abe_vx_dl_src_filters_saturation_monitoring(struct omap_abe *abe)
+{
+	if (abe_check_filter_is_saturating(abe, OMAP_ABE_S_VX_DL_ADDR,
+					OMAP_ABE_S_VX_DL_SIZE)) {
+		omap_abe_reset_vx_dl_src_filters(abe);
+		omap_abe_reset_dl1_src_filters(abe);
+		omap_abe_reset_dl2_src_filters(abe);
+	}
+
+	if (abe_check_filter_is_saturating(abe, OMAP_ABE_S_BT_DL_ADDR,
+					OMAP_ABE_S_BT_DL_SIZE))
+		omap_abe_reset_bt_dl_src_filters(abe);
+}
+
+/**
+ * abe_src_filters_saturation_monitoring - monitor ABE SRC filters and
+ * check if some are saturating, if it's the case then reset these filters.
+ *
+ * it is assumed that filter is located in SMEM
+ */
+void omap_abe_src_filters_saturation_monitoring(struct omap_abe *abe)
+{
+	abe_ul_src_filters_saturation_monitoring(abe);
+	abe_vx_dl_src_filters_saturation_monitoring(abe);
+}
 
 /**
  * omap_abe_check_activity - Check if some ABE activity.
