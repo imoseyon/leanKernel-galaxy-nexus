@@ -405,6 +405,10 @@ IMG_VOID SGXReset(PVRSRV_SGXDEV_INFO	*psDevInfo,
 			
 			ui32RegVal = MNE_CR_CTRL_BYP_CC_MASK;
 		#endif
+		#if defined(FIX_HW_BRN_34028)
+			
+			ui32RegVal |= (8 << MNE_CR_CTRL_BYPASS_SHIFT);
+		#endif
 	#endif 
 	OSWriteHWReg(psDevInfo->pvRegsBaseKM, MNE_CR_CTRL, ui32RegVal);
 	PDUMPREG(SGX_PDUMPREG_NAME, MNE_CR_CTRL, ui32RegVal);
