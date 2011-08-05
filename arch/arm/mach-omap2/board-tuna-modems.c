@@ -36,7 +36,6 @@
 #define OMAP_GPIO_DPRAM_VIA_RST		15
 #define OMAP_GPIO_DPRAM_PDA_ACTIVE	119
 #define OMAP_GPIO_DPRAM_PHONE_ACTIVE	120
-#define OMAP_GPMC_DPRAM_PAD_CONFIG	0x00000118
 
 #define OMAP_GPIO_CMC_SPI_CLK_ACK	178
 #define OMAP_GPIO_CMC_SPI_CLK_REQ	164
@@ -335,70 +334,36 @@ static struct modem_data cdma_modem_data = {
 	.iodevs = cdma_io_devices,
 };
 
-static void dpram_mux_setting(u16 offset, int option, u32 val)
-{
-	void __iomem *gpio_reg_addr;
-	u32 reg_val;
-
-	gpio_reg_addr = (void __iomem *)(OMAP4_CTRL_MODULE_PAD_CORE_MUX_PBASE
-					+ offset);
-	reg_val = omap_readl((u32)gpio_reg_addr);
-
-	reg_val &= option ? 0xFFFF0000 : 0x0000FFFF;
-
-	reg_val |= val;
-	omap_writel(reg_val, (u32)gpio_reg_addr);
-}
-
 static void dpram_cfg_gpio(void)
 {
 	int nRetry = 0;
 	int resetdone;
 
-	/*dpram_init_HW_setting*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_AD0_OFFSET,
-			1, OMAP_GPMC_DPRAM_PAD_CONFIG); /*AD0*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_AD0_OFFSET,
-			0, (OMAP_GPMC_DPRAM_PAD_CONFIG << 16)); /*AD1*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_AD2_OFFSET,
-			1, OMAP_GPMC_DPRAM_PAD_CONFIG); /*AD2*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_AD2_OFFSET,
-			0, (OMAP_GPMC_DPRAM_PAD_CONFIG << 16)); /*AD3*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_AD4_OFFSET,
-			1, OMAP_GPMC_DPRAM_PAD_CONFIG); /*AD4*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_AD4_OFFSET,
-			0, (OMAP_GPMC_DPRAM_PAD_CONFIG << 16)); /*AD5*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_AD6_OFFSET,
-			1, OMAP_GPMC_DPRAM_PAD_CONFIG); /*AD6*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_AD6_OFFSET,
-			0, (OMAP_GPMC_DPRAM_PAD_CONFIG << 16)); /*AD7*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_AD8_OFFSET,
-			1, OMAP_GPMC_DPRAM_PAD_CONFIG); /*AD8*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_AD8_OFFSET,
-			0, (OMAP_GPMC_DPRAM_PAD_CONFIG << 16)); /*AD9*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_AD10_OFFSET,
-			1, OMAP_GPMC_DPRAM_PAD_CONFIG); /*AD10*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_AD10_OFFSET,
-			0, (OMAP_GPMC_DPRAM_PAD_CONFIG << 16)); /*AD11*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_AD12_OFFSET,
-			1, OMAP_GPMC_DPRAM_PAD_CONFIG); /*AD12*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_AD12_OFFSET,
-			0, (OMAP_GPMC_DPRAM_PAD_CONFIG << 16)); /*AD13*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_AD14_OFFSET,
-			1, OMAP_GPMC_DPRAM_PAD_CONFIG); /*AD14*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_AD14_OFFSET,
-			0, (OMAP_GPMC_DPRAM_PAD_CONFIG << 16)); /*AD15*/
+	omap_mux_init_signal("gpmc_ad0", OMAP_PULL_ENA|OMAP_PULL_UP|OMAP_INPUT_EN);
+	omap_mux_init_signal("gpmc_ad1", OMAP_PULL_ENA|OMAP_PULL_UP|OMAP_INPUT_EN);
+	omap_mux_init_signal("gpmc_ad2", OMAP_PULL_ENA|OMAP_PULL_UP|OMAP_INPUT_EN);
+	omap_mux_init_signal("gpmc_ad3", OMAP_PULL_ENA|OMAP_PULL_UP|OMAP_INPUT_EN);
+	omap_mux_init_signal("gpmc_ad4", OMAP_PULL_ENA|OMAP_PULL_UP|OMAP_INPUT_EN);
+	omap_mux_init_signal("gpmc_ad5", OMAP_PULL_ENA|OMAP_PULL_UP|OMAP_INPUT_EN);
+	omap_mux_init_signal("gpmc_ad6", OMAP_PULL_ENA|OMAP_PULL_UP|OMAP_INPUT_EN);
+	omap_mux_init_signal("gpmc_ad7", OMAP_PULL_ENA|OMAP_PULL_UP|OMAP_INPUT_EN);
+	omap_mux_init_signal("gpmc_ad8", OMAP_PULL_ENA|OMAP_PULL_UP|OMAP_INPUT_EN);
+	omap_mux_init_signal("gpmc_ad9", OMAP_PULL_ENA|OMAP_PULL_UP|OMAP_INPUT_EN);
+	omap_mux_init_signal("gpmc_ad10", OMAP_PULL_ENA|OMAP_PULL_UP|OMAP_INPUT_EN);
+	omap_mux_init_signal("gpmc_ad11", OMAP_PULL_ENA|OMAP_PULL_UP|OMAP_INPUT_EN);
+	omap_mux_init_signal("gpmc_ad12", OMAP_PULL_ENA|OMAP_PULL_UP|OMAP_INPUT_EN);
+	omap_mux_init_signal("gpmc_ad13", OMAP_PULL_ENA|OMAP_PULL_UP|OMAP_INPUT_EN);
+	omap_mux_init_signal("gpmc_ad14", OMAP_PULL_ENA|OMAP_PULL_UP|OMAP_INPUT_EN);
+	omap_mux_init_signal("gpmc_ad15", OMAP_PULL_ENA|OMAP_PULL_UP|OMAP_INPUT_EN);
 
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_NADV_ALE_OFFSET, 1, 0x0);
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_NWE_OFFSET, 0, 0x0);
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_NCS0_OFFSET, 0, 0x0);
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_NBE1_OFFSET, 1, 0x0);
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_NWE_OFFSET, 1, 0x0);
+	omap_mux_init_signal("gpmc_nadv_ale", 0);
+	omap_mux_init_signal("gpmc_nwe", 0);
+	omap_mux_init_signal("gpmc_nbe0_cle", 0);
+	omap_mux_init_signal("gpmc_ncs1", 0);
+	omap_mux_init_signal("gpmc_nbe1", 0);
 
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_GPMC_WAIT1_OFFSET,
-					1, 0x00004103); /*0x008c*/
-	dpram_mux_setting(OMAP4_CTRL_MODULE_PAD_DPM_EMU3_OFFSET,
-					0, 0x00030000); /*0x01b4*/
+	omap_mux_init_signal("gpmc_wait1.gpio_62", OMAP_WAKEUP_EN | OMAP_INPUT_EN);
+	omap_mux_init_signal("dpm_emu3", OMAP_MUX_MODE3);
 
 	gpio_request(GPIO_DPRAM_INT_N, "dpram_int");
 	gpio_direction_input(GPIO_DPRAM_INT_N);
