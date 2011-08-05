@@ -306,6 +306,16 @@ static struct platform_device tuna_ion_device = {
 	},
 };
 
+static struct platform_device tuna_mcasp_device = {
+	.name		= "omap-mcasp-dai",
+	.id		= 0,
+};
+
+static struct platform_device tuna_spdif_dit_device = {
+	.name		= "spdif-dit",
+	.id		= 0,
+};
+
 static struct platform_device *tuna_devices[] __initdata = {
 	&ramconsole_device,
 	&wl1271_device,
@@ -313,6 +323,8 @@ static struct platform_device *tuna_devices[] __initdata = {
 	&twl6030_madc_device,
 	&tuna_ion_device,
 	&tuna_gpio_i2c5_device,
+	&tuna_mcasp_device,
+	&tuna_spdif_dit_device,
 };
 
 /*
@@ -720,6 +732,9 @@ static void tuna_audio_init(void)
 
 	omap_mux_init_signal("gpmc_a24.gpio_48", OMAP_PIN_OUTPUT | OMAP_MUX_MODE3);
 	omap_mux_init_signal("kpd_col3.gpio_171", OMAP_PIN_OUTPUT | OMAP_MUX_MODE3);
+
+	/* McASP for S/PDIF out */
+	omap_mux_init_signal("abe_dmic_din2.abe_mcasp_axr", OMAP_PIN_OUTPUT);
 }
 
 static struct i2c_board_info __initdata tuna_i2c1_boardinfo[] = {
