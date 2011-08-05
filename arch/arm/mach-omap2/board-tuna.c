@@ -806,15 +806,15 @@ static ssize_t tuna_soc_type_show(struct kobject *kobj,
 	return sprintf(buf, "%s\n", omap_types[omap_type()]);
 }
 
-#define TUNA_SOC_ATTR_RO(_name, _show) \
-	struct kobj_attribute tuna_soc_prop_attr_##_name = \
+#define TUNA_ATTR_RO(_type, _name, _show) \
+	struct kobj_attribute tuna_##_type##_prop_attr_##_name = \
 		__ATTR(_name, S_IRUGO, _show, NULL)
 
-static TUNA_SOC_ATTR_RO(family, tuna_soc_family_show);
-static TUNA_SOC_ATTR_RO(revision, tuna_soc_revision_show);
-static TUNA_SOC_ATTR_RO(type, tuna_soc_type_show);
-static TUNA_SOC_ATTR_RO(die_id, tuna_soc_die_id_show);
-static TUNA_SOC_ATTR_RO(production_id, tuna_soc_prod_id_show);
+static TUNA_ATTR_RO(soc, family, tuna_soc_family_show);
+static TUNA_ATTR_RO(soc, revision, tuna_soc_revision_show);
+static TUNA_ATTR_RO(soc, type, tuna_soc_type_show);
+static TUNA_ATTR_RO(soc, die_id, tuna_soc_die_id_show);
+static TUNA_ATTR_RO(soc, production_id, tuna_soc_prod_id_show);
 
 static struct attribute *tuna_soc_prop_attrs[] = {
 	&tuna_soc_prop_attr_family.attr,
@@ -827,6 +827,23 @@ static struct attribute *tuna_soc_prop_attrs[] = {
 
 static struct attribute_group tuna_soc_prop_attr_group = {
 	.attrs = tuna_soc_prop_attrs,
+};
+
+static ssize_t tuna_board_revision_show(struct kobject *kobj,
+	 struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%s (0x%02x)\n", omap4_tuna_hw_rev_name(),
+		tuna_hw_rev);
+}
+
+static TUNA_ATTR_RO(board, revision, tuna_board_revision_show);
+static struct attribute *tuna_board_prop_attrs[] = {
+	&tuna_board_prop_attr_revision.attr,
+	NULL,
+};
+
+static struct attribute_group tuna_board_prop_attr_group = {
+	.attrs = tuna_board_prop_attrs,
 };
 
 static void __init omap4_tuna_create_board_props(void)
@@ -843,12 +860,19 @@ static void __init omap4_tuna_create_board_props(void)
 	if (!soc_kobj)
 		goto err_soc_obj;
 
+	ret = sysfs_create_group(board_props_kobj, &tuna_board_prop_attr_group);
+	if (ret)
+		goto err_board_sysfs_create;
+
 	ret = sysfs_create_group(soc_kobj, &tuna_soc_prop_attr_group);
 	if (ret)
-		goto err_sysfs_create;
+		goto err_soc_sysfs_create;
+
 	return;
 
-err_sysfs_create:
+err_soc_sysfs_create:
+	sysfs_remove_group(board_props_kobj, &tuna_board_prop_attr_group);
+err_board_sysfs_create:
 	kobject_put(soc_kobj);
 err_soc_obj:
 	kobject_put(board_props_kobj);
