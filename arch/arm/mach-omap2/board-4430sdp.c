@@ -331,13 +331,11 @@ static struct omap2_hsmmc_info mmc[] = {
 		.nonremovable   = true,
 		.ocr_mask	= MMC_VDD_29_30,
 		.no_off_init	= true,
-		.power_saving	= true,
 	},
 	{
 		.mmc		= 1,
 		.caps		= MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA,
 		.gpio_wp	= -EINVAL,
-		.power_saving	= true,
 	},
 	{}	/* Terminator */
 };
