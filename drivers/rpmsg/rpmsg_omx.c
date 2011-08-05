@@ -34,6 +34,7 @@
 #include <linux/sched.h>
 #include <linux/rpmsg.h>
 #include <linux/rpmsg_omx.h>
+#include <linux/completion.h>
 
 #include <mach/tiler.h>
 
@@ -55,17 +56,28 @@ enum rpc_omx_map_info_type {
 	RPC_OMX_MAP_INFO_MAX           = 0x7FFFFFFF
 };
 
+enum {
+	OMX_SERVICE_DOWN,
+	OMX_SERVICE_UP
+};
+
 struct rpmsg_omx_service {
+	struct list_head next;
 	struct cdev cdev;
 	struct device *dev;
 	struct rpmsg_channel *rpdev;
 	int minor;
+	struct list_head list;
+	struct mutex lock;
+	struct completion comp;
+	int state;
 #ifdef CONFIG_ION_OMAP
 	struct ion_client *ion_client;
 #endif
 };
 
 struct rpmsg_omx_instance {
+	struct list_head next;
 	struct rpmsg_omx_service *omxserv;
 	struct sk_buff_head queue;
 	struct mutex lock;
@@ -85,6 +97,7 @@ static dev_t rpmsg_omx_dev;
 /* store all remote omx connection services (usually one per remoteproc) */
 static DEFINE_IDR(rpmsg_omx_services);
 static DEFINE_SPINLOCK(rpmsg_omx_services_lock);
+static LIST_HEAD(rpmsg_omx_services_list);
 
 #ifdef CONFIG_ION_OMAP
 #ifdef CONFIG_PVR_SGX
@@ -363,6 +376,11 @@ static int rpmsg_omx_open(struct inode *inode, struct file *filp)
 
 	omxserv = container_of(inode->i_cdev, struct rpmsg_omx_service, cdev);
 
+	if (omxserv->state == OMX_SERVICE_DOWN)
+		if (filp->f_flags & O_NONBLOCK ||
+			      wait_for_completion_interruptible(&omxserv->comp))
+			return -EBUSY;
+
 	omx = kzalloc(sizeof(*omx), GFP_KERNEL);
 	if (!omx)
 		return -ENOMEM;
@@ -390,6 +408,9 @@ static int rpmsg_omx_open(struct inode *inode, struct file *filp)
 
 	/* associate filp with the new omx instance */
 	filp->private_data = omx;
+	mutex_lock(&omxserv->lock);
+	list_add(&omx->next, &omxserv->list);
+	mutex_unlock(&omxserv->lock);
 
 	dev_info(omxserv->dev, "local addr assigned: 0x%x\n", omx->ept->addr);
 
@@ -406,6 +427,12 @@ static int rpmsg_omx_release(struct inode *inode, struct file *filp)
 	int use, ret;
 
 	/* todo: release resources here */
+	/*
+	 * If state == fail, remote processor crashed, so don't send it
+	 * any message.
+	 */
+	if (omx->state == OMX_FAIL)
+		goto out;
 
 	/* send a disconnect msg with the OMX instance addr */
 	hdr->type = OMX_DISCONNECT;
@@ -424,11 +451,14 @@ static int rpmsg_omx_release(struct inode *inode, struct file *filp)
 		dev_err(omxserv->dev, "rpmsg_send failed: %d\n", ret);
 		return ret;
 	}
-
+	rpmsg_destroy_ept(omx->ept);
+out:
 #ifdef CONFIG_ION_OMAP
 	ion_client_destroy(omx->ion_client);
 #endif
-	rpmsg_destroy_ept(omx->ept);
+	mutex_lock(&omxserv->lock);
+	list_del(&omx->next);
+	mutex_unlock(&omxserv->lock);
 	kfree(omx);
 
 	return 0;
@@ -441,11 +471,18 @@ static ssize_t rpmsg_omx_read(struct file *filp, char __user *buf,
 	struct sk_buff *skb;
 	int use;
 
-	if (omx->state != OMX_CONNECTED)
-		return -ENOTCONN;
-
 	if (mutex_lock_interruptible(&omx->lock))
 		return -ERESTARTSYS;
+
+	if (omx->state == OMX_FAIL) {
+		mutex_unlock(&omx->lock);
+		return -ENXIO;
+	}
+
+	if (omx->state != OMX_CONNECTED) {
+		mutex_unlock(&omx->lock);
+		return -ENOTCONN;
+	}
 
 	/* nothing to read ? */
 	if (skb_queue_empty(&omx->queue)) {
@@ -455,14 +492,21 @@ static ssize_t rpmsg_omx_read(struct file *filp, char __user *buf,
 			return -EAGAIN;
 		/* otherwise block, and wait for data */
 		if (wait_event_interruptible(omx->readq,
-				!skb_queue_empty(&omx->queue)))
+				(!skb_queue_empty(&omx->queue) ||
+				omx->state == OMX_FAIL)))
 			return -ERESTARTSYS;
 		if (mutex_lock_interruptible(&omx->lock))
 			return -ERESTARTSYS;
 	}
 
+	if (omx->state == OMX_FAIL) {
+		mutex_unlock(&omx->lock);
+		return -ENXIO;
+	}
+
 	skb = skb_dequeue(&omx->queue);
 	if (!skb) {
+		mutex_unlock(&omx->lock);
 		dev_err(omx->omxserv->dev, "err is rmpsg_omx racy ?\n");
 		return -EIO;
 	}
@@ -535,6 +579,10 @@ unsigned int rpmsg_poll(struct file *filp, struct poll_table_struct *wait)
 		return -ERESTARTSYS;
 
 	poll_wait(filp, &omx->readq, wait);
+	if (omx->state == OMX_FAIL) {
+		mutex_unlock(&omx->lock);
+		return -ENXIO;
+	}
 
 	if (!skb_queue_empty(&omx->queue))
 		mask |= POLLIN | POLLRDNORM;
@@ -561,40 +609,58 @@ static const struct file_operations rpmsg_omx_fops = {
 static int rpmsg_omx_probe(struct rpmsg_channel *rpdev)
 {
 	int ret, major, minor;
-	struct rpmsg_omx_service *omxserv;
+	struct rpmsg_omx_service *omxserv = NULL, *tmp;
 
 	if (!idr_pre_get(&rpmsg_omx_services, GFP_KERNEL)) {
 		dev_err(&rpdev->dev, "idr_pre_get failes\n");
 		return -ENOMEM;
 	}
 
-	omxserv = kzalloc(sizeof(*omxserv), GFP_KERNEL);
-	if (!omxserv) {
-		dev_err(&rpdev->dev, "kzalloc failed\n");
-		return -ENOMEM;
-	}
-
 	/* dynamically assign a new minor number */
 	spin_lock(&rpmsg_omx_services_lock);
 	ret = idr_get_new(&rpmsg_omx_services, omxserv, &minor);
-	spin_unlock(&rpmsg_omx_services_lock);
-
 	if (ret) {
+		spin_unlock(&rpmsg_omx_services_lock);
 		dev_err(&rpdev->dev, "failed to idr_get_new: %d\n", ret);
-		goto free_omx;
+		return ret;
 	}
 
-	major = MAJOR(rpmsg_omx_dev);
+	/* look for an already created omx service */
+	list_for_each_entry(tmp, &rpmsg_omx_services_list, next) {
+		if (tmp->minor == minor) {
+			omxserv = tmp;
+			idr_replace(&rpmsg_omx_services, omxserv, minor);
+			break;
+		}
+	}
+	spin_unlock(&rpmsg_omx_services_lock);
+	if (omxserv)
+		goto serv_up;
 
-	omxserv->rpdev = rpdev;
-	omxserv->minor = minor;
+	omxserv = kzalloc(sizeof(*omxserv), GFP_KERNEL);
+	if (!omxserv) {
+		dev_err(&rpdev->dev, "kzalloc failed\n");
+		ret = -ENOMEM;
+		goto rem_idr;
+	}
+
+	spin_lock(&rpmsg_omx_services_lock);
+	idr_replace(&rpmsg_omx_services, omxserv, minor);
+	spin_unlock(&rpmsg_omx_services_lock);
+	INIT_LIST_HEAD(&omxserv->list);
+	mutex_init(&omxserv->lock);
+	init_completion(&omxserv->comp);
+
+	list_add(&omxserv->next, &rpmsg_omx_services_list);
+
+	major = MAJOR(rpmsg_omx_dev);
 
 	cdev_init(&omxserv->cdev, &rpmsg_omx_fops);
 	omxserv->cdev.owner = THIS_MODULE;
 	ret = cdev_add(&omxserv->cdev, MKDEV(major, minor), 1);
 	if (ret) {
 		dev_err(&rpdev->dev, "cdev_add failed: %d\n", ret);
-		goto rem_idr;
+		goto free_omx;
 	}
 
 	omxserv->dev = device_create(rpmsg_omx_class, &rpdev->dev,
@@ -605,8 +671,12 @@ static int rpmsg_omx_probe(struct rpmsg_channel *rpdev)
 		dev_err(&rpdev->dev, "device_create failed: %d\n", ret);
 		goto clean_cdev;
 	}
-
+serv_up:
+	omxserv->rpdev = rpdev;
+	omxserv->minor = minor;
+	omxserv->state = OMX_SERVICE_UP;
 	dev_set_drvdata(&rpdev->dev, omxserv);
+	complete_all(&omxserv->comp);
 
 	dev_info(omxserv->dev, "new OMX connection srv channel: %u -> %u!\n",
 						rpdev->src, rpdev->dst);
@@ -614,12 +684,12 @@ static int rpmsg_omx_probe(struct rpmsg_channel *rpdev)
 
 clean_cdev:
 	cdev_del(&omxserv->cdev);
+free_omx:
+	kfree(omxserv);
 rem_idr:
 	spin_lock(&rpmsg_omx_services_lock);
 	idr_remove(&rpmsg_omx_services, minor);
 	spin_unlock(&rpmsg_omx_services_lock);
-free_omx:
-	kfree(omxserv);
 	return ret;
 }
 
@@ -627,15 +697,38 @@ static void __devexit rpmsg_omx_remove(struct rpmsg_channel *rpdev)
 {
 	struct rpmsg_omx_service *omxserv = dev_get_drvdata(&rpdev->dev);
 	int major = MAJOR(rpmsg_omx_dev);
+	struct rpmsg_omx_instance *omx;
 
 	dev_info(omxserv->dev, "rpmsg omx driver is removed\n");
 
-	device_destroy(rpmsg_omx_class, MKDEV(major, omxserv->minor));
-	cdev_del(&omxserv->cdev);
 	spin_lock(&rpmsg_omx_services_lock);
 	idr_remove(&rpmsg_omx_services, omxserv->minor);
 	spin_unlock(&rpmsg_omx_services_lock);
-	kfree(omxserv);
+
+	mutex_lock(&omxserv->lock);
+	/*
+	 * If there is omx instrances that means it is a revovery.
+	 * TODO: make sure it is a recovery.
+	 */
+	if (list_empty(&omxserv->list)) {
+		device_destroy(rpmsg_omx_class, MKDEV(major, omxserv->minor));
+		cdev_del(&omxserv->cdev);
+		list_del(&omxserv->next);
+		mutex_unlock(&omxserv->lock);
+		kfree(omxserv);
+		return;
+	}
+	/* If it is a recovery, don't clean the omxserv */
+	init_completion(&omxserv->comp);
+	omxserv->state = OMX_SERVICE_DOWN;
+	list_for_each_entry(omx, &omxserv->list, next) {
+		/* set omx instance to fail state */
+		omx->state = OMX_FAIL;
+		/* unblock any pending omx thread*/
+		complete_all(&omx->reply_arrived);
+		wake_up_interruptible(&omx->readq);
+	}
+	mutex_unlock(&omxserv->lock);
 }
 
 static void rpmsg_omx_driver_cb(struct rpmsg_channel *rpdev, void *data,
@@ -691,7 +784,16 @@ module_init(init);
 
 static void __exit fini(void)
 {
+	struct rpmsg_omx_service *omxserv, *tmp;
+	int major = MAJOR(rpmsg_omx_dev);
+
 	unregister_rpmsg_driver(&rpmsg_omx_driver);
+	list_for_each_entry_safe(omxserv, tmp, &rpmsg_omx_services_list, next) {
+		device_destroy(rpmsg_omx_class, MKDEV(major, omxserv->minor));
+		cdev_del(&omxserv->cdev);
+		list_del(&omxserv->next);
+		kfree(omxserv);
+	}
 	class_destroy(rpmsg_omx_class);
 	unregister_chrdev_region(rpmsg_omx_dev, MAX_OMX_DEVICES);
 }
