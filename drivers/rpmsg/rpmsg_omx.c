@@ -60,7 +60,6 @@ struct rpmsg_omx_service {
 	struct device *dev;
 	struct rpmsg_channel *rpdev;
 	int minor;
-	struct pm_qos_request_list *pm_qos;
 #ifdef CONFIG_ION_OMAP
 	struct ion_client *ion_client;
 #endif
