@@ -159,6 +159,20 @@
 #define TWL6040_GPO2			0x02
 #define TWL6040_GPO3			0x03
 
+/* HSOTRIM (0x2B) fields */
+
+#define TWL6040_HSLO			0x0F
+#define TWL6040_HSRO			0xF0
+#define TWL6040_HSLO_OFFSET		0
+#define TWL6040_HSRO_OFFSET		4
+
+/* HFOTRIM (0x2C) fields */
+
+#define TWL6040_HFLO			0x0F
+#define TWL6040_HFRO			0xF0
+#define TWL6040_HFLO_OFFSET		0
+#define TWL6040_HFRO_OFFSET		4
+
 /* ACCCTL (0x2D) fields */
 
 #define TWL6040_I2CSEL			0x01

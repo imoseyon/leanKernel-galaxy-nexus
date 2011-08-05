@@ -316,6 +316,10 @@ static void twl6040_init_vio_regs(struct snd_soc_codec *codec)
 		case TWL6040_REG_ACCCTL:
 		case TWL6040_REG_STATUS:
 			continue;
+		case TWL6040_REG_HSOTRIM:
+		case TWL6040_REG_HFOTRIM:
+			twl6040_read_reg_volatile(codec, reg);
+			continue;
 		default:
 			break;
 		}
