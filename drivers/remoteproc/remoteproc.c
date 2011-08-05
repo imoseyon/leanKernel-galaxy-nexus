@@ -177,7 +177,10 @@ static int _event_notify(struct rproc *rproc, int type, void *data)
 	switch (type) {
 	case RPROC_ERROR:
 		nh = &rproc->nb_error;
+		mutex_lock(&rproc->lock);
+		init_completion(&rproc->error_comp);
 		rproc->state = RPROC_CRASHED;
+		mutex_unlock(&rproc->lock);
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 		pm_runtime_dont_use_autosuspend(rproc->dev);
 #endif
@@ -625,6 +628,15 @@ struct rproc *rproc_get(const char *name)
 		return NULL;
 	}
 
+	if (rproc->state == RPROC_CRASHED) {
+		mutex_unlock(&rproc->lock);
+		if (wait_for_completion_interruptible(&rproc->error_comp)) {
+			dev_err(dev, "error waiting error completion\n");
+			return NULL;
+		}
+		mutex_lock(&rproc->lock);
+	}
+
 	/* prevent underlying implementation from being removed */
 	if (!try_module_get(rproc->owner)) {
 		dev_err(dev, "%s: can't get owner\n", __func__);
@@ -727,6 +739,9 @@ void rproc_put(struct rproc *rproc)
 			}
 		}
 	}
+
+	if (rproc->state == RPROC_CRASHED)
+		complete_all(&rproc->error_comp);
 
 	rproc->state = RPROC_OFFLINE;
 

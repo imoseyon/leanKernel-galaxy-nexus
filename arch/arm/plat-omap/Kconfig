@@ -52,6 +52,15 @@ config OMAP_RPMSG
 	  usually used by multimedia frameworks to offload cpu-intensive and/or
           latency-sensitive tasks.
 
+config OMAP_RPMSG_RECOVERY
+	bool "OMAP RPMSG recovery"
+	default y
+	depends on OMAP_RPMSG
+	help
+	  Say Y if you want RPMSG to reset the rpmsg channels after a fatal
+	  error in remote proc. That way it will restart all the channels and
+	  the remote processor, causing a clean restart.
+
 config OMAP_SMARTREFLEX
 	bool "SmartReflex support"
 	depends on (ARCH_OMAP3 || ARCH_OMAP4) && PM

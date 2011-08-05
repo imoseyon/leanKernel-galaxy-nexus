@@ -148,13 +148,40 @@ exit:
 	return ret;
 }
 
+static int sdp4430_modem_hw_params(struct snd_pcm_substream *substream,
+	struct snd_pcm_hw_params *params)
+{
+	int ret;
+
+	ret = sdp4430_modem_mcbsp_configure(substream, params, 1);
+	if (ret)
+		printk(KERN_ERR "can't set modem cpu DAI configuration\n");
+
+	return ret;
+}
+
+static int sdp4430_modem_hw_free(struct snd_pcm_substream *substream)
+{
+	int ret;
+
+	ret = sdp4430_modem_mcbsp_configure(substream, NULL, 0);
+	if (ret)
+		printk(KERN_ERR "can't clear modem cpu DAI configuration\n");
+
+	return ret;
+}
+
+static struct snd_soc_ops sdp4430_modem_ops = {
+	.hw_params = sdp4430_modem_hw_params,
+	.hw_free = sdp4430_modem_hw_free,
+};
+
 static int sdp4430_mcpdm_hw_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
-	struct snd_soc_dsp_params *dsp_params;
-	int clk_id, freq, ret, stream = substream->stream;
+	int clk_id, freq, ret;
 
 	if (twl6040_power_mode) {
 		clk_id = TWL6040_SYSCLK_SEL_HPPLL;
@@ -167,49 +194,14 @@ static int sdp4430_mcpdm_hw_params(struct snd_pcm_substream *substream,
 	/* set the codec mclk */
 	ret = snd_soc_dai_set_sysclk(codec_dai, clk_id, freq,
 				SND_SOC_CLOCK_IN);
-	if (ret) {
+	if (ret)
 		printk(KERN_ERR "can't set codec system clock\n");
-		return ret;
-	}
-	list_for_each_entry(dsp_params, &rtd->dsp[stream].fe_clients, list_fe) {
 
-		if (dsp_params->fe->cpu_dai->id != ABE_FRONTEND_DAI_MODEM)
-			continue;
-
-		ret = sdp4430_modem_mcbsp_configure(substream, params, 1);
-		if (ret < 0) {
-			printk(KERN_ERR "can't set Modem cpu DAI configuration\n");
-			return ret;
-		}
-	}
-	return ret;
-}
-
-static int sdp4430_mcpdm_hw_free(struct snd_pcm_substream *substream)
-{
-	int ret = 0;
-
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dsp_params *dsp_params;
-	int stream = substream->stream;
-
-	list_for_each_entry(dsp_params, &rtd->dsp[stream].fe_clients, list_fe) {
-
-		if (dsp_params->fe->cpu_dai->id != ABE_FRONTEND_DAI_MODEM)
-			continue;
-
-		ret = sdp4430_modem_mcbsp_configure(substream, NULL, 0);
-		if (ret < 0) {
-			printk(KERN_ERR "can't set Modem cpu DAI configuration\n");
-			return ret;
-		}
-	}
 	return ret;
 }
 
 static struct snd_soc_ops sdp4430_mcpdm_ops = {
 	.hw_params = sdp4430_mcpdm_hw_params,
-	.hw_free = sdp4430_mcpdm_hw_free,
 };
 
 static int sdp4430_mcbsp_hw_params(struct snd_pcm_substream *substream,
@@ -217,8 +209,6 @@ static int sdp4430_mcbsp_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	struct snd_soc_dsp_params *dsp_params;
-	int stream = substream->stream;
 	int ret = 0;
 	unsigned int be_id, fmt;
 
@@ -254,24 +244,10 @@ static int sdp4430_mcbsp_hw_params(struct snd_pcm_substream *substream,
 	ret = snd_soc_dai_set_sysclk(cpu_dai, OMAP_MCBSP_SYSCLK_CLKS_FCLK,
 				     64 * params_rate(params),
 				     SND_SOC_CLOCK_IN);
-	if (ret < 0) {
+	if (ret < 0)
 		printk(KERN_ERR "can't set cpu system clock\n");
-		return ret;
-	}
 
-	list_for_each_entry(dsp_params, &rtd->dsp[stream].fe_clients, list_fe) {
-
-		if (dsp_params->fe->cpu_dai->id != ABE_FRONTEND_DAI_MODEM)
-			continue;
-
-		ret = sdp4430_modem_mcbsp_configure(substream, params, 1);
-		if (ret < 0) {
-			printk(KERN_ERR "can't set Modem cpu DAI configuration\n");
-			return ret;
-		}
-	}
-
-	return 0;
+	return ret;
 }
 
 static struct snd_soc_ops sdp4430_mcbsp_ops = {
@@ -621,6 +597,7 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 
 		.dynamic = 1, /* BE is dynamic */
 		.dsp_link = &fe_modem,
+		.ops = &sdp4430_modem_ops,
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
 		.ignore_suspend = 1,
 	},
