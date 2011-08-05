@@ -112,6 +112,8 @@ config SND_OMAP_SOC_SDP4430
 	select SND_SOC_DMIC
 	select SND_OMAP_SOC_DMIC
 	select SND_OMAP_SOC_ABE_DSP
+	select SND_OMAP_SOC_MCASP
+	select SND_OMAP_SOC_SPDIF
 	help
 	  Say Y if you want to add support for SoC audio on Texas Instruments
 	  SDP4430 or PandaBoard.
