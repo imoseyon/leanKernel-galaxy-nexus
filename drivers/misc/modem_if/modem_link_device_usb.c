@@ -352,7 +352,10 @@ static int if_usb_resume(struct usb_interface *intf)
 				return ret;
 			}
 		}
+
+		SET_SLAVE_WAKEUP(usb_ld->pdata, 1);
 	}
+
 	return 0;
 }
 
@@ -575,20 +578,31 @@ static irqreturn_t usb_resume_irq(int irq, void *data)
 	int ret;
 	struct usb_link_device *usb_ld = data;
 	int val;
+	struct device *dev;
 
 	val = gpio_get_value(usb_ld->pdata->gpio_host_wakeup);
 	irq_set_irq_type(irq, val ? IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH);
+	dev = &usb_ld->usbdev->dev;
 
 	pr_debug("< H-WUP %d\n", val);
 
 	if (val) {
-		ret = pm_runtime_get_sync(&usb_ld->usbdev->dev);
+		wake_lock(&usb_ld->wakelock);
+		device_lock(dev);
+		if (dev->power.is_prepared || dev->power.is_suspended) {
+			pm_runtime_get_noresume(dev);
+			ret = 0;
+		}
+		else {
+			ret = pm_runtime_get_sync(dev);
+		}
+		device_unlock(dev);
 		if (ret < 0) {
 			pr_err("%s pm_runtime_get fail (%d)\n", __func__, ret);
 			return IRQ_HANDLED;
 		}
-		SET_SLAVE_WAKEUP(usb_ld->pdata, 1);
 	} else {
+		wake_lock_timeout(&usb_ld->wakelock, 100);
 		if (usb_ld->resume_status == AP_INITIATED_RESUME)
 			wake_up(&usb_ld->l2_wait);
 		SET_SLAVE_WAKEUP(usb_ld->pdata, 0);
@@ -681,6 +695,8 @@ struct link_device *usb_create_link_device(void *data)
 	}
 
 	usb_ld->pdata->irq_host_wakeup = platform_get_irq(pdev, 1);
+	wake_lock_init(&usb_ld->wakelock, WAKE_LOCK_SUSPEND, "modem_usb_link");
+	wake_lock_init(&usb_ld->writelock, WAKE_LOCK_SUSPEND, "modem_usb_write");
 
 	INIT_DELAYED_WORK(&ld->tx_delayed_work, usb_tx_work);
 

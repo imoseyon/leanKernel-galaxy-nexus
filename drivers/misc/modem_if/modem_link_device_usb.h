@@ -63,16 +63,14 @@ struct usb_link_device {
 	struct work_struct	post_resume_work;
 	struct delayed_work	reconnect_work;
 
+	struct wake_lock	wakelock;
+	struct wake_lock	writelock;
+
 	unsigned long		driver_info;
 	unsigned int		dev_count;
 	unsigned int		suspended;
 	unsigned int		suspend_count;
 	enum RESUME_STATUS	resume_status;
-#ifdef CONFIG_HAS_WAKELOCK
-	struct wake_lock	wlock;
-	struct wake_lock	dormancy_lock;
-	long	wake_time;
-#endif
 	int if_usb_connected;
 	int reconnect_cnt;
 	int flow_suspend;
