@@ -1146,6 +1146,33 @@ static int rproc_loader(struct rproc *rproc)
 	return 0;
 }
 
+int rproc_set_secure(const char *name, bool enable)
+{
+	struct rproc *rproc;
+
+	rproc = __find_rproc_by_name(name);
+	if (!rproc) {
+		pr_err("can't find remote processor %s\n", name);
+		return -ENODEV;
+	}
+
+	/*
+	 * set the secure_mode here, the secure_ttb will be filled up during
+	 * the reload process.
+	 */
+	rproc->secure_mode = enable;
+	rproc->secure_ttb = NULL;
+
+	/*
+	 * restart the processor, the mode will dictate regular load or
+	 * secure load
+	 */
+	_event_notify(rproc, RPROC_ERROR, NULL);
+
+	return 0;
+}
+EXPORT_SYMBOL(rproc_set_secure);
+
 int rproc_error_notify(struct rproc *rproc)
 {
 	return _event_notify(rproc, RPROC_ERROR, NULL);
@@ -1637,6 +1664,9 @@ int rproc_register(struct device *dev, const char *name,
 	pm_qos_add_request(rproc->qos_request, PM_QOS_CPU_DMA_LATENCY,
 				PM_QOS_DEFAULT_VALUE);
 
+	rproc->secure_mode = false;
+	rproc->secure_ttb = NULL;
+
 	spin_lock(&rprocs_lock);
 	list_add_tail(&rproc->next, &rprocs);
 	spin_unlock(&rprocs_lock);
@@ -1687,6 +1717,8 @@ int rproc_unregister(const char *name)
 	list_del(&rproc->next);
 	spin_unlock(&rprocs_lock);
 
+	rproc->secure_mode = false;
+	rproc->secure_ttb = NULL;
 	pm_qos_remove_request(rproc->qos_request);
 	kfree(rproc->qos_request);
 	kfree(rproc->last_trace_buf0);
