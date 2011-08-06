@@ -239,11 +239,11 @@ l2x_clean_inv:
 #endif
 	bl	omap4_get_l2cache_base
 	mov	r2, r0
-	mov	r0, #0xff
-	str	r0, [r2, #L2X0_CLEAN_WAY]
+	ldr	r0, =0xffff
+	str	r0, [r2, #L2X0_CLEAN_INV_WAY]
 wait:
-	ldr	r0, [r2, #L2X0_CLEAN_WAY]
-	ands	r0, r0, #0xff
+	ldr	r0, [r2, #L2X0_CLEAN_INV_WAY]
+	ands    r0, r0, #0xff
 	bne	wait
 #ifdef CONFIG_PL310_ERRATA_727915
 	mov	r0, #0x00
