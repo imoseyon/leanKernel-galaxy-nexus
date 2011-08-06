@@ -185,6 +185,7 @@ static struct omap_voltdm_pmic omap4_mpu_pmic = {
 	.ret_volt		= 830000,
 	.off_volt		= 0,
 	.volt_setup_time	= 0,
+	.switch_on_time		= 1000,
 	.vp_erroroffset		= OMAP4_VP_CONFIG_ERROROFFSET,
 	.vp_vstepmin		= OMAP4_VP_VSTEPMIN_VSTEPMIN,
 	.vp_vstepmax		= OMAP4_VP_VSTEPMAX_VSTEPMAX,
