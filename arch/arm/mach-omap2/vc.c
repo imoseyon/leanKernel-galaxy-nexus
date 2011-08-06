@@ -495,6 +495,10 @@ static int __init omap_vc_setup_lp_time(struct voltagedomain *voltdm,
 	volt_ramptime = DIV_ROUND_UP(volt_drop, pmic->slew_rate);
 	volt_ramptime += OMAP_VC_I2C_ACK_DELAY;
 
+	/* many PMICs need additional time to switch back on */
+	if (!is_retention)
+		volt_ramptime += pmic->switch_on_time;
+
 	if (volt_ramptime < max_latency_for_prescaler)
 		pre_scaler = 0x0;
 	else

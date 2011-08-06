@@ -190,6 +190,7 @@ struct omap_volt_data {
  * @i2c_hscll_high: PMIC interface speed config for highspeed mode (T high)
  * @i2c_scll_low: PMIC interface speed config for fullspeed mode (T low)
  * @i2c_scll_high: PMIC interface speed config for fullspeed mode (T high)
+ * @switch_on_time: time taken for switch on the DCDC in uSec
  */
 struct omap_voltdm_pmic {
 	int slew_rate;
@@ -199,6 +200,7 @@ struct omap_voltdm_pmic {
 	u32 ret_volt;
 	u32 off_volt;
 	u16 volt_setup_time;
+	u16 switch_on_time;
 	u8 vp_erroroffset;
 	u8 vp_vstepmin;
 	u8 vp_vstepmax;
