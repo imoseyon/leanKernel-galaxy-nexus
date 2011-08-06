@@ -670,6 +670,12 @@ static struct i2c_board_info __initdata tuna_i2c1_boardinfo[] = {
 	},
 };
 
+static struct i2c_board_info __initdata tuna_i2c4_boardinfo[] = {
+	{
+		I2C_BOARD_INFO("an30259a", 0x30),
+	},
+};
+
 static int __init tuna_i2c_init(void)
 {
 	omap_mux_init_signal("sys_nirq1", OMAP_PIN_INPUT_PULLUP);
@@ -976,6 +982,12 @@ err_board_obj:
 #define HSMMC2_MUX	(OMAP_MUX_MODE1 | OMAP_PIN_INPUT_PULLUP)
 #define HSMMC1_MUX	OMAP_PIN_INPUT_PULLUP
 
+static void __init omap4_tuna_led_init(void)
+{
+	i2c_register_board_info(4, tuna_i2c4_boardinfo,
+				ARRAY_SIZE(tuna_i2c4_boardinfo));
+}
+
 static void __init tuna_init(void)
 {
 	int package = OMAP_PACKAGE_CBS;
@@ -1045,6 +1057,7 @@ static void __init tuna_init(void)
 	omap4_tuna_power_init();
 	omap4_tuna_jack_init();
 	omap4_tuna_sensors_init();
+	omap4_tuna_led_init();
 	omap4_tuna_connector_init();
 #ifdef CONFIG_OMAP_HSI_DEVICE
 	if (TUNA_TYPE_MAGURO == omap4_tuna_get_type())
