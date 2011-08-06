@@ -570,6 +570,15 @@ config OMAP_DIE_TEMP_SENSOR
           Enabling this config will give support for the on-die
           temp sensor for the OMAP platform.
 
+config LEDS_AN30259A
+        tristate "LED driver for panasonic AN30259A RGB LED"
+        depends on I2C
+        help
+          This option enables support for AN30259A RGB LED chips
+          accessed via the I2C bus.
+          AN30259A has three channel LED driver. By synchronous clock
+          function, combined operation is possible.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
