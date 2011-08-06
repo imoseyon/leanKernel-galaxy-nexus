@@ -56,6 +56,8 @@ struct iommu {
 	u32 da_end;
 	struct platform_device *pdev;
 	struct pm_qos_request_list *qos_request;
+	void *secure_ttb;
+	bool secure_mode;
 };
 
 struct cr_regs {
@@ -178,6 +180,8 @@ extern int iommu_set_isr(const char *name,
 			 int (*isr)(struct iommu *obj, u32 da, u32 iommu_errs,
 				    void *priv),
 			 void *isr_priv);
+
+extern int iommu_set_secure(const char *name, bool enable, void *data);
 
 extern void iommu_save_ctx(struct iommu *obj);
 extern void iommu_restore_ctx(struct iommu *obj);
