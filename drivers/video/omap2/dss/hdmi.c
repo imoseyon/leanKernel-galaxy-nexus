@@ -31,6 +31,7 @@
 #include <linux/delay.h>
 #include <linux/string.h>
 #include <linux/platform_device.h>
+#include <linux/regulator/consumer.h>
 #include <linux/pm_runtime.h>
 #include <linux/clk.h>
 #include <video/omapdss.h>
@@ -72,6 +73,7 @@ static struct {
 	bool custom_set;
 	enum hdmi_deep_color_mode deep_color;
 	struct hdmi_config cfg;
+	struct regulator *hdmi_reg;
 
 	struct clk *sys_clk;
 	struct clk *hdmi_clk;
@@ -655,15 +657,32 @@ int omapdss_hdmi_display_enable(struct omap_dss_device *dssdev)
 		}
 	}
 
+	hdmi.hdmi_reg = regulator_get(NULL, "hdmi_vref");
+	if (IS_ERR_OR_NULL(hdmi.hdmi_reg)) {
+		DSSERR("Failed to get hdmi_vref regulator\n");
+		r = PTR_ERR(hdmi.hdmi_reg) ? : -ENODEV;
+		goto err2;
+	}
+
+	r = regulator_enable(hdmi.hdmi_reg);
+	if (r) {
+		DSSERR("failed to enable hdmi_vref regulator\n");
+		goto err3;
+	}
+
 	r = hdmi_power_on(dssdev);
 	if (r) {
 		DSSERR("failed to power on device\n");
-		goto err2;
+		goto err4;
 	}
 
 	mutex_unlock(&hdmi.lock);
 	return 0;
 
+err4:
+	regulator_disable(hdmi.hdmi_reg);
+err3:
+	regulator_put(hdmi.hdmi_reg);
 err2:
 	if (dssdev->platform_disable)
 		dssdev->platform_disable(dssdev);
@@ -681,6 +700,10 @@ void omapdss_hdmi_display_disable(struct omap_dss_device *dssdev)
 	mutex_lock(&hdmi.lock);
 
 	hdmi_power_off(dssdev);
+
+	regulator_disable(hdmi.hdmi_reg);
+
+	regulator_put(hdmi.hdmi_reg);
 
 	if (dssdev->platform_disable)
 		dssdev->platform_disable(dssdev);
