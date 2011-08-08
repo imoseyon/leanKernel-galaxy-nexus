@@ -297,14 +297,14 @@ static struct modem_io_t cdma_io_devices[] = {
 		.io_type = IODEV_NET,
 		.link = LINKDEV_DPRAM,
 	},
-	[6] = {
+	[7] = {
 		.name = "cdma_rmnet4",
 		.id = 0x27,
 		.format = IPC_RAW,
 		.io_type = IODEV_NET,
 		.link = LINKDEV_DPRAM,
 	},
-	[7] = {
+	[8] = {
 		.name = "cdma_rmnet5", /* DM Port io-device */
 		.id = 0x3A,
 		.format = IPC_RAW,
