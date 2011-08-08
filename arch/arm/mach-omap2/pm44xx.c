@@ -150,9 +150,11 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
 
 			omap_temp_sensor_prepare_idle();
-			omap2_gpio_prepare_for_idle(0);
 		}
 	}
+
+	if (omap4_device_next_state_off())
+		omap2_gpio_prepare_for_idle(true);
 
 	if (suspend && cpu_is_omap44xx())
 		omap4_pm_suspend_save_regs();
@@ -185,12 +187,14 @@ abort_device_off:
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE);
 
 		omap_temp_sensor_resume_idle();
-		omap2_gpio_resume_after_idle();
 		if (!suspend) {
 			omap_sr_enable(iva_voltdm);
 			omap_sr_enable(core_voltdm);
 		}
 	}
+
+	if (omap4_device_prev_state_off())
+		omap2_gpio_resume_after_idle();
 
 	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
 		omap_vc_set_auto_trans(mpu_voltdm,
