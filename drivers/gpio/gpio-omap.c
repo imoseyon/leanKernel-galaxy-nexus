@@ -1388,7 +1388,7 @@ void omap2_gpio_prepare_for_idle(int off_mode)
 		if (!bank->mod_usage || !bank->loses_context)
 			continue;
 
-		if (IS_ERR_VALUE(pm_runtime_put_sync(bank->dev) < 0))
+		if (IS_ERR_VALUE(pm_runtime_put_sync_suspend(bank->dev) < 0))
 			dev_err(bank->dev, "%s: GPIO bank %d "
 					"pm_runtime_put_sync failed\n",
 					__func__, bank->id);
