@@ -23,6 +23,7 @@
 #include <linux/gpio.h>
 #include <linux/i2c.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/platform_data/fsa9480.h>
 #include <linux/regulator/consumer.h>
@@ -36,6 +37,7 @@
 #include "board-tuna.h"
 
 #define GPIO_JACK_INT_N		4
+#define GPIO_HDMI_HPD		63
 #define GPIO_MHL_SEL		96
 #define GPIO_AP_SEL		97
 #define GPIO_MUX3_SEL0		139
@@ -375,14 +377,13 @@ static void sii9234_power(int on)
 		omap_mux_write(p, mux | OMAP_PULL_UP,
 			       OMAP4_CTRL_MODULE_PAD_HDMI_HPD_OFFSET);
 	} else {
+		omap_mux_write(p, mux & ~OMAP_PULL_UP,
+			       OMAP4_CTRL_MODULE_PAD_HDMI_HPD_OFFSET);
+
 		gpio_set_value(GPIO_HDMI_EN, 0);
 		gpio_set_value(GPIO_MHL_RST, 0);
 
-		omap_mux_write(p, mux & ~OMAP_PULL_UP,
-			       OMAP4_CTRL_MODULE_PAD_HDMI_HPD_OFFSET);
 	}
-
-	mux = omap_mux_read(p, OMAP4_CTRL_MODULE_PAD_HDMI_HPD_OFFSET);
 }
 
 static void sii9234_enable_vbus(bool enable)
@@ -490,6 +491,10 @@ int __init omap4_tuna_connector_init(void)
 	gpio_request(GPIO_MHL_INT, NULL);
 	omap_mux_init_gpio(GPIO_MHL_INT, OMAP_PIN_INPUT);
 	gpio_direction_input(GPIO_MHL_INT);
+
+	gpio_request(GPIO_HDMI_HPD, NULL);
+	omap_mux_init_gpio(GPIO_HDMI_HPD, OMAP_PIN_INPUT | OMAP_PULL_ENA);
+	gpio_direction_input(GPIO_HDMI_HPD);
 
 	i2c_register_board_info(5, tuna_i2c5_boardinfo,
 			ARRAY_SIZE(tuna_i2c5_boardinfo));

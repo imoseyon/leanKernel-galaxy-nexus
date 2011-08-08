@@ -420,9 +420,48 @@ static struct omap_dss_device tuna_oled_device = {
 	.channel		= OMAP_DSS_CHANNEL_LCD,
 };
 
+static void tuna_hdmi_mux_init(void)
+{
+	u32 r;
+
+	/* PAD0_HDMI_HPD_PAD1_HDMI_CEC */
+	omap_mux_init_signal("hdmi_hpd.hdmi_hpd",
+				OMAP_PIN_INPUT_PULLDOWN);
+	omap_mux_init_signal("gpmc_wait2.gpio_100",
+			OMAP_PIN_INPUT_PULLDOWN);
+	omap_mux_init_signal("hdmi_cec.hdmi_cec",
+			OMAP_PIN_INPUT_PULLUP);
+	/* PAD0_HDMI_DDC_SCL_PAD1_HDMI_DDC_SDA */
+	omap_mux_init_signal("hdmi_ddc_scl.hdmi_ddc_scl",
+			OMAP_PIN_INPUT_PULLUP);
+	omap_mux_init_signal("hdmi_ddc_sda.hdmi_ddc_sda",
+			OMAP_PIN_INPUT_PULLUP);
+
+	/* strong pullup on DDC lines using unpublished register */
+	r = ((1 << 24) | (1 << 28)) ;
+	omap4_ctrl_pad_writel(r, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_I2C_1);
+
+}
+
+static struct omap_dss_device tuna_hdmi_device = {
+	.name = "hdmi",
+	.driver_name = "hdmi_panel",
+	.type = OMAP_DISPLAY_TYPE_HDMI,
+	.clocks	= {
+		.dispc	= {
+			.dispc_fclk_src	= OMAP_DSS_CLK_SRC_FCK,
+		},
+		.hdmi	= {
+			.regn	= 15,
+			.regm2	= 1,
+		},
+	},
+	.channel = OMAP_DSS_CHANNEL_DIGIT,
+};
 
 static struct omap_dss_device *tuna_dss_devices[] = {
 	&tuna_oled_device,
+	&tuna_hdmi_device,
 };
 
 static struct omap_dss_board_info tuna_dss_data = {
@@ -465,5 +504,6 @@ void __init omap4_tuna_display_init(void)
 
 	omap_vram_set_sdram_vram(TUNA_FB_RAM_SIZE, 0);
 	omapfb_set_platform_data(&tuna_fb_pdata);
+	tuna_hdmi_mux_init();
 	omap_display_init(&tuna_dss_data);
 }
