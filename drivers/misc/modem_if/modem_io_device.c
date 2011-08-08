@@ -21,6 +21,7 @@
 #include <linux/irq.h>
 #include <linux/gpio.h>
 #include <linux/if_arp.h>
+#include <linux/ip.h>
 
 #include <linux/platform_data/modem.h>
 #include "modem_prj.h"
@@ -293,6 +294,7 @@ static int rx_iodev_skb_raw(struct io_device *iod)
 	int err;
 	struct sk_buff *skb = iod->skb_recv;
 	struct net_device *ndev;
+	struct iphdr *ip_header;
 
 	switch (iod->io_typ) {
 	case IODEV_MISC:
@@ -310,17 +312,11 @@ static int rx_iodev_skb_raw(struct io_device *iod)
 		ndev->stats.rx_bytes += skb->len;
 
 		/* check the version of IP */
-		switch ((*skb->data) & 0xf0) {
-		case 0x40:
-			skb->protocol = htons(ETH_P_IP);
-			break;
-		case 0x60:
+		ip_header = (struct iphdr *)skb->data;
+		if (ip_header->version == IP6VERSION)
 			skb->protocol = htons(ETH_P_IPV6);
-			break;
-		default:
-			dev_kfree_skb_any(skb);
-			return -EINVAL;
-		}
+		else
+			skb->protocol = htons(ETH_P_IP);
 
 		err = netif_rx(skb);
 		if (err != NET_RX_SUCCESS)

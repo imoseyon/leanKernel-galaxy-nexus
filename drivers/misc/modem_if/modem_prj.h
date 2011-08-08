@@ -52,6 +52,8 @@
 
 #define IPC_HEADER_MAX_SIZE	6 /* fmt 3, raw 6, rfs 6 */
 
+#define IP6VERSION	6
+
 /* Does modem ctl structure will use state ? or status defined below ?*/
 enum modem_state {
 	STATE_OFFLINE,
