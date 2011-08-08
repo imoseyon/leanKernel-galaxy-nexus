@@ -20,6 +20,8 @@
 #include <linux/power_supply.h>
 #include <linux/max17040_battery.h>
 #include <linux/slab.h>
+#include <linux/android_alarm.h>
+#include <linux/suspend.h>
 
 #define MAX17040_VCELL_MSB	0x02
 #define MAX17040_VCELL_LSB	0x03
@@ -37,9 +39,12 @@
 #define MAX17040_DELAY		1000
 #define MAX17040_BATTERY_FULL	95
 
+#define FAST_POLL		(1 * 60)
+#define SLOW_POLL		(10 * 60)
+
 struct max17040_chip {
 	struct i2c_client		*client;
-	struct delayed_work		work;
+	struct work_struct		work;
 	struct power_supply		battery;
 	struct max17040_platform_data	*pdata;
 
@@ -51,6 +56,14 @@ struct max17040_chip {
 	int soc;
 	/* State Of Charge */
 	int status;
+
+	struct notifier_block	pm_notifier;
+	struct wake_lock	work_wake_lock;
+
+	struct alarm	alarm;
+	ktime_t last_poll;
+	int slow_poll;
+	int shutdown;
 };
 
 static int max17040_get_property(struct power_supply *psy,
@@ -195,15 +208,44 @@ static void max17040_update(struct max17040_chip *chip)
 
 }
 
+static void max17040_program_alarm(struct max17040_chip *chip, int seconds)
+{
+	ktime_t low_interval = ktime_set(seconds - 10, 0);
+	ktime_t slack = ktime_set(20, 0);
+	ktime_t next;
+
+	next = ktime_add(chip->last_poll, low_interval);
+	alarm_start_range(&chip->alarm, next, ktime_add(next, slack));
+}
+
 static void max17040_work(struct work_struct *work)
 {
+	unsigned long flags;
+	struct timespec ts;
 	struct max17040_chip *chip;
 
-	chip = container_of(work, struct max17040_chip, work.work);
+	chip = container_of(work, struct max17040_chip, work);
 
 	max17040_update(chip);
 
-	schedule_delayed_work(&chip->work, msecs_to_jiffies(MAX17040_DELAY));
+	chip->last_poll = alarm_get_elapsed_realtime();
+	ts = ktime_to_timespec(chip->last_poll);
+
+	local_irq_save(flags);
+	wake_unlock(&chip->work_wake_lock);
+	if (!chip->shutdown)
+		max17040_program_alarm(chip, FAST_POLL);
+	local_irq_restore(flags);
+}
+
+static void max17040_battery_alarm(struct alarm *alarm)
+{
+	struct max17040_chip *chip =
+		container_of(alarm, struct max17040_chip, alarm);
+
+	wake_lock(&chip->work_wake_lock);
+	schedule_work(&chip->work);
+
 }
 
 static void max17040_ext_power_changed(struct power_supply *psy)
@@ -211,10 +253,8 @@ static void max17040_ext_power_changed(struct power_supply *psy)
 	struct max17040_chip *chip = container_of(psy,
 				struct max17040_chip, battery);
 
-	cancel_delayed_work_sync(&chip->work);
-	max17040_update(chip);
-
-	schedule_delayed_work(&chip->work, msecs_to_jiffies(MAX17040_DELAY));
+	wake_lock(&chip->work_wake_lock);
+	schedule_work(&chip->work);
 }
 
 static enum power_supply_property max17040_battery_props[] = {
@@ -222,6 +262,41 @@ static enum power_supply_property max17040_battery_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_CAPACITY,
+};
+
+static int max17040_pm_notifier(struct notifier_block *notifier,
+		unsigned long pm_event,
+		void *unused)
+{
+	struct max17040_chip *chip =
+		container_of(notifier, struct max17040_chip, pm_notifier);
+
+	switch (pm_event) {
+	case PM_SUSPEND_PREPARE:
+		if (!chip->pdata->charger_enable()) {
+			max17040_program_alarm(chip, SLOW_POLL);
+			chip->slow_poll = 1;
+		}
+		break;
+
+	case PM_POST_SUSPEND:
+		/* We might be on a slow sample cycle.  If we're
+		 * resuming we should resample the battery state
+		 * if it's been over a minute since we last did
+		 * so, and move back to sampling every minute until
+		 * we suspend again.
+		 */
+		if (chip->slow_poll) {
+			max17040_program_alarm(chip, FAST_POLL);
+			chip->slow_poll = 0;
+		}
+		break;
+	}
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block max17040_pm_notifier_block = {
+	.notifier_call = max17040_pm_notifier,
 };
 
 static int __devinit max17040_probe(struct i2c_client *client,
@@ -250,58 +325,60 @@ static int __devinit max17040_probe(struct i2c_client *client,
 	chip->battery.num_properties	= ARRAY_SIZE(max17040_battery_props);
 	chip->battery.external_power_changed	= max17040_ext_power_changed;
 
+	chip->last_poll = alarm_get_elapsed_realtime();
+	alarm_init(&chip->alarm, ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP,
+			max17040_battery_alarm);
+
+	wake_lock_init(&chip->work_wake_lock, WAKE_LOCK_SUSPEND,
+			"max17040-battery");
+
 	if (!chip->pdata->skip_reset)
 		max17040_reset(client);
 
 	max17040_get_version(client);
-	INIT_DELAYED_WORK_DEFERRABLE(&chip->work, max17040_work);
+	INIT_WORK(&chip->work, max17040_work);
+
 	ret = power_supply_register(&client->dev, &chip->battery);
 	if (ret) {
 		dev_err(&client->dev, "failed: power supply register\n");
-		kfree(chip);
-		return ret;
+		goto err_battery_supply_register;
 	}
 
-	schedule_delayed_work(&chip->work, msecs_to_jiffies(MAX17040_DELAY));
+	/* i2c-core does not support dev_pm_ops.prepare and .complete
+	 * So, used pm_notifier for use android_alarm.
+	 */
+	chip->pm_notifier = max17040_pm_notifier_block;
+	ret = register_pm_notifier(&chip->pm_notifier);
+	if (ret) {
+		dev_err(&client->dev, "failed: register pm notifier\n");
+		goto err_pm_notifier;
+	}
+	schedule_work(&chip->work);
 
 	return 0;
+
+err_pm_notifier:
+	power_supply_unregister(&chip->battery);
+err_battery_supply_register:
+	wake_lock_destroy(&chip->work_wake_lock);
+	alarm_cancel(&chip->alarm);
+	kfree(chip);
+
+	return ret;
 }
 
 static int __devexit max17040_remove(struct i2c_client *client)
 {
 	struct max17040_chip *chip = i2c_get_clientdata(client);
-
+	chip->shutdown = 1;
+	unregister_pm_notifier(&chip->pm_notifier);
 	power_supply_unregister(&chip->battery);
-	cancel_delayed_work_sync(&chip->work);
+	alarm_cancel(&chip->alarm);
+	cancel_work_sync(&chip->work);
+	wake_lock_destroy(&chip->work_wake_lock);
 	kfree(chip);
 	return 0;
 }
-
-#ifdef CONFIG_PM
-
-static int max17040_suspend(struct i2c_client *client,
-		pm_message_t state)
-{
-	struct max17040_chip *chip = i2c_get_clientdata(client);
-
-	cancel_delayed_work(&chip->work);
-	return 0;
-}
-
-static int max17040_resume(struct i2c_client *client)
-{
-	struct max17040_chip *chip = i2c_get_clientdata(client);
-
-	schedule_delayed_work(&chip->work, msecs_to_jiffies(MAX17040_DELAY));
-	return 0;
-}
-
-#else
-
-#define max17040_suspend NULL
-#define max17040_resume NULL
-
-#endif /* CONFIG_PM */
 
 static const struct i2c_device_id max17040_id[] = {
 	{ "max17040", 0 },
@@ -315,8 +392,6 @@ static struct i2c_driver max17040_i2c_driver = {
 	},
 	.probe		= max17040_probe,
 	.remove		= __devexit_p(max17040_remove),
-	.suspend	= max17040_suspend,
-	.resume		= max17040_resume,
 	.id_table	= max17040_id,
 };
 
