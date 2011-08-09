@@ -758,3 +758,28 @@ static void __exit if_usb_exit(void)
 	usb_deregister(&if_usb_driver);
 }
 
+
+static int lte_wake_resume(struct device *pdev)
+{
+	int ac_wake_gpio = (int)pdev->platform_data;
+	pr_debug("%s: > S-WUP 1\n", __func__);
+	gpio_set_value(ac_wake_gpio, 1);
+	return 0;
+}
+
+static const struct dev_pm_ops lte_wake_pm_ops = {
+	.resume     = lte_wake_resume,
+};
+
+static struct platform_driver lte_wake_driver = {
+	.driver = {
+		.name = "modem_lte_wake",
+		.pm   = &lte_wake_pm_ops,
+	},
+};
+
+static int __init lte_wake_init(void)
+{
+	return platform_driver_register(&lte_wake_driver);
+}
+module_init(lte_wake_init);

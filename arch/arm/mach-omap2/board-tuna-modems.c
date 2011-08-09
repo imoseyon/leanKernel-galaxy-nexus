@@ -704,6 +704,11 @@ static struct resource lte_modem_res[] = {
 	},
 };
 
+static struct platform_device lte_modem_wake = {
+	.name = "modem_lte_wake",
+	.id = -1,
+};
+
 static struct platform_device lte_modem = {
 	.name = "modem_if",
 	.id = 2,
@@ -713,6 +718,14 @@ static struct platform_device lte_modem = {
 		.platform_data = &lte_modem_data,
 	},
 };
+
+/* lte_modem_wake must be registered before the ehci driver */
+void __init modem_toro_init(void)
+{
+	lte_modem_wake.dev.platform_data =
+				(void*)lte_modem_data.gpio_slave_wakeup;
+	platform_device_register(&lte_modem_wake);
+}
 
 static int __init init_modem(void)
 {

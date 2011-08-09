@@ -976,8 +976,10 @@ static void __init tuna_init(void)
 		omap_hsi_init();
 #endif
 #ifdef CONFIG_USB_EHCI_HCD_OMAP
-	if (TUNA_TYPE_TORO == omap4_tuna_get_type())
+	if (TUNA_TYPE_TORO == omap4_tuna_get_type()) {
+		modem_toro_init();
 		omap4_ehci_init();
+	}
 #endif
 }
 
