@@ -105,6 +105,25 @@ static LIST_HEAD(rpmsg_omx_services_list);
 #endif
 #endif
 
+/*
+ * TODO: Need to do this using lookup with rproc, but rproc is not
+ * visible to rpmsg_omx
+ */
+#define TILER_START	0x60000000
+#define TILER_END	0x80000000
+#define ION_1D_START	0xBDF00000
+#define ION_1D_END	0xBFD00000
+#define ION_1D_VA	0x88000000
+static u32 _rpmsg_pa_to_da(u32 pa)
+{
+	if (pa >= TILER_START && pa < TILER_END)
+		return pa;
+	else if (pa >= ION_1D_START && pa < ION_1D_END)
+		return (pa - ION_1D_START + ION_1D_VA);
+	else
+		return 0;
+}
+
 static u32 _rpmsg_omx_buffer_lookup(struct rpmsg_omx_instance *omx, long buffer)
 {
 	phys_addr_t pa;
@@ -141,7 +160,7 @@ static u32 _rpmsg_omx_buffer_lookup(struct rpmsg_omx_instance *omx, long buffer)
 #ifdef CONFIG_ION_OMAP
 to_va:
 #endif
-	va = pa; /* TODO: return actual va */
+	va = _rpmsg_pa_to_da(pa);
 	return va;
 }
 
