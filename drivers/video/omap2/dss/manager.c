@@ -1520,9 +1520,22 @@ static void dss_apply_irq_handler(void *data, u32 mask)
 	if (r == 1)
 		goto end;
 
+	/*
+	 * FIXME Sometimes when handling an interrupt for a manager, the
+	 * manager is still busy at the beginning of the interrupt handler.
+	 * Later it becomes idle, so we unregister the interrupt.  This
+	 * leaves the shadow_dirty flag in an incorrect true state, and also
+	 * misses the 'programmed' callback.
+	 *
+	 * For now, we do not unregister the interrupt if any manager
+	 * was busy at the first read of the GO bits.  A better fix would be
+	 * to keep the first read busy state in the cache, so we do not operate
+	 * on instantaneous reads of the GO bit.
+	 */
+
 	/* re-read busy flags */
 	for (i = 0; i < num_mgrs; i++)
-		mgr_busy[i] = dispc_go_busy(i);
+		mgr_busy[i] |= dispc_go_busy(i);
 
 	/* keep running as long as there are busy managers, so that
 	 * we can collect overlay-applied information */
