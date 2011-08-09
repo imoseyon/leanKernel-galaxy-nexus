@@ -27,6 +27,8 @@
 #include <linux/platform_data/fsa9480.h>
 #include <linux/regulator/consumer.h>
 #include <linux/usb/otg.h>
+#include <linux/delay.h>
+#include <linux/sii9234.h>
 
 #include <plat/usb.h>
 
@@ -40,6 +42,11 @@
 #define GPIO_MUX3_SEL1		140
 #define GPIO_USB_ID_SEL		191
 #define GPIO_IF_UART_SEL	101
+
+#define GPIO_MHL_RST		161
+#define GPIO_MHL_WAKEUP		64
+#define GPIO_MHL_INT		175
+#define GPIO_HDMI_EN		100
 
 #define MUX3_SEL0_AP		1
 #define MUX3_SEL1_AP		1
@@ -61,6 +68,7 @@
 #define IF_UART_SEL_DEFAULT	1
 
 #define TUNA_OTG_ID_FSA9480_PRIO		INT_MIN
+#define TUNA_OTG_ID_SII9234_PRIO		INT_MIN + 1
 #define TUNA_OTG_ID_FSA9480_LAST_PRIO		INT_MAX
 
 struct tuna_otg {
@@ -349,6 +357,66 @@ static void omap4_tuna_uart_switch_init(void)
 	gpio_export_link(uartswitch_dev, "UART_SEL", GPIO_IF_UART_SEL);
 }
 
+#define OMAP_HDMI_HPD_ADDR	0x4A100098
+#define OMAP_HDMI_PULLTYPE_MASK	0x00000010
+static void sii9234_power(int on)
+{
+	struct omap_mux_partition *p = omap_mux_get("core");
+
+	u16 mux;
+
+	mux = omap_mux_read(p, OMAP4_CTRL_MODULE_PAD_HDMI_HPD_OFFSET);
+
+	if (on) {
+		gpio_set_value(GPIO_HDMI_EN, 1);
+		msleep(20);
+		gpio_set_value(GPIO_MHL_RST, 1);
+
+		omap_mux_write(p, mux | OMAP_PULL_UP,
+			       OMAP4_CTRL_MODULE_PAD_HDMI_HPD_OFFSET);
+	} else {
+		gpio_set_value(GPIO_HDMI_EN, 0);
+		gpio_set_value(GPIO_MHL_RST, 0);
+
+		omap_mux_write(p, mux & ~OMAP_PULL_UP,
+			       OMAP4_CTRL_MODULE_PAD_HDMI_HPD_OFFSET);
+	}
+
+	mux = omap_mux_read(p, OMAP4_CTRL_MODULE_PAD_HDMI_HPD_OFFSET);
+}
+
+static void sii9234_enable_vbus(bool enable)
+{
+
+}
+
+static struct sii9234_platform_data sii9234_pdata = {
+	.prio = TUNA_OTG_ID_SII9234_PRIO,
+	.enable = tuna_mux_usb_to_mhl,
+	.power = sii9234_power,
+	.enable_vbus = sii9234_enable_vbus,
+};
+
+static struct i2c_board_info __initdata tuna_i2c5_boardinfo[] = {
+	{
+		I2C_BOARD_INFO("sii9234_mhl_tx", 0x72>>1),
+		.irq = OMAP_GPIO_IRQ(GPIO_MHL_INT),
+		.platform_data = &sii9234_pdata,
+	},
+	{
+		I2C_BOARD_INFO("sii9234_tpi", 0x7A>>1),
+		.platform_data = &sii9234_pdata,
+	},
+	{
+		I2C_BOARD_INFO("sii9234_hdmi_rx", 0x92>>1),
+		.platform_data = &sii9234_pdata,
+	},
+	{
+		I2C_BOARD_INFO("sii9234_cbus", 0xC8>>1),
+		.platform_data = &sii9234_pdata,
+	},
+};
+
 int __init omap4_tuna_connector_init(void)
 {
 	struct tuna_otg *tuna_otg = &tuna_otg_xceiv;
@@ -410,6 +478,21 @@ int __init omap4_tuna_connector_init(void)
 				ARRAY_SIZE(tuna_connector_i2c4_boardinfo));
 
 	omap4_tuna_uart_switch_init();
+
+	gpio_request(GPIO_HDMI_EN, NULL);
+	omap_mux_init_gpio(GPIO_HDMI_EN, OMAP_PIN_OUTPUT);
+	gpio_direction_output(GPIO_HDMI_EN, 0);
+
+	gpio_request(GPIO_MHL_RST, NULL);
+	omap_mux_init_gpio(GPIO_MHL_RST, OMAP_PIN_OUTPUT);
+	gpio_direction_output(GPIO_MHL_RST, 0);
+
+	gpio_request(GPIO_MHL_INT, NULL);
+	omap_mux_init_gpio(GPIO_MHL_INT, OMAP_PIN_INPUT);
+	gpio_direction_input(GPIO_MHL_INT);
+
+	i2c_register_board_info(5, tuna_i2c5_boardinfo,
+			ARRAY_SIZE(tuna_i2c5_boardinfo));
 
 	return 0;
 }

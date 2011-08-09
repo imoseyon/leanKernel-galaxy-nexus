@@ -36,6 +36,7 @@
 #include <linux/spi/spi.h>
 #include <linux/platform_data/lte_modem_bootloader.h>
 #include <plat/mcspi.h>
+#include <linux/i2c-gpio.h>
 
 #include <mach/hardware.h>
 #include <mach/omap4-common.h>
@@ -76,6 +77,9 @@ EXPORT_SYMBOL(sec_class);
 #define GPIO_GPS_nRST	136
 #define GPIO_GPS_PWR_EN	137
 #define GPIO_GPS_UART_SEL	164
+
+#define GPIO_MHL_SCL_18V	99
+#define GPIO_MHL_SDA_18V	98
 
 #define REBOOT_FLAG_RECOVERY	0x52564352
 #define REBOOT_FLAG_FASTBOOT	0x54534146
@@ -230,6 +234,22 @@ static struct platform_device twl6030_madc_device = {
 	},
 };
 
+
+static struct i2c_gpio_platform_data tuna_gpio_i2c5_pdata = {
+	.sda_pin = GPIO_MHL_SDA_18V,
+	.scl_pin = GPIO_MHL_SCL_18V,
+	.udelay = 3,
+	.timeout = 0,
+};
+
+static struct platform_device tuna_gpio_i2c5_device = {
+	.name = "i2c-gpio",
+	.id = 5,
+	.dev = {
+		.platform_data = &tuna_gpio_i2c5_pdata,
+	}
+};
+
 #define PHYS_ADDR_SMC_SIZE	(SZ_1M * 3)
 #define PHYS_ADDR_SMC_MEM	(0x80000000 + SZ_1G - PHYS_ADDR_SMC_SIZE)
 #define PHYS_ADDR_DUCATI_SIZE	(SZ_1M * 101)
@@ -281,6 +301,7 @@ static struct platform_device *tuna_devices[] __initdata = {
 	&bcm4330_bluetooth_device,
 	&twl6030_madc_device,
 	&tuna_ion_device,
+	&tuna_gpio_i2c5_device,
 };
 
 static void tuna_gsd4t_gps_gpio(void)
@@ -935,6 +956,9 @@ static void __init tuna_init(void)
 		gpio_direction_output(158, 1);
 		omap_mux_init_gpio(158, OMAP_PIN_INPUT_PULLUP);
 	}
+
+	omap_mux_init_gpio(GPIO_MHL_SDA_18V, OMAP_PIN_INPUT_PULLUP);
+	omap_mux_init_gpio(GPIO_MHL_SCL_18V, OMAP_PIN_INPUT_PULLUP);
 
 	sec_common_init();
 
