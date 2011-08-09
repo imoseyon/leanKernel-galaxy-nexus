@@ -34,6 +34,12 @@
 #define IF_USB_RAW_EP		1
 #define IF_USB_RFS_EP		2
 
+#define AUTOSUSPEND_DELAY_MS		500
+#define HOST_WAKEUP_TIMEOUT_MS		2000
+
+#define RX_BUFSIZE_RFS			(256 * 1024)
+#define RX_BUFSIZE_RAW			(16 * 1024)
+
 enum RESUME_STATUS {
 	CP_INITIATED_RESUME,
 	AP_INITIATED_RESUME,
@@ -69,7 +75,7 @@ struct usb_link_device {
 	unsigned long		driver_info;
 	unsigned int		dev_count;
 	unsigned int		suspended;
-	unsigned int		suspend_count;
+	atomic_t		suspend_count;
 	enum RESUME_STATUS	resume_status;
 	int if_usb_connected;
 	int reconnect_cnt;
@@ -88,6 +94,9 @@ struct usb_link_device {
 	int cpcrash_flag;
 	wait_queue_head_t l2_wait;
 	int irq[3];
+
+	spinlock_t		lock;
+	struct usb_anchor	deferred;
 
 	/*COMMON LINK DEVICE*/
 	/* maybe -list of io devices for the link device to use */
