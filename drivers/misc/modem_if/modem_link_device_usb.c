@@ -384,8 +384,6 @@ static void if_usb_disconnect(struct usb_interface *intf)
 	int dev_id = intf->altsetting->desc.bInterfaceNumber;
 	struct device *ppdev;
 
-	SET_HOST_ACTIVE(usb_ld->pdata, 0);
-
 	usb_set_intfdata(intf, NULL);
 
 	if (usb_ld->devdata[dev_id].disconnected)
