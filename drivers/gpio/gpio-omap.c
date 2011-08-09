@@ -1441,10 +1441,6 @@ void omap_gpio_restore_context(struct gpio_bank *bank)
 {
 	if(!bank->saved_context)
 		return;
-	__raw_writel(bank->context.irqenable1,
-				bank->base + bank->regs->irqenable);
-	__raw_writel(bank->context.irqenable2,
-				bank->base + bank->regs->irqenable2);
 	__raw_writel(bank->context.wake_en,
 				bank->base + bank->regs->wkup_set);
 	__raw_writel(bank->context.ctrl, bank->base + bank->regs->ctrl);
@@ -1469,6 +1465,10 @@ void omap_gpio_restore_context(struct gpio_bank *bank)
 		__raw_writel(bank->context.debounce_en,
 			     bank->base + bank->regs->debounce_en);
 	}
+	__raw_writel(bank->context.irqenable1,
+				bank->base + bank->regs->irqenable);
+	__raw_writel(bank->context.irqenable2,
+				bank->base + bank->regs->irqenable2);
 	bank->saved_context = 0;
 }
 #endif
