@@ -69,8 +69,8 @@ struct usb_link_device {
 	struct work_struct	post_resume_work;
 	struct delayed_work	reconnect_work;
 
-	struct wake_lock	wakelock;
-	struct wake_lock	writelock;
+	struct wake_lock	gpiolock;
+	struct wake_lock	susplock;
 
 	unsigned long		driver_info;
 	unsigned int		dev_count;
