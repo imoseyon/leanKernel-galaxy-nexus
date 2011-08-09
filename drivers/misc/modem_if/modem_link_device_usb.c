@@ -119,6 +119,7 @@ static void usb_rx_complete(struct urb *urb)
 			}
 		}
 re_submit:
+		usb_mark_last_busy(urb->dev);
 		usb_rx_submit(usb_ld, pipe_data, GFP_ATOMIC);
 		break;
 	case -ENOENT:
