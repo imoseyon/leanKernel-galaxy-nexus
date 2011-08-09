@@ -1416,7 +1416,7 @@ void omap_gpio_save_context(struct gpio_bank *bank)
 	bank->context.irqenable2 =
 			__raw_readl(bank->base + bank->regs->irqenable2);
 	bank->context.wake_en =
-			__raw_readl(bank->base + bank->regs->wkup_status);
+			__raw_readl(bank->base + bank->regs->wkup_set);
 	bank->context.ctrl = __raw_readl(bank->base + bank->regs->ctrl);
 	bank->context.oe = __raw_readl(bank->base + bank->regs->direction);
 	bank->context.leveldetect0 =
@@ -1446,7 +1446,7 @@ void omap_gpio_restore_context(struct gpio_bank *bank)
 	__raw_writel(bank->context.irqenable2,
 				bank->base + bank->regs->irqenable2);
 	__raw_writel(bank->context.wake_en,
-				bank->base + bank->regs->wkup_status);
+				bank->base + bank->regs->wkup_set);
 	__raw_writel(bank->context.ctrl, bank->base + bank->regs->ctrl);
 	__raw_writel(bank->context.oe, bank->base + bank->regs->direction);
 	__raw_writel(bank->context.leveldetect0,
