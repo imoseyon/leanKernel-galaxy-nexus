@@ -60,6 +60,17 @@ static struct omap_device_pm_latency omap_emif_latency[] = {
 	       },
 };
 
+void emif_dump(int emif_nr)
+{
+	void __iomem *base = emif[emif_nr].base;
+
+	printk("EMIF%d s=0x%x is_sys=0x%x is_ll=0x%x\n",
+	       emif_nr + 1,
+	       __raw_readl(base + OMAP44XX_EMIF_STATUS),
+	       __raw_readl(base + OMAP44XX_EMIF_IRQSTATUS_SYS),
+	       __raw_readl(base + OMAP44XX_EMIF_IRQSTATUS_LL));
+}
+
 static void do_cancel_out(u32 *num, u32 *den, u32 factor)
 {
 	while (1) {
