@@ -250,13 +250,14 @@ static struct platform_device tuna_gpio_i2c5_device = {
 	}
 };
 
-#define PHYS_ADDR_SMC_SIZE	(SZ_1M * 3)
-#define PHYS_ADDR_SMC_MEM	(0x80000000 + SZ_1G - PHYS_ADDR_SMC_SIZE)
-#define PHYS_ADDR_DUCATI_SIZE	(SZ_1M * 101)
-#define PHYS_ADDR_DUCATI_MEM	(PHYS_ADDR_SMC_MEM - PHYS_ADDR_DUCATI_SIZE)
-#define OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE	SZ_64M
+#define OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE	(SZ_1M * 30)
 #define OMAP_TUNA_ION_HEAP_TILER_SIZE		SZ_128M
 #define OMAP_TUNA_ION_HEAP_LARGE_SURFACES_SIZE	SZ_32M
+#define PHYS_ADDR_SMC_SIZE	(SZ_1M * 3)
+#define PHYS_ADDR_SMC_MEM	(0x80000000 + SZ_1G - PHYS_ADDR_SMC_SIZE)
+#define PHYS_ADDR_DUCATI_SIZE	(SZ_1M * 103)
+#define PHYS_ADDR_DUCATI_MEM	(PHYS_ADDR_SMC_MEM - PHYS_ADDR_DUCATI_SIZE -\
+				OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE)
 
 static struct ion_platform_data tuna_ion_data = {
 	.nr = 3,
@@ -265,8 +266,7 @@ static struct ion_platform_data tuna_ion_data = {
 			.type = ION_HEAP_TYPE_CARVEOUT,
 			.id = OMAP_ION_HEAP_SECURE_INPUT,
 			.name = "secure_input",
-			.base = PHYS_ADDR_DUCATI_MEM -
-					OMAP_TUNA_ION_HEAP_TILER_SIZE -
+			.base = PHYS_ADDR_SMC_MEM -
 					OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE,
 			.size = OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE,
 		},
@@ -1022,7 +1022,6 @@ static void __init tuna_reserve(void)
 	memblock_remove(TUNA_RAMCONSOLE_START, TUNA_RAMCONSOLE_SIZE);
 	memblock_remove(PHYS_ADDR_SMC_MEM, PHYS_ADDR_SMC_SIZE);
 	memblock_remove(PHYS_ADDR_DUCATI_MEM, PHYS_ADDR_DUCATI_SIZE);
-	omap_ipu_set_static_mempool(PHYS_ADDR_DUCATI_MEM, PHYS_ADDR_DUCATI_SIZE);
 
 	for (i = 0; i < tuna_ion_data.nr; i++)
 		if (tuna_ion_data.heaps[i].type == ION_HEAP_TYPE_CARVEOUT ||
@@ -1035,6 +1034,9 @@ static void __init tuna_reserve(void)
 				       tuna_ion_data.heaps[i].base);
 		}
 
+	/* ipu needs to recognize secure input buffer area as well */
+	omap_ipu_set_static_mempool(PHYS_ADDR_DUCATI_MEM, PHYS_ADDR_DUCATI_SIZE +
+					OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE);
 	omap_reserve();
 }
 
