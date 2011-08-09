@@ -68,6 +68,7 @@ struct usb_link_device {
 	struct if_usb_devdata	devdata[IF_USB_DEVNUM_MAX];
 	struct work_struct	post_resume_work;
 	struct delayed_work	reconnect_work;
+	struct delayed_work	runtime_pm_work;
 
 	struct wake_lock	gpiolock;
 	struct wake_lock	susplock;

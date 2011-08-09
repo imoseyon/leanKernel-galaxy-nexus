@@ -346,6 +346,14 @@ static int if_usb_suspend(struct usb_interface *intf, pm_message_t message)
 	return 0;
 }
 
+static void runtime_pm_work(struct work_struct *work)
+{
+	struct usb_link_device *usb_ld =
+		container_of(work, struct usb_link_device, runtime_pm_work.work);
+
+	pm_request_autosuspend(&usb_ld->usbdev->dev);
+}
+
 static int if_usb_resume(struct usb_interface *intf)
 {
 	int i, ret;
@@ -359,6 +367,11 @@ static int if_usb_resume(struct usb_interface *intf)
 
 		pr_debug("%s\n", __func__);
 		wake_lock(&usb_ld->susplock);
+
+		/* HACK: Runtime pm does not allow requesting autosuspend from
+		 * resume callback, delayed it after resume */
+		queue_delayed_work(system_nrt_wq, &usb_ld->runtime_pm_work,
+							msecs_to_jiffies(50));
 
 		for (i = 0; i < IF_USB_DEVNUM_MAX; i++) {
 			ret = usb_rx_submit(usb_ld, &usb_ld->devdata[i],
@@ -383,7 +396,6 @@ static int if_usb_resume(struct usb_interface *intf)
 					pr_debug("pm_runtime_put_autosuspend fail\n");
 			}
 		}
-
 
 		return 0;
 	}
@@ -441,6 +453,7 @@ static void if_usb_disconnect(struct usb_interface *intf)
 	usb_kill_urb(usb_ld->devdata[dev_id].urb);
 
 	if (usb_ld->dev_count == 0) {
+		cancel_delayed_work_sync(&usb_ld->runtime_pm_work);
 		usb_put_dev(usbdev);
 		usb_ld->usbdev = NULL;
 
@@ -734,6 +747,7 @@ struct link_device *usb_create_link_device(void *data)
 	wake_lock_init(&usb_ld->susplock, WAKE_LOCK_SUSPEND, "modem_usb_suspend_block");
 
 	INIT_DELAYED_WORK(&ld->tx_delayed_work, usb_tx_work);
+	INIT_DELAYED_WORK(&usb_ld->runtime_pm_work, runtime_pm_work);
 
 	ret = if_usb_init(ld);
 	if (ret)
