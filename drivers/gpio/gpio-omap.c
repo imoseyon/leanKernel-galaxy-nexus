@@ -41,6 +41,8 @@ struct gpio_regs {
 	u32 risingdetect;
 	u32 fallingdetect;
 	u32 dataout;
+	u32 debounce;
+	u32 debounce_en;
 };
 
 struct gpio_bank {
@@ -1263,9 +1265,6 @@ static int omap_gpio_pm_runtime_suspend(struct device *dev)
 	u32 l1 = 0, l2 = 0;
 	int j;
 
-	for (j = 0; j < hweight_long(bank->dbck_enable_mask); j++)
-		clk_disable(bank->dbck);
-
 	/* If going to OFF, remove triggering for all
 	 * non-wakeup GPIOs.  Otherwise spurious IRQs will be
 	 * generated.  See OMAP2420 Errata item 1.101. */
@@ -1289,6 +1288,9 @@ save_gpio_ctx:
 	if (bank->get_context_loss_count)
 		bank->ctx_loss_count = bank->get_context_loss_count(bank->dev);
 	omap_gpio_save_context(bank);
+	for (j = 0; j < hweight_long(bank->dbck_enable_mask); j++)
+		clk_disable(bank->dbck);
+
 #endif
 	return 0;
 }
@@ -1426,6 +1428,12 @@ void omap_gpio_save_context(struct gpio_bank *bank)
 	bank->context.fallingdetect =
 			__raw_readl(bank->base + bank->regs->fallingdetect);
 	bank->context.dataout = __raw_readl(bank->base + bank->regs->dataout);
+	if (bank->dbck_enable_mask) {
+		bank->context.debounce = __raw_readl(bank->base +
+						     bank->regs->debounce);
+		bank->context.debounce_en = __raw_readl(bank->base +
+						bank->regs->debounce_en);
+	}
 	bank->saved_context = 1;
 }
 
@@ -1450,6 +1458,12 @@ void omap_gpio_restore_context(struct gpio_bank *bank)
 	__raw_writel(bank->context.fallingdetect,
 				bank->base + bank->regs->fallingdetect);
 	__raw_writel(bank->context.dataout, bank->base + bank->regs->dataout);
+	if (bank->dbck_enable_mask) {
+		__raw_writel(bank->context.debounce, bank->base +
+			     bank->regs->debounce);
+		__raw_writel(bank->context.debounce_en,
+			     bank->base + bank->regs->debounce_en);
+	}
 	bank->saved_context = 0;
 }
 #endif
