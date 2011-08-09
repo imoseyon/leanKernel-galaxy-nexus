@@ -294,20 +294,33 @@ static void _print_prcm_wakeirq(int irq)
 {
 	int i, bit;
 	int iopad_wake_found = 0;
+	u32 prcm_irqs1, prcm_irqs2;
 
-	for (i = 0; i <= 6; i++) {
-		long unsigned int wkevt =
-			omap_readw(CONTROL_PADCONF_WAKEUPEVENT_0 + i*4);
+	prcm_irqs1 = omap4_prm_read_inst_reg(OMAP4430_PRM_OCP_SOCKET_INST,
+					     OMAP4_PRM_IRQSTATUS_MPU_OFFSET);
+	prcm_irqs1 &= omap4_prm_read_inst_reg(OMAP4430_PRM_OCP_SOCKET_INST,
+					     OMAP4_PRM_IRQENABLE_MPU_OFFSET);
+	prcm_irqs2 = omap4_prm_read_inst_reg(OMAP4430_PRM_OCP_SOCKET_INST,
+					     OMAP4_PRM_IRQSTATUS_MPU_2_OFFSET);
+	prcm_irqs2 &= omap4_prm_read_inst_reg(OMAP4430_PRM_OCP_SOCKET_INST,
+					      OMAP4_PRM_IRQENABLE_MPU_2_OFFSET);
 
-		for_each_set_bit(bit, &wkevt, 32) {
-			printk("Resume caused by I/O pad: CONTROL_PADCONF_WAKEUPEVENT_%d[%d]\n",
-			       i, bit);
-			iopad_wake_found = 1;
+	if (prcm_irqs1 & OMAP4430_IO_ST_MASK)
+		for (i = 0; i <= 6; i++) {
+			long unsigned int wkevt =
+				omap_readw(CONTROL_PADCONF_WAKEUPEVENT_0 + i*4);
+
+			for_each_set_bit(bit, &wkevt, 32) {
+				pr_info("Resume caused by I/O pad: CONTROL_PADCONF_WAKEUPEVENT_%d[%d]\n",
+					i, bit);
+				iopad_wake_found = 1;
+			}
 		}
-	}
 
-	if (!iopad_wake_found)
-		_print_wakeirq(irq);
+	if (prcm_irqs1 & ~OMAP4430_IO_ST_MASK || !iopad_wake_found ||
+	    prcm_irqs2)
+		pr_info("Resume caused by IRQ %d, prcm: 0x%x 0x%x\n", irq,
+			prcm_irqs1, prcm_irqs2);
 }
 
 static void omap4_print_wakeirq(void)
