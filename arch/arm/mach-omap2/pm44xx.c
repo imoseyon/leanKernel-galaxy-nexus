@@ -30,6 +30,7 @@
 #include <plat/usb.h>
 #include <plat/prcm.h>
 #include <plat/omap-pm.h>
+#include <plat/gpmc.h>
 
 #include "powerdomain.h"
 #include "clockdomain.h"
@@ -153,8 +154,10 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 		}
 	}
 
-	if (omap4_device_next_state_off())
+	if (omap4_device_next_state_off()) {
 		omap2_gpio_prepare_for_idle(true);
+		omap_gpmc_save_context();
+	}
 
 	if (suspend && cpu_is_omap44xx())
 		omap4_pm_suspend_save_regs();
@@ -193,8 +196,10 @@ abort_device_off:
 		}
 	}
 
-	if (omap4_device_prev_state_off())
+	if (omap4_device_prev_state_off()) {
+		omap_gpmc_restore_context();
 		omap2_gpio_resume_after_idle();
+	}
 
 	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
 		omap_vc_set_auto_trans(mpu_voltdm,
