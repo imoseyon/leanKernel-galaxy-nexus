@@ -450,6 +450,19 @@ handled:
 	return OTG_ID_HANDLED;
 }
 
+static int fsa9480_proxy_wait_callback(struct otg_id_notifier_block *nb)
+{
+	struct usbsw_nb_info *nb_info =
+			container_of(nb, struct usbsw_nb_info, otg_id_nb);
+	struct fsa9480_usbsw *usbsw = nb_info->usbsw;
+
+	dev_info(&usbsw->client->dev, "taking proxy ownership of port\n");
+	usbsw->pdata->enable(true);
+	enable_irq(usbsw->client->irq);
+
+	return OTG_ID_HANDLED;
+}
+
 static void fsa9480_cancel_callback(struct otg_id_notifier_block *nb)
 {
 	struct usbsw_nb_info *nb_info =
@@ -559,6 +572,7 @@ static int __devinit fsa9480_probe(struct i2c_client *client,
 		info->detect_set = &pdata->detect_sets[i];
 		info->usbsw = usbsw;
 		info->otg_id_nb.detect = fsa9480_detect_callback;
+		info->otg_id_nb.proxy_wait = fsa9480_proxy_wait_callback;
 		info->otg_id_nb.cancel = fsa9480_cancel_callback;
 		info->otg_id_nb.priority = pdata->detect_sets[i].prio;
 
