@@ -323,7 +323,7 @@ static int rproc_check_poolmem(struct rproc *rproc, u32 size, phys_addr_t pa)
 		return -ENOSPC;
 	}
 	if ((pa < pool->st_base) ||
-		((pa + size) >= (pool->st_base + pool->st_size))) {
+		((pa + size) > (pool->st_base + pool->st_size))) {
 		pr_warn("section lies outside the remoteproc carveout\n");
 		return -ENOSPC;
 	}
