@@ -257,7 +257,9 @@ int omap_pm_set_min_bus_tput_helper(struct device *dev, u8 agent_id, long r)
 
 	int ret = 0;
 	struct device *l3_dev;
-	static struct device dummy_l3_dev;
+	static struct device dummy_l3_dev = {
+		.init_name = "omap_pm_set_min_bus_tput",
+	};
 	unsigned long target_level = 0;
 
 	mutex_lock(&bus_tput_mutex);
