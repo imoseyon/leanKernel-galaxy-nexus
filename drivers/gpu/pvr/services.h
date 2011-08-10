@@ -99,6 +99,7 @@ extern "C" {
 #define PVRSRV_MISC_INFO_DDKVERSION_PRESENT			(1U<<4)
 #define PVRSRV_MISC_INFO_CPUCACHEOP_PRESENT			(1U<<5)
 #define PVRSRV_MISC_INFO_FREEMEM_PRESENT			(1U<<6)
+#define PVRSRV_MISC_INFO_GET_REF_COUNT_PRESENT		(1U<<7)
 
 #define PVRSRV_MISC_INFO_RESET_PRESENT				(1U<<31)
 
@@ -426,6 +427,25 @@ typedef struct _PVRSRV_MISC_INFO_
 		
 		IMG_UINT32	ui32Length;
 	} sCacheOpCtl;
+
+	
+	struct
+	{
+		
+#if !defined(SUPPORT_SID_INTERFACE)
+		union
+		{
+			
+			PVRSRV_CLIENT_MEM_INFO *psClientMemInfo;
+
+			
+			struct _PVRSRV_KERNEL_MEM_INFO_ *psKernelMemInfo;
+		} u;
+#endif
+
+		
+		IMG_UINT32 ui32RefCount;
+	} sGetRefCountCtl;
 } PVRSRV_MISC_INFO;
 
 typedef struct _PVRSRV_SYNC_TOKEN_
