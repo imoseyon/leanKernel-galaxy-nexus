@@ -655,6 +655,13 @@ u32 abe_connect_serial_port(u32 id, abe_data_format_t *f,
 u32 abe_read_port_address(u32 port, abe_dma_t *dma2);
 void abe_add_subroutine(u32 *id, abe_subroutine2 f, u32 nparam, u32 *params);
 u32 abe_read_next_ping_pong_buffer(u32 port, u32 *p, u32 *n);
+u32 abe_reset_vx_ul_src_filters(void);
+u32 abe_reset_mic_ul_src_filters(void);
+u32 abe_reset_vx_dl_src_filters(void);
+u32 abe_reset_dl1_src_filters(void);
+u32 abe_reset_dl2_src_filters(void);
+u32 abe_reset_bt_dl_src_filters(void);
+void abe_src_filters_saturation_monitoring(void);
 u32 abe_check_activity(void);
 void abe_add_subroutine(u32 *id, abe_subroutine2 f,
 						u32 nparam, u32 *params);

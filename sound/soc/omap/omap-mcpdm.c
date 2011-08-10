@@ -76,11 +76,9 @@ struct omap_mcpdm {
 	/* channel data */
 	u32 dn_channels;
 	u32 up_channels;
-	int dl_active;
-	int ul_active;
 	int active;
-	int abe_enabled;
-	int abe_mode[2];
+	int powered;
+	int abe_mode;
 
 	/* DC offset */
 	unsigned long dl1_offset;
@@ -160,53 +158,34 @@ static void omap_mcpdm_reg_dump(struct omap_mcpdm *mcpdm) {}
 
 /*
  * Enables the transfer through the PDM interface to/from the Phoenix
- * codec by enabling the corresponding UP or DN channels.
+ * codec by enabling the corresponding UP and DN channels.
  */
-static void omap_mcpdm_start(struct omap_mcpdm *mcpdm, int stream)
+static void omap_mcpdm_start(struct omap_mcpdm *mcpdm)
 {
 	u32 ctrl = omap_mcpdm_read(mcpdm, MCPDM_CTRL);
 
-	if (stream) {
-		ctrl |= SW_UP_RST;
-		omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
-		ctrl |= mcpdm->up_channels;
-		omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
-		ctrl &= ~SW_UP_RST;
-		omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
-	} else {
-		ctrl |= SW_DN_RST;
-		omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
-		ctrl |= mcpdm->dn_channels;
-		omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
-		ctrl &= ~SW_DN_RST;
-		omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
-	}
+	ctrl |= (SW_UP_RST | SW_DN_RST);
+	omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
+	ctrl |= (mcpdm->up_channels | mcpdm->dn_channels);
+	omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
+	ctrl &= ~(SW_UP_RST | SW_DN_RST);
+	omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
 }
 
 /*
  * Disables the transfer through the PDM interface to/from the Phoenix
- * codec by disabling the corresponding UP or DN channels.
+ * codec by disabling the corresponding UP and DN channels.
  */
-static void omap_mcpdm_stop(struct omap_mcpdm *mcpdm, int stream)
+static void omap_mcpdm_stop(struct omap_mcpdm *mcpdm)
 {
 	u32 ctrl = omap_mcpdm_read(mcpdm, MCPDM_CTRL);
 
-	if (stream) {
-		ctrl |= SW_UP_RST;
-		omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
-		ctrl &= ~mcpdm->up_channels;
-		omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
-		ctrl &= ~SW_UP_RST;
-		omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
-	} else {
-		ctrl |= SW_DN_RST;
-		omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
-		ctrl &= ~mcpdm->dn_channels;
-		omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
-		ctrl &= ~SW_DN_RST;
-		omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
-	}
-
+	ctrl |= (SW_UP_RST | SW_DN_RST);
+	omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
+	ctrl &= ~(mcpdm->up_channels | mcpdm->dn_channels);
+	omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
+	ctrl &= ~(SW_UP_RST | SW_DN_RST);
+	omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl);
 }
 
 /*
@@ -218,65 +197,39 @@ static inline int omap_mcpdm_active(struct omap_mcpdm *mcpdm)
 }
 
 /*
- * Configures McPDM uplink for audio recording.
+ * Configures McPDM uplink/downlink for audio recording/playback
  * This function should be called before omap_mcpdm_start.
  */
-static void omap_mcpdm_capture_open(struct omap_mcpdm *mcpdm)
+static void omap_mcpdm_open(struct omap_mcpdm *mcpdm)
 {
 	/* Enable irq request generation */
 	omap_mcpdm_write(mcpdm, MCPDM_IRQENABLE_SET,
-			MCPDM_UP_IRQ_EMPTY | MCPDM_UP_IRQ_FULL);
+			MCPDM_UP_IRQ_EMPTY | MCPDM_UP_IRQ_FULL |
+			MCPDM_DN_IRQ_EMPTY | MCPDM_DN_IRQ_FULL);
 
 	/* Configure uplink threshold */
 	omap_mcpdm_write(mcpdm, MCPDM_FIFO_CTRL_UP, 2);
-
-	/* Configure DMA controller */
-	omap_mcpdm_write(mcpdm, MCPDM_DMAENABLE_SET, DMA_UP_ENABLE);
-}
-
-/*
- * Configures McPDM downlink for audio playback.
- * This function should be called before omap_mcpdm_start.
- */
-static void omap_mcpdm_playback_open(struct omap_mcpdm *mcpdm)
-{
-	/* Enable irq request generation */
-	omap_mcpdm_write(mcpdm, MCPDM_IRQENABLE_SET,
-			MCPDM_DN_IRQ_EMPTY | MCPDM_DN_IRQ_FULL);
-
-	/* Configure uplink threshold */
 	omap_mcpdm_write(mcpdm, MCPDM_FIFO_CTRL_DN, 2);
 
-	/* Enable DMA request generation */
-	omap_mcpdm_write(mcpdm, MCPDM_DMAENABLE_SET, DMA_DN_ENABLE);
+	/* Configure DMA controller */
+	omap_mcpdm_write(mcpdm, MCPDM_DMAENABLE_SET,
+			DMA_UP_ENABLE | DMA_DN_ENABLE);
 }
 
 /*
- * Cleans McPDM uplink configuration.
+ * Cleans McPDM uplink/downlink configuration.
  * This function should be called when the stream is closed.
  */
-static void omap_mcpdm_capture_close(struct omap_mcpdm *mcpdm)
+static void omap_mcpdm_close(struct omap_mcpdm *mcpdm)
 {
 	/* Disable irq request generation */
 	omap_mcpdm_write(mcpdm, MCPDM_IRQENABLE_CLR,
-			MCPDM_UP_IRQ_EMPTY | MCPDM_UP_IRQ_FULL);
-
-	/* Disable DMA request generation */
-	omap_mcpdm_write(mcpdm, MCPDM_DMAENABLE_CLR, DMA_UP_ENABLE);
-}
-
-/*
- * Cleans McPDM downlink configuration.
- * This function should be called when the stream is closed.
- */
-static void omap_mcpdm_playback_close(struct omap_mcpdm *mcpdm)
-{
-	/* Disable irq request generation */
-	omap_mcpdm_write(mcpdm, MCPDM_IRQENABLE_CLR,
+			MCPDM_UP_IRQ_EMPTY | MCPDM_UP_IRQ_FULL |
 			MCPDM_DN_IRQ_EMPTY | MCPDM_DN_IRQ_FULL);
 
 	/* Disable DMA request generation */
-	omap_mcpdm_write(mcpdm, MCPDM_DMAENABLE_CLR, DMA_DN_ENABLE);
+	omap_mcpdm_write(mcpdm, MCPDM_DMAENABLE_CLR,
+			DMA_UP_ENABLE | DMA_DN_ENABLE);
 }
 
 static irqreturn_t omap_mcpdm_irq_handler(int irq, void *dev_id)
@@ -412,41 +365,37 @@ static int omap_mcpdm_dai_startup(struct snd_pcm_substream *substream,
 	dev_dbg(dai->dev, "%s: active %d\n", __func__, dai->active);
 
 	/* make sure we stop any pre-existing shutdown */
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		cancel_delayed_work(&mcpdm->delayed_work);
+	cancel_delayed_work_sync(&mcpdm->delayed_work);
 
 	mutex_lock(&mcpdm->mutex);
 
-	if (!dai->active) {
-		if (!mcpdm->active) {
-			pm_runtime_get_sync(mcpdm->dev);
-			mcpdm->active = 1;
-		}
-
-		omap_mcpdm_set_offset(mcpdm);
-
-		/* Enable McPDM watch dog for ES above ES 1.0 to avoid saturation */
-		if (omap_rev() != OMAP4430_REV_ES1_0) {
-			ctrl = omap_mcpdm_read(mcpdm, MCPDM_CTRL);
-			omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl | WD_EN);
-		}
-	}
-
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		mcpdm->dl_active++;
-		omap_mcpdm_playback_open(mcpdm);
-	} else {
-		mcpdm->ul_active++;
-		omap_mcpdm_capture_open(mcpdm);
-	}
-
-	if (dai->id > 1)
-		mcpdm->abe_mode[substream->stream] = 1;
+	if (dai->id >= MCPDM_ABE_DAI_DL1)
+		mcpdm->abe_mode = 1;
 	else
-		mcpdm->abe_mode[substream->stream] = 0;
+		mcpdm->abe_mode = 0;
 
+	/* nothing to do if already active */
+	if (mcpdm->active++ || mcpdm->powered)
+		goto out;
+
+	pm_runtime_get_sync(mcpdm->dev);
+
+	if (mcpdm->abe_mode)
+		abe_dsp_pm_get();
+
+	mcpdm->powered = 1;
+
+	/* Enable McPDM watch dog for ES above ES 1.0 to avoid saturation */
+	if (omap_rev() != OMAP4430_REV_ES1_0) {
+		ctrl = omap_mcpdm_read(mcpdm, MCPDM_CTRL);
+		omap_mcpdm_write(mcpdm, MCPDM_CTRL, ctrl | WD_EN);
+	}
+
+	omap_mcpdm_set_offset(mcpdm);
+	omap_mcpdm_open(mcpdm);
+
+out:
 	mutex_unlock(&mcpdm->mutex);
-
 	return err;
 }
 
@@ -458,27 +407,33 @@ static void playback_work(struct work_struct *work)
 
 	mutex_lock(&mcpdm->mutex);
 
-	if (!mcpdm->dl_active) {
-		/* ABE playback stop handled by delayed work */
-		if (mcpdm->abe_mode[SNDRV_PCM_STREAM_PLAYBACK]) {
-			if (mcpdm->abe_enabled) {
-				omap_abe_port_disable(mcpdm->abe, mcpdm->dl_port);
-				udelay(250);
-				omap_mcpdm_stop(mcpdm, SNDRV_PCM_STREAM_PLAYBACK);
-				abe_dsp_shutdown();
-				abe_dsp_pm_put();
-			}
-			omap_mcpdm_playback_close(mcpdm);
-			mcpdm->abe_enabled = 0;
-		} else
-			omap_mcpdm_playback_close(mcpdm);
+	/*
+	 * still active or another stream started while
+	 * delayed work was waiting for execution
+	 */
+	if (!mcpdm->powered || mcpdm->active)
+		goto out;
+
+	/* ABE playback stop handled by delayed work */
+	if (mcpdm->abe_mode) {
+		if (omap_mcpdm_active(mcpdm)) {
+			omap_abe_port_disable(mcpdm->abe, mcpdm->dl_port);
+			omap_abe_port_disable(mcpdm->abe, mcpdm->ul_port);
+			udelay(250);
+			omap_mcpdm_stop(mcpdm);
+		}
+		omap_mcpdm_close(mcpdm);
+		abe_dsp_shutdown();
+		abe_dsp_pm_put();
+	} else {
+		omap_mcpdm_stop(mcpdm);
+		omap_mcpdm_close(mcpdm);
 	}
 
-	if (!omap_mcpdm_active(mcpdm)) {
-		pm_runtime_put_sync(mcpdm->dev);
-		mcpdm->active = 0;
-	}
+	pm_runtime_put_sync(mcpdm->dev);
+	mcpdm->powered = 0;
 
+out:
 	mutex_unlock(&mcpdm->mutex);
 }
 
@@ -491,21 +446,9 @@ static void omap_mcpdm_dai_shutdown(struct snd_pcm_substream *substream,
 
 	mutex_lock(&mcpdm->mutex);
 
-	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
-		if (!--mcpdm->ul_active) {
-			omap_mcpdm_capture_close(mcpdm);
-
-			/* power down if McPDM is not running */
-			if (!omap_mcpdm_active(mcpdm)) {
-				pm_runtime_put_sync(mcpdm->dev);
-				mcpdm->active = 0;
-			}
-		}
-	} else {
-		if (!--mcpdm->dl_active)
-			schedule_delayed_work(&mcpdm->delayed_work,
-					msecs_to_jiffies(1000)); /* TODO: pdata ? */
-	}
+	if (!--mcpdm->active)
+		schedule_delayed_work(&mcpdm->delayed_work,
+				msecs_to_jiffies(1000)); /* TODO: pdata ? */
 
 	mutex_unlock(&mcpdm->mutex);
 }
@@ -521,12 +464,10 @@ static int omap_mcpdm_dai_hw_params(struct snd_pcm_substream *substream,
 	snd_soc_dai_set_dma_data(dai, substream,
 				 &omap_mcpdm_dai_dma_params[stream]);
 
-	/* ABE DAIs have fixed channels and IDs > MCPDM_LEGACY_DAI_DL1 */
-	if (dai->id > MCPDM_LEGACY_DAI_DL1) {
-		if (stream == SNDRV_PCM_STREAM_PLAYBACK)
-			mcpdm->dn_channels = PDM_DN_MASK | PDM_CMD_MASK;
-		else
-			mcpdm->up_channels = PDM_UP1_EN | PDM_UP2_EN;
+	/* ABE DAIs have fixed channels */
+	if (mcpdm->abe_mode) {
+		mcpdm->dn_channels = PDM_DN_MASK | PDM_CMD_MASK;
+		mcpdm->up_channels = PDM_UP1_EN | PDM_UP2_EN;
 		return 0;
 	}
 
@@ -567,30 +508,26 @@ static int omap_mcpdm_prepare(struct snd_pcm_substream *substream,
 {
 	struct omap_mcpdm *mcpdm = snd_soc_dai_get_drvdata(dai);
 
-	/* We only need to prepare for ABE playback */
-	if (dai->id < MCPDM_ABE_DAI_DL1)
-		return 0;
-
 	mutex_lock(&mcpdm->mutex);
 
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+	if (omap_mcpdm_active(mcpdm))
+		goto out;
 
-		/* Check if ABE McPDM DL is already started */
-		if (omap_abe_port_is_enabled(mcpdm->abe, mcpdm->dl_port))
+	if (mcpdm->abe_mode) {
+		/* Check if ABE McPDM is already started */
+		if (omap_abe_port_is_enabled(mcpdm->abe, mcpdm->ul_port) ||
+		    omap_abe_port_is_enabled(mcpdm->abe, mcpdm->dl_port))
 			goto out;
-
-		abe_dsp_pm_get();
 
 		/* start ATC before McPDM IP */
 		omap_abe_port_enable(mcpdm->abe, mcpdm->dl_port);
+		omap_abe_port_enable(mcpdm->abe, mcpdm->ul_port);
 
 		/* wait 250us for ABE tick */
 		udelay(250);
-
-		mcpdm->abe_enabled = 1;
-
-		omap_mcpdm_start(mcpdm, SNDRV_PCM_STREAM_PLAYBACK);
 	}
+
+	omap_mcpdm_start(mcpdm);
 
 out:
 	mutex_unlock(&mcpdm->mutex);
@@ -601,30 +538,17 @@ static int omap_mcpdm_dai_trigger(struct snd_pcm_substream *substream,
 				  int cmd, struct snd_soc_dai *dai)
 {
 	struct omap_mcpdm *mcpdm = snd_soc_dai_get_drvdata(dai);
-	int stream = substream->stream;
 
 	dev_dbg(dai->dev, "cmd %d\n", cmd);
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
-		/* ABE playback start handled by hw_params to prevent pop-noise */
-		if (dai->id == MCPDM_ABE_DAI_DL1 ||
-		    dai->id == MCPDM_ABE_DAI_DL2 ||
-		    dai->id == MCPDM_ABE_DAI_VIB)
-			return 0;
-		omap_mcpdm_start(mcpdm, stream);
 		break;
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		break;
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
-		/* ABE playback stop handled by delayed work */
-		if (dai->id == MCPDM_ABE_DAI_DL1 ||
-		    dai->id == MCPDM_ABE_DAI_DL2 ||
-		    dai->id == MCPDM_ABE_DAI_VIB)
-			return 0;
-		omap_mcpdm_stop(mcpdm, stream);
 		break;
 	default:
 		break;
@@ -810,20 +734,33 @@ static __devinit int asoc_mcpdm_probe(struct platform_device *pdev)
 	defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 
 	mcpdm->abe = omap_abe_port_mgr_get();
+	if (!mcpdm->abe)
+		goto err_irq;
+
+	mcpdm->ul_port = omap_abe_port_open(mcpdm->abe, OMAP_ABE_BE_PORT_PDM_UL1);
+	if (!mcpdm->ul_port)
+		goto err_ul;
 
 	mcpdm->dl_port = omap_abe_port_open(mcpdm->abe, OMAP_ABE_BE_PORT_PDM_DL1);
-	if (mcpdm->dl_port == NULL)
-		goto err_irq;
+	if (!mcpdm->dl_port)
+		goto err_dl;
 #endif
 
 	ret = snd_soc_register_dais(&pdev->dev, omap_mcpdm_dai,
 			ARRAY_SIZE(omap_mcpdm_dai));
-	if (ret == 0)
-		return 0;
+	if (ret < 0)
+		goto err_dai;
 
+	return 0;
+
+err_dai:
 #if defined(CONFIG_SND_OMAP_SOC_ABE_DSP) ||\
 	defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	omap_abe_port_close(mcpdm->abe, mcpdm->dl_port);
+err_dl:
+	omap_abe_port_close(mcpdm->abe, mcpdm->ul_port);
+err_ul:
+	omap_abe_port_mgr_put(mcpdm->abe);
 #endif
 err_irq:
 	iounmap(mcpdm->io_base);
@@ -849,6 +786,7 @@ static int __devexit asoc_mcpdm_remove(struct platform_device *pdev)
 #if defined(CONFIG_SND_OMAP_SOC_ABE_DSP) ||\
 	defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 	omap_abe_port_close(mcpdm->abe, mcpdm->dl_port);
+	omap_abe_port_close(mcpdm->abe, mcpdm->ul_port);
 	omap_abe_port_mgr_put(mcpdm->abe);
 #endif
 
