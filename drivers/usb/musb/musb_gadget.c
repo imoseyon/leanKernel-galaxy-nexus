@@ -1698,17 +1698,17 @@ static int musb_gadget_pullup(struct usb_gadget *gadget, int is_on)
 
 	is_on = !!is_on;
 
+	pm_runtime_get_sync(musb->controller);
 	/* NOTE: this assumes we are sensing vbus; we'd rather
 	 * not pullup unless the B-session is active.
 	 */
 	spin_lock_irqsave(&musb->lock, flags);
 	if (is_on != musb->softconnect) {
 		musb->softconnect = is_on;
-		pm_runtime_get_sync(musb->controller);
 		musb_pullup(musb, is_on);
-		pm_runtime_put(musb->controller);
 	}
 	spin_unlock_irqrestore(&musb->lock, flags);
+	pm_runtime_put(musb->controller);
 	return 0;
 }
 
