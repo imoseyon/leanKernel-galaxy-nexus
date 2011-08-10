@@ -26,6 +26,7 @@
 #include <linux/delay.h>
 
 #include <plat/cpu.h>
+#include <plat/omap-pm.h>
 
 #include "board-tuna.h"
 #include "mux.h"
@@ -506,4 +507,6 @@ void __init omap4_tuna_power_init(void)
 
 	if (enable_sr)
 		omap_enable_smartreflex_on_init();
+
+	omap_pm_enable_off_mode();
 }
