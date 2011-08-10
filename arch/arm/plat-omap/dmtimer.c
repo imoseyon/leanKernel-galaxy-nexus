@@ -314,17 +314,23 @@ static void omap_dm_timer_reset(struct omap_dm_timer *timer)
 		omap_dm_timer_disable(timer);
 }
 
-static void omap_dm_timer_prepare(struct omap_dm_timer *timer)
+static int omap_dm_timer_prepare(struct omap_dm_timer *timer)
 {
+	int ret;
+
 	timer->fclk = clk_get(&timer->pdev->dev, "fck");
 	if (WARN_ON_ONCE(IS_ERR_OR_NULL(timer->fclk))) {
 		timer->fclk = NULL;
 		dev_err(&timer->pdev->dev, ": No fclk handle.\n");
-		return;
+		return -EINVAL;
 	}
 
 	if (unlikely(timer->is_early_init)) {
-		clk_enable(timer->fclk);
+		ret = clk_enable(timer->fclk);
+		if (ret) {
+			clk_put(timer->fclk);
+			return -EINVAL;
+		}
 		goto end;
 	}
 
@@ -345,11 +351,13 @@ end:
 		omap_dm_timer_disable(timer);
 
 	timer->posted = 1;
+	return 0;
 }
 
 struct omap_dm_timer *omap_dm_timer_request(void)
 {
 	struct omap_dm_timer *timer = NULL, *t;
+	int ret;
 
 	mutex_lock(&dm_timer_mutex);
 	list_for_each_entry(t, &omap_timer_list, node) {
@@ -362,10 +370,15 @@ struct omap_dm_timer *omap_dm_timer_request(void)
 	}
 	mutex_unlock(&dm_timer_mutex);
 
-	if (timer)
-		omap_dm_timer_prepare(timer);
-	else
+	if (!timer) {
 		pr_debug("%s: free timer not available.\n", __func__);
+		return NULL;
+	}
+	ret = omap_dm_timer_prepare(timer);
+	if (ret) {
+		timer->reserved = 0;
+		return NULL;
+	}
 
 	return timer;
 }
@@ -374,6 +387,7 @@ EXPORT_SYMBOL_GPL(omap_dm_timer_request);
 struct omap_dm_timer *omap_dm_timer_request_specific(int id)
 {
 	struct omap_dm_timer *timer = NULL, *t;
+	int ret;
 
 	mutex_lock(&dm_timer_mutex);
 	list_for_each_entry(t, &omap_timer_list, node) {
@@ -385,10 +399,15 @@ struct omap_dm_timer *omap_dm_timer_request_specific(int id)
 	}
 	mutex_unlock(&dm_timer_mutex);
 
-	if (timer)
-		omap_dm_timer_prepare(timer);
-	else
+	if (!timer) {
 		pr_debug("%s: timer%d not available.\n", __func__, id);
+		return NULL;
+	}
+	ret = omap_dm_timer_prepare(timer);
+	if (ret) {
+		timer->reserved = 0;
+		return NULL;
+	}
 
 	return timer;
 }
