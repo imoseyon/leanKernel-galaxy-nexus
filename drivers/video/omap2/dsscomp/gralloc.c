@@ -265,7 +265,13 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 		/* map non-TILER buffers to 1D */
 		if (pas[i] && oi->cfg.enabled) {
 			struct tiler1d_slot *slot = NULL;
-			down(&free_slots_sem);
+			if (down_timeout(&free_slots_sem,
+						msecs_to_jiffies(100))) {
+				dev_warn(DEV(cdev), "could not obtain tiler slot");
+				/* disable unpinned layers */
+				oi->cfg.enabled = false;
+				continue;
+			}
 			mutex_lock(&mtx);
 			slot = list_first_entry(&free_slots, typeof(*slot), q);
 			r = tiler_pin_block(slot->slot, pas[i]->mem,
@@ -278,7 +284,7 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 				up(&free_slots_sem);
 				/* disable unpinned layers */
 				oi->cfg.enabled = false;
-				break;
+				continue;
 			}
 			list_move(&slot->q, &gsync->slots);
 			oi->ba = slot->phys + (oi->ba & ~PAGE_MASK);
