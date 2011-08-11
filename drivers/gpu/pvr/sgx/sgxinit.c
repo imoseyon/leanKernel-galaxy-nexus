@@ -1333,7 +1333,7 @@ SGX_NoUKernel_LockUp:
 		psSGXHostCtl->ui32HostDetectedLockups ++;
 
 		
-		HWRecoveryResetSGX(psDeviceNode, 0, KERNEL_ID);
+		HWRecoveryResetSGX(psDeviceNode, 0, ISR_ID);
 	}
 }
 #endif 
