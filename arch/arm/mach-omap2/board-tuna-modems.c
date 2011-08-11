@@ -439,6 +439,10 @@ static void cdma_modem_cfg_gpio(void)
 		return;
 	}
 
+	omap_mux_init_signal("abe_dmic_din1.gpio_120", OMAP_PIN_INPUT);
+	omap_mux_init_signal("abe_dmic_clk1.gpio_119", OMAP_PIN_OUTPUT |
+				OMAP_PIN_OFF_OUTPUT_LOW);
+
 	/* gpio mux setting */
 	if (gpio_cp_rst) {
 		gpio_request(gpio_cp_rst, "CP_RST");
@@ -723,7 +727,7 @@ static struct platform_device lte_modem = {
 void __init modem_toro_init(void)
 {
 	lte_modem_wake.dev.platform_data =
-				(void*)lte_modem_data.gpio_slave_wakeup;
+				(void *)lte_modem_data.gpio_slave_wakeup;
 	platform_device_register(&lte_modem_wake);
 }
 
