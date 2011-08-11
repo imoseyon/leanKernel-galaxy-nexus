@@ -655,7 +655,7 @@ static ssize_t misc_read(struct file *filp, char *buf, size_t count,
 	}
 
 	if (skb->len > count) {
-		pr_err("[MODEM_IF] skb len is too big = %d,%d!(%d)",
+		pr_err("[MODEM_IF] skb len is too big = %d,%d!(%d)\n",
 				count, skb->len, __LINE__);
 		dev_kfree_skb_any(skb);
 		return -EFAULT;
@@ -790,9 +790,9 @@ int init_io_device(struct io_device *iod)
 		if (ret)
 			free_netdev(iod->ndev);
 
-		pr_err("%s: %d(iod:0x%p)", __func__, __LINE__, iod);
+		pr_debug("%s: %d(iod:0x%p)\n", __func__, __LINE__, iod);
 		vnet = netdev_priv(iod->ndev);
-		pr_err("%s: %d(vnet:0x%p)", __func__, __LINE__, vnet);
+		pr_debug("%s: %d(vnet:0x%p)\n", __func__, __LINE__, vnet);
 		vnet->iod = iod;
 
 		break;
