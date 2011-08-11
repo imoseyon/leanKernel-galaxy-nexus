@@ -1338,45 +1338,6 @@ static int twl6040_add_widgets(struct snd_soc_codec *codec)
 	return 0;
 }
 
-static int twl6040_set_bias_level(struct snd_soc_codec *codec,
-				enum snd_soc_bias_level level)
-{
-	struct twl6040 *twl6040 = codec->control_data;
-	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
-
-	switch (level) {
-	case SND_SOC_BIAS_ON:
-		break;
-	case SND_SOC_BIAS_PREPARE:
-		break;
-	case SND_SOC_BIAS_STANDBY:
-		if (priv->codec_powered)
-			break;
-
-		twl6040_enable(twl6040);
-		priv->codec_powered = 1;
-
-		/* initialize vdd/vss registers with reg_cache */
-		twl6040_init_vdd_regs(codec);
-
-		break;
-	case SND_SOC_BIAS_OFF:
-		if (!priv->codec_powered)
-			break;
-
-		twl6040_disable(twl6040);
-		priv->codec_powered = 0;
-		break;
-	}
-
-	codec->dapm.bias_level = level;
-	/* get pll and sysclk after power transition */
-	priv->pll = twl6040_get_pll(twl6040);
-	priv->sysclk = twl6040_get_sysclk(twl6040);
-
-	return 0;
-}
-
 /* set of rates for each pll: low-power and high-performance */
 
 static unsigned int lp_rates[] = {
@@ -1403,6 +1364,48 @@ static unsigned int hp_rates[] = {
 	48000,
 	96000,
 };
+
+static int twl6040_set_bias_level(struct snd_soc_codec *codec,
+				enum snd_soc_bias_level level)
+{
+	struct twl6040 *twl6040 = codec->control_data;
+	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
+
+	switch (level) {
+	case SND_SOC_BIAS_ON:
+		break;
+	case SND_SOC_BIAS_PREPARE:
+		break;
+	case SND_SOC_BIAS_STANDBY:
+		if (priv->codec_powered)
+			break;
+
+		twl6040_enable(twl6040);
+		priv->codec_powered = 1;
+
+		priv->sysclk_constraints = &lp_constraints;
+
+		/* initialize vdd/vss registers with reg_cache */
+		twl6040_init_vdd_regs(codec);
+
+		break;
+	case SND_SOC_BIAS_OFF:
+		if (!priv->codec_powered)
+			break;
+
+		twl6040_disable(twl6040);
+		priv->codec_powered = 0;
+		break;
+	}
+
+	codec->dapm.bias_level = level;
+	/* get pll and sysclk after power transition */
+	priv->pll = twl6040_get_pll(twl6040);
+	priv->sysclk = twl6040_get_sysclk(twl6040);
+
+	return 0;
+}
+
 
 static struct snd_pcm_hw_constraint_list hp_constraints = {
 	.count	= ARRAY_SIZE(hp_rates),
@@ -1641,9 +1644,9 @@ static int twl6040_probe(struct snd_soc_codec *codec)
 	else
 		priv->ep_step = 1;
 
-	/* default is high-performance mode */
+	/* default is low-power mode */
 	priv->headset_mode = 1;
-	priv->sysclk_constraints = &hp_constraints;
+	priv->sysclk_constraints = &lp_constraints;
 	priv->workqueue = create_singlethread_workqueue("twl6040-codec");
 
 	if (!priv->workqueue) {
