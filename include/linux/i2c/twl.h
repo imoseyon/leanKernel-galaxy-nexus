@@ -719,6 +719,7 @@ struct twl4030_platform_data {
 	/* TWL6030 DCDC regulators */
 	struct regulator_init_data		*vdd3;
 	struct regulator_init_data		*vmem;
+	struct regulator_init_data		*v2v1;
 	/* TWL6030 LDO regulators */
 	struct regulator_init_data              *vmmc;
 	struct regulator_init_data              *vpp;

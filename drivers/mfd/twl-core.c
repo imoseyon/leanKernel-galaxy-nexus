@@ -980,6 +980,11 @@ add_children(struct twl4030_platform_data *pdata, unsigned long features)
 					features);
 		if (IS_ERR(child))
 			return PTR_ERR(child);
+
+		child = add_regulator(TWL6030_REG_V2V1, pdata->v2v1,
+					features);
+		if (IS_ERR(child))
+			return PTR_ERR(child);
 	}
 
 	/* 6030 and 6025 share this regulator */
