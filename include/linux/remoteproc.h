@@ -239,7 +239,9 @@ enum rproc_event {
  * @nb_error: notify block for fatal errors
  * @error_comp: completion used when an error happens
  * @secure_ttb: private data for configuring iommu in secure mode
+ * @secure_restart: completion event notifier for the secure restart process
  * @secure_mode: flag to dictate whether to enable secure loading
+ * @secure_ok: restart status flag to be looked up upon the event's completion
  */
 struct rproc {
 	struct list_head next;
@@ -276,7 +278,9 @@ struct rproc {
 #endif
 	struct pm_qos_request_list *qos_request;
 	void *secure_ttb;
+	struct completion secure_restart;
 	bool secure_mode;
+	bool secure_ok;
 	bool halt_on_crash;
 };
 

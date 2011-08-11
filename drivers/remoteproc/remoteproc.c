@@ -660,7 +660,7 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 		err = rproc->ops->iommu_init(rproc, rproc_mmu_fault_isr);
 		if (err) {
 			dev_err(dev, "can't configure iommu %d\n", err);
-			goto unlock_mutext;
+			goto unlock_mutex;
 		}
 	}
 
@@ -669,7 +669,7 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 		if (err) {
 			dev_err(dev, "can't configure watchdog timer %d\n",
 				err);
-			goto unlock_mutext;
+			goto unlock_mutex;
 		}
 	}
 
@@ -681,7 +681,7 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 	err = rproc->ops->start(rproc, bootaddr);
 	if (err) {
 		dev_err(dev, "can't start rproc %s: %d\n", rproc->name, err);
-		goto unlock_mutext;
+		goto unlock_mutex;
 	}
 
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
@@ -698,7 +698,14 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 
 	dev_info(dev, "remote processor %s is now up\n", rproc->name);
 
-unlock_mutext:
+unlock_mutex:
+	/*
+	 * signal always, as we would need a notification in both the
+	 * normal->secure & secure->normal mode transitions, otherwise
+	 * we would have to introduce one more variable.
+	 */
+	rproc->secure_ok = !err;
+	complete_all(&rproc->secure_restart);
 	mutex_unlock(&rproc->lock);
 }
 
@@ -1173,6 +1180,8 @@ int rproc_set_secure(const char *name, bool enable)
 	 */
 	rproc->secure_mode = enable;
 	rproc->secure_ttb = NULL;
+	rproc->secure_ok = false;
+	init_completion(&rproc->secure_restart);
 
 	/*
 	 * restart the processor, the mode will dictate regular load or
@@ -1180,7 +1189,13 @@ int rproc_set_secure(const char *name, bool enable)
 	 */
 	_event_notify(rproc, RPROC_ERROR, NULL);
 
-	return 0;
+	/* block until the restart is complete */
+	if (wait_for_completion_interruptible(&rproc->secure_restart)) {
+		pr_err("error waiting restart completion\n");
+		return -EINTR;
+	}
+
+	return rproc->secure_ok ? 0 : -EACCES;
 }
 EXPORT_SYMBOL(rproc_set_secure);
 
@@ -1677,6 +1692,7 @@ int rproc_register(struct device *dev, const char *name,
 
 	rproc->secure_mode = false;
 	rproc->secure_ttb = NULL;
+	init_completion(&rproc->secure_restart);
 
 	spin_lock(&rprocs_lock);
 	list_add_tail(&rproc->next, &rprocs);
