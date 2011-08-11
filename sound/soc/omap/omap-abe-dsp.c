@@ -1807,20 +1807,10 @@ static const struct snd_pcm_hardware omap_abe_hardware = {
 };
 
 
-static int abe_set_opp_mode(struct abe_data *abe)
+static int abe_set_opp_mode(struct abe_data *abe, int opp)
 {
 	struct omap4_abe_dsp_pdata *pdata = abe->abe_pdata;
-	int i, opp = 0, ret = 0;
-
-	/* now calculate OPP level based upon DAPM widget status */
-	for (i = 0; i < ABE_NUM_WIDGETS; i++) {
-		if (abe->widget_opp[ABE_WIDGET(i)]) {
-			dev_dbg(abe->dev, "OPP: id %d = %d%%\n", i,
-					abe->widget_opp[ABE_WIDGET(i)] * 25);
-			opp |= abe->widget_opp[ABE_WIDGET(i)];
-		}
-	}
-	opp = (1 << (fls(opp) - 1)) * 25;
+	int ret = 0;
 
 	if (abe->opp > opp) {
 		/* Decrease OPP mode - no need of OPP100% */
@@ -1892,10 +1882,22 @@ err_scale:
 
 static int aess_set_runtime_opp_level(struct abe_data *abe)
 {
+	int i, opp = 0;
+
 	mutex_lock(&abe->opp_mutex);
 
+	/* now calculate OPP level based upon DAPM widget status */
+	for (i = 0; i < ABE_NUM_WIDGETS; i++) {
+		if (abe->widget_opp[ABE_WIDGET(i)]) {
+			dev_dbg(abe->dev, "OPP: id %d = %d%%\n", i,
+					abe->widget_opp[ABE_WIDGET(i)] * 25);
+			opp |= abe->widget_opp[ABE_WIDGET(i)];
+		}
+	}
+	opp = (1 << (fls(opp) - 1)) * 25;
+
 	pm_runtime_get_sync(abe->dev);
-	abe_set_opp_mode(abe);
+	abe_set_opp_mode(abe, opp);
 	pm_runtime_put_sync(abe->dev);
 
 	mutex_unlock(&abe->opp_mutex);
@@ -2020,9 +2022,8 @@ static int aess_open(struct snd_pcm_substream *substream)
 	pm_runtime_get_sync(abe->dev);
 
 	if (!abe->active++) {
-		abe->opp = 0;
+		abe_set_opp_mode(abe, 100);
 		aess_restore_context(abe);
-		abe_set_opp_mode(abe);
 		abe_wakeup();
 	}
 
@@ -2185,12 +2186,8 @@ static int aess_stream_event(struct snd_soc_dapm_context *dapm)
 	struct snd_soc_platform *platform = dapm->platform;
 	struct abe_data *abe = snd_soc_platform_get_drvdata(platform);
 
-	pm_runtime_get_sync(abe->dev);
-
 	if (abe->active)
 		aess_set_runtime_opp_level(abe);
-
-	pm_runtime_put_sync(abe->dev);
 
 	return 0;
 }

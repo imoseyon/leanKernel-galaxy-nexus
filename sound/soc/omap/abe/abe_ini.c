@@ -128,6 +128,9 @@ int abe_load_fw_param(u32 *ABE_FW)
 {
 	u32 pmem_size, dmem_size, smem_size, cmem_size;
 	u32 *pmem_ptr, *dmem_ptr, *smem_ptr, *cmem_ptr, *fw_ptr;
+	/* fast counter timer set at 4096 * 250us = 1,024s */
+	u32 data = 0x10001000;
+
 	_log(ABE_ID_LOAD_FW_param, 0, 0, 0);
 #define ABE_FW_OFFSET 5
 	fw_ptr = ABE_FW;
@@ -152,6 +155,10 @@ int abe_load_fw_param(u32 *ABE_FW)
 			       smem_size);
 		omap_abe_mem_write(abe, OMAP_ABE_DMEM, 0, dmem_ptr,
 			       dmem_size);
+		omap_abe_mem_write(abe, OMAP_ABE_DMEM,
+				OMAP_ABE_D_FASTCOUNTER_ADDR,
+				&data,
+				OMAP_ABE_D_FASTCOUNTER_SIZE);
 		/* Restore the event Generator status */
 		omap_abe_start_event_generator(abe);
 	} else {
@@ -163,6 +170,10 @@ int abe_load_fw_param(u32 *ABE_FW)
 			       smem_size);
 		omap_abe_mem_write(abe, OMAP_ABE_DMEM, 0, dmem_ptr,
 			       dmem_size);
+		omap_abe_mem_write(abe, OMAP_ABE_DMEM,
+			       OMAP_ABE_D_FASTCOUNTER_ADDR,
+			       &data,
+			       OMAP_ABE_D_FASTCOUNTER_SIZE);
 	}
 	abe->warm_boot = 1;
 	return 0;
