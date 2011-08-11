@@ -334,7 +334,7 @@ static int if_usb_suspend(struct usb_interface *intf, pm_message_t message)
 	struct usb_link_device *usb_ld = usb_get_intfdata(intf);
 	int i;
 
-	if (atomic_inc_return(&usb_ld->suspend_count)) {
+	if (atomic_inc_return(&usb_ld->suspend_count) == IF_USB_DEVNUM_MAX) {
 		pr_debug("%s\n", __func__);
 
 		for (i = 0; i < IF_USB_DEVNUM_MAX; i++)
@@ -510,7 +510,6 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 
 	usb_ld->usbdev = usbdev;
 	usb_ld->driver_info = (unsigned long)id->driver_info;
-	atomic_set(&usb_ld->suspend_count, 1);
 
 	usb_get_dev(usbdev);
 
@@ -574,6 +573,7 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 	}
 
 	/* temporary call reset_resume */
+	atomic_set(&usb_ld->suspend_count, 1);
 	if_usb_reset_resume(data_intf);
 
 	SET_HOST_ACTIVE(usb_ld->pdata, 1);
