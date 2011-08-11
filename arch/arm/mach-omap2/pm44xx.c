@@ -31,6 +31,7 @@
 #include <plat/prcm.h>
 #include <plat/omap-pm.h>
 #include <plat/gpmc.h>
+#include <plat/dma.h>
 
 #include "powerdomain.h"
 #include "clockdomain.h"
@@ -157,6 +158,7 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 	if (omap4_device_next_state_off()) {
 		omap2_gpio_prepare_for_idle(true);
 		omap_gpmc_save_context();
+		omap_dma_global_context_save();
 	}
 
 	if (suspend && cpu_is_omap44xx())
@@ -197,6 +199,7 @@ abort_device_off:
 	}
 
 	if (omap4_device_prev_state_off()) {
+		omap_dma_global_context_restore();
 		omap_gpmc_restore_context();
 		omap2_gpio_resume_after_idle();
 	}
