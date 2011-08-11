@@ -166,6 +166,10 @@ struct dpram_link_device {
 	unsigned long  raw_out_buff_size;
 	unsigned long  fmt_in_buff_size;
 	unsigned long  raw_in_buff_size;
+
+	struct delayed_work delayed_tx;
+	struct sk_buff *delayed_skb;
+	u8 delayed_count;
 };
 /* converts from struct link_device* to struct xxx_link_device* */
 #define to_dpram_link_device(linkdev) \

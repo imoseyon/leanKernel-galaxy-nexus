@@ -47,6 +47,8 @@ static int cbp71_on(struct modem_ctl *mc)
 	msleep(600);
 	gpio_set_value(mc->gpio_cp_reset, 1);
 
+	gpio_set_value(mc->gpio_pda_active, 1);
+
 	/* Wait here until the PHONE is up.
 	* Waiting as the this called from IOCTL->UM thread */
 	pr_debug("[MODEM_IF] power control waiting for INT_MASK_CMD_PIF_INIT_DONE\n");
@@ -151,8 +153,6 @@ static irqreturn_t phone_active_irq_handler(int irq, void *_mc)
 	int phone_active_value = 0;
 	int phone_state = 0;
 	struct modem_ctl *mc = (struct modem_ctl *)_mc;
-	struct dpram_link_device *dpram_ld =
-				to_dpram_link_device(mc->iod->link);
 
 	if (!mc->gpio_cp_reset || !mc->gpio_phone_active) {
 		pr_err("[MODEM_IF] no gpio data\n");
@@ -161,7 +161,6 @@ static irqreturn_t phone_active_irq_handler(int irq, void *_mc)
 
 	phone_reset = gpio_get_value(mc->gpio_cp_reset);
 	phone_active_value = gpio_get_value(mc->gpio_phone_active);
-	dpram_ld->phone_status = phone_active_value;
 
 	if (phone_reset && phone_active_value)
 		phone_state = STATE_ONLINE;
@@ -169,8 +168,6 @@ static irqreturn_t phone_active_irq_handler(int irq, void *_mc)
 			phone_state = STATE_CRASH_RESET;
 	else
 		phone_state = STATE_OFFLINE;
-
-	enable_irq(mc->irq_phone_active);
 
 	return IRQ_HANDLED;
 }

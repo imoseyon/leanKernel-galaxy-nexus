@@ -38,6 +38,17 @@
 #define GOTA_TIMEOUT		(50 * HZ)
 #define GOTA_SEND_TIMEOUT	(200 * HZ)
 
+static inline int dpram_readh(void __iomem *p_dest)
+{
+	unsigned long dest = (unsigned long)p_dest;
+	return ioread16(dest);
+}
+
+static inline void dpram_writeh(u16 value,  void __iomem *p_dest)
+{
+	unsigned long dest = (unsigned long)p_dest;
+	iowrite16(value, dest);
+}
 static int dpram_download(struct dpram_link_device *dpld,
 			const unsigned char *buf,
 			int Len);
@@ -46,15 +57,12 @@ static int dpram_download(struct dpram_link_device *dpld,
 static void dpram_send_interrupt_to_phone(struct dpram_link_device *dpld,
 					u16 irq_mask)
 {
-	memcpy(dpld->m_region.mbx + 2,
-			&irq_mask, DPRAM_INTR_PORT_SIZE);
+	dpram_writeh(irq_mask, dpld->m_region.mbx + 2);
 }
 
 static void dpram_clear(struct dpram_link_device *dpld)
 {
-	int i = 0;
 	unsigned long flags;
-	char *fmt_out_dest, *raw_out_dest, *fmt_in_dest, *raw_in_dest;
 	int size = 0;
 
 	pr_debug("[DPRAM] *** entering dpram_clear()\n");
@@ -63,17 +71,11 @@ static void dpram_clear(struct dpram_link_device *dpld)
 	local_irq_save(flags);
 
 	size = DP_HEAD_SIZE + DP_TAIL_SIZE;
-	fmt_out_dest = (char *)dpld->m_region.fmt_out;
-	raw_out_dest = (char *)dpld->m_region.raw_out;
-	fmt_in_dest = (char *)dpld->m_region.fmt_in;
-	raw_in_dest = (char *)dpld->m_region.raw_in;
 
-	for (i = 0; i < size; i += 2) {
-		*((u16 *)(fmt_out_dest + i)) = 0;
-		*((u16 *)(raw_out_dest + i)) = 0;
-		*((u16 *)(fmt_in_dest + i)) = 0;
-		*((u16 *)(raw_in_dest + i)) = 0;
-	}
+	memset((char *)dpld->m_region.fmt_out, 0x0, size);
+	memset((char *)dpld->m_region.raw_out, 0x0, size);
+	memset((char *)dpld->m_region.fmt_in, 0x0, size);
+	memset((char *)dpld->m_region.raw_in, 0x0, size);
 
 	local_irq_restore(flags);
 
@@ -82,31 +84,34 @@ static void dpram_clear(struct dpram_link_device *dpld)
 
 static int dpram_init_and_report(struct dpram_link_device *dpld)
 {
-	const u16 magic_code = DP_MAGIC_CODE;
 	u16 ac_code = 0x0000;
 	const u16 init_end = INT_CMD(INT_CMD_INIT_END);
-	u16 magic, enable;
+	u16 magic = 0;
+	u16 enable = 0;
 
 	/* @LDK@ write DPRAM disable code */
-	memcpy(dpld->m_region.control + 2, &ac_code, sizeof(ac_code));
+	dpram_writeh(ac_code, dpld->m_region.control + 2);
 
 	/* @LDK@ dpram clear */
 	dpram_clear(dpld);
 
 	/* @LDK@ write magic code */
-	memcpy(dpld->m_region.control, &magic_code, sizeof(magic_code));
+	dpram_writeh(DP_MAGIC_CODE, dpld->m_region.control);
 
 	/* @LDK@ write DPRAM enable code */
 	ac_code = 0x0001;
-	memcpy(dpld->m_region.control + 2, &ac_code, sizeof(ac_code));
+	dpram_writeh(ac_code, dpld->m_region.control + 2);
 
 	/* @LDK@ send init end code to phone */
 	dpram_send_interrupt_to_phone(dpld, init_end);
 
-	memcpy((void *)&magic, dpld->m_region.control, sizeof(magic));
-	memcpy((void *)&enable, dpld->m_region.control + 2, sizeof(enable));
-	pr_debug("[DPRAM] magic code = %x, access enable = %x\n",
+	magic = dpram_readh(dpld->m_region.control);
+	enable = dpram_readh(dpld->m_region.control + 2);
+
+	if (magic != DP_MAGIC_CODE || !enable)
+		pr_warn("[DPRAM] magic code = %x, access enable = %x\n",
 			magic, enable);
+
 	pr_debug("[DPRAM] Send 0x%x to MailboxBA(Dpram init finish)\n",
 			init_end);
 
@@ -290,17 +295,19 @@ static int dpram_modem_update(struct link_device *ld,
 
 static void dpram_drop_data(struct dpram_device *device)
 {
-	u16 head, tail;
+	u16 head = 0;
+	u16 tail = 0;
 
-	memcpy(&head, device->in_head_addr, sizeof(head));
-	memcpy(&tail, device->in_tail_addr, sizeof(tail));
+	head = dpram_readh(device->in_head_addr);
+	tail = dpram_readh(device->in_tail_addr);
+
 	pr_debug("[DPRAM] %s, head: %d, tail: %d\n", __func__, head, tail);
 
 	if (head >= device->in_buff_size || tail >= device->in_buff_size) {
 		head = tail = 0;
-		memcpy(device->in_head_addr, (u16 *)&head, sizeof(head));
+		dpram_writeh(head, device->in_head_addr);
 	}
-	memcpy(device->in_tail_addr, (u16 *)&head, sizeof(head));
+	dpram_writeh(head, device->in_tail_addr);
 }
 
 static int dpram_read(struct dpram_link_device *dpld,
@@ -312,8 +319,8 @@ static int dpram_read(struct dpram_link_device *dpld,
 	u16   up_tail = 0;
 	char *buff = NULL;
 
-	memcpy(&head, device->in_head_addr, sizeof(head));
-	memcpy(&tail, device->in_tail_addr, sizeof(tail));
+	head = dpram_readh(device->in_head_addr);
+	tail = dpram_readh(device->in_tail_addr);
 	pr_debug("=====> %s,  head: %d, tail: %d\n", __func__, head, tail);
 
 	if (device->in_head_saved == head) {
@@ -369,7 +376,7 @@ static int dpram_read(struct dpram_link_device *dpld,
 
 	/* new tail */
 	up_tail = (u16)((tail + size) % device->in_buff_size);
-	memcpy(device->in_tail_addr, (u16 *)&up_tail, sizeof(up_tail));
+	dpram_writeh(up_tail, device->in_tail_addr);
 	pr_debug(" head= %d, tail = %d", head, up_tail);
 
 	device->in_head_saved = head;
@@ -391,8 +398,8 @@ static void non_command_handler(struct dpram_link_device *dpld,
 
 	pr_debug("[DPRAM] Entering non_command_handler(0x%04X)\n", non_cmd);
 
-	memcpy((void *)&magic, dpld->m_region.control, sizeof(magic));
-	memcpy((void *)&access, dpld->m_region.control + 2, sizeof(access));
+	magic = dpram_readh(dpld->m_region.control);
+	access = dpram_readh(dpld->m_region.control + 2);
 
 	if (!access || magic != DP_MAGIC_CODE) {
 		pr_err("fmr recevie error!!!! phone status =%d, access = 0x%x, magic =0x%x",
@@ -402,8 +409,8 @@ static void non_command_handler(struct dpram_link_device *dpld,
 
 	/* Check formatted data region */
 	device = &dpld->dev_map[FMT_IDX];
-	memcpy(&head, device->in_head_addr, sizeof(head));
-	memcpy(&tail, device->in_tail_addr, sizeof(tail));
+	head = dpram_readh(device->in_head_addr);
+	tail = dpram_readh(device->in_tail_addr);
 
 	if (head != tail) {
 		if (non_cmd & INT_MASK_REQ_ACK_F)
@@ -430,8 +437,8 @@ static void non_command_handler(struct dpram_link_device *dpld,
 
 	/* Check raw data region */
 	device = &dpld->dev_map[RAW_IDX];
-	memcpy(&head, device->in_head_addr, sizeof(head));
-	memcpy(&tail, device->in_tail_addr, sizeof(tail));
+	head = dpram_readh(device->in_head_addr);
+	tail = dpram_readh(device->in_tail_addr);
 
 	if (head != tail) {
 		if (non_cmd & INT_MASK_REQ_ACK_R)
@@ -464,7 +471,7 @@ static irqreturn_t dpram_irq_handler(int irq, void *p_ld)
 	struct link_device *ld = (struct link_device *)p_ld;
 	struct dpram_link_device *dpld = to_dpram_link_device(ld);
 
-	memcpy((u16 *)&irq_mask, (u16 *)dpld->m_region.mbx, sizeof(irq_mask));
+	irq_mask = dpram_readh(dpld->m_region.mbx);
 	pr_debug("received mailboxAB = 0x%x\n", irq_mask);
 
 	/* valid bit verification.
@@ -509,8 +516,9 @@ static int dpram_write(struct dpram_link_device *dpld,
 	int free_space = 0;
 	int last_size = 0;
 
-	memcpy((u16 *)&head, device->out_head_addr, sizeof(head));
-	memcpy((u16 *)&tail, device->out_tail_addr, sizeof(tail));
+	head = dpram_readh(device->out_head_addr);
+	tail = dpram_readh(device->out_tail_addr);
+
 	free_space = (head < tail) ? tail - head - 1 :
 			device->out_buff_size + tail - head - 1;
 	if (len > free_space) {
@@ -540,7 +548,7 @@ static int dpram_write(struct dpram_link_device *dpld,
 
 	/* Update new head */
 	up_head = (u16)((head + len) % device->out_buff_size);
-	memcpy(device->out_head_addr, (u16 *)&up_head, sizeof(head));
+	dpram_writeh(up_head, device->out_head_addr);
 
 	device->out_head_saved = up_head;
 	device->out_tail_saved = tail;
@@ -553,6 +561,107 @@ static int dpram_write(struct dpram_link_device *dpld,
 	dpram_send_interrupt_to_phone(dpld, irq_mask);
 
 	return len;
+}
+
+/*
+* dpram_stop_netif_queue stops all of netdevice under this driver's control
+*/
+static void dpram_stop_netif_queue(struct dpram_link_device *dpld)
+{
+	int i;
+	struct io_device *iod;
+	struct io_device *real_iod;
+	struct io_raw_devices *io_raw_devs;
+
+	list_for_each_entry(iod, &dpld->list_of_io_devices, list) {
+		if (iod->format == IPC_MULTI_RAW)
+			break;
+	}
+	if (iod->format != IPC_MULTI_RAW) {
+		pr_err("%s: there's no multi raw device\n", __func__);
+		return;
+	}
+	io_raw_devs = (struct io_raw_devices *)iod->private_data;
+
+	for (i = 0 ; i < MAX_RAW_DEVS; i++) {
+		real_iod = io_raw_devs->raw_devices[i];
+		if (real_iod == NULL)
+			continue;
+		if (real_iod->io_typ == IODEV_NET)
+			if (real_iod->ndev)
+				netif_stop_queue(real_iod->ndev);
+	}
+}
+
+/*
+* dpram_wake_netif_queue starts all of netdevice under this driver's control
+*/
+static void dpram_wake_netif_queue(struct dpram_link_device *dpld)
+{
+	int i;
+	struct io_device *iod;
+	struct io_device *real_iod;
+	struct io_raw_devices *io_raw_devs;
+
+	list_for_each_entry(iod, &dpld->list_of_io_devices, list) {
+		if (iod->format == IPC_MULTI_RAW)
+			break;
+	}
+
+	if (iod->format != IPC_MULTI_RAW) {
+		pr_err("%s: there's no multi raw device\n", __func__);
+		return;
+	}
+
+	io_raw_devs = (struct io_raw_devices *)iod->private_data;
+
+	for (i = 0 ; i < MAX_RAW_DEVS; i++) {
+		real_iod = io_raw_devs->raw_devices[i];
+		if (real_iod == NULL)
+			continue;
+		if (real_iod->io_typ == IODEV_NET)
+			if (real_iod->ndev)
+				netif_wake_queue(real_iod->ndev);
+	}
+}
+
+static void dpram_delayed_write(struct work_struct *work)
+{
+	int ret;
+	int idx;
+	struct io_device *iod;
+	struct dpram_link_device *dpld =
+		container_of(work, struct dpram_link_device, delayed_tx.work);
+	struct sk_buff *skb = dpld->delayed_skb;
+
+	if (!skb)
+		return;
+	iod = *((struct io_device **)skb->cb);
+
+	if (iod->format == IPC_FMT)
+		idx = FMT_IDX;
+	else
+		idx = RAW_IDX;
+
+	ret = dpram_write(dpld, &dpld->dev_map[idx], skb->data, skb->len);
+	if (ret < 0) {
+		if (dpld->delayed_count++ > 10) {
+			pr_err("%s: delayed write failed over 10 times\n",
+								__func__);
+			dev_kfree_skb_any(skb);
+			dpld->delayed_count = 0;
+			dpld->delayed_skb = NULL;
+			return;
+		}
+		schedule_delayed_work(&dpld->delayed_tx, msecs_to_jiffies(10));
+	} else {
+		dpld->delayed_count = 0;
+		dpld->delayed_skb = NULL;
+		dpram_wake_netif_queue(dpld);
+		dev_kfree_skb_any(skb);
+	}
+
+	return;
 }
 
 static int dpram_send
@@ -584,6 +693,23 @@ static int dpram_send
 	}
 
 	ret = dpram_write(dpld, device, skb->data, skb->len);
+	/*
+	* add error handling here and remember waiting skb in private data
+	* run dpram space free work to restart transmission
+	*/
+	if (ret < 0) {
+		*((struct io_device **)skb->cb) = iod;
+		dpld->delayed_skb = skb;
+		dpld->delayed_count = 0;
+		schedule_delayed_work(&dpld->delayed_tx, msecs_to_jiffies(10));
+		/* stop all net if */
+		dpram_stop_netif_queue(dpld);
+		/*
+		* return success,because delayed work will handle currenc packet
+		* and all net device interface has already stopped
+		*/
+		return 0;
+	}
 
 	dev_kfree_skb_any(skb);
 
@@ -665,9 +791,9 @@ static void dpram_table_init(struct dpram_link_device *dpld)
 {
 	dpld->dev_map[FMT_IDX].in_head_addr = (u16 *)dpld->m_region.fmt_in;
 	dpld->dev_map[FMT_IDX].in_tail_addr =
-					(u16 *)(dpld->m_region.fmt_in + 2);
+				(u16 *)(dpld->m_region.fmt_in + DP_HEAD_SIZE);
 	dpld->dev_map[FMT_IDX].in_buff_addr =
-					(u8 *)(dpld->m_region.fmt_in + 4);
+		(u8 *)(dpld->m_region.fmt_in + DP_HEAD_SIZE + DP_TAIL_SIZE);
 	dpld->dev_map[FMT_IDX].in_buff_size = dpld->fmt_in_buff_size;
 
 	dpld->dev_map[FMT_IDX].in_head_saved = 0;
@@ -675,9 +801,9 @@ static void dpram_table_init(struct dpram_link_device *dpld)
 
 	dpld->dev_map[FMT_IDX].out_head_addr = (u16 *)dpld->m_region.fmt_out;
 	dpld->dev_map[FMT_IDX].out_tail_addr =
-					(u16 *)(dpld->m_region.fmt_out + 2);
+				(u16 *)(dpld->m_region.fmt_out + DP_HEAD_SIZE);
 	dpld->dev_map[FMT_IDX].out_buff_addr =
-					(u8 *)(dpld->m_region.fmt_out + 4);
+		(u8 *)(dpld->m_region.fmt_out + DP_HEAD_SIZE + DP_TAIL_SIZE);
 	dpld->dev_map[FMT_IDX].out_buff_size = dpld->fmt_out_buff_size;
 
 	dpld->dev_map[FMT_IDX].out_head_saved = 0;
@@ -689,9 +815,9 @@ static void dpram_table_init(struct dpram_link_device *dpld)
 
 	dpld->dev_map[RAW_IDX].in_head_addr = (u16 *)dpld->m_region.raw_in;
 	dpld->dev_map[RAW_IDX].in_tail_addr =
-					(u16 *)(dpld->m_region.raw_in + 2);
+				(u16 *)(dpld->m_region.raw_in + DP_HEAD_SIZE);
 	dpld->dev_map[RAW_IDX].in_buff_addr =
-					(u8 *)(dpld->m_region.raw_in + 4);
+		(u8 *)(dpld->m_region.raw_in + DP_HEAD_SIZE + DP_TAIL_SIZE);
 	dpld->dev_map[RAW_IDX].in_buff_size = dpld->raw_in_buff_size;
 
 	dpld->dev_map[RAW_IDX].in_head_saved = 0;
@@ -699,9 +825,9 @@ static void dpram_table_init(struct dpram_link_device *dpld)
 
 	dpld->dev_map[RAW_IDX].out_head_addr = (u16 *)dpld->m_region.raw_out;
 	dpld->dev_map[RAW_IDX].out_tail_addr =
-					(u16 *)(dpld->m_region.raw_out + 2);
+				(u16 *)(dpld->m_region.raw_out + DP_HEAD_SIZE);
 	dpld->dev_map[RAW_IDX].out_buff_addr =
-					(u8 *)(dpld->m_region.raw_out + 4);
+		(u8 *)(dpld->m_region.raw_out + DP_HEAD_SIZE + DP_TAIL_SIZE);
 	dpld->dev_map[RAW_IDX].out_buff_size = dpld->raw_out_buff_size;
 
 	dpld->dev_map[RAW_IDX].out_head_saved = 0;
@@ -997,6 +1123,7 @@ static int if_dpram_init(struct platform_device *pdev, struct link_device *ld)
 	atomic_set(&dpld->fmt_txq_req_ack_rcvd, 0);
 
 	INIT_WORK(&dpld->xmit_work_struct, NULL);
+	INIT_DELAYED_WORK(&dpld->delayed_tx, dpram_delayed_write);
 
 	ClearPendingInterruptFromModem(dpld);
 	ret = request_irq(ld->irq, dpram_irq_handler, IRQ_TYPE_LEVEL_LOW,
@@ -1031,7 +1158,6 @@ struct link_device *dpram_create_link_device(struct platform_device *pdev)
 
 	ld = &dpld->ld;
 	dpld->pdata = pdata;
-
 
 	ld->name = "dpram";
 	ld->attach = dpram_attach_io_dev;
