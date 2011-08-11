@@ -626,14 +626,14 @@ static void omap_lte_mux_init(void)
 {
 	pr_debug("[MODEM_IF] %s IN!\n", __func__);
 
-	omap_mux_init_gpio(OMAP_GPIO_221_PMIC_PWRON, OMAP_PIN_OUTPUT);
-	omap_mux_init_gpio(OMAP_GPIO_221_PMIC_PWRHOLD_OFF , OMAP_PIN_OUTPUT);
-	omap_mux_init_gpio(OMAP_GPIO_CMC_RST, OMAP_PIN_OUTPUT);
-	omap_mux_init_gpio(OMAP_GPIO_AP2CMC_INT1, OMAP_PIN_OUTPUT);
-	omap_mux_init_gpio(OMAP_GPIO_CMC2AP_INT2,
+	omap_mux_init_signal("gpmc_a17.gpio_41", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("usbb2_ulpitll_dat2.gpio_163", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("gpmc_ncs0.gpio_50", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("dpm_emu7.gpio_18", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("usbb2_ulpitll_nxt.gpio_160",
 			OMAP_PIN_INPUT | OMAP_PIN_OFF_WAKEUPENABLE);
-	omap_mux_init_gpio(OMAP_GPIO_AP2CMC_INT2, OMAP_PIN_OUTPUT);
-	omap_mux_init_gpio(OMAP_GPIO_LTE_ACTIVE, OMAP_PIN_INPUT);
+	omap_mux_init_signal("dpm_emu17.gpio_28", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("gpmc_a23.gpio_47", OMAP_PIN_INPUT);
 }
 
 static void lte_modem_cfg_gpio(void)
@@ -667,7 +667,7 @@ static void lte_modem_cfg_gpio(void)
 #ifdef CONFIG_LTE_MODEM_CMC221
 	if (gpio_cp_off) {
 		gpio_request(gpio_cp_off, "LTE_OFF");
-		gpio_direction_output(gpio_cp_off, 0);
+		gpio_direction_output(gpio_cp_off, 1);
 	}
 
 	if (gpio_slave_wakeup) {
