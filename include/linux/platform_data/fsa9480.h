@@ -49,6 +49,13 @@ struct fsa9480_platform_data {
 	void				(*enable)(bool enable);
 	void				(*detected)(int device);
 
+	/* The FSA9480 has a bug that prevents its from detecting a detach when
+	 * the cable was identified as a USB OTG cable.  As a workaround we
+	 * provide the FSA9480 with a GPIO that is hooked up to the USB ID
+	 * signal.
+	 */
+	int				external_id;
+
 	struct fsa9480_detect_set	*detect_sets;
 	int				num_sets;
 };

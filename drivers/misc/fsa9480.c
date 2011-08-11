@@ -23,6 +23,7 @@
 
 #include <linux/delay.h>
 #include <linux/err.h>
+#include <linux/gpio.h>
 #include <linux/i2c.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
@@ -98,8 +99,7 @@
 #define DEV_AUDIO_2		(1 << 1)
 #define DEV_AUDIO_1		(1 << 0)
 
-#define DEV_USB_MASK		(DEV_USB_OTG | DEV_USB | DEV_JIG_USB_OFF | \
-				 DEV_JIG_USB_ON)
+#define DEV_USB_MASK		(DEV_USB | DEV_JIG_USB_OFF | DEV_JIG_USB_ON)
 #define DEV_UART_MASK		(DEV_UART | DEV_JIG_UART_OFF)
 #define DEV_JIG_MASK		(DEV_JIG_USB_OFF | DEV_JIG_USB_ON | \
 				 DEV_JIG_UART_OFF | DEV_JIG_UART_ON)
@@ -170,6 +170,7 @@ struct fsa9480_usbsw {
 	struct mutex			lock;
 	u16				intr_mask;
 	u8				timing;
+	int				external_id_irq;
 #if defined(CONFIG_DEBUG_FS) && defined(DEBUG_DUMP_REGISTERS)
 	struct dentry			*debug_dir;
 #endif
@@ -491,6 +492,18 @@ static int fsa9480_detect_callback(struct otg_id_notifier_block *nb)
 			goto unhandled;
 		_detected(usbsw, FSA9480_DETECT_JIG);
 		goto handled;
+	} else if (dev_type & DEV_USB_OTG) {
+		if (!(nb_info->detect_set->mask & FSA9480_DETECT_USB_HOST))
+			goto unhandled;
+		_detected(usbsw, FSA9480_DETECT_USB_HOST);
+
+		mutex_unlock(&usbsw->lock);
+
+		/* Enable the external ID interrupt to detect the detach of the
+		 * USB host cable since the FSA9480 is unable to detect it.
+		 */
+		enable_irq(usbsw->external_id_irq);
+		return OTG_ID_HANDLED;
 	} else if (dev_type == 0) {
 		dev_info(&usbsw->client->dev,
 			 "nothing attached, keeping ownership of port\n");
@@ -504,21 +517,7 @@ unhandled:
 		 * keep ownership of ID/D+/D- to monitor them for changes.
 		 * This can happen when no one else
 		 * detected a valid device and it is not one of the above.
-		 *
-		 * If this is the case, then one of the possibilities is that
-		 * we are going into host mode and there is a usb peripheral
-		 * plugged into the usb port with a dongle that pulls ID pin
-		 * low.
 		 */
-
-		/* the host-port dongle is detected as A/V cable, and ADC
-		 * reading is 0x0 */
-		if (((dev_type & DEV_AV) && (adc_val == 0x0)) &&
-		    (nb_info->detect_set->mask & FSA9480_DETECT_USB_HOST)) {
-			dev_dbg(&client->dev, "host mode detected\n");
-			_detected(usbsw, FSA9480_DETECT_USB_HOST);
-			goto handled;
-		}
 
 		dev_info(&usbsw->client->dev,
 			 "nothing known attached, keeping ownership of port\n");
@@ -626,6 +625,56 @@ static irqreturn_t fsa9480_irq_thread(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static irqreturn_t usb_id_irq_thread(int irq, void *data)
+{
+	struct fsa9480_usbsw *usbsw = data;
+	struct i2c_client *client = usbsw->client;
+
+	mutex_lock(&usbsw->lock);
+
+	/* The external ID interrupt is only used when a USB host cable is
+	 * attached.
+	 */
+	if (usbsw->curr_dev != FSA9480_DETECT_USB_HOST) {
+		disable_irq_nosync(usbsw->external_id_irq);
+		mutex_unlock(&usbsw->lock);
+		return IRQ_HANDLED;
+	}
+
+	/* The FSA9480 has a bug that prevents it from detecting a change in the
+	 * ID signal when the device type is USB OTG.  As a workaround the
+	 * driver uses an external mechanism to determine if the USB OTG cable
+	 * has been detached.
+	 */
+	if (gpio_get_value(usbsw->pdata->external_id)) {
+		disable_irq_nosync(usbsw->external_id_irq);
+
+		usbsw->pdata->enable(true);
+
+		/* If the client has been informed of the USB host attach then
+		 * report the disconnect before reseting the FSA9480.  VBUS
+		 * drive needs to be turned off before the reset otherwise the
+		 * FSA9480 will misidentify the unattached state as a USB
+		 * peripheral cable.
+		 */
+		_detected(usbsw, FSA9480_DETECT_NONE);
+
+		dev_dbg(&client->dev, "usb host detach workaround, resetting"
+				" FSA9480 chip\n");
+
+		/* The FSA9480 will not be able to detect a new cable until it
+		 * has been reset.
+		 */
+		fsa9480_reset(usbsw);
+
+		enable_irq(client->irq);
+	}
+
+	mutex_unlock(&usbsw->lock);
+
+	return IRQ_HANDLED;
+}
+
 static int __devinit fsa9480_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
@@ -655,6 +704,25 @@ static int __devinit fsa9480_probe(struct i2c_client *client,
 
 	i2c_set_clientdata(client, usbsw);
 	mutex_init(&usbsw->lock);
+
+	if (usbsw->pdata->external_id >= 0) {
+		gpio_request(usbsw->pdata->external_id, "fsa9840_external_id");
+
+		usbsw->external_id_irq = gpio_to_irq(usbsw->pdata->external_id);
+
+		ret = request_threaded_irq(usbsw->external_id_irq, NULL,
+				usb_id_irq_thread,
+				IRQF_TRIGGER_HIGH | IRQF_ONESHOT,
+				"fsa9480_external_id", usbsw);
+		if (ret) {
+			dev_err(&client->dev,
+					"failed to request ID IRQ err %d\n",
+					ret);
+			goto err_req_id_irq;
+		}
+
+		enable_irq_wake(usbsw->external_id_irq);
+	}
 
 	/* mask all irqs to prevent event processing between
 	 * request_irq and disable_irq
@@ -752,6 +820,13 @@ err_en_wake:
 	if (client->irq)
 		free_irq(client->irq, usbsw);
 err_req_irq:
+	if (usbsw->pdata->external_id >= 0) {
+		disable_irq_wake(usbsw->external_id_irq);
+		free_irq(usbsw->external_id_irq, usbsw);
+	}
+err_req_id_irq:
+	if (usbsw->pdata->external_id >= 0)
+		gpio_free(usbsw->pdata->external_id);
 	mutex_destroy(&usbsw->lock);
 	i2c_set_clientdata(client, NULL);
 	kfree(usbsw);
@@ -777,6 +852,12 @@ static int __devexit fsa9480_remove(struct i2c_client *client)
 	if (client->irq) {
 		disable_irq_wake(client->irq);
 		free_irq(client->irq, usbsw);
+	}
+
+	if (usbsw->pdata->external_id >= 0) {
+		disable_irq_wake(usbsw->external_id_irq);
+		free_irq(usbsw->external_id_irq, usbsw);
+		gpio_free(usbsw->pdata->external_id);
 	}
 
 	i2c_set_clientdata(client, NULL);
