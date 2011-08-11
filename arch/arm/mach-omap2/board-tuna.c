@@ -405,6 +405,19 @@ static struct regulator_consumer_supply tuna_vmmc_supply[] = {
 	},
 };
 
+static struct regulator_init_data tuna_vaux1 = {
+	.constraints = {
+		.min_uV			= 3000000,
+		.max_uV			= 3000000,
+		.apply_uV		= true,
+		.valid_modes_mask	= REGULATOR_MODE_NORMAL
+					| REGULATOR_MODE_STANDBY,
+		.valid_ops_mask	 =	REGULATOR_CHANGE_MODE
+					| REGULATOR_CHANGE_STATUS,
+		.always_on		= true,
+	},
+};
+
 static struct regulator_init_data tuna_vaux2 = {
 	.constraints = {
 		.min_uV			= 1200000,
@@ -464,6 +477,18 @@ static struct regulator_init_data tuna_vpp = {
 		.valid_ops_mask	 = REGULATOR_CHANGE_VOLTAGE
 					| REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
+	},
+};
+
+static struct regulator_init_data tuna_vusim = {
+	.constraints = {
+		.min_uV			= 2200000,
+		.max_uV 		= 2200000,
+		.valid_modes_mask	= REGULATOR_MODE_NORMAL
+					| REGULATOR_MODE_STANDBY,
+		.valid_ops_mask	 	= REGULATOR_CHANGE_MODE
+					| REGULATOR_CHANGE_STATUS,
+		.always_on		= true,
 	},
 };
 
@@ -550,6 +575,18 @@ static struct regulator_init_data tuna_vmem = {
 	},
 };
 
+static struct regulator_init_data tuna_v2v1 = {
+	.constraints = {
+		.min_uV			= 2100000,
+		.max_uV			= 2100000,
+		.valid_modes_mask	= REGULATOR_MODE_NORMAL
+					| REGULATOR_MODE_STANDBY,
+		.valid_ops_mask		= REGULATOR_CHANGE_MODE
+					| REGULATOR_CHANGE_STATUS,
+		.always_on		= true,
+	},
+};
+
 static struct twl4030_codec_audio_data twl6040_audio = {
 	/* single-step ramp for headset and handsfree */
 	.hs_left_step   = 0x0f,
@@ -572,10 +609,12 @@ static struct twl4030_platform_data tuna_twldata = {
 	/* Regulators */
 	.vmmc		= &tuna_vmmc,
 	.vpp		= &tuna_vpp,
+	.vusim		= &tuna_vusim,
 	.vana		= &tuna_vana,
 	.vcxio		= &tuna_vcxio,
 	.vdac		= &tuna_vdac,
 	.vusb		= &tuna_vusb,
+	.vaux1		= &tuna_vaux1,
 	.vaux2		= &tuna_vaux2,
 	.vaux3		= &tuna_vaux3,
 	.clk32kg	= &tuna_clk32kg,
@@ -587,6 +626,7 @@ static struct twl4030_platform_data tuna_twldata = {
 	/* SMPS */
 	.vdd3		= &tuna_vdd3,
 	.vmem		= &tuna_vmem,
+	.v2v1		= &tuna_v2v1,
 };
 
 static void tuna_audio_init(void)
