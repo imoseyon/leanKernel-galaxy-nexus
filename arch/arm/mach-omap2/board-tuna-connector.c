@@ -30,6 +30,7 @@
 #include <linux/usb/otg.h>
 #include <linux/delay.h>
 #include <linux/sii9234.h>
+#include <linux/i2c/twl.h>
 #include <linux/mutex.h>
 
 #include <plat/usb.h>
@@ -39,6 +40,7 @@
 
 #define GPIO_JACK_INT_N		4
 #define GPIO_CP_USB_ON		22
+#define GPIO_USB_OTG_ID		24
 #define GPIO_MHL_SEL		96
 #define GPIO_AP_SEL		97
 #define GPIO_MUX3_SEL0		139
@@ -85,14 +87,20 @@
 #define TUNA_OTG_ID_SII9234_PRIO		INT_MIN + 1
 #define TUNA_OTG_ID_FSA9480_LAST_PRIO		INT_MAX
 
+#define CHARGERUSB_CTRL1	0x8
+#define CHARGERUSB_CTRL3	0xA
+#define CHARGERUSB_CINLIMIT	0xE
+
 struct tuna_otg {
 	struct otg_transceiver		otg;
 	struct device			dev;
 
 	struct regulator		*vusb;
+	struct work_struct		set_vbus_work;
 	struct mutex			lock;
 
 	bool				reg_on;
+	bool				need_vbus_drive;
 	int				usb_manual_mode;
 	int				uart_manual_mode;
 	int				current_device;
@@ -238,6 +246,29 @@ static void tuna_vusb_enable(struct tuna_otg *tuna_otg, bool enable)
 	}
 }
 
+static void tuna_set_vbus_drive(bool enable)
+{
+	if (enable) {
+		/* Set the VBUS current limit to 500mA */
+		twl_i2c_write_u8(TWL_MODULE_MAIN_CHARGE, 0x09,
+				CHARGERUSB_CINLIMIT);
+
+		/* The TWL6030 has a feature to automatically turn on
+		 * boost mode (VBUS Drive) when the ID signal is not
+		 * grounded.  This feature needs to be disabled on Tuna
+		 * as the ID signal is not hooked up to the TWL6030.
+		 */
+		twl_i2c_write_u8(TWL_MODULE_MAIN_CHARGE, 0x21,
+				CHARGERUSB_CTRL3);
+		twl_i2c_write_u8(TWL_MODULE_MAIN_CHARGE, 0x40,
+				CHARGERUSB_CTRL1);
+	} else {
+		twl_i2c_write_u8(TWL_MODULE_MAIN_CHARGE, 0x01,
+				CHARGERUSB_CTRL3);
+		twl_i2c_write_u8(TWL_MODULE_MAIN_CHARGE, 0, CHARGERUSB_CTRL1);
+	}
+}
+
 static void tuna_ap_usb_attach(struct tuna_otg *tuna_otg)
 {
 	tuna_vusb_enable(tuna_otg, true);
@@ -281,6 +312,21 @@ static void tuna_cp_usb_detach(struct tuna_otg *tuna_otg)
 {
 	if (omap4_tuna_get_type() == TUNA_TYPE_MAGURO)
 		gpio_set_value(GPIO_CP_USB_ON, 0);
+}
+
+static void tuna_usb_host_detach(struct tuna_otg *tuna_otg)
+{
+	/* Make sure the VBUS drive is turned off */
+	tuna_set_vbus_drive(false);
+
+	tuna_vusb_enable(tuna_otg, false);
+
+	tuna_otg->otg.state = OTG_STATE_B_IDLE;
+	tuna_otg->otg.default_a = false;
+	tuna_otg->otg.last_event = USB_EVENT_NONE;
+	atomic_notifier_call_chain(&tuna_otg->otg.notifier,
+				   USB_EVENT_NONE,
+				   tuna_otg->otg.gadget);
 }
 
 static void tuna_ap_uart_actions(struct tuna_otg *tuna_otg)
@@ -367,6 +413,8 @@ static void tuna_fsa_usb_detected(int device)
 		case FSA9480_DETECT_UART:
 			break;
 		case FSA9480_DETECT_USB_HOST:
+			tuna_usb_host_detach(tuna_otg);
+			break;
 		case FSA9480_DETECT_CHARGER:
 		default:
 			tuna_ap_usb_detach(tuna_otg);
@@ -397,11 +445,11 @@ static void tuna_fsa_usb_detected(int device)
 static struct fsa9480_detect_set fsa_detect_sets[] = {
 	{
 		.prio = TUNA_OTG_ID_FSA9480_PRIO,
-		.mask = FSA9480_DETECT_ALL & ~FSA9480_DETECT_USB_HOST,
+		.mask = FSA9480_DETECT_ALL,
 	},
 	{
 		.prio = TUNA_OTG_ID_FSA9480_LAST_PRIO,
-		.mask = FSA9480_DETECT_USB_HOST,
+		.mask = 0,
 		.fallback = true,
 	},
 };
@@ -413,6 +461,7 @@ static struct fsa9480_platform_data tuna_fsa9480_pdata = {
 
 	.enable		= tuna_mux_usb_to_fsa,
 	.detected	= tuna_fsa_usb_detected,
+	.external_id	= GPIO_USB_OTG_ID,
 };
 
 static struct i2c_board_info __initdata tuna_connector_i2c4_boardinfo[] = {
@@ -440,9 +489,33 @@ static int tuna_otg_set_peripheral(struct otg_transceiver *otg,
 	return 0;
 }
 
+static void tuna_otg_work(struct work_struct *data)
+{
+	struct tuna_otg *tuna_otg = container_of(data, struct tuna_otg,
+						set_vbus_work);
+
+	mutex_lock(&tuna_otg->lock);
+
+	/* Only allow VBUS drive when in host mode. */
+	if (tuna_otg->current_device != FSA9480_DETECT_USB_HOST) {
+		mutex_unlock(&tuna_otg->lock);
+		return;
+	}
+
+	tuna_set_vbus_drive(tuna_otg->need_vbus_drive);
+
+	mutex_unlock(&tuna_otg->lock);
+}
+
 static int tuna_otg_set_vbus(struct otg_transceiver *otg, bool enabled)
 {
+	struct tuna_otg *tuna_otg = container_of(otg, struct tuna_otg, otg);
+
 	dev_dbg(otg->dev, "vbus %s\n", enabled ? "on" : "off");
+
+	tuna_otg->need_vbus_drive = enabled;
+	schedule_work(&tuna_otg->set_vbus_work);
+
 	return 0;
 }
 
@@ -708,11 +781,16 @@ int __init omap4_tuna_connector_init(void)
 	gpio_request(GPIO_IF_UART_SEL, "uart_sel");
 	gpio_direction_output(GPIO_IF_UART_SEL, IF_UART_SEL_DEFAULT);
 
+	omap_mux_init_gpio(GPIO_USB_OTG_ID, OMAP_PIN_INPUT |
+			   OMAP_WAKEUP_EN);
+
 	omap_mux_init_gpio(GPIO_JACK_INT_N,
 			   OMAP_PIN_INPUT_PULLUP |
 			   OMAP_PIN_OFF_INPUT_PULLUP);
 
 	mutex_init(&tuna_otg->lock);
+
+	INIT_WORK(&tuna_otg->set_vbus_work, tuna_otg_work);
 
 	device_initialize(&tuna_otg->dev);
 	dev_set_name(&tuna_otg->dev, "%s", "tuna_otg");
