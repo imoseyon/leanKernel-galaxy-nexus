@@ -163,6 +163,13 @@ err_free_modemctl:
 	return -ENOMEM;
 }
 
+static void modem_shutdown(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct modem_ctl *mc = dev_get_drvdata(dev);
+	mc->ops.modem_off(mc);
+}
+
 static int modem_suspend(struct device *pdev)
 {
 	struct modem_ctl *mc = dev_get_drvdata(pdev);
@@ -184,6 +191,7 @@ static const struct dev_pm_ops modem_pm_ops = {
 
 static struct platform_driver modem_driver = {
 	.probe = modem_probe,
+	.shutdown = modem_shutdown,
 	.driver = {
 		.name = "modem_if",
 		.pm   = &modem_pm_ops,

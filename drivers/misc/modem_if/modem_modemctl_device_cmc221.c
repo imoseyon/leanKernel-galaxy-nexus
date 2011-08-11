@@ -35,9 +35,9 @@ static int cmc221_on(struct modem_ctl *mc)
 	}
 
 	gpio_set_value(mc->gpio_cp_on, 1);
-	msleep(300);
-
+	msleep(100);
 	gpio_set_value(mc->gpio_cp_reset, 1);
+	msleep(100);
 	gpio_set_value(mc->gpio_cp_off, 0);
 	msleep(300);
 	mc->phone_state = STATE_BOOTING;
@@ -54,11 +54,10 @@ static int cmc221_off(struct modem_ctl *mc)
 	}
 
 	gpio_set_value(mc->gpio_cp_on, 0);
-	gpio_set_value(mc->gpio_cp_reset, 0);
-	msleep(300);
-
+	msleep(100);
 	gpio_set_value(mc->gpio_cp_off, 1);
-	msleep(300);
+	msleep(100);
+	gpio_set_value(mc->gpio_cp_reset, 0);
 
 	mc->phone_state = STATE_OFFLINE;
 
