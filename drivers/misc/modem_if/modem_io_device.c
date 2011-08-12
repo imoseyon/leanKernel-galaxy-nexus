@@ -23,6 +23,7 @@
 #include <linux/if_arp.h>
 #include <linux/ip.h>
 #include <linux/if_ether.h>
+#include <linux/etherdevice.h>
 
 #include <linux/platform_data/modem.h>
 #include "modem_prj.h"
@@ -309,7 +310,6 @@ static int rx_iodev_skb_raw(struct io_device *iod)
 	struct iphdr *ip_header;
 	struct ethhdr *ehdr;
 	const char source[ETH_ALEN] = SOURCE_MAC_ADDR;
-	const char dest[ETH_ALEN] = {BRIDGE_MAC_ADDR, 0, 0, 0, 0, 0};
 
 	switch (iod->io_typ) {
 	case IODEV_MISC:
@@ -338,7 +338,7 @@ static int rx_iodev_skb_raw(struct io_device *iod)
 		else {
 			skb_push(skb, sizeof(struct ethhdr));
 			ehdr = (void *)skb->data;
-			memcpy(ehdr->h_dest, dest, ETH_ALEN);
+			memcpy(ehdr->h_dest, ndev->dev_addr, ETH_ALEN);
 			memcpy(ehdr->h_source, source, ETH_ALEN);
 			ehdr->h_proto = skb->protocol;
 			skb->ip_summed = CHECKSUM_UNNECESSARY;
@@ -822,7 +822,7 @@ static void vnet_setup_ether(struct net_device *ndev)
 	ndev->type = ARPHRD_ETHER;
 	ndev->flags = IFF_POINTOPOINT | IFF_NOARP | IFF_MULTICAST | IFF_SLAVE;
 	ndev->addr_len = ETH_ALEN;
-	ndev->dev_addr[0] = BRIDGE_MAC_ADDR;
+	random_ether_addr(ndev->dev_addr);
 	ndev->hard_header_len = 0;
 	ndev->tx_queue_len = 1000;
 	ndev->mtu = ETH_DATA_LEN;

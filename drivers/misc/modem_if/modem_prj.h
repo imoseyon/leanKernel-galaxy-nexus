@@ -59,7 +59,6 @@
 
 #define IP6VERSION	6
 
-#define BRIDGE_MAC_ADDR	0x12
 #define SOURCE_MAC_ADDR	{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC}
 
 /* Does modem ctl structure will use state ? or status defined below ?*/
