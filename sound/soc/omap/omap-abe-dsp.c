@@ -2022,8 +2022,9 @@ static int aess_open(struct snd_pcm_substream *substream)
 	pm_runtime_get_sync(abe->dev);
 
 	if (!abe->active++) {
-		abe_set_opp_mode(abe, 100);
+		abe->opp = 0;
 		aess_restore_context(abe);
+		abe_set_opp_mode(abe, 100);
 		abe_wakeup();
 	}
 
