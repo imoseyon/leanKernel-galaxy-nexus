@@ -22,6 +22,7 @@
 #include <linux/gpio.h>
 #include <linux/if_arp.h>
 #include <linux/ip.h>
+#include <linux/if_ether.h>
 
 #include <linux/platform_data/modem.h>
 #include "modem_prj.h"
@@ -243,6 +244,20 @@ static int rx_hdlc_data_check(struct io_device *iod, char *buf, unsigned rest)
 			/* copy the RFS haeder to skb->data */
 			memcpy(skb_put(skb, head_size), hdr->hdr, head_size);
 			break;
+
+		case IPC_MULTI_RAW:
+			if (iod->net_typ == UMTS_NETWORK)
+				skb = alloc_skb(alloc_size, GFP_ATOMIC);
+			else
+				skb = alloc_skb(alloc_size +
+					sizeof(struct ethhdr), GFP_ATOMIC);
+			if (unlikely(!skb))
+				return -ENOMEM;
+
+			if (iod->net_typ != UMTS_NETWORK)
+				skb_reserve(skb, sizeof(struct ethhdr));
+			break;
+
 		default:
 			skb = alloc_skb(alloc_size, GFP_ATOMIC);
 			if (unlikely(!skb))
@@ -295,6 +310,9 @@ static int rx_iodev_skb_raw(struct io_device *iod)
 	struct sk_buff *skb = iod->skb_recv;
 	struct net_device *ndev;
 	struct iphdr *ip_header;
+	struct ethhdr *ehdr;
+	const char source[ETH_ALEN] = SOURCE_MAC_ADDR;
+	const char dest[ETH_ALEN] = {BRIDGE_MAC_ADDR, 0, 0, 0, 0, 0};
 
 	switch (iod->io_typ) {
 	case IODEV_MISC:
@@ -318,7 +336,21 @@ static int rx_iodev_skb_raw(struct io_device *iod)
 		else
 			skb->protocol = htons(ETH_P_IP);
 
-		err = netif_rx(skb);
+		if (iod->net_typ == UMTS_NETWORK)
+			err = netif_rx(skb);
+		else {
+			skb_push(skb, sizeof(struct ethhdr));
+			ehdr = (void *)skb->data;
+			memcpy(ehdr->h_dest, dest, ETH_ALEN);
+			memcpy(ehdr->h_source, source, ETH_ALEN);
+			ehdr->h_proto = skb->protocol;
+			skb->ip_summed = CHECKSUM_UNNECESSARY;
+			skb_reset_mac_header(skb);
+
+			skb_pull(skb, sizeof(struct ethhdr));
+			err = netif_rx_ni(skb);
+		}
+
 		if (err != NET_RX_SUCCESS)
 			dev_err(&ndev->dev, "rx error: %d\n", err);
 		return err;
@@ -702,6 +734,13 @@ static int vnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 	struct vnet *vnet = netdev_priv(ndev);
 	struct io_device *iod = vnet->iod;
 
+	/* umts doesn't need to discard ethernet header */
+	if (iod->net_typ != UMTS_NETWORK) {
+		if (iod->id >= PSD_DATA_CHID_BEGIN &&
+			iod->id <= PSD_DATA_CHID_END)
+			skb_pull(skb, sizeof(struct ethhdr));
+	}
+
 	hd.len = skb->len + sizeof(hd);
 	hd.control = 0;
 	hd.channel = iod->id & 0x1F;
@@ -743,8 +782,21 @@ static void vnet_setup(struct net_device *ndev)
 	ndev->netdev_ops = &vnet_ops;
 	ndev->type = ARPHRD_PPP;
 	ndev->flags = IFF_POINTOPOINT | IFF_NOARP | IFF_MULTICAST;
-	ndev->hard_header_len = 0;
 	ndev->addr_len = 0;
+	ndev->hard_header_len = 0;
+	ndev->tx_queue_len = 1000;
+	ndev->mtu = ETH_DATA_LEN;
+	ndev->watchdog_timeo = 5 * HZ;
+}
+
+static void vnet_setup_ether(struct net_device *ndev)
+{
+	ndev->netdev_ops = &vnet_ops;
+	ndev->type = ARPHRD_ETHER;
+	ndev->flags = IFF_POINTOPOINT | IFF_NOARP | IFF_MULTICAST | IFF_SLAVE;
+	ndev->addr_len = ETH_ALEN;
+	ndev->dev_addr[0] = BRIDGE_MAC_ADDR;
+	ndev->hard_header_len = 0;
 	ndev->tx_queue_len = 1000;
 	ndev->mtu = ETH_DATA_LEN;
 	ndev->watchdog_timeo = 5 * HZ;
@@ -780,7 +832,11 @@ int init_io_device(struct io_device *iod)
 		break;
 
 	case IODEV_NET:
-		iod->ndev = alloc_netdev(0, iod->name, vnet_setup);
+		if (iod->net_typ == UMTS_NETWORK)
+			iod->ndev = alloc_netdev(0, iod->name, vnet_setup);
+		else
+			iod->ndev = alloc_netdev(0, iod->name,
+						vnet_setup_ether);
 		if (!iod->ndev) {
 			pr_err("failed to alloc netdev\n");
 			return -ENOMEM;

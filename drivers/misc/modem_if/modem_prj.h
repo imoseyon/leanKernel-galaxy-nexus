@@ -35,10 +35,12 @@
 #define IOCTL_MODEM_SEND	_IO('o', 0x25)
 #define IOCTL_MODEM_RECV	_IO('o', 0x26)
 
-#define IOCTL_MODEM_STATUS		_IO('o', 0x27)
+#define IOCTL_MODEM_STATUS	_IO('o', 0x27)
 #define IOCTL_MODEM_GOTA_START	_IO('o', 0x28)
 #define IOCTL_MODEM_FW_UPDATE	_IO('o', 0x29)
 
+#define IOCTL_MODEM_NET_SUSPEND	_IO('o', 0x30)
+#define IOCTL_MODEM_NET_RESUME	_IO('o', 0x31)
 
 /* modem status */
 #define MODEM_OFF	0
@@ -52,7 +54,13 @@
 
 #define IPC_HEADER_MAX_SIZE	6 /* fmt 3, raw 6, rfs 6 */
 
+#define PSD_DATA_CHID_BEGIN	0x2A
+#define PSD_DATA_CHID_END	0x38
+
 #define IP6VERSION	6
+
+#define BRIDGE_MAC_ADDR	0x12
+#define SOURCE_MAC_ADDR	{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC}
 
 /* Does modem ctl structure will use state ? or status defined below ?*/
 enum modem_state {
@@ -103,6 +111,7 @@ struct io_device {
 	unsigned id;
 	enum dev_format format;
 	enum modem_io io_typ;
+	enum modem_network net_typ;
 
 	struct sk_buff_head sk_rx_q;
 
