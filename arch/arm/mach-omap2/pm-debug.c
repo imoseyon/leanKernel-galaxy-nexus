@@ -628,6 +628,10 @@ static int option_get(void *data, u64 *val)
 {
 	u32 *option = data;
 
+	if (option == &enable_off_mode) {
+		enable_off_mode = off_mode_enabled;
+	}
+
 	*val = *option;
 #ifdef CONFIG_PM_ADVANCED_DEBUG
 	if (option == &saved_reg_addr) {
