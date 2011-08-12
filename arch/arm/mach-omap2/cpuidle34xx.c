@@ -157,7 +157,7 @@ static struct cpuidle_state *next_valid_state(struct cpuidle_device *dev,
 	u32 mpu_deepest_state = PWRDM_POWER_RET;
 	u32 core_deepest_state = PWRDM_POWER_RET;
 
-	if (enable_off_mode) {
+	if (off_mode_enabled) {
 		mpu_deepest_state = PWRDM_POWER_OFF;
 		/*
 		 * Erratum i583: valable for ES rev < Es1.2 on 3630.
