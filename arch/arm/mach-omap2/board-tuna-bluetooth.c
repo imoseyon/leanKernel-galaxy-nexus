@@ -29,6 +29,7 @@
 #include <linux/serial_core.h>
 #include <linux/wakelock.h>
 #include <asm/mach-types.h>
+#include <plat/serial.h>
 
 #define BT_REG_GPIO 103
 #define BT_RESET_GPIO 42
@@ -134,6 +135,9 @@ static irqreturn_t host_wake_isr(int irq, void *dev)
 {
 	int host_wake;
 	unsigned long flags;
+
+	/* wakeup uart by enabling the uart module */
+	omap_uart_wake(2);
 
 	host_wake = gpio_get_value(BT_HOST_WAKE_GPIO);
 	irq_set_irq_type(irq, host_wake ? IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH);
