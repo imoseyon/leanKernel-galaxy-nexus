@@ -456,9 +456,9 @@ static int __init omap_rpmsg_ini(void)
 {
 	int i, ret = 0;
 	phys_addr_t paddr = omap_ipu_get_mempool_base(
-						OMAP_RPROC_MEMPOOL_DYNAMIC);
+						OMAP_RPROC_MEMPOOL_STATIC);
 	phys_addr_t psize = omap_ipu_get_mempool_size(
-						OMAP_RPROC_MEMPOOL_DYNAMIC);
+						OMAP_RPROC_MEMPOOL_STATIC);
 
 	for (i = 0; i < ARRAY_SIZE(omap_rpmsg_vprocs); i++) {
 		struct omap_rpmsg_vproc *rpdev = &omap_rpmsg_vprocs[i];
@@ -468,6 +468,10 @@ static int __init omap_rpmsg_ini(void)
 			return -ENOMEM;
 		}
 
+		/*
+		 * vring buffers are expected to be present at the beginning
+		 * of the chosen remoteproc pool
+		 */
 		rpdev->buf_addr = paddr;
 		rpdev->buf_size = RPMSG_BUFS_SPACE;
 		rpdev->vring[0] = paddr + RPMSG_BUFS_SPACE;

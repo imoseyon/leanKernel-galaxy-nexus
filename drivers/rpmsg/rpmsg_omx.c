@@ -92,8 +92,29 @@ static DEFINE_SPINLOCK(rpmsg_omx_services_lock);
 #endif
 #endif
 
+/*
+ * TODO: Need to do this using lookup with rproc, but rproc is not
+ * visible to rpmsg_omx
+ */
+#define TILER_START	0x60000000
+#define TILER_END	0x80000000
+#define ION_1D_START	0xBDF00000
+#define ION_1D_END	0xBFD00000
+#define ION_1D_VA	0x88000000
+static u32 _rpmsg_pa_to_da(u32 pa)
+{
+	if (pa >= TILER_START && pa < TILER_END)
+		return pa;
+	else if (pa >= ION_1D_START && pa < ION_1D_END)
+		return (pa - ION_1D_START + ION_1D_VA);
+	else
+		return 0;
+}
+
 static u32 _rpmsg_omx_buffer_lookup(struct rpmsg_omx_instance *omx, long buffer)
 {
+	phys_addr_t pa;
+	u32 va;
 #ifdef CONFIG_ION_OMAP
 	struct ion_handle *handle;
 	ion_phys_addr_t paddr;
@@ -102,8 +123,10 @@ static u32 _rpmsg_omx_buffer_lookup(struct rpmsg_omx_instance *omx, long buffer)
 
 	/* is it an ion handle? */
 	handle = (struct ion_handle *)buffer;
-	if (!ion_phys(omx->ion_client, handle, &paddr, &unused))
-		return (u32)paddr;
+	if (!ion_phys(omx->ion_client, handle, &paddr, &unused)) {
+		pa = (phys_addr_t) paddr;
+		goto to_va;
+	}
 
 #ifdef CONFIG_PVR_SGX
 	/* how about an sgx buffer wrapping an ion handle? */
@@ -111,12 +134,21 @@ static u32 _rpmsg_omx_buffer_lookup(struct rpmsg_omx_instance *omx, long buffer)
 		struct ion_client *pvr_ion_client;
 		fd = buffer;
 		handle = PVRSRVExportFDToIONHandle(fd, &pvr_ion_client);
-		if (handle && !ion_phys(pvr_ion_client, handle, &paddr, &unused))
-			return (u32)paddr;
+		if (handle &&
+			!ion_phys(pvr_ion_client, handle, &paddr, &unused)) {
+			pa = (phys_addr_t)paddr;
+			goto to_va;
+		}
 	}
 #endif
 #endif
-	return tiler_virt2phys(buffer);
+	pa = (phys_addr_t) tiler_virt2phys(buffer);
+
+#ifdef CONFIG_ION_OMAP
+to_va:
+#endif
+	va = _rpmsg_pa_to_da(pa);
+	return va;
 }
 
 static int _rpmsg_omx_map_buf(struct rpmsg_omx_instance *omx, char *packet)
@@ -125,7 +157,7 @@ static int _rpmsg_omx_map_buf(struct rpmsg_omx_instance *omx, char *packet)
 	long *buffer;
 	char *data;
 	enum rpc_omx_map_info_type maptype;
-	u32 pa = 0;
+	u32 da = 0;
 
 	data = (char *)((struct omx_packet *)packet)->data;
 	maptype = *((enum rpc_omx_map_info_type *)data);
@@ -141,10 +173,9 @@ static int _rpmsg_omx_map_buf(struct rpmsg_omx_instance *omx, char *packet)
 	offset = *(int *)((int)data + sizeof(maptype));
 	buffer = (long *)((int)data + offset);
 
-	pa = _rpmsg_omx_buffer_lookup(omx, *buffer);
-
-	if (pa) {
-		*buffer = pa;
+	da = _rpmsg_omx_buffer_lookup(omx, *buffer);
+	if (da) {
+		*buffer = da;
 		ret = 0;
 	}
 
@@ -152,10 +183,9 @@ static int _rpmsg_omx_map_buf(struct rpmsg_omx_instance *omx, char *packet)
 		buffer = (long *)((int)data + offset + sizeof(*buffer));
 		if (*buffer != 0) {
 			ret = -EIO;
-			pa = _rpmsg_omx_buffer_lookup(omx, *buffer);
-
-			if (pa) {
-				*buffer = pa;
+			da = _rpmsg_omx_buffer_lookup(omx, *buffer);
+			if (da) {
+				*buffer = da;
 				ret = 0;
 			}
 		}
@@ -165,9 +195,9 @@ static int _rpmsg_omx_map_buf(struct rpmsg_omx_instance *omx, char *packet)
 		buffer = (long *)((int)data + offset + 2*sizeof(*buffer));
 		if (*buffer != 0) {
 			ret = -EIO;
-			pa = _rpmsg_omx_buffer_lookup(omx, *buffer);
-			if (pa) {
-				*buffer = pa;
+			da = _rpmsg_omx_buffer_lookup(omx, *buffer);
+			if (da) {
+				*buffer = da;
 				ret = 0;
 			}
 		}
