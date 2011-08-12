@@ -421,16 +421,16 @@ static int sdp4430_twl6040_init(struct snd_soc_pcm_runtime *rtd)
 	else
 		snd_soc_jack_report(&hs_jack, SND_JACK_HEADSET, SND_JACK_HEADSET);
 
-	/* wait 500 ms before switching of HS power */
-	rtd->pmdown_time = 500;
+	/* don't wait before switching of HS power */
+	rtd->pmdown_time = 0;
 
 	return ret;
 }
 
 static int sdp4430_twl6040_dl2_init(struct snd_soc_pcm_runtime *rtd)
 {
-	/* wait 500 ms before switching of HF power */
-	rtd->pmdown_time = 500;
+	/* don't wait before switching of HF power */
+	rtd->pmdown_time = 0;
 
 	return 0;
 }
