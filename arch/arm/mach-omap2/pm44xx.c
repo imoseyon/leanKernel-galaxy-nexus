@@ -308,7 +308,7 @@ static void _print_prcm_wakeirq(int irq)
 	if (prcm_irqs1 & OMAP4430_IO_ST_MASK)
 		for (i = 0; i <= 6; i++) {
 			long unsigned int wkevt =
-				omap_readw(CONTROL_PADCONF_WAKEUPEVENT_0 + i*4);
+				omap_readl(CONTROL_PADCONF_WAKEUPEVENT_0 + i*4);
 
 			for_each_set_bit(bit, &wkevt, 32) {
 				pr_info("Resume caused by I/O pad: CONTROL_PADCONF_WAKEUPEVENT_%d[%d]\n",
