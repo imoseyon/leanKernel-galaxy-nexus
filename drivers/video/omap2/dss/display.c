@@ -446,6 +446,8 @@ void dss_init_device(struct platform_device *pdev,
 		return;
 	}
 
+	BLOCKING_INIT_NOTIFIER_HEAD(&dssdev->state_notifiers);
+
 	/* create device sysfs files */
 	i = 0;
 	while ((attr = display_sysfs_attrs[i++]) != NULL) {

@@ -571,6 +571,8 @@ struct omap_dss_device {
 
 	enum omap_dss_display_state state;
 
+	struct blocking_notifier_head state_notifiers;
+
 	/* platform specific  */
 	int (*platform_enable)(struct omap_dss_device *dssdev);
 	void (*platform_disable)(struct omap_dss_device *dssdev);
@@ -627,6 +629,10 @@ struct omap_dss_driver {
 
 	int (*set_wss)(struct omap_dss_device *dssdev, u32 wss);
 	u32 (*get_wss)(struct omap_dss_device *dssdev);
+
+	/* for wrapping around state changes */
+	void (*disable_orig)(struct omap_dss_device *display);
+	int (*enable_orig)(struct omap_dss_device *display);
 };
 
 int omap_dss_register_driver(struct omap_dss_driver *);
