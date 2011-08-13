@@ -1706,25 +1706,13 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 		dssdev = mgr->device;
 
 		if (!overlay_enabled(ovl) || !dssdev) {
-			if (oc->enabled) {
-				oc->enabled = false;
-				oc->dirty = true;
-			}
-			continue;
-		}
-
-		if (!ovl->info_dirty) {
+			ovl->info.enabled = false;
+		} else if (!ovl->info_dirty) {
 			if (oc->enabled)
 				++num_planes_enabled;
 			continue;
-		}
-
-		if (dss_check_overlay(ovl, dssdev)) {
-			if (oc->enabled) {
-				oc->enabled = false;
-				oc->dirty = true;
-			}
-			continue;
+		} else if (dss_check_overlay(ovl, dssdev)) {
+			ovl->info.enabled = false;
 		}
 
 		/* complete unconfigured info in cache */
@@ -1739,7 +1727,11 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 		ovl->info.cb.fn = NULL;
 
 		ovl->info_dirty = false;
-		oc->dirty = true;
+		if (ovl->info.enabled || oc->enabled)
+			oc->dirty = true;
+		oc->enabled = ovl->info.enabled;
+		if (!oc->enabled)
+			continue;
 
 		oc->paddr = ovl->info.paddr;
 		oc->vaddr = ovl->info.vaddr;
@@ -1770,8 +1762,6 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 		oc->ilace = dssdev->type == OMAP_DISPLAY_TYPE_VENC;
 
 		oc->channel = mgr->id;
-
-		oc->enabled = true;
 
 		oc->manual_update =
 			dssdev->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE &&
