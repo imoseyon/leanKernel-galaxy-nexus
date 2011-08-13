@@ -737,6 +737,26 @@ static struct omap_device_pad tuna_uart1_pads[] __initdata = {
 	},
 };
 
+
+static struct omap_device_pad tuna_uart2_pads[] __initdata = {
+	{
+		.name	= "uart2_cts.uart2_cts",
+		.enable	= OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE0,
+	},
+	{
+		.name	= "uart2_rts.uart2_rts",
+		.enable	= OMAP_PIN_OUTPUT | OMAP_MUX_MODE0,
+	},
+	{
+		.name	= "uart2_tx.uart2_tx",
+		.enable	= OMAP_PIN_OUTPUT | OMAP_MUX_MODE0,
+	},
+	{
+		.name	= "uart2_rx.uart2_rx",
+		.enable	= OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE0,
+	},
+};
+
 static struct omap_device_pad tuna_uart3_pads[] __initdata = {
 	{
 		.name   = "uart3_tx_irtx.uart3_tx_irtx",
@@ -754,7 +774,8 @@ static inline void __init board_serial_init(void)
 {
 	omap_serial_init_port_pads(0, tuna_uart1_pads,
 		ARRAY_SIZE(tuna_uart1_pads), NULL);
-	omap_serial_init_port_pads(1, NULL, 0, NULL);
+	omap_serial_init_port_pads(1, tuna_uart2_pads,
+		ARRAY_SIZE(tuna_uart2_pads), NULL);
 	omap_serial_init_port_pads(2, tuna_uart3_pads,
 		ARRAY_SIZE(tuna_uart3_pads), NULL);
 	omap_serial_init_port_pads(3, NULL, 0, NULL);
