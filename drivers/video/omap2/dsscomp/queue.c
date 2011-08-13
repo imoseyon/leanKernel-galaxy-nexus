@@ -552,14 +552,18 @@ skip_ovl_set:
 	/* ignore this error if callback has already been registered */
 	if (!mgr->info_dirty)
 		r = 0;
+	else if (r)
+		/* otherwise reset original callback */
+		mgr->info.cb = comp->cb;
 
 	if (!r && (d->mode & DSSCOMP_SETUP_MODE_DISPLAY)) {
+		/* cannot handle update errors, so ignore them */
 		if (dssdev_manually_updated(dssdev) && drv->update)
-			r = drv->update(dssdev, d->win.x,
+			drv->update(dssdev, d->win.x,
 					d->win.y, d->win.w, d->win.h);
 		else
 			/* wait for sync to do smooth animations */
-			r = mgr->wait_for_vsync(mgr);
+			mgr->wait_for_vsync(mgr);
 	}
 
 done:
