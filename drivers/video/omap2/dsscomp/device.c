@@ -369,6 +369,10 @@ static void fill_cache(struct dsscomp_dev *cdev)
 
 		cdev->displays[i] = dssdev;
 		dev_dbg(DEV(cdev), "display%lu=%s\n", i, dssdev->driver_name);
+
+		cdev->state_notifiers[i].notifier_call = dsscomp_state_notifier;
+		blocking_notifier_chain_register(&dssdev->state_notifiers,
+						cdev->state_notifiers + i);
 	}
 	dev_info(DEV(cdev), "found %d displays and %d overlays\n",
 				cdev->num_displays, cdev->num_ovls);

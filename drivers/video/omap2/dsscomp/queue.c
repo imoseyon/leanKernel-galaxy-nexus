@@ -23,6 +23,7 @@
 #include <linux/vmalloc.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
+#include <linux/ratelimit.h>
 
 #include <video/omapdss.h>
 #include <video/dsscomp.h>
@@ -44,6 +45,7 @@ static struct {
 
 	u32 ovl_mask;		/* overlays used on this display */
 	struct maskref ovl_qmask;		/* overlays queued to this display */
+	bool blanking;
 } mgrq[MAX_MANAGERS];
 
 static struct workqueue_struct *cb_wkq;		/* callback work queue */
@@ -545,9 +547,17 @@ skip_ovl_set:
 	if (!d->win.h && !d->win.y)
 		d->win.h = dssdev->panel.timings.y_res - d->win.y;
 
-	r = mgr->apply(mgr);
-	if (r)
-		dev_err(DEV(cdev), "failed while applying %d", r);
+	mutex_lock(&mtx);
+	if (mgrq[comp->ix].blanking) {
+		pr_info_ratelimited("ignoring apply mgr(%s) while blanking\n",
+				    mgr->name);
+		r = -ENODEV;
+	} else {
+		r = mgr->apply(mgr);
+		if (r)
+			dev_err(DEV(cdev), "failed while applying %d", r);
+	}
+	mutex_unlock(&mtx);
 
 	/* ignore this error if callback has already been registered */
 	if (!mgr->info_dirty)
@@ -575,6 +585,26 @@ struct dsscomp_apply_work {
 	struct work_struct work;
 	dsscomp_t comp;
 };
+
+int dsscomp_state_notifier(struct notifier_block *nb,
+						unsigned long arg, void *ptr)
+{
+	struct omap_dss_device *dssdev = ptr;
+	enum omap_dss_display_state state = arg;
+	struct omap_overlay_manager *mgr = dssdev->manager;
+	if (mgr) {
+		mutex_lock(&mtx);
+		if (state == OMAP_DSS_DISPLAY_DISABLED) {
+			mgr->blank(mgr, false);
+			mgrq[mgr->id].blanking = true;
+		} else if (state == OMAP_DSS_DISPLAY_ACTIVE) {
+			mgrq[mgr->id].blanking = false;
+		}
+		mutex_unlock(&mtx);
+	}
+	return 0;
+}
+
 
 static void dsscomp_do_apply(struct work_struct *work)
 {
