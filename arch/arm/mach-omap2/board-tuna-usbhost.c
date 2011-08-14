@@ -24,7 +24,7 @@
 
 #define GPIO_USB3333_RESETB     159
 
-static const struct usbhs_omap_board_data usbhs_bdata __initconst = {
+static struct usbhs_omap_board_data usbhs_bdata = {
 	.port_mode[0] = OMAP_EHCI_PORT_MODE_PHY,
 	.port_mode[1] = OMAP_USBHS_PORT_MODE_UNUSED,
 	.port_mode[2] = OMAP_USBHS_PORT_MODE_UNUSED,
@@ -72,6 +72,11 @@ void __init omap4_ehci_init(void)
 
 	udelay(100);
 	gpio_set_value(GPIO_USB3333_RESETB, 1);
+
+	/* Everything went well with phy clock, pass it to ehci driver for
+	* low power managment now
+	*/
+	usbhs_bdata.transceiver_clk[0] = phy_ref_clk;
 
 	usbhs_init(&usbhs_bdata);
 
