@@ -33,16 +33,6 @@
 
 
 /*
- * Macro to check cpu omap: XXX: TOBE UPDATED WHEN WE DISABLE THE WORKAROUND!
- * we use ARM rev to detect the device
- */
-.macro IS_CPU_OMAP4460
-	mrc	p15, 0, r0, c0, c0, 0
-	and	r0, #0xf
-	cmp	r0, #0xa
-.endm
-
-/*
  * Macro to call PPA svc when MMU is OFF
  * Caller must setup r0 and r3 before calling this macro
  * @r0: PPA service ID
@@ -57,11 +47,12 @@
 	smc     #0
 .endm
 
+/*
+ * To load POR which was saved in SAR RAM
+ */
 POR_params:
-.word 1, 5
+.word 1, 0
 
-POR_4460_params:
-.word 1, 0x42000009
 
 /*
  * =============================
@@ -322,10 +313,10 @@ check_por:
 	cmp	r1, #0x1                   @ Check for HS device
 	bne	skip_por
 	ldr	r0, =PPA_SERVICE_PL310_POR @ Setup PPA HAL call
-	IS_CPU_OMAP4460
-	ite	eq
-	adreq	r3, POR_4460_params
-	adrne	r3, POR_params
+	ldr	r1, =OMAP44XX_SAR_RAM_BASE
+	ldr	r4, [r1, #L2X0_PREFETCHCTRL_OFFSET]
+	adr	r3, POR_params
+	str	r4, [r3, #0x04]
 	LM_CALL_PPA_SERVICE_PA
 skip_por:
 	ldr	r3, =OMAP44XX_SAR_RAM_BASE
