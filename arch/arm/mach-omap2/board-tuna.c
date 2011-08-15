@@ -1001,7 +1001,9 @@ static void __init tuna_init(void)
 #endif
 #ifdef CONFIG_USB_EHCI_HCD_OMAP
 	if (TUNA_TYPE_TORO == omap4_tuna_get_type()) {
+#ifdef CONFIG_SEC_MODEM
 		modem_toro_init();
+#endif
 		omap4_ehci_init();
 	}
 #endif
