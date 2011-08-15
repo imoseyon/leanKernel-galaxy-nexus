@@ -279,6 +279,18 @@ static void omap_timer_restore_context(struct omap_dm_timer *timer)
 				timer->context.tsicr);
 }
 
+static void __timer_enable(struct omap_dm_timer *timer)
+{
+	pm_runtime_get_sync(&timer->pdev->dev);
+	timer->enabled = 1;
+}
+
+static void __timer_disable(struct omap_dm_timer *timer)
+{
+	pm_runtime_put_sync_suspend(&timer->pdev->dev);
+	timer->enabled = 0;
+}
+
 static void omap_dm_timer_wait_for_reset(struct omap_dm_timer *timer)
 {
 	int c;
@@ -298,7 +310,7 @@ static void omap_dm_timer_reset(struct omap_dm_timer *timer)
 	u32 l;
 
 	if (!timer->is_early_init)
-		omap_dm_timer_enable(timer);
+		__timer_enable(timer);
 
 	if (timer->pdev->id != 1) {
 		omap_dm_timer_write_reg(timer, OMAP_TIMER_IF_CTRL_REG, 0x06);
@@ -311,7 +323,7 @@ static void omap_dm_timer_reset(struct omap_dm_timer *timer)
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_OCP_CFG_REG, l);
 
 	if (!timer->is_early_init)
-		omap_dm_timer_disable(timer);
+		__timer_disable(timer);
 }
 
 static int omap_dm_timer_prepare(struct omap_dm_timer *timer)
@@ -341,14 +353,14 @@ static int omap_dm_timer_prepare(struct omap_dm_timer *timer)
 
 end:
 	if (!timer->is_early_init)
-		omap_dm_timer_enable(timer);
+		__timer_enable(timer);
 
 	/* Match hardware reset default of posted mode */
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_IF_CTRL_REG,
 			OMAP_TIMER_CTRL_POSTED);
 
 	if (!timer->is_early_init)
-		omap_dm_timer_disable(timer);
+		__timer_disable(timer);
 
 	timer->posted = 1;
 	return 0;
@@ -415,7 +427,7 @@ EXPORT_SYMBOL_GPL(omap_dm_timer_request_specific);
 
 void omap_dm_timer_free(struct omap_dm_timer *timer)
 {
-	omap_dm_timer_disable(timer);
+	__timer_disable(timer);
 
 	clk_put(timer->fclk);
 
@@ -426,15 +438,13 @@ EXPORT_SYMBOL_GPL(omap_dm_timer_free);
 
 void omap_dm_timer_enable(struct omap_dm_timer *timer)
 {
-	pm_runtime_get_sync(&timer->pdev->dev);
-	timer->enabled = 1;
+	__timer_enable(timer);
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_enable);
 
 void omap_dm_timer_disable(struct omap_dm_timer *timer)
 {
-	pm_runtime_put_sync_suspend(&timer->pdev->dev);
-	timer->enabled = 0;
+	__timer_disable(timer);
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_disable);
 
@@ -511,7 +521,7 @@ void omap_dm_timer_start(struct omap_dm_timer *timer)
 	if (timer->loses_context) {
 		u32 ctx_loss_cnt_after;
 
-		omap_dm_timer_enable(timer);
+		__timer_enable(timer);
 		ctx_loss_cnt_after =
 			timer->get_context_loss_count(&timer->pdev->dev);
 		if ((ctx_loss_cnt_after != timer->ctx_loss_count) &&
@@ -543,9 +553,9 @@ void omap_dm_timer_stop(struct omap_dm_timer *timer)
 			/* Readback to make sure write has completed */
 			omap_dm_timer_read_reg(timer, OMAP_TIMER_CTRL_REG);
 			/*
-			 * Wait for functional clock period x 3.5 to make
-			 * sure that timer is stopped
-			 */
+			* Wait for functional clock period x 3.5 to make
+			* sure that timer is stopped
+			*/
 			udelay(3500000 / clk_get_rate(timer->fclk) + 1);
 		}
 	}
@@ -559,7 +569,7 @@ void omap_dm_timer_stop(struct omap_dm_timer *timer)
 			timer->get_context_loss_count(&timer->pdev->dev);
 		omap_timer_save_context(timer);
 		timer->context_saved = true;
-		omap_dm_timer_disable(timer);
+		__timer_disable(timer);
 	}
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_stop);
@@ -573,7 +583,7 @@ int omap_dm_timer_set_source(struct omap_dm_timer *timer, int source)
 		return -EINVAL;
 
 	if (timer->enabled)
-		omap_dm_timer_disable(timer);
+		__timer_disable(timer);
 
 	/* change the timer clock source */
 	ret = pdata->set_timer_src(timer->pdev, source);
@@ -593,7 +603,7 @@ void omap_dm_timer_set_load(struct omap_dm_timer *timer, int autoreload,
 {
 	u32 l;
 
-	omap_dm_timer_enable(timer);
+	__timer_enable(timer);
 	l = omap_dm_timer_read_reg(timer, OMAP_TIMER_CTRL_REG);
 	if (autoreload)
 		l |= OMAP_TIMER_CTRL_AR;
@@ -603,7 +613,7 @@ void omap_dm_timer_set_load(struct omap_dm_timer *timer, int autoreload,
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_LOAD_REG, load);
 
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_TRIGGER_REG, 0);
-	omap_dm_timer_disable(timer);
+	__timer_disable(timer);
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_set_load);
 
@@ -616,7 +626,7 @@ void omap_dm_timer_set_load_start(struct omap_dm_timer *timer, int autoreload,
 	if (timer->loses_context) {
 		u32 ctx_loss_cnt_after;
 
-		omap_dm_timer_enable(timer);
+		__timer_enable(timer);
 		ctx_loss_cnt_after =
 			timer->get_context_loss_count(&timer->pdev->dev);
 		if ((ctx_loss_cnt_after != timer->ctx_loss_count) &&
@@ -645,7 +655,7 @@ void omap_dm_timer_set_match(struct omap_dm_timer *timer, int enable,
 {
 	u32 l;
 
-	omap_dm_timer_enable(timer);
+	__timer_enable(timer);
 	l = omap_dm_timer_read_reg(timer, OMAP_TIMER_CTRL_REG);
 	if (enable)
 		l |= OMAP_TIMER_CTRL_CE;
@@ -653,7 +663,7 @@ void omap_dm_timer_set_match(struct omap_dm_timer *timer, int enable,
 		l &= ~OMAP_TIMER_CTRL_CE;
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_CTRL_REG, l);
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_MATCH_REG, match);
-	omap_dm_timer_disable(timer);
+	__timer_disable(timer);
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_set_match);
 
@@ -662,7 +672,7 @@ void omap_dm_timer_set_pwm(struct omap_dm_timer *timer, int def_on,
 {
 	u32 l;
 
-	omap_dm_timer_enable(timer);
+	__timer_enable(timer);
 	l = omap_dm_timer_read_reg(timer, OMAP_TIMER_CTRL_REG);
 	l &= ~(OMAP_TIMER_CTRL_GPOCFG | OMAP_TIMER_CTRL_SCPWM |
 	       OMAP_TIMER_CTRL_PT | (0x03 << 10));
@@ -672,7 +682,7 @@ void omap_dm_timer_set_pwm(struct omap_dm_timer *timer, int def_on,
 		l |= OMAP_TIMER_CTRL_PT;
 	l |= trigger << 10;
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_CTRL_REG, l);
-	omap_dm_timer_disable(timer);
+	__timer_disable(timer);
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_set_pwm);
 
@@ -680,7 +690,7 @@ void omap_dm_timer_set_prescaler(struct omap_dm_timer *timer, int prescaler)
 {
 	u32 l;
 
-	omap_dm_timer_enable(timer);
+	__timer_enable(timer);
 	l = omap_dm_timer_read_reg(timer, OMAP_TIMER_CTRL_REG);
 	l &= ~(OMAP_TIMER_CTRL_PRE | (0x07 << 2));
 	if (prescaler >= 0x00 && prescaler <= 0x07) {
@@ -688,7 +698,7 @@ void omap_dm_timer_set_prescaler(struct omap_dm_timer *timer, int prescaler)
 		l |= prescaler << 2;
 	}
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_CTRL_REG, l);
-	omap_dm_timer_disable(timer);
+	__timer_disable(timer);
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_set_prescaler);
 
@@ -696,13 +706,13 @@ void omap_dm_timer_set_int_enable(struct omap_dm_timer *timer,
 				  unsigned int value)
 {
 	if (!timer->is_early_init && !timer->enabled)
-		omap_dm_timer_enable(timer);
+		__timer_enable(timer);
 
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_INT_EN_REG, value);
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_WAKEUP_EN_REG, value);
 
 	if (!timer->is_early_init && !timer->enabled)
-		omap_dm_timer_disable(timer);
+		__timer_disable(timer);
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_set_int_enable);
 
