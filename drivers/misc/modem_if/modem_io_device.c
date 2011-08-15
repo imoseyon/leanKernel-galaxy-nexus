@@ -143,22 +143,16 @@ static void *get_header(struct io_device *iod, size_t count,
 	}
 }
 
-static int rx_hdlc_head_start_check(char *buf)
+static inline int rx_hdlc_head_start_check(char *buf)
 {
-	if (strncmp(buf, hdlc_start, sizeof(hdlc_start))) {
-		pr_err("[MODEM_IF] Wrong HDLC start: 0x%x\n", *buf);
-		return -EBADMSG;
-	}
-	return sizeof(hdlc_start);
+	/* check hdlc head and return size of start byte */
+	return (buf[0] == HDLC_START) ? SIZE_OF_HDLC_START : -EBADMSG;
 }
 
-static int rx_hdlc_tail_check(char *buf)
+static inline int rx_hdlc_tail_check(char *buf)
 {
-	if (strncmp(buf, hdlc_end, sizeof(hdlc_end))) {
-		pr_err("[MODEM_IF] Wrong HDLC end: 0x%x\n", *buf);
-		return -EBADMSG;
-	}
-	return sizeof(hdlc_end);
+	/* check hdlc tail and return size of tail byte */
+	return (buf[0] == HDLC_END) ? SIZE_OF_HDLC_END : -EBADMSG;
 }
 
 /* remove hdlc header and store IPC header */
@@ -172,13 +166,16 @@ static int rx_hdlc_head_check(struct io_device *iod, char *buf, unsigned rest)
 	/* first frame, remove start header 7F */
 	if (!hdr->start) {
 		len = rx_hdlc_head_start_check(buf);
-		if (len < 0)
+		if (len < 0) {
+			pr_err("[MODEM_IF] Wrong HDLC start: 0x%x\n", *buf);
 			return len; /*Wrong hdlc start*/
+		}
 
 		pr_debug("[MODEM_IF] check len : %d, rest : %d (%d)\n", len,
 					rest, __LINE__);
 
-		memcpy(&hdr->start, hdlc_start, len);
+		/* set the start flag of current packet */
+		hdr->start = HDLC_START;
 		hdr->len = 0;
 
 		/* debug print */
@@ -361,9 +358,36 @@ static int rx_iodev_skb_raw(struct io_device *iod)
 	}
 }
 
-static int rx_multipdp(struct io_device *iod)
+static void rx_iodev_work(struct work_struct *work)
 {
 	int ret;
+	struct sk_buff *skb;
+	struct io_device *real_iod;
+	struct io_device *iod = container_of(work, struct io_device,
+				rx_work.work);
+
+	skb = skb_dequeue(&iod->sk_rx_q);
+	while (skb) {
+		real_iod = *((struct io_device **)skb->cb);
+		real_iod->skb_recv = skb;
+
+		ret = rx_iodev_skb_raw(real_iod);
+		if (ret == NET_RX_DROP) {
+			pr_err("[MODEM_IF] %s: queue delayed work!\n",
+								__func__);
+			skb_queue_head(&iod->sk_rx_q, skb);
+			schedule_delayed_work(&iod->rx_work,
+						msecs_to_jiffies(20));
+			break;
+		} else if (ret < 0)
+			dev_kfree_skb_any(skb);
+
+		skb = skb_dequeue(&iod->sk_rx_q);
+	}
+}
+
+static int rx_multipdp(struct io_device *iod)
+{
 	u8 ch;
 	struct raw_hdr *raw_header = (struct raw_hdr *)&iod->h_data.hdr;
 	struct io_raw_devices *io_raw_devs =
@@ -377,11 +401,12 @@ static int rx_multipdp(struct io_device *iod)
 		return -1;
 	}
 
-	real_iod->skb_recv = iod->skb_recv;
-	ret = rx_iodev_skb_raw(real_iod);
-	if (ret < 0)
-		pr_err("[MODEM_IF] %s: rx_iodev_skb_raw failed!\n", __func__);
-	return ret;
+	*((struct io_device **)iod->skb_recv->cb) = real_iod;
+	skb_queue_tail(&iod->sk_rx_q, iod->skb_recv);
+	pr_debug("sk_rx_qlen:%d\n", iod->sk_rx_q.qlen);
+
+	schedule_delayed_work(&iod->rx_work, 0);
+	return 0;
 }
 
 /* de-mux function draft */
@@ -407,7 +432,7 @@ static int rx_hdlc_packet(struct io_device *iod, const char *data,
 {
 	unsigned rest = recv_size;
 	char *buf = (char *)data;
-	int err;
+	int err = 0;
 	int len;
 
 	if (rest <= 0)
@@ -446,8 +471,10 @@ data_check:
 		goto exit;
 
 	err = len = rx_hdlc_tail_check(buf);
-	if (err < 0)
+	if (err < 0) {
+		pr_err("[MODEM_IF] Wrong HDLC end: 0x%x\n", *buf);
 		goto exit;
+	}
 	pr_debug("[MODEM_IF] check len : %d, rest : %d (%d)\n", len, rest,
 				__LINE__);
 
@@ -819,6 +846,7 @@ int init_io_device(struct io_device *iod)
 	case IODEV_MISC:
 		init_waitqueue_head(&iod->wq);
 		skb_queue_head_init(&iod->sk_rx_q);
+		INIT_DELAYED_WORK(&iod->rx_work, rx_iodev_work);
 
 		iod->miscdev.minor = MISC_DYNAMIC_MINOR;
 		iod->miscdev.name = iod->name;
@@ -854,6 +882,9 @@ int init_io_device(struct io_device *iod)
 		break;
 
 	case IODEV_DUMMY:
+		skb_queue_head_init(&iod->sk_rx_q);
+		INIT_DELAYED_WORK(&iod->rx_work, rx_iodev_work);
+
 		break;
 
 	default:

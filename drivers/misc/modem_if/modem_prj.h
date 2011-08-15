@@ -115,6 +115,11 @@ struct io_device {
 
 	struct sk_buff_head sk_rx_q;
 
+	/* work for each io device, when delayed work needed
+	* use this for private io device rx action
+	*/
+	struct delayed_work rx_work;
+
 	/* for fragmentation data from link device */
 	struct sk_buff *skb_recv;
 	struct header_data h_data;
