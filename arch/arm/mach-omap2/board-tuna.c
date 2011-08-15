@@ -168,18 +168,6 @@ static void omap4_tuna_init_hw_rev(void)
 		cpu_is_omap443x() ? "OMAP4430" : "OMAP4460");
 }
 
-bool omap4_tuna_final_gpios(void)
-{
-	int type = omap4_tuna_get_type();
-	int rev = omap4_tuna_get_revision();
-
-	if (type == TUNA_TYPE_TORO ||
-	    (rev != TUNA_REV_PRE_LUNCHBOX && rev != TUNA_REV_LUNCHBOX))
-		return true;
-
-	return false;
-}
-
 /* wl127x BT, FM, GPS connectivity chip */
 static int wl1271_gpios[] = {46, -1, -1};
 static struct platform_device wl1271_device = {

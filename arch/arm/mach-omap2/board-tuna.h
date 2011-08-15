@@ -14,8 +14,6 @@
 #ifndef _MACH_OMAP2_BOARD_TUNA_H_
 #define _MACH_OMAP2_BOARD_TUNA_H_
 
-#define TUNA_REV_PRE_LUNCHBOX	0x5
-#define TUNA_REV_LUNCHBOX	0x0
 #define TUNA_REV_MASK		0xf
 #define TUNA_REV_03		0x3
 
