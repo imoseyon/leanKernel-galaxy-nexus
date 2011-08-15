@@ -433,10 +433,15 @@ EXPORT_SYMBOL_GPL(omap_dm_timer_request_specific);
 
 int omap_dm_timer_free(struct omap_dm_timer *timer)
 {
+	unsigned long flags;
 	if (!timer)
 		return -EINVAL;
-	if (!timer->reserved)
+
+	spin_lock_irqsave(&timer->lock, flags);
+	if (!timer->reserved) {
+		spin_unlock_irqrestore(&timer->lock, flags);
 		return -EINVAL;
+	}
 
 	__timer_disable(timer);
 	clk_put(timer->fclk);
@@ -444,26 +449,33 @@ int omap_dm_timer_free(struct omap_dm_timer *timer)
 	timer->reserved = 0;
 	timer->context_saved = false;
 
+	spin_unlock_irqrestore(&timer->lock, flags);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_free);
 
 int omap_dm_timer_enable(struct omap_dm_timer *timer)
 {
+	unsigned long flags;
 	if (!timer)
 		return -EINVAL;
 
+	spin_lock_irqsave(&timer->lock, flags);
 	__timer_enable(timer);
+	spin_unlock_irqrestore(&timer->lock, flags);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_enable);
 
 int omap_dm_timer_disable(struct omap_dm_timer *timer)
 {
+	unsigned long flags;
 	if (!timer)
 		return -EINVAL;
 
+	spin_lock_irqsave(&timer->lock, flags);
 	__timer_disable(timer);
+	spin_unlock_irqrestore(&timer->lock, flags);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_disable);
@@ -534,10 +546,18 @@ EXPORT_SYMBOL_GPL(omap_dm_timer_modify_idlect_mask);
 
 int omap_dm_timer_trigger(struct omap_dm_timer *timer)
 {
-	if (timer && timer->enabled) {
+	unsigned long flags;
+
+	if (!timer)
+		return -EINVAL;
+
+	spin_lock_irqsave(&timer->lock, flags);
+	if (timer->enabled) {
 		omap_dm_timer_write_reg(timer, OMAP_TIMER_TRIGGER_REG, 0);
+		spin_unlock_irqrestore(&timer->lock, flags);
 		return 0;
 	}
+	spin_unlock_irqrestore(&timer->lock, flags);
 	return -EINVAL;
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_trigger);
@@ -545,9 +565,12 @@ EXPORT_SYMBOL_GPL(omap_dm_timer_trigger);
 int omap_dm_timer_start(struct omap_dm_timer *timer)
 {
 	u32 l;
+	unsigned long flags;
+
 	if (!timer)
 		return -EINVAL;
 
+	spin_lock_irqsave(&timer->lock, flags);
 	if (timer->loses_context) {
 		u32 ctx_loss_cnt_after;
 
@@ -566,6 +589,7 @@ int omap_dm_timer_start(struct omap_dm_timer *timer)
 		l |= OMAP_TIMER_CTRL_ST;
 		omap_dm_timer_write_reg(timer, OMAP_TIMER_CTRL_REG, l);
 	}
+	spin_unlock_irqrestore(&timer->lock, flags);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_start);
@@ -574,12 +598,16 @@ int omap_dm_timer_stop(struct omap_dm_timer *timer)
 {
 	u32 l;
 	struct dmtimer_platform_data *pdata;
+	unsigned long flags;
 
 	if (!timer)
 		return -EINVAL;
 
-	if (!timer->enabled)
+	spin_lock_irqsave(&timer->lock, flags);
+	if (!timer->enabled) {
+		spin_unlock_irqrestore(&timer->lock, flags);
 		return -EINVAL;
+	}
 
 	pdata = timer->pdev->dev.platform_data;
 	l = omap_dm_timer_read_reg(timer, OMAP_TIMER_CTRL_REG);
@@ -609,6 +637,7 @@ int omap_dm_timer_stop(struct omap_dm_timer *timer)
 		timer->context_saved = true;
 		__timer_disable(timer);
 	}
+	spin_unlock_irqrestore(&timer->lock, flags);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_stop);
@@ -617,6 +646,7 @@ int omap_dm_timer_set_source(struct omap_dm_timer *timer, int source)
 {
 	int ret;
 	struct dmtimer_platform_data *pdata;
+	unsigned long flags;
 
 	if (!timer)
 		return -EINVAL;
@@ -624,8 +654,10 @@ int omap_dm_timer_set_source(struct omap_dm_timer *timer, int source)
 	if (source < 0 || source >= 3)
 		return -EINVAL;
 
+	spin_lock_irqsave(&timer->lock, flags);
 	pdata = timer->pdev->dev.platform_data;
 	__timer_disable(timer);
+	spin_unlock_irqrestore(&timer->lock, flags);
 
 	/* change the timer clock source */
 	ret = pdata->set_timer_src(timer->pdev, source);
@@ -645,9 +677,11 @@ int omap_dm_timer_set_load(struct omap_dm_timer *timer, int autoreload,
 {
 	u32 l;
 
+	unsigned long flags;
 	if (!timer)
 		return -EINVAL;
 
+	spin_lock_irqsave(&timer->lock, flags);
 	__timer_enable(timer);
 	l = omap_dm_timer_read_reg(timer, OMAP_TIMER_CTRL_REG);
 	if (autoreload)
@@ -659,6 +693,7 @@ int omap_dm_timer_set_load(struct omap_dm_timer *timer, int autoreload,
 
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_TRIGGER_REG, 0);
 	__timer_disable(timer);
+	spin_unlock_irqrestore(&timer->lock, flags);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_set_load);
@@ -667,10 +702,12 @@ int omap_dm_timer_set_load_start(struct omap_dm_timer *timer, int autoreload,
                             unsigned int load)
 {
 	u32 l;
+	unsigned long flags;
 
 	if (!timer)
 		return -EINVAL;
 
+	spin_lock_irqsave(&timer->lock, flags);
 	if (timer->loses_context) {
 		u32 ctx_loss_cnt_after;
 
@@ -695,6 +732,7 @@ int omap_dm_timer_set_load_start(struct omap_dm_timer *timer, int autoreload,
 
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_COUNTER_REG, load);
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_CTRL_REG, l);
+	spin_unlock_irqrestore(&timer->lock, flags);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_set_load_start);
@@ -703,10 +741,12 @@ int omap_dm_timer_set_match(struct omap_dm_timer *timer, int enable,
 			     unsigned int match)
 {
 	u32 l;
+	unsigned long flags;
 
 	if (!timer)
 		return -EINVAL;
 
+	spin_lock_irqsave(&timer->lock, flags);
 	__timer_enable(timer);
 	l = omap_dm_timer_read_reg(timer, OMAP_TIMER_CTRL_REG);
 	if (enable)
@@ -716,6 +756,7 @@ int omap_dm_timer_set_match(struct omap_dm_timer *timer, int enable,
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_CTRL_REG, l);
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_MATCH_REG, match);
 	__timer_disable(timer);
+	spin_unlock_irqrestore(&timer->lock, flags);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_set_match);
@@ -724,10 +765,12 @@ int omap_dm_timer_set_pwm(struct omap_dm_timer *timer, int def_on,
 			   int toggle, int trigger)
 {
 	u32 l;
+	unsigned long flags;
 
 	if (!timer)
 		return -EINVAL;
 
+	spin_lock_irqsave(&timer->lock, flags);
 	__timer_enable(timer);
 	l = omap_dm_timer_read_reg(timer, OMAP_TIMER_CTRL_REG);
 	l &= ~(OMAP_TIMER_CTRL_GPOCFG | OMAP_TIMER_CTRL_SCPWM |
@@ -739,6 +782,7 @@ int omap_dm_timer_set_pwm(struct omap_dm_timer *timer, int def_on,
 	l |= trigger << 10;
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_CTRL_REG, l);
 	__timer_disable(timer);
+	spin_unlock_irqrestore(&timer->lock, flags);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_set_pwm);
@@ -746,10 +790,12 @@ EXPORT_SYMBOL_GPL(omap_dm_timer_set_pwm);
 int omap_dm_timer_set_prescaler(struct omap_dm_timer *timer, int prescaler)
 {
 	u32 l;
+	unsigned long flags;
 
 	if (!timer)
 		return -EINVAL;
 
+	spin_lock_irqsave(&timer->lock, flags);
 	__timer_enable(timer);
 	l = omap_dm_timer_read_reg(timer, OMAP_TIMER_CTRL_REG);
 	l &= ~(OMAP_TIMER_CTRL_PRE | (0x07 << 2));
@@ -759,6 +805,7 @@ int omap_dm_timer_set_prescaler(struct omap_dm_timer *timer, int prescaler)
 	}
 	omap_dm_timer_write_reg(timer, OMAP_TIMER_CTRL_REG, l);
 	__timer_disable(timer);
+	spin_unlock_irqrestore(&timer->lock, flags);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_set_prescaler);
@@ -766,9 +813,11 @@ EXPORT_SYMBOL_GPL(omap_dm_timer_set_prescaler);
 int omap_dm_timer_set_int_enable(struct omap_dm_timer *timer,
 				  unsigned int value)
 {
+	unsigned long flags;
 	if (!timer)
 		return -EINVAL;
 
+	spin_lock_irqsave(&timer->lock, flags);
 	if (!timer->is_early_init)
 		__timer_enable(timer);
 
@@ -777,56 +826,84 @@ int omap_dm_timer_set_int_enable(struct omap_dm_timer *timer,
 
 	if (!timer->is_early_init)
 		__timer_disable(timer);
+	spin_unlock_irqrestore(&timer->lock, flags);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_set_int_enable);
 
 unsigned int omap_dm_timer_read_status(struct omap_dm_timer *timer)
 {
-	if (!timer)
+	unsigned long flags;
+	unsigned int ret;
+
+	if (WARN_ON(!timer))
 		return -EINVAL;
 
-	if (timer->is_early_init || timer->enabled)
-		return omap_dm_timer_read_reg(timer, OMAP_TIMER_STAT_REG);
-
+	spin_lock_irqsave(&timer->lock, flags);
+	if (timer->is_early_init || timer->enabled) {
+		ret = omap_dm_timer_read_reg(timer, OMAP_TIMER_STAT_REG);
+		spin_unlock_irqrestore(&timer->lock, flags);
+		return ret;
+	}
+	spin_unlock_irqrestore(&timer->lock, flags);
+	WARN_ON(!timer->enabled);
 	return -EINVAL;
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_read_status);
 
 int omap_dm_timer_write_status(struct omap_dm_timer *timer, unsigned int value)
 {
+	unsigned long flags;
+
 	if (!timer)
 		return -EINVAL;
 
+	spin_lock_irqsave(&timer->lock, flags);
 	if (timer->is_early_init || timer->enabled) {
 		omap_dm_timer_write_reg(timer, OMAP_TIMER_STAT_REG, value);
+		spin_unlock_irqrestore(&timer->lock, flags);
 		return 0;
 	}
+	spin_unlock_irqrestore(&timer->lock, flags);
 	return -EINVAL;
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_write_status);
 
 unsigned int omap_dm_timer_read_counter(struct omap_dm_timer *timer)
 {
-	if (!timer)
+	unsigned long flags;
+	unsigned int ret;
+
+	if (WARN_ON(!timer))
 		return -EINVAL;
 
-	if (timer->is_early_init || timer->enabled)
-		return omap_dm_timer_read_reg(timer, OMAP_TIMER_COUNTER_REG);
+	spin_lock_irqsave(&timer->lock, flags);
+	if (timer->is_early_init || timer->enabled) {
+		ret = omap_dm_timer_read_reg(timer, OMAP_TIMER_COUNTER_REG);
+		spin_unlock_irqrestore(&timer->lock, flags);
+		return ret;
+	}
 
+	spin_unlock_irqrestore(&timer->lock, flags);
+	WARN_ON(!timer->enabled);
 	return -EINVAL;
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_read_counter);
 
 int omap_dm_timer_write_counter(struct omap_dm_timer *timer, unsigned int value)
 {
+	unsigned long flags;
+
 	if (!timer)
 		return -EINVAL;
 
+	spin_lock_irqsave(&timer->lock, flags);
 	if (timer->is_early_init || timer->enabled) {
 		omap_dm_timer_write_reg(timer, OMAP_TIMER_COUNTER_REG, value);
+		spin_unlock_irqrestore(&timer->lock, flags);
 		return 0;
 	}
+	spin_unlock_irqrestore(&timer->lock, flags);
 	return -EINVAL;
 }
 EXPORT_SYMBOL_GPL(omap_dm_timer_write_counter);
@@ -913,6 +990,7 @@ static int __devinit omap_dm_timer_probe(struct platform_device *pdev)
 	timer->loses_context = pdata->loses_context;
 	timer->get_context_loss_count = pdata->get_context_loss_count;
 
+	spin_lock_init(&timer->lock);
 	 /* Skip pm_runtime_enable during early boot and for OMAP1 */
 	if (!pdata->is_early_init && !pdata->needs_manual_reset) {
 		pm_runtime_enable(&pdev->dev);
@@ -960,6 +1038,7 @@ static int __devexit omap_dm_timer_remove(struct platform_device *pdev)
 		}
 	}
 	mutex_unlock(&dm_timer_mutex);
+	pm_runtime_disable(&pdev->dev);
 
 	return ret;
 }
