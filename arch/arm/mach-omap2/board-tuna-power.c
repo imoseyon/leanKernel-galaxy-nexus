@@ -124,14 +124,6 @@ void __init omap4_tuna_power_init(void)
 		omap_tps6236x_update("mpu", CHIP_IS_OMAP446X, CHIP_IS_OMAP443X);
 	}
 
-	if (omap4_tuna_get_revision() == TUNA_REV_PRE_LUNCHBOX) {
-		charger_gpios[0].gpio = 11;
-		charger_gpios[1].gpio = 12;
-	} else if (!omap4_tuna_final_gpios()) {
-		charger_gpios[0].gpio = 159;
-		charger_gpios[1].gpio = 160;
-	}
-
 	omap_mux_init_gpio(charger_gpios[0].gpio, OMAP_PIN_INPUT);
 	omap_mux_init_gpio(charger_gpios[1].gpio, OMAP_PIN_INPUT);
 	omap_mux_init_gpio(charger_gpios[2].gpio, OMAP_PIN_OUTPUT);
