@@ -919,43 +919,23 @@ static void __init tuna_init(void)
 
 	register_reboot_notifier(&tuna_reboot_notifier);
 
-	if (omap4_tuna_final_gpios()) {
-		/* hsmmc d0-d7 */
-		omap_mux_init_signal("sdmmc1_dat0.sdmmc1_dat0", HSMMC1_MUX);
-		omap_mux_init_signal("sdmmc1_dat1.sdmmc1_dat1", HSMMC1_MUX);
-		omap_mux_init_signal("sdmmc1_dat2.sdmmc1_dat2", HSMMC1_MUX);
-		omap_mux_init_signal("sdmmc1_dat3.sdmmc1_dat3", HSMMC1_MUX);
-		omap_mux_init_signal("sdmmc1_dat4.sdmmc1_dat4", HSMMC1_MUX);
-		omap_mux_init_signal("sdmmc1_dat5.sdmmc1_dat5", HSMMC1_MUX);
-		omap_mux_init_signal("sdmmc1_dat6.sdmmc1_dat6", HSMMC1_MUX);
-		omap_mux_init_signal("sdmmc1_dat7.sdmmc1_dat7", HSMMC1_MUX);
-		/* hsmmc cmd */
-		omap_mux_init_signal("sdmmc1_cmd.sdmmc1_cmd", HSMMC1_MUX);
-		/* hsmmc clk */
-		omap_mux_init_signal("sdmmc1_clk.sdmmc1_clk", HSMMC1_MUX);
-	} else {
-		/* hsmmc d0-d7 */
-		omap_mux_init_signal("gpmc_ad0", HSMMC2_MUX);
-		omap_mux_init_signal("gpmc_ad1", HSMMC2_MUX);
-		omap_mux_init_signal("gpmc_ad2", HSMMC2_MUX);
-		omap_mux_init_signal("gpmc_ad3", HSMMC2_MUX);
-		omap_mux_init_signal("gpmc_ad4", HSMMC2_MUX);
-		omap_mux_init_signal("gpmc_ad5", HSMMC2_MUX);
-		omap_mux_init_signal("gpmc_ad6", HSMMC2_MUX);
-		omap_mux_init_signal("gpmc_ad7", HSMMC2_MUX);
-		/* hsmmc cmd */
-		omap_mux_init_signal("gpmc_nwe", HSMMC2_MUX);
-		/* hsmmc clk */
-		omap_mux_init_signal("gpmc_noe", HSMMC2_MUX);
+	/* hsmmc d0-d7 */
+	omap_mux_init_signal("sdmmc1_dat0.sdmmc1_dat0", HSMMC1_MUX);
+	omap_mux_init_signal("sdmmc1_dat1.sdmmc1_dat1", HSMMC1_MUX);
+	omap_mux_init_signal("sdmmc1_dat2.sdmmc1_dat2", HSMMC1_MUX);
+	omap_mux_init_signal("sdmmc1_dat3.sdmmc1_dat3", HSMMC1_MUX);
+	omap_mux_init_signal("sdmmc1_dat4.sdmmc1_dat4", HSMMC1_MUX);
+	omap_mux_init_signal("sdmmc1_dat5.sdmmc1_dat5", HSMMC1_MUX);
+	omap_mux_init_signal("sdmmc1_dat6.sdmmc1_dat6", HSMMC1_MUX);
+	omap_mux_init_signal("sdmmc1_dat7.sdmmc1_dat7", HSMMC1_MUX);
+	/* hsmmc cmd */
+	omap_mux_init_signal("sdmmc1_cmd.sdmmc1_cmd", HSMMC1_MUX);
+	/* hsmmc clk */
+	omap_mux_init_signal("sdmmc1_clk.sdmmc1_clk", HSMMC1_MUX);
 
-		mmc[0].mmc = 2;
-	}
-
-	if (omap4_tuna_get_revision() != TUNA_REV_PRE_LUNCHBOX) {
-		gpio_request(158, "emmc_en");
-		gpio_direction_output(158, 1);
-		omap_mux_init_gpio(158, OMAP_PIN_INPUT_PULLUP);
-	}
+	gpio_request(158, "emmc_en");
+	gpio_direction_output(158, 1);
+	omap_mux_init_gpio(158, OMAP_PIN_INPUT_PULLUP);
 
 	omap_mux_init_gpio(GPIO_MHL_SDA_18V, OMAP_PIN_INPUT_PULLUP);
 	omap_mux_init_gpio(GPIO_MHL_SCL_18V, OMAP_PIN_INPUT_PULLUP);
