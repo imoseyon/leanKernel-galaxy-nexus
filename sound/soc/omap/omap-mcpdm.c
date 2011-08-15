@@ -64,7 +64,6 @@ struct omap_mcpdm {
 	unsigned long phys_base;
 	void __iomem *io_base;
 	int irq;
-	struct delayed_work delayed_work;
 
 	struct mutex mutex;
 	struct omap_mcpdm_platform_data *pdata;
@@ -77,7 +76,6 @@ struct omap_mcpdm {
 	u32 dn_channels;
 	u32 up_channels;
 	int active;
-	int powered;
 	int abe_mode;
 
 	/* DC offset */
@@ -364,26 +362,21 @@ static int omap_mcpdm_dai_startup(struct snd_pcm_substream *substream,
 
 	dev_dbg(dai->dev, "%s: active %d\n", __func__, dai->active);
 
-	/* make sure we stop any pre-existing shutdown */
-	cancel_delayed_work_sync(&mcpdm->delayed_work);
-
 	mutex_lock(&mcpdm->mutex);
+
+	/* nothing to do if already active */
+	if (mcpdm->active++)
+		goto out;
 
 	if (dai->id >= MCPDM_ABE_DAI_DL1)
 		mcpdm->abe_mode = 1;
 	else
 		mcpdm->abe_mode = 0;
 
-	/* nothing to do if already active */
-	if (mcpdm->active++ || mcpdm->powered)
-		goto out;
-
 	pm_runtime_get_sync(mcpdm->dev);
 
 	if (mcpdm->abe_mode)
 		abe_dsp_pm_get();
-
-	mcpdm->powered = 1;
 
 	/* Enable McPDM watch dog for ES above ES 1.0 to avoid saturation */
 	if (omap_rev() != OMAP4430_REV_ES1_0) {
@@ -399,22 +392,18 @@ out:
 	return err;
 }
 
-/* work to delay McPDM shutdown */
-static void playback_work(struct work_struct *work)
+static void omap_mcpdm_dai_shutdown(struct snd_pcm_substream *substream,
+				    struct snd_soc_dai *dai)
 {
-	struct omap_mcpdm *mcpdm =
-			container_of(work, struct omap_mcpdm, delayed_work.work);
+	struct omap_mcpdm *mcpdm = snd_soc_dai_get_drvdata(dai);
+
+	dev_dbg(dai->dev, "%s: active %d\n", __func__, dai->active);
 
 	mutex_lock(&mcpdm->mutex);
 
-	/*
-	 * still active or another stream started while
-	 * delayed work was waiting for execution
-	 */
-	if (!mcpdm->powered || mcpdm->active)
+	if (--mcpdm->active)
 		goto out;
 
-	/* ABE playback stop handled by delayed work */
 	if (mcpdm->abe_mode) {
 		if (omap_mcpdm_active(mcpdm)) {
 			omap_abe_port_disable(mcpdm->abe, mcpdm->dl_port);
@@ -432,25 +421,8 @@ static void playback_work(struct work_struct *work)
 	}
 
 	pm_runtime_put_sync(mcpdm->dev);
-	mcpdm->powered = 0;
 
 out:
-	mutex_unlock(&mcpdm->mutex);
-}
-
-static void omap_mcpdm_dai_shutdown(struct snd_pcm_substream *substream,
-				    struct snd_soc_dai *dai)
-{
-	struct omap_mcpdm *mcpdm = snd_soc_dai_get_drvdata(dai);
-
-	dev_dbg(dai->dev, "%s: active %d\n", __func__, dai->active);
-
-	mutex_lock(&mcpdm->mutex);
-
-	if (!--mcpdm->active)
-		schedule_delayed_work(&mcpdm->delayed_work,
-				msecs_to_jiffies(1000)); /* TODO: pdata ? */
-
 	mutex_unlock(&mcpdm->mutex);
 }
 
@@ -732,8 +704,6 @@ static __devinit int asoc_mcpdm_probe(struct platform_device *pdev)
 	if (err < 0)
 		dev_err(mcpdm->dev,"failed to DL2 DC offset sysfs: %d\n", err);
 
-	INIT_DELAYED_WORK(&mcpdm->delayed_work, playback_work);
-
 #if defined(CONFIG_SND_OMAP_SOC_ABE_DSP) ||\
 	defined(CONFIG_SND_OMAP_SOC_ABE_DSP_MODULE)
 
@@ -779,8 +749,6 @@ static int __devexit asoc_mcpdm_remove(struct platform_device *pdev)
 {
 	struct omap_mcpdm *mcpdm = platform_get_drvdata(pdev);
 	struct resource *res;
-
-	flush_delayed_work_sync(&mcpdm->delayed_work);
 
 	snd_soc_unregister_dais(&pdev->dev, ARRAY_SIZE(omap_mcpdm_dai));
 
