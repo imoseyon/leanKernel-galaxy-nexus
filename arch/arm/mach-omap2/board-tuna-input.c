@@ -33,22 +33,6 @@
 #define GPIO_TOUCH_SCL	130
 #define GPIO_TOUCH_SDA	131
 
-static const int tuna_keymap[] = {
-	KEY(1, 1, KEY_VOLUMEDOWN),
-	KEY(2, 1, KEY_VOLUMEUP),
-};
-
-static struct matrix_keymap_data tuna_keymap_data = {
-	.keymap			= tuna_keymap,
-	.keymap_size		= ARRAY_SIZE(tuna_keymap),
-};
-
-static struct omap4_keypad_platform_data tuna_keypad_data = {
-	.keymap_data		= &tuna_keymap_data,
-	.rows			= 3,
-	.cols			= 2,
-};
-
 static struct gpio_event_direct_entry tuna_gpio_keypad_keys_map_high[] = {
 	{
 		.code	= KEY_POWER,
@@ -98,26 +82,6 @@ static struct platform_device tuna_gpio_keypad_device = {
 	.id = 0,
 	.dev = {
 		.platform_data	= &tuna_gpio_keypad_data,
-	},
-};
-
-static struct mxt_platform_data atmel_mxt_ts_pdata = {
-	.x_line		= 19,
-	.y_line		= 11,
-	.x_size		= 1024,
-	.y_size		= 1024,
-	.blen		= 0x21,
-	.threshold	= 0x28,
-	.voltage	= 2800000,              /* 2.8V */
-	.orient		= MXT_DIAGONAL,
-	.irqflags	= IRQF_TRIGGER_FALLING,
-};
-
-static struct i2c_board_info __initdata tuna_i2c3_boardinfo_pre_lunchbox[] = {
-	{
-		I2C_BOARD_INFO("atmel_mxt_ts", 0x4a),
-		.platform_data = &atmel_mxt_ts_pdata,
-		.irq = OMAP_GPIO_IRQ(GPIO_TOUCH_IRQ),
 	},
 };
 
@@ -181,30 +145,17 @@ void __init omap4_tuna_input_init(void)
 	gpio_direction_input(GPIO_TOUCH_IRQ);
 	omap_mux_init_gpio(GPIO_TOUCH_IRQ, OMAP_PIN_INPUT_PULLUP);
 
-	if (omap4_tuna_final_gpios()) {
-		gpio_request(GPIO_TOUCH_EN, "tsp_en");
-		gpio_direction_output(GPIO_TOUCH_EN, 1);
-		omap_mux_init_gpio(GPIO_TOUCH_EN, OMAP_PIN_OUTPUT);
-		gpio_request(GPIO_TOUCH_SCL, "ap_i2c3_scl");
-		gpio_request(GPIO_TOUCH_SDA, "ap_i2c3_sda");
+	gpio_request(GPIO_TOUCH_EN, "tsp_en");
+	gpio_direction_output(GPIO_TOUCH_EN, 1);
+	omap_mux_init_gpio(GPIO_TOUCH_EN, OMAP_PIN_OUTPUT);
+	gpio_request(GPIO_TOUCH_SCL, "ap_i2c3_scl");
+	gpio_request(GPIO_TOUCH_SDA, "ap_i2c3_sda");
 
-		i2c_register_board_info(3, tuna_i2c3_boardinfo_final,
-			ARRAY_SIZE(tuna_i2c3_boardinfo_final));
-	}
+	i2c_register_board_info(3, tuna_i2c3_boardinfo_final,
+		ARRAY_SIZE(tuna_i2c3_boardinfo_final));
 
-	if (omap4_tuna_get_revision() == TUNA_REV_PRE_LUNCHBOX) {
-		i2c_register_board_info(3, tuna_i2c3_boardinfo_pre_lunchbox,
-			ARRAY_SIZE(tuna_i2c3_boardinfo_pre_lunchbox));
-
-		omap_mux_init_signal("kpd_row1.kpd_row1", OMAP_PIN_INPUT_PULLUP);
-		omap_mux_init_signal("kpd_row2.kpd_row2", OMAP_PIN_INPUT_PULLUP);
-		omap_mux_init_signal("kpd_col1.kpd_col1", OMAP_PIN_OUTPUT);
-		omap4_keyboard_init(&tuna_keypad_data);
-		tuna_gpio_keypad_data.info_count = 1;
-	} else {
-		omap_mux_init_gpio(8, OMAP_PIN_INPUT);
-		omap_mux_init_gpio(30, OMAP_PIN_INPUT);
-	}
+	omap_mux_init_gpio(8, OMAP_PIN_INPUT);
+	omap_mux_init_gpio(30, OMAP_PIN_INPUT);
 
 	platform_device_register(&tuna_gpio_keypad_device);
 }
