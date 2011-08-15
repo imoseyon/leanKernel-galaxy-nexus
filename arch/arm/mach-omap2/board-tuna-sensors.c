@@ -56,18 +56,6 @@ static void gp2a_gpio_init(void)
 	}
 }
 
-static s8 orientation_right_90[] = {
-	 0,  1,  0,
-	-1,  0,  0,
-	 0,  0,  1,
-};
-
-static s8 orientation_left_90[] = {
-	 0, -1,  0,
-	 1,  0,  0,
-	 0,  0,  1,
-};
-
 static s8 orientation_back[] = {
 	-1,  0,  0,
 	 0,  1,  0,
@@ -178,9 +166,6 @@ static void omap4_tuna_fixup_orientations_toro(int revision)
 		rotcpy(mpu_data.orientation, orientation_back_left_90);
 		rotcpy(mpu_data.accel.orientation, orientation_back_180);
 		rotcpy(mpu_data.compass.orientation, orientation_back_left_90);
-	} else if (revision == TUNA_REV_LUNCHBOX) {
-		rotcpy(mpu_data.orientation, orientation_left_90);
-		rotcpy(mpu_data.compass.orientation, orientation_right_90);
 	}
 }
 
