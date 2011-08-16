@@ -163,19 +163,19 @@ static inline int omap_pmic_register_data(struct omap_pmic_map *map)
 extern void omap_pmic_data_init(void);
 
 extern int omap_pmic_update(struct omap_pmic_map *tmp_map, char *name,
-		u16 old_chip_id, u16 new_chip_id);
+		u32 old_chip_id, u32 new_chip_id);
 
 #ifdef CONFIG_TWL4030_CORE
 extern int omap_twl_init(void);
 extern int omap3_twl_set_sr_bit(bool enable);
-extern int omap_twl_pmic_update(char *name, u16 old_chip_id, u16 new_chip_id);
+extern int omap_twl_pmic_update(char *name, u32 old_chip_id, u32 new_chip_id);
 #else
 static inline int omap_twl_init(void)
 {
 	return -EINVAL;
 }
-static inline int omap_twl_pmic_update(char *name, u16 old_chip_id,
-		u16 new_chip_id)
+static inline int omap_twl_pmic_update(char *name, u32 old_chip_id,
+	u32 new_chip_id)
 {
 	return -EINVAL;
 }
@@ -186,7 +186,7 @@ extern int omap_tps6236x_board_setup(bool use_62361, int gpio_vsel0,
 	                int gpio_vsel1, int pull0, int pull1);
 extern int omap_tps6236x_init(void);
 
-extern int omap_tps6236x_update(char *name, u16 old_chip_id, u16 new_chip_id);
+extern int omap_tps6236x_update(char *name, u32 old_chip_id, u32 new_chip_id);
 #else
 static inline int omap_tps6236x_board_setup(bool use_62361, int gpio_vsel0,
 	                int gpio_vsel1, int pull0, int pull1)
@@ -197,8 +197,8 @@ static inline int omap_tps6236x_init(void)
 {
 	return -EINVAL;
 }
-static inline int omap_tps6236x_update(char *name, u16 old_chip_id,
-		u16 new_chip_id)
+static inline int omap_tps6236x_update(char *name, u32 old_chip_id,
+	u32 new_chip_id)
 {
 	return -EINVAL;
 }

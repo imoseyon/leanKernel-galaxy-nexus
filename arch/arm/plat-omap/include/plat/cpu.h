@@ -45,7 +45,7 @@
 int omap_type(void);
 
 struct omap_chip_id {
-	u16 oc;
+	u32 oc;
 	u8 type;
 };
 
@@ -417,6 +417,7 @@ IS_OMAP_TYPE(3517, 0x3517)
 
 #define OMAP446X_CLASS		0x44600044
 #define OMAP4460_REV_ES1_0	(OMAP446X_CLASS | (0x10 << 8))
+#define OMAP4460_REV_ES1_1	(OMAP446X_CLASS | (0x11 << 8))
 
 /*
  * omap_chip bits
@@ -448,6 +449,7 @@ IS_OMAP_TYPE(3517, 0x3517)
 #define CHIP_IS_OMAP4430ES2_2		(1 << 13)
 #define CHIP_IS_TI816X			(1 << 14)
 #define CHIP_IS_OMAP4460ES1_0		(1 << 15)
+#define CHIP_IS_OMAP4460ES1_1		(1 << 16)
 
 #define CHIP_IS_OMAP24XX		(CHIP_IS_OMAP2420 | CHIP_IS_OMAP2430)
 
@@ -456,7 +458,8 @@ IS_OMAP_TYPE(3517, 0x3517)
 					 CHIP_IS_OMAP4430ES2_1 |	\
 					 CHIP_IS_OMAP4430ES2_2)
 
-#define CHIP_IS_OMAP446X		CHIP_IS_OMAP4460ES1_0
+#define CHIP_IS_OMAP446X		(CHIP_IS_OMAP4460ES1_0 |	\
+					 CHIP_IS_OMAP4460ES1_1)
 
 #define CHIP_IS_OMAP44XX		(CHIP_IS_OMAP443X | CHIP_IS_OMAP446X)
 
