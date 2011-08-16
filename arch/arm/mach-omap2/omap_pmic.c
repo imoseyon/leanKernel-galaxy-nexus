@@ -76,7 +76,7 @@ next:
 }
 
 int __init omap_pmic_update(struct omap_pmic_map *tmp_map, char *name,
-				u16 old_chip_id, u16 new_chip_id)
+				u32 old_chip_id, u32 new_chip_id)
 {
 	while (tmp_map->name != NULL) {
 		if (!strcmp(tmp_map->name, name) &&

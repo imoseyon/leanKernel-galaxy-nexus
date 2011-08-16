@@ -392,7 +392,7 @@ err:
 	return ret;
 }
 
-int __init omap_twl_pmic_update(char *name, u16 old_chip_id, u16 new_chip_id)
+int __init omap_twl_pmic_update(char *name, u32 old_chip_id, u32 new_chip_id)
 {
 	return omap_pmic_update(omap_twl_map, name, old_chip_id, new_chip_id);
 }
