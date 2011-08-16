@@ -139,6 +139,13 @@ static struct modem_io_t umts_io_devices[] = {
 		.io_type = IODEV_DUMMY,
 		.link = LINKDEV_MIPI,
 	},
+	[7] = {
+		.name = "umts_ramdump0",
+		.id = 0x0,
+		.format = IPC_RAMDUMP,
+		.io_type = IODEV_MISC,
+		.link = LINKDEV_MIPI,
+	},
 };
 
 static struct modem_data umts_modem_data = {
@@ -308,6 +315,13 @@ static struct modem_io_t cdma_io_devices[] = {
 		.name = "cdma_rmnet5", /* DM Port io-device */
 		.id = 0x3A,
 		.format = IPC_RAW,
+		.io_type = IODEV_MISC,
+		.link = LINKDEV_DPRAM,
+	},
+	[9] = {
+		.name = "cdma_ramdump0",
+		.id = 0x1,
+		.format = IPC_RAMDUMP,
 		.io_type = IODEV_MISC,
 		.link = LINKDEV_DPRAM,
 	},
@@ -588,6 +602,13 @@ static struct modem_io_t lte_io_devices[] = {
 		.name = "lte_rmnet4", /* DM Port io-device */
 		.id = 0x3F,
 		.format = IPC_RAW,
+		.io_type = IODEV_MISC,
+		.link = LINKDEV_USB,
+	},
+	[9] = {
+		.name = "lte_ramdump0",
+		.id = 0x0,
+		.format = IPC_RAMDUMP,
 		.io_type = IODEV_MISC,
 		.link = LINKDEV_USB,
 	},
