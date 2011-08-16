@@ -39,10 +39,13 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/usb/ulpi.h>
-#include <plat/usb.h>
 #include <linux/regulator/consumer.h>
-#include <plat/omap_hwmod.h>
 #include <linux/pm_runtime.h>
+#include <linux/clk.h>
+
+#include <plat/omap_hwmod.h>
+#include <plat/usb.h>
+#include <plat/clock.h>
 
 /* EHCI Register Set */
 #define EHCI_INSNREG04					(0xA0)
@@ -267,8 +270,11 @@ static void ehci_hcd_omap_shutdown(struct platform_device *pdev)
 static int ehci_omap_bus_suspend(struct usb_hcd *hcd)
 {
 	struct device *dev = hcd->self.controller;
+	struct ehci_hcd_omap_platform_data  *pdata;
 	struct omap_hwmod	*oh;
+	struct clk *clk;
 	int ret = 0;
+	int i;
 
 	dev_dbg(dev, "ehci_omap_bus_suspend\n");
 
@@ -286,14 +292,33 @@ static int ehci_omap_bus_suspend(struct usb_hcd *hcd)
 	if (dev->parent)
 		pm_runtime_put_sync(dev->parent);
 
+	/* At the end, disable any external transceiver clocks */
+	pdata = dev->platform_data;
+	for (i = 0 ; i < OMAP3_HS_USB_PORTS ; i++) {
+		clk = pdata->transceiver_clk[i];
+		if (clk)
+			clk_disable(clk);
+	}
+
 	return ret;
 }
 
 static int ehci_omap_bus_resume(struct usb_hcd *hcd)
 {
 	struct device *dev = hcd->self.controller;
+	struct ehci_hcd_omap_platform_data  *pdata;
+	struct clk *clk;
+	int i;
 
 	dev_dbg(dev, "ehci_omap_bus_resume\n");
+
+	/* Re-enable any external transceiver clocks first */
+	pdata = dev->platform_data;
+	for (i = 0 ; i < OMAP3_HS_USB_PORTS ; i++) {
+		clk = pdata->transceiver_clk[i];
+		if (clk)
+			clk_enable(clk);
+	}
 
 	if (dev->parent) {
 		pm_runtime_get_sync(dev->parent);

@@ -847,6 +847,7 @@ void __init usbhs_init(const struct usbhs_omap_board_data *pdata)
 		ehci_data.port_mode[i] = pdata->port_mode[i];
 		ehci_data.reset_gpio_port[i] = pdata->reset_gpio_port[i];
 		ehci_data.regulator[i] = pdata->regulator[i];
+		ehci_data.transceiver_clk[i] = pdata->transceiver_clk[i];
 	}
 	ehci_data.phy_reset = pdata->phy_reset;
 	ohci_data.es2_compatibility = pdata->es2_compatibility;
