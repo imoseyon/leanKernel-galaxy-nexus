@@ -42,6 +42,9 @@
 
 #define HSI_LL_INVALID_CHANNEL	0xFF
 
+#define HSI_FLASHBOOT_ACK_LEN	16
+#define DUMP_PACKET_SIZE	12289 /* 48K + 4 length, word unit */
+#define DUMP_ERR_INFO_SIZE	39 /* 150 bytes + 4 length , word unit */
 
 enum {
 	HSI_LL_MSG_BREAK, /* 0x0 */
@@ -109,7 +112,6 @@ struct if_hsi_channel {
 	spinlock_t acwake_lock;
 
 	struct semaphore write_done_sem;
-	struct semaphore read_done_sem;
 	struct semaphore ack_done_sem;
 	struct semaphore close_conn_done_sem;
 
@@ -152,8 +154,6 @@ enum {
 };
 static int hsi_init_handshake(struct mipi_link_device *mipi_ld, int mode);
 static int if_hsi_write(struct if_hsi_channel *channel, u32 *data,
-			unsigned int size);
-static int if_hsi_read(struct if_hsi_channel *channel, const char *data,
 			unsigned int size);
 static int if_hsi_protocol_send(struct mipi_link_device *mipi_ld, int ch,
 			u32 *data, unsigned int len);

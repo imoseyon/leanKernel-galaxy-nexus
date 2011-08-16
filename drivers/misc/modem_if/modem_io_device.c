@@ -74,6 +74,7 @@ static int get_header_size(struct io_device *iod)
 		/* minimum size for transaction align */
 		return 4;
 
+	case IPC_RAMDUMP:
 	default:
 		return 0;
 	}
@@ -190,6 +191,7 @@ static int rx_hdlc_head_check(struct io_device *iod, char *buf, unsigned rest)
 
 		case IPC_CMD:
 		case IPC_BOOT:
+		case IPC_RAMDUMP:
 		default:
 			break;
 		}
@@ -533,6 +535,7 @@ static int io_dev_recv_data_from_link_dev(struct io_device *iod,
 		return 0;
 
 	case IPC_BOOT:
+	case IPC_RAMDUMP:
 		/* save packet to sk_buff */
 		skb = alloc_skb(len, GFP_ATOMIC);
 		if (!skb) {
@@ -561,6 +564,10 @@ static void io_dev_modem_state_changed(struct io_device *iod,
 			enum modem_state state)
 {
 	iod->mc->phone_state = state;
+	pr_info("[MODEM_IF] Got modem state changed. state : %d\n", state);
+
+	if ((state == STATE_CRASH_RESET) || (state == STATE_CRASH_EXIT))
+		wake_up(&iod->wq);
 }
 
 static int misc_open(struct inode *inode, struct file *filp)
@@ -595,6 +602,9 @@ static unsigned int misc_poll(struct file *filp, struct poll_table_struct *wait)
 	if ((!skb_queue_empty(&iod->sk_rx_q))
 				&& (iod->mc->phone_state != STATE_OFFLINE))
 		return POLLIN | POLLRDNORM;
+	else if ((iod->mc->phone_state == STATE_CRASH_RESET) ||
+			(iod->mc->phone_state == STATE_CRASH_EXIT))
+		return POLLHUP;
 	else
 		return 0;
 }
@@ -668,6 +678,7 @@ static ssize_t misc_write(struct file *filp, const char __user * buf,
 
 	switch (iod->format) {
 	case IPC_BOOT:
+	case IPC_RAMDUMP:
 		if (copy_from_user(skb_put(skb, count), buf, count) != 0)
 			return -EFAULT;
 		break;

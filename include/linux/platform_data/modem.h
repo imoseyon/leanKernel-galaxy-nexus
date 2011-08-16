@@ -29,6 +29,7 @@ enum dev_format {
 	IPC_CMD,
 	IPC_BOOT,
 	IPC_MULTI_RAW,
+	IPC_RAMDUMP,
 };
 
 enum modem_io {
