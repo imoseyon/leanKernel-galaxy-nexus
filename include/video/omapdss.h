@@ -560,6 +560,8 @@ struct omap_dss_device {
 	int reset_gpio;
 	int hpd_gpio;
 
+	bool skip_init;
+
 	int max_backlight_level;
 
 	const char *name;
