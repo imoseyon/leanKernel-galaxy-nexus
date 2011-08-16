@@ -212,13 +212,18 @@ static int __init omap_l2_cache_init(void)
 	if (cpu_is_omap446x())
 		por_ctrl |= 1 << L2X0_PREFETCH_DOUBLE_LINEFILL_SHIFT;
 	por_ctrl |= 1 << 25;
-	if (!mpu_prefetch_disable_errata)
+	if (!mpu_prefetch_disable_errata) {
 		por_ctrl |= 1 << L2X0_PREFETCH_DATA_PREFETCH_SHIFT;
-
-	if (cpu_is_omap446x() || (omap_rev() >= OMAP4430_REV_ES2_2)) {
 		por_ctrl |= L2X0_POR_OFFSET_VALUE;
-		omap_smc1(0x113, por_ctrl);
 	}
+
+	/* Set POR through PPA service only in EMU/HS devices */
+	if (omap_type() != OMAP2_DEVICE_TYPE_GP)
+		omap4_secure_dispatcher(PPA_SERVICE_PL310_POR, 0x7, 1,
+				por_ctrl, 0, 0, 0);
+	else if (omap_rev() >= OMAP4430_REV_ES2_1)
+		omap_smc1(0x113, por_ctrl);
+
 
 	/*
 	 * FIXME: Temporary WA for OMAP4460 stability issue.
