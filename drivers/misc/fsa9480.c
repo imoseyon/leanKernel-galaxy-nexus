@@ -409,6 +409,10 @@ static int fsa9480_detect_callback(struct otg_id_notifier_block *nb)
 			goto unhandled;
 		_detected(usbsw, FSA9480_DETECT_JIG);
 		goto handled;
+	} else if (dev_type == 0) {
+		dev_info(&usbsw->client->dev,
+			 "nothing attached, keeping ownership of port\n");
+		goto handled;
 	}
 
 unhandled:
