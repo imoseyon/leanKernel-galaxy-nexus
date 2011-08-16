@@ -496,6 +496,15 @@ static void save_l2x0_auxctrl(void)
 
 	val = __raw_readl(l2x0_base + L2X0_AUX_CTRL);
 	__raw_writel(val, sar_base + L2X0_AUXCTRL_OFFSET);
+
+	/*
+	 * Save the L2X0 PREFETCH_CTRL value to SAR memory.
+	 * Its used in every restore path MPUSS OFF path.
+	 */
+
+	val = __raw_readl(l2x0_base + L2X0_PREFETCH_CTRL);
+	__raw_writel(val, sar_base + L2X0_PREFETCHCTRL_OFFSET);
+
 	/* Save L2X0 LOCKDOWN_OFFSET0 during SAR */
 	val = readl_relaxed(l2x0_base + 0x900);
 	writel_relaxed(val, sar_base + L2X0_LOCKDOWN_OFFSET0);

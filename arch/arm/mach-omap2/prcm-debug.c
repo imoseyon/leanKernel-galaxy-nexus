@@ -933,7 +933,7 @@ static struct d_clkd_info cd_emif = {
 	.mods = {&mod_dmm, &mod_emif_1, &mod_emif_2, &mod_emif_fw,
 		 &mod_dll, NULL},
 	.intgens = {NULL},
-	// TBD: TRM mentions: DDRPHY, DLL
+	// TBD: TRM mentions: DDRPHY
 };
 
 static struct d_clkd_info cd_cortexm3 = {
@@ -1228,10 +1228,9 @@ static struct d_pwrd_info pd_l4_per = {
 
 static struct d_pwrd_info pd_std_efuse = {
 	.name = "PD_STD_EFUSE",
-	.prminst = OMAP4430_PRM_CEFUSE_INST,
-	.pwrst = OMAP4_PM_CEFUSE_PWRSTST_OFFSET,
+	.prminst = -1,
+	.pwrst = -1,
 	.cds = {NULL},
-	// TBD: Linux: CEFUSE PD regs, CD regs, module regs?
 };
 
 static struct d_pwrd_info pd_alwon_dsp = {
