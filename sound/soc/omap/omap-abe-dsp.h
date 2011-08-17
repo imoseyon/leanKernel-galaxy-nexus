@@ -168,5 +168,7 @@
 void abe_dsp_shutdown(void);
 void abe_dsp_pm_get(void);
 void abe_dsp_pm_put(void);
+int abe_add_opp_req(struct device *dev, int opp);
+int abe_remove_opp_req(struct device *dev);
 
 #endif	/* End of __OMAP_ABE_DSP_H__ */
