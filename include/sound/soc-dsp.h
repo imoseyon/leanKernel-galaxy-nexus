@@ -16,6 +16,14 @@
 struct snd_soc_dapm_widget;
 
 /*
+ * Types of runtime_update to perform (e.g. originated from FE PCM ops
+ * or audio route changes triggered by muxes/mixers.
+ */
+#define SND_SOC_DSP_UPDATE_NO	0
+#define SND_SOC_DSP_UPDATE_BE	1
+#define SND_SOC_DSP_UPDATE_FE	2
+
+/*
  * DSP trigger ordering. Triggering flexibility is required as some DSPs
  * require triggering before/after their clients/hosts.
  *
@@ -72,23 +80,22 @@ int soc_dsp_fe_dai_hw_params(struct snd_pcm_substream *substream,
  */
 int soc_dsp_be_dai_trigger(struct snd_soc_pcm_runtime *fe, int stream, int cmd);
 
-/* Is this trigger() call required for this BE and stream */
-static inline int snd_soc_dsp_is_trigger_for_be(struct snd_soc_pcm_runtime *fe,
-		struct snd_soc_pcm_runtime *be, int stream)
-{
-	if (!fe->dsp[stream].runtime_update)
-		return 1;
-	else if (be->dsp[stream].runtime_update)
-		return 1;
-	else
-		return 0;
-}
-
 /* Is this trigger() call required for this FE and stream */
 static inline int snd_soc_dsp_is_trigger_for_fe(struct snd_soc_pcm_runtime *fe,
 		int stream)
 {
-	return !fe->dsp[stream].runtime_update;
+	return (fe->dsp[stream].runtime_update == SND_SOC_DSP_UPDATE_FE);
+}
+
+static inline int snd_soc_dsp_is_op_for_be(struct snd_soc_pcm_runtime *fe,
+		struct snd_soc_pcm_runtime *be, int stream)
+{
+	if ((fe->dsp[stream].runtime_update == SND_SOC_DSP_UPDATE_FE) ||
+	    ((fe->dsp[stream].runtime_update == SND_SOC_DSP_UPDATE_BE) &&
+		  be->dsp[stream].runtime_update))
+		return 1;
+	else
+		return 0;
 }
 
 static inline int snd_soc_dsp_platform_trigger(struct snd_pcm_substream *substream,

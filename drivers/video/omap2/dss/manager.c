@@ -28,6 +28,7 @@
 #include <linux/platform_device.h>
 #include <linux/spinlock.h>
 #include <linux/jiffies.h>
+#include <linux/ratelimit.h>
 
 #include <video/omapdss.h>
 #include <plat/cpu.h>
@@ -1520,9 +1521,22 @@ static void dss_apply_irq_handler(void *data, u32 mask)
 	if (r == 1)
 		goto end;
 
+	/*
+	 * FIXME Sometimes when handling an interrupt for a manager, the
+	 * manager is still busy at the beginning of the interrupt handler.
+	 * Later it becomes idle, so we unregister the interrupt.  This
+	 * leaves the shadow_dirty flag in an incorrect true state, and also
+	 * misses the 'programmed' callback.
+	 *
+	 * For now, we do not unregister the interrupt if any manager
+	 * was busy at the first read of the GO bits.  A better fix would be
+	 * to keep the first read busy state in the cache, so we do not operate
+	 * on instantaneous reads of the GO bit.
+	 */
+
 	/* re-read busy flags */
 	for (i = 0; i < num_mgrs; i++)
-		mgr_busy[i] = dispc_go_busy(i);
+		mgr_busy[i] |= dispc_go_busy(i);
 
 	/* keep running as long as there are busy managers, so that
 	 * we can collect overlay-applied information */
@@ -1543,10 +1557,117 @@ end:
 	spin_unlock(&dss_cache.lock);
 }
 
+static int omap_dss_mgr_blank(struct omap_overlay_manager *mgr,
+			bool wait_for_vsync)
+{
+	struct overlay_cache_data *oc;
+	struct manager_cache_data *mc;
+	unsigned long flags;
+	int r, r_get, i;
+
+	DSSDBG("omap_dss_mgr_blank(%s,vsync=%d)\n", mgr->name, wait_for_vsync);
+
+	r_get = r = dispc_runtime_get();
+	/* still clear cache even if failed to get clocks, just don't config */
+
+	spin_lock_irqsave(&dss_cache.lock, flags);
+
+	/* disable overlays in overlay info structs and in cache */
+	for (i = 0; i < omap_dss_get_num_overlays(); i++) {
+		struct omap_overlay_info oi = { .enabled = false };
+		struct omap_overlay *ovl;
+
+		ovl = omap_dss_get_overlay(i);
+
+		if (!(ovl->caps & OMAP_DSS_OVL_CAP_DISPC) ||
+		    ovl->manager != mgr)
+			continue;
+
+		oc = &dss_cache.overlay_cache[ovl->id];
+
+		/* complete unconfigured info in cache */
+		dss_ovl_cb(&oc->cb.cache, i, DSS_COMPLETION_ECLIPSED_CACHE);
+		oc->cb.cache.fn = NULL;
+
+		ovl->info = oi;
+		ovl->info_dirty = false;
+		oc->dirty = true;
+		oc->enabled = false;
+	}
+
+	/* dirty manager */
+	mc = &dss_cache.manager_cache[mgr->id];
+	dss_ovl_cb(&mc->cb.cache, i, DSS_COMPLETION_ECLIPSED_CACHE);
+	mc->cb.cache.fn = NULL;
+	mgr->info.cb.fn = NULL;
+	mc->dirty = true;
+	mgr->info_dirty = false;
+
+	/*
+	 * TRICKY: Enable apply irq even if not waiting for vsync, so that
+	 * DISPC programming takes place in case GO bit was on.
+	 */
+	if (dss_cache.irq_enabled) {
+		u32 mask;
+
+		mask = DISPC_IRQ_VSYNC	| DISPC_IRQ_EVSYNC_ODD |
+			DISPC_IRQ_EVSYNC_EVEN;
+		if (dss_has_feature(FEAT_MGR_LCD2))
+			mask |= DISPC_IRQ_VSYNC2;
+
+		r = omap_dispc_register_isr(dss_apply_irq_handler, NULL, mask);
+		dss_cache.irq_enabled = true;
+	}
+
+	if (!r_get) {
+		r = configure_dispc();
+		if (r)
+			pr_info("mgr_blank while GO is set");
+	}
+
+	if (r_get || !wait_for_vsync) {
+		/* pretend that programming has happened */
+		for (i = 0; i < omap_dss_get_num_overlays(); ++i) {
+			oc = &dss_cache.overlay_cache[i];
+			if (oc->channel != mgr->id)
+				continue;
+			if (r && oc->dirty)
+				dss_ovl_configure_cb(&oc->cb, i, false);
+			if (oc->shadow_dirty) {
+				dss_ovl_program_cb(&oc->cb, i);
+				oc->dispc_channel = oc->channel;
+				oc->shadow_dirty = false;
+			} else {
+				pr_warn("ovl%d-shadow is not dirty\n", i);
+			}
+		}
+
+		if (r && mc->dirty)
+			dss_ovl_configure_cb(&mc->cb, i, false);
+		if (mc->shadow_dirty) {
+			dss_ovl_program_cb(&mc->cb, i);
+			mc->shadow_dirty = false;
+		} else {
+			pr_warn("mgr%d-shadow is not dirty\n", mgr->id);
+		}
+	}
+
+	spin_unlock_irqrestore(&dss_cache.lock, flags);
+
+	if (wait_for_vsync && !r)
+		mgr->wait_for_vsync(mgr);
+
+	if (!r_get)
+		dispc_runtime_put();
+
+	return r;
+}
+
 static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 {
 	struct overlay_cache_data *oc;
 	struct manager_cache_data *mc;
+	struct omap_dss_device *dssdev;
 	int i;
 	struct omap_overlay *ovl;
 	int num_planes_enabled = 0;
@@ -1562,6 +1683,13 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 
 	spin_lock_irqsave(&dss_cache.lock, flags);
 
+	if (!mgr->device || mgr->device->state != OMAP_DSS_DISPLAY_ACTIVE) {
+		pr_info_ratelimited("cannot apply mgr(%s) on inactive device\n",
+								mgr->name);
+		r = -ENODEV;
+		goto done;
+	}
+
 	/* Configure overlays */
 	for (i = 0; i < omap_dss_get_num_overlays(); ++i) {
 		struct omap_dss_device *dssdev;
@@ -1571,30 +1699,20 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 		if (!(ovl->caps & OMAP_DSS_OVL_CAP_DISPC))
 			continue;
 
-		oc = &dss_cache.overlay_cache[ovl->id];
-
-		if (!overlay_enabled(ovl)) {
-			if (oc->enabled) {
-				oc->enabled = false;
-				oc->dirty = true;
-			}
+		if (ovl->manager != mgr)
 			continue;
-		}
 
-		if (!ovl->info_dirty) {
+		oc = &dss_cache.overlay_cache[ovl->id];
+		dssdev = mgr->device;
+
+		if (!overlay_enabled(ovl) || !dssdev) {
+			ovl->info.enabled = false;
+		} else if (!ovl->info_dirty) {
 			if (oc->enabled)
 				++num_planes_enabled;
 			continue;
-		}
-
-		dssdev = ovl->manager->device;
-
-		if (dss_check_overlay(ovl, dssdev)) {
-			if (oc->enabled) {
-				oc->enabled = false;
-				oc->dirty = true;
-			}
-			continue;
+		} else if (dss_check_overlay(ovl, dssdev)) {
+			ovl->info.enabled = false;
 		}
 
 		/* complete unconfigured info in cache */
@@ -1609,7 +1727,11 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 		ovl->info.cb.fn = NULL;
 
 		ovl->info_dirty = false;
-		oc->dirty = true;
+		if (ovl->info.enabled || oc->enabled)
+			oc->dirty = true;
+		oc->enabled = ovl->info.enabled;
+		if (!oc->enabled)
+			continue;
 
 		oc->paddr = ovl->info.paddr;
 		oc->vaddr = ovl->info.vaddr;
@@ -1639,9 +1761,7 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 
 		oc->ilace = dssdev->type == OMAP_DISPLAY_TYPE_VENC;
 
-		oc->channel = ovl->manager->id;
-
-		oc->enabled = true;
+		oc->channel = mgr->id;
 
 		oc->manual_update =
 			dssdev->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE &&
@@ -1651,58 +1771,56 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 		++num_planes_enabled;
 	}
 
-	/* Configure managers */
-	list_for_each_entry(mgr, &manager_list, list) {
-		struct omap_dss_device *dssdev;
+	/* configure manager */
+	if (!(mgr->caps & OMAP_DSS_OVL_MGR_CAP_DISPC))
+		goto skip_mgr;
 
-		if (!(mgr->caps & OMAP_DSS_OVL_MGR_CAP_DISPC))
-			continue;
+	mc = &dss_cache.manager_cache[mgr->id];
 
-		mc = &dss_cache.manager_cache[mgr->id];
-
-		if (mgr->device_changed) {
-			mgr->device_changed = false;
-			mgr->info_dirty  = true;
-		}
-
-		if (!mgr->info_dirty)
-			continue;
-
-		if (!mgr->device)
-			continue;
-
-		dssdev = mgr->device;
-
-		/* complete unconfigured info in cache */
-		dss_ovl_cb(&mc->cb.cache, mgr->id,
-#if 0
-			   (mc->cb.cache.fn == mgr->info.cb.fn &&
-			    mc->cb.cache.data == mgr->info.cb.data) ?
-			   DSS_COMPLETION_CHANGED_CACHE :
-#endif
-			   DSS_COMPLETION_ECLIPSED_CACHE);
-		mc->cb.cache = mgr->info.cb;
-		mgr->info.cb.fn = NULL;
-
-		mgr->info_dirty = false;
-		mc->dirty = true;
-
-		mc->default_color = mgr->info.default_color;
-		mc->trans_key_type = mgr->info.trans_key_type;
-		mc->trans_key = mgr->info.trans_key;
-		mc->trans_enabled = mgr->info.trans_enabled;
-		mc->alpha_enabled = mgr->info.alpha_enabled;
-		mc->cpr_coefs = mgr->info.cpr_coefs;
-		mc->cpr_enable = mgr->info.cpr_enable;
-
-		mc->manual_upd_display =
-			dssdev->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE;
-
-		mc->manual_update =
-			dssdev->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE &&
-			dssdev->driver->get_update_mode(dssdev) !=
-				OMAP_DSS_UPDATE_AUTO;
+	if (mgr->device_changed) {
+		mgr->device_changed = false;
+		mgr->info_dirty  = true;
 	}
+
+	if (!mgr->info_dirty)
+		goto skip_mgr;
+
+	if (!mgr->device)
+		goto skip_mgr;
+
+	dssdev = mgr->device;
+
+	/* complete unconfigured info in cache */
+	dss_ovl_cb(&mc->cb.cache, mgr->id,
+#if 0
+		   (mc->cb.cache.fn == mgr->info.cb.fn &&
+		    mc->cb.cache.data == mgr->info.cb.data) ?
+		   DSS_COMPLETION_CHANGED_CACHE :
+#endif
+		   DSS_COMPLETION_ECLIPSED_CACHE);
+	mc->cb.cache = mgr->info.cb;
+	mgr->info.cb.fn = NULL;
+
+	mgr->info_dirty = false;
+	mc->dirty = true;
+
+	mc->default_color = mgr->info.default_color;
+	mc->trans_key_type = mgr->info.trans_key_type;
+	mc->trans_key = mgr->info.trans_key;
+	mc->trans_enabled = mgr->info.trans_enabled;
+	mc->alpha_enabled = mgr->info.alpha_enabled;
+	mc->cpr_coefs = mgr->info.cpr_coefs;
+	mc->cpr_enable = mgr->info.cpr_enable;
+
+	mc->manual_upd_display =
+		dssdev->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE;
+
+	mc->manual_update =
+		dssdev->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE &&
+		dssdev->driver->get_update_mode(dssdev) !=
+			OMAP_DSS_UPDATE_AUTO;
+
+skip_mgr:
 
 	/* XXX TODO: Try to get fifomerge working. The problem is that it
 	 * affects both managers, not individually but at the same time. This
@@ -1735,6 +1853,8 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 			continue;
 
 		dssdev = ovl->manager->device;
+		if (!dssdev)
+			continue;
 
 		size = dispc_get_plane_fifo_size(ovl->id);
 		if (use_fifomerge)
@@ -1776,6 +1896,7 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 	}
 	configure_dispc();
 
+done:
 	spin_unlock_irqrestore(&dss_cache.lock, flags);
 
 	dispc_runtime_put();
@@ -1803,18 +1924,56 @@ static int dss_check_manager(struct omap_overlay_manager *mgr)
 	return 0;
 }
 
+int omap_dss_ovl_set_info(struct omap_overlay *ovl,
+		struct omap_overlay_info *info)
+{
+	int r;
+	struct omap_overlay_info old_info;
+	unsigned long flags;
+
+	spin_lock_irqsave(&dss_cache.lock, flags);
+	old_info = ovl->info;
+	ovl->info = *info;
+
+	if (ovl->manager) {
+		r = dss_check_overlay(ovl, ovl->manager->device);
+		if (r) {
+			ovl->info = old_info;
+			spin_unlock_irqrestore(&dss_cache.lock, flags);
+			return r;
+		}
+	}
+
+	/* complete previous settings */
+	if (ovl->info_dirty)
+		dss_ovl_cb(&old_info.cb, ovl->id,
+			   (info->cb.fn == old_info.cb.fn &&
+			    info->cb.data == old_info.cb.data) ?
+			   DSS_COMPLETION_CHANGED_SET :
+			   DSS_COMPLETION_ECLIPSED_SET);
+
+	ovl->info_dirty = true;
+	spin_unlock_irqrestore(&dss_cache.lock, flags);
+
+	return 0;
+}
+
+
 static int omap_dss_mgr_set_info(struct omap_overlay_manager *mgr,
 		struct omap_overlay_manager_info *info)
 {
 	int r;
 	struct omap_overlay_manager_info old_info;
+	unsigned long flags;
 
+	spin_lock_irqsave(&dss_cache.lock, flags);
 	old_info = mgr->info;
 	mgr->info = *info;
 
 	r = dss_check_manager(mgr);
 	if (r) {
 		mgr->info = old_info;
+		spin_unlock_irqrestore(&dss_cache.lock, flags);
 		return r;
 	}
 
@@ -1822,6 +1981,7 @@ static int omap_dss_mgr_set_info(struct omap_overlay_manager *mgr,
 		dss_ovl_cb(&old_info.cb, mgr->id, DSS_COMPLETION_ECLIPSED_SET);
 
 	mgr->info_dirty = true;
+	spin_unlock_irqrestore(&dss_cache.lock, flags);
 
 	return 0;
 }
@@ -1892,6 +2052,7 @@ int dss_init_overlay_managers(struct platform_device *pdev)
 		mgr->get_manager_info = &omap_dss_mgr_get_info;
 		mgr->wait_for_go = &dss_mgr_wait_for_go;
 		mgr->wait_for_vsync = &dss_mgr_wait_for_vsync;
+		mgr->blank = &omap_dss_mgr_blank;
 
 		mgr->enable = &dss_mgr_enable;
 		mgr->disable = &dss_mgr_disable;
