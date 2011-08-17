@@ -190,6 +190,9 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 			 * this is not supported currently.
 			 */
 		}
+		if (pdata->set_min_bus_tput)
+			pdata->set_min_bus_tput(&gpsPVRLDMDev->dev,
+				OCP_INITIATOR_AGENT, 1000000);
 
 		res = pm_runtime_get_sync(&gpsPVRLDMDev->dev);
 		if (res < 0)
@@ -248,6 +251,10 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 			PVR_DPF((PVR_DBG_ERROR, "DisableSGXclocks: Unable to scale SGX frequency (%d)", res));
 			/*FIXME: Need to handle this condition. */
 		}
+
+		if (pdata->set_min_bus_tput)
+			pdata->set_min_bus_tput(&gpsPVRLDMDev->dev,
+				OCP_INITIATOR_AGENT, -1);
 	}
 #endif
 
