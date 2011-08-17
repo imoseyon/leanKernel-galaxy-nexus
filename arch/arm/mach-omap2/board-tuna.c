@@ -149,6 +149,11 @@ static const char *omap4_tuna_hw_rev_name(void) {
 	return names[rev];
 }
 
+/*
+ * Store a handy board information string which we can use elsewhere like
+ * like in panic situation
+ */
+static char omap4_tuna_bd_info_string[255];
 static void omap4_tuna_init_hw_rev(void)
 {
 	int ret;
@@ -168,9 +173,17 @@ static void omap4_tuna_init_hw_rev(void)
 	for (i = 0; i < ARRAY_SIZE(tuna_hw_rev_gpios); i++)
 		tuna_hw_rev |= gpio_get_value(tuna_hw_rev_gpios[i].gpio) << i;
 
-	pr_info("Tuna HW revision: %02x (%s), cpu %s\n", tuna_hw_rev,
+	snprintf(omap4_tuna_bd_info_string,
+		ARRAY_SIZE(omap4_tuna_bd_info_string),
+		"Tuna HW revision: %02x (%s), cpu %s ES%d.%d ",
+		tuna_hw_rev,
 		omap4_tuna_hw_rev_name(),
-		cpu_is_omap443x() ? "OMAP4430" : "OMAP4460");
+		cpu_is_omap443x() ? "OMAP4430" : "OMAP4460",
+		(GET_OMAP_REVISION() >> 4) & 0xf,
+		GET_OMAP_REVISION() & 0xf);
+
+	pr_info("%s\n", omap4_tuna_bd_info_string);
+	mach_panic_string = omap4_tuna_bd_info_string;
 }
 
 /* wl127x BT, FM, GPS connectivity chip */
