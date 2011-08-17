@@ -525,6 +525,9 @@ int omapdss_hdmi_display_check_timing(struct omap_dss_device *dssdev,
 int hdmi_panel_init(void);
 void hdmi_panel_exit(void);
 
+int omap_dss_ovl_set_info(struct omap_overlay *ovl,
+		struct omap_overlay_info *info);
+
 /* RFBI */
 #ifdef CONFIG_OMAP2_DSS_RFBI
 int rfbi_init_platform_driver(void);

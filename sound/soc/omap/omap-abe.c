@@ -582,7 +582,7 @@ static void capture_trigger(struct snd_pcm_substream *substream,
 			struct snd_soc_pcm_runtime *be = dsp_params->be;
 
 			/* does this trigger() apply to this BE and stream ? */
-			if (!snd_soc_dsp_is_trigger_for_be(fe, be, stream))
+			if (!snd_soc_dsp_is_op_for_be(fe, be, stream))
 				continue;
 
 			/* is the BE already in the trigger START state ? */
@@ -616,7 +616,7 @@ static void capture_trigger(struct snd_pcm_substream *substream,
 			struct snd_soc_pcm_runtime *be = dsp_params->be;
 
 			/* does this trigger() apply to this BE and stream ? */
-			if (!snd_soc_dsp_is_trigger_for_be(fe, be, stream))
+			if (!snd_soc_dsp_is_op_for_be(fe, be, stream))
 				continue;
 
 			/* unmute this BE port */
@@ -647,7 +647,7 @@ static void capture_trigger(struct snd_pcm_substream *substream,
 			struct snd_soc_pcm_runtime *be = dsp_params->be;
 
 			/* does this trigger() apply to this BE and stream ? */
-			if (!snd_soc_dsp_is_trigger_for_be(fe, be, stream))
+			if (!snd_soc_dsp_is_op_for_be(fe, be, stream))
 				continue;
 
 			/* only STOP BE in FREE state */
@@ -690,7 +690,7 @@ static void playback_trigger(struct snd_pcm_substream *substream,
 			struct snd_soc_pcm_runtime *be = dsp_params->be;
 
 			/* does this trigger() apply to the FE ? */
-			if (!snd_soc_dsp_is_trigger_for_be(fe, be, stream))
+			if (!snd_soc_dsp_is_op_for_be(fe, be, stream))
 				continue;
 
 			/* is the BE already in the trigger START state ? */
@@ -760,7 +760,7 @@ static void playback_trigger(struct snd_pcm_substream *substream,
 			struct snd_soc_pcm_runtime *be = dsp_params->be;
 
 			/* does this trigger() apply to this BE and stream ? */
-			if (!snd_soc_dsp_is_trigger_for_be(fe, be, stream))
+			if (!snd_soc_dsp_is_op_for_be(fe, be, stream))
 				continue;
 
 			/* only STOP BE in FREE state */

@@ -59,6 +59,7 @@ struct dsscomp_dev {
 	struct omap_overlay_manager *mgrs[MAX_MANAGERS];
 	u32 num_displays;
 	struct omap_dss_device *displays[MAX_DISPLAYS];
+	struct notifier_block state_notifiers[MAX_DISPLAYS];
 };
 
 extern int debug;
@@ -112,6 +113,8 @@ void dsscomp_gralloc_exit(void);
 int dsscomp_gralloc_queue_ioctl(struct dsscomp_setup_dispc_data *d);
 int dsscomp_wait(struct dsscomp_sync_obj *sync, enum dsscomp_wait_phase phase,
 								int timeout);
+int dsscomp_state_notifier(struct notifier_block *nb,
+						unsigned long arg, void *ptr);
 
 /* basic operation - if not using queues */
 int set_dss_ovl_info(struct dss2_ovl_info *oi);
