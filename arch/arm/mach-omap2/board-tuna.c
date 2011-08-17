@@ -764,9 +764,6 @@ static void tuna_audio_init(void)
 
 	omap_mux_init_signal("gpmc_a24.gpio_48", OMAP_PIN_OUTPUT | OMAP_MUX_MODE3);
 	omap_mux_init_signal("kpd_col3.gpio_171", OMAP_PIN_OUTPUT | OMAP_MUX_MODE3);
-
-	/* McASP for S/PDIF out */
-	omap_mux_init_signal("abe_dmic_din2.abe_mcasp_axr", OMAP_PIN_OUTPUT);
 }
 
 static struct i2c_board_info __initdata tuna_i2c1_boardinfo[] = {
@@ -1304,6 +1301,7 @@ static void __init tuna_init(void)
 	omap4_tuna_jack_init();
 	omap4_tuna_sensors_init();
 	omap4_tuna_led_init();
+	omap4_tuna_pogo_init();
 	omap4_tuna_connector_init();
 #ifdef CONFIG_OMAP_HSI_DEVICE
 	if (TUNA_TYPE_MAGURO == omap4_tuna_get_type())
