@@ -303,7 +303,7 @@ static void assign_colormode_to_var(struct fb_var_screeninfo *var,
 	var->transp = color->transp;
 }
 
-static int fb_mode_to_dss_mode(struct fb_var_screeninfo *var,
+int omapfb_mode_to_dss_mode(struct fb_var_screeninfo *var,
 		enum omap_color_mode *mode)
 {
 	enum omap_color_mode dssmode;
@@ -375,6 +375,7 @@ static int fb_mode_to_dss_mode(struct fb_var_screeninfo *var,
 
 	return -EINVAL;
 }
+EXPORT_SYMBOL(omapfb_mode_to_dss_mode);
 
 static int check_fb_res_bounds(struct fb_var_screeninfo *var)
 {
@@ -512,7 +513,7 @@ static int setup_vrfb_rotation(struct fb_info *fbi)
 
 	DBG("setup_vrfb_rotation\n");
 
-	r = fb_mode_to_dss_mode(var, &mode);
+	r = omapfb_mode_to_dss_mode(var, &mode);
 	if (r)
 		return r;
 
@@ -671,7 +672,7 @@ int check_fb_var(struct fb_info *fbi, struct fb_var_screeninfo *var)
 
 	WARN_ON(!atomic_read(&ofbi->region->lock_count));
 
-	r = fb_mode_to_dss_mode(var, &mode);
+	r = omapfb_mode_to_dss_mode(var, &mode);
 	if (r) {
 		DBG("cannot convert var to omap dss mode\n");
 		return r;
@@ -880,9 +881,9 @@ int omapfb_setup_overlay(struct fb_info *fbi, struct omap_overlay *ovl,
 		omapfb_calc_addr(ofbi, var, fix, rotation,
 				 &data_start_p, &data_start_v);
 
-	r = fb_mode_to_dss_mode(var, &mode);
+	r = omapfb_mode_to_dss_mode(var, &mode);
 	if (r) {
-		DBG("fb_mode_to_dss_mode failed");
+		DBG("omapfb_mode_to_dss_mode failed");
 		goto err;
 	}
 
