@@ -60,6 +60,7 @@ static struct device *mpu_dev;
 static DEFINE_MUTEX(omap_cpufreq_lock);
 
 static unsigned int max_thermal;
+static unsigned int min_freq;
 static unsigned int max_freq;
 static unsigned int current_target_freq;
 
@@ -72,6 +73,14 @@ static unsigned int omap_getspeed(unsigned int cpu)
 
 	rate = clk_get_rate(mpu_clk) / 1000;
 	return rate;
+}
+
+static void omap_cpufreq_update_tput(unsigned int freq)
+{
+	if (freq > min_freq)
+		omap_pm_set_min_bus_tput(mpu_dev, OCP_INITIATOR_AGENT, 1000000);
+	else
+		omap_pm_set_min_bus_tput(mpu_dev, OCP_INITIATOR_AGENT, -1);
 }
 
 static int omap_cpufreq_scale(unsigned int target_freq, unsigned int cur_freq)
@@ -101,9 +110,14 @@ static int omap_cpufreq_scale(unsigned int target_freq, unsigned int cur_freq)
 	pr_info("cpufreq-omap: transition: %u --> %u\n", freqs.old, freqs.new);
 #endif
 
+	if (freqs.new > freqs.old)
+		omap_cpufreq_update_tput(freqs.new);
+
 	ret = omap_device_scale(mpu_dev, mpu_dev, freqs.new * 1000);
 
 	freqs.new = omap_getspeed(0);
+
+	omap_cpufreq_update_tput(freqs.new);
 
 #ifdef CONFIG_SMP
 	/*
@@ -322,8 +336,11 @@ static int __cpuinit omap_cpu_init(struct cpufreq_policy *policy)
 	policy->max = policy->cpuinfo.max_freq;
 	policy->cur = omap_getspeed(policy->cpu);
 
+	min_freq = UINT_MAX;
 	for (i = 0; freq_table[i].frequency != CPUFREQ_TABLE_END; i++)
 		max_freq = max(freq_table[i].frequency, max_freq);
+	for (i = 0; freq_table[i].frequency != CPUFREQ_TABLE_END; i++)
+		min_freq = min(freq_table[i].frequency, min_freq);
 	max_thermal = max_freq;
 
 	/*
