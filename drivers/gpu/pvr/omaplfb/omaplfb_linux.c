@@ -244,6 +244,12 @@ void OMAPLFBDestroySwapQueue(OMAPLFB_SWAPCHAIN *psSwapChain)
 	destroy_workqueue(psSwapChain->psWorkQueue);
 }
 
+#if defined(CONFIG_DSSCOMP)
+#include <video/dsscomp.h>
+#include <plat/dsscomp.h>
+#include <linux/omapfb.h>
+#endif
+
 void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 {
 	struct fb_var_screeninfo sFBVar;
@@ -260,6 +266,44 @@ void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 	ulYResVirtual = psBuffer->ulYOffset + sFBVar.yres;
 
 	
+#if defined(CONFIG_DSSCOMP)
+	{
+		/*
+		 * If using DSSCOMP, we need to use dsscomp queuing for normal
+		 * framebuffer updates, so that previously used overlays get
+		 * automatically disabled, and manager gets dirtied.  We can
+		 * do that because DSSCOMP takes ownership of all pipelines on
+		 * a manager.
+		 */
+		struct fb_fix_screeninfo sFBFix = psDevInfo->psLINFBInfo->fix;
+		struct dsscomp_setup_dispc_data d = {
+			.num_ovls = 1,
+			.mgr.alpha_blending = 1,
+			.ovls[0] = {
+				.cfg = {
+					.win.w = sFBVar.xres,
+					.win.h = sFBVar.yres,
+					.crop.x = sFBVar.xoffset,
+					.crop.y = sFBVar.yoffset,
+					.crop.w = sFBVar.xres,
+					.crop.h = sFBVar.yres,
+					.width = sFBVar.xres_virtual,
+					.height = sFBVar.yres_virtual,
+					.stride = sFBFix.line_length,
+					.enabled = 1,
+					.global_alpha = 255,
+				},
+			},
+		};
+		/* do not map buffer into TILER1D as it is contiguous */
+		struct tiler_pa_info *pas[] = { NULL };
+
+		d.ovls[0].ba = sFBFix.smem_start;
+		omapfb_mode_to_dss_mode(&sFBVar, &d.ovls[0].cfg.color_mode);
+
+		res = dsscomp_gralloc_queue(&d, pas, NULL, NULL);
+	}
+#else
 #if !defined(PVR_OMAPLFB_DONT_USE_FB_PAN_DISPLAY)
 	
 	if (sFBVar.xres_virtual != sFBVar.xres || sFBVar.yres_virtual < ulYResVirtual)
@@ -285,6 +329,7 @@ void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 			printk(KERN_ERR DRIVER_PREFIX ": %s: Device %u: fb_pan_display failed (Y Offset: %lu, Error: %d)\n", __FUNCTION__, psDevInfo->uiFBDevID, psBuffer->ulYOffset, res);
 		}
 	}
+#endif
 #endif
 	OMAPLFB_CONSOLE_UNLOCK();
 }

@@ -70,7 +70,6 @@ struct omap_wdt_dev {
 	struct resource *mem;
 	struct miscdevice omap_wdt_miscdev;
 	int irq;
-	struct work_struct sitter;
 };
 
 static void omap_wdt_ping(struct omap_wdt_dev *wdev)
@@ -151,15 +150,6 @@ static void omap_wdt_set_timeout(struct omap_wdt_dev *wdev)
 	pm_runtime_put_sync(wdev->dev);
 }
 
-static void omap_wdt_dogsitter(struct work_struct *work)
-{
-	struct omap_wdt_dev *wdev =
-		container_of(work, struct omap_wdt_dev, sitter);
-
-	pm_runtime_get_sync(wdev->dev);
-	omap_wdt_ping(wdev);
-	pm_runtime_put_sync(wdev->dev);
-}
 
 static irqreturn_t omap_wdt_interrupt(int irq, void *dev_id)
 {
@@ -167,9 +157,11 @@ static irqreturn_t omap_wdt_interrupt(int irq, void *dev_id)
 	void __iomem *base = wdev->base;
 	u32 i;
 
-	schedule_work(&wdev->sitter);
+	pm_runtime_get_sync(wdev->dev);
+	omap_wdt_ping(wdev);
 	i = __raw_readl(base + OMAP_WATCHDOG_WIRQSTAT);
 	__raw_writel(i, base + OMAP_WATCHDOG_WIRQSTAT);
+	pm_runtime_put_sync_suspend(wdev->dev);
 	return IRQ_HANDLED;
 }
 
@@ -234,11 +226,9 @@ static int omap_wdt_release(struct inode *inode, struct file *file)
 
 	omap_wdt_disable(wdev);
 
-	if (kernelpet && wdev->irq) {
-		/* Disable delay interrupt */
+	/* Disable delay interrupt */
+	if (kernelpet && wdev->irq)
 		__raw_writel(0x2, base + OMAP_WATCHDOG_WIRQENCLR);
-		cancel_work_sync(&wdev->sitter);
-	}
 
 	pm_runtime_put_sync(wdev->dev);
 #else
@@ -371,8 +361,6 @@ static int __devinit omap_wdt_probe(struct platform_device *pdev)
 		goto err_ioremap;
 	}
 
-	INIT_WORK(&wdev->sitter, omap_wdt_dogsitter);
-
 	if (res_irq) {
 		ret = request_irq(res_irq->start, omap_wdt_interrupt, 0,
 				  dev_name(&pdev->dev), wdev);
@@ -386,6 +374,7 @@ static int __devinit omap_wdt_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, wdev);
 
 	pm_runtime_enable(wdev->dev);
+	pm_runtime_irq_safe(wdev->dev);
 	pm_runtime_get_sync(wdev->dev);
 
 	omap_wdt_disable(wdev);
