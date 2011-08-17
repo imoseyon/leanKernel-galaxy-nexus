@@ -841,7 +841,8 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVGetMiscInfoKM(PVRSRV_MISC_INFO *psMiscInfo)
 										|PVRSRV_MISC_INFO_DDKVERSION_PRESENT
 										|PVRSRV_MISC_INFO_CPUCACHEOP_PRESENT
 										|PVRSRV_MISC_INFO_RESET_PRESENT
-										|PVRSRV_MISC_INFO_FREEMEM_PRESENT))
+										|PVRSRV_MISC_INFO_FREEMEM_PRESENT
+										|PVRSRV_MISC_INFO_GET_REF_COUNT_PRESENT))
 	{
 		PVR_DPF((PVR_DBG_ERROR,"PVRSRVGetMiscInfoKM: invalid state request flags"));
 		return PVRSRV_ERROR_INVALID_PARAMS;
@@ -1056,6 +1057,35 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVGetMiscInfoKM(PVRSRV_MISC_INFO *psMiscInfo)
 				}
 			}
 		}
+	}
+
+	if((psMiscInfo->ui32StateRequest & PVRSRV_MISC_INFO_GET_REF_COUNT_PRESENT) != 0UL)
+	{
+#if !defined (SUPPORT_SID_INTERFACE)
+		PVRSRV_KERNEL_MEM_INFO *psKernelMemInfo;
+		PVRSRV_PER_PROCESS_DATA *psPerProc;
+#endif
+
+		psMiscInfo->ui32StatePresent |= PVRSRV_MISC_INFO_GET_REF_COUNT_PRESENT;
+
+#if defined (SUPPORT_SID_INTERFACE)
+		PVR_DBG_BREAK
+#else
+		
+		psPerProc = PVRSRVFindPerProcessData();
+
+		if(PVRSRVLookupHandle(psPerProc->psHandleBase,
+							  (IMG_PVOID *)&psKernelMemInfo,
+							  psMiscInfo->sGetRefCountCtl.u.psKernelMemInfo,
+							  PVRSRV_HANDLE_TYPE_MEM_INFO) != PVRSRV_OK)
+		{
+			PVR_DPF((PVR_DBG_ERROR, "PVRSRVGetMiscInfoKM: "
+									"Can't find kernel meminfo"));
+			return PVRSRV_ERROR_INVALID_PARAMS;
+		}
+
+		psMiscInfo->sGetRefCountCtl.ui32RefCount = psKernelMemInfo->ui32RefCount;
+#endif
 	}
 
 #if defined(PVRSRV_RESET_ON_HWTIMEOUT)

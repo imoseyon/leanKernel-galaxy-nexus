@@ -462,7 +462,7 @@ IMG_VOID OSBreakResourceLock(PVRSRV_RESOURCE *psResource, IMG_UINT32 ui32ID);
 #define OSPowerLockWrap SysPowerLockWrap
 #define OSPowerLockUnwrap SysPowerLockUnwrap
 #else
-PVRSRV_ERROR OSPowerLockWrap(IMG_VOID);
+PVRSRV_ERROR OSPowerLockWrap(IMG_BOOL bTryLock);
 
 IMG_VOID OSPowerLockUnwrap(IMG_VOID);
 #endif 

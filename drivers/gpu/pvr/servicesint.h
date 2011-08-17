@@ -265,6 +265,7 @@ typedef struct _PVRSRV_MISC_INFO_KM_
 		
 		PVRSRV_MISC_INFO_CPUCACHEOP_TYPE eCacheOpType;
 
+		
 		PVRSRV_KERNEL_MEM_INFO *psKernelMemInfo;
 
 		
@@ -273,6 +274,16 @@ typedef struct _PVRSRV_MISC_INFO_KM_
 		
 		IMG_UINT32	ui32Length;
 	} sCacheOpCtl;
+
+	
+	struct
+	{
+		
+		PVRSRV_KERNEL_MEM_INFO *psKernelMemInfo;
+
+		
+		IMG_UINT32 ui32RefCount;
+	} sGetRefCountCtl;
 } PVRSRV_MISC_INFO_KM;
 
 
