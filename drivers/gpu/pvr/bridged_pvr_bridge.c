@@ -2086,6 +2086,7 @@ PVRSRVGetMiscInfoBW(IMG_UINT32 ui32BridgeID,
 	PVRSRV_ERROR eError;
 
 	PVRSRV_BRIDGE_ASSERT_CMD(ui32BridgeID, PVRSRV_BRIDGE_GET_MISC_INFO);
+
 #if defined (SUPPORT_SID_INTERFACE)
 	sMiscInfo.ui32StateRequest = psGetMiscInfoIN->sMiscInfo.ui32StateRequest;
 	sMiscInfo.ui32StatePresent = psGetMiscInfoIN->sMiscInfo.ui32StatePresent;
@@ -2095,8 +2096,10 @@ PVRSRVGetMiscInfoBW(IMG_UINT32 ui32BridgeID,
 	OSMemCopy(&sMiscInfo.sCacheOpCtl,
 			  &psGetMiscInfoIN->sMiscInfo.sCacheOpCtl,
 			  sizeof(sMiscInfo.sCacheOpCtl));
+	OSMemCopy(&sMiscInfo.sGetRefCountCtl,
+			  &psGetMiscInfoIN->sMiscInfo.sGetRefCountCtl,
+			  sizeof(sMiscInfo.sGetRefCountCtl));
 #else
-
 	OSMemCopy(&psGetMiscInfoOUT->sMiscInfo,
 			  &psGetMiscInfoIN->sMiscInfo,
 			  sizeof(PVRSRV_MISC_INFO));
@@ -2254,6 +2257,9 @@ PVRSRVGetMiscInfoBW(IMG_UINT32 ui32BridgeID,
 	OSMemCopy(&psGetMiscInfoOUT->sMiscInfo.sCacheOpCtl,
 				&sMiscInfo.sCacheOpCtl,
 				sizeof(psGetMiscInfoOUT->sMiscInfo.sCacheOpCtl));
+	OSMemCopy(&psGetMiscInfoOUT->sMiscInfo.sGetRefCountCtl,
+				&sMiscInfo.sGetRefCountCtl,
+				sizeof(psGetMiscInfoOUT->sMiscInfo.sGetRefCountCtl));
 #endif
 
 	return 0;

@@ -208,6 +208,10 @@ typedef struct _PVRSRV_SGXDEV_INFO_
 	
 	PVRSRV_KERNEL_MEM_INFO			*psKernelSGXTA3DCtlMemInfo;
 
+#if defined(FIX_HW_BRN_31272) || defined(FIX_HW_BRN_31780) || defined(FIX_HW_BRN_33920)
+	PVRSRV_KERNEL_MEM_INFO			*psKernelSGXPTLAWriteBackMemInfo;
+#endif
+
 	IMG_UINT32				ui32Flags;
 
 	
@@ -334,6 +338,9 @@ typedef struct _SGX_BRIDGE_INIT_INFO_KM_
 	IMG_HANDLE	hKernelCCBEventKickerMemInfo;
 	IMG_HANDLE	hKernelSGXHostCtlMemInfo;
 	IMG_HANDLE	hKernelSGXTA3DCtlMemInfo;
+#if defined(FIX_HW_BRN_31272) || defined(FIX_HW_BRN_31780) || defined(FIX_HW_BRN_33920)
+	IMG_HANDLE	hKernelSGXPTLAWriteBackMemInfo;
+#endif
 	IMG_HANDLE	hKernelSGXMiscMemInfo;
 
 	IMG_UINT32	aui32HostKickAddr[SGXMKIF_CMD_MAX];
