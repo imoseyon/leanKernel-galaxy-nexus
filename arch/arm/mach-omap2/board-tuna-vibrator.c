@@ -26,7 +26,10 @@
 #include "mux.h"
 #include "board-tuna.h"
 
+/* Vibrator enable pin is changed on Rev 05 to block not intended vibration. */
 #define GPIO_MOTOR_EN		162
+#define GPIO_MOTOR_EN_REV05	54
+
 #define VIB_GPTIMER_NUM		10
 #define PWM_DUTY_MAX		1450
 #define MAX_TIMEOUT		10000 /* 10s */
@@ -37,6 +40,7 @@ static struct vibrator {
 	struct mutex lock;
 	struct omap_dm_timer *gptimer;
 	bool enabled;
+	unsigned gpio_en;
 } vibdata;
 
 static void vibrator_off(void)
@@ -44,7 +48,7 @@ static void vibrator_off(void)
 	if (!vibdata.enabled)
 		return;
 	omap_dm_timer_stop(vibdata.gptimer);
-	gpio_set_value(GPIO_MOTOR_EN, 0);
+	gpio_set_value(vibdata.gpio_en, 0);
 	vibdata.enabled = false;
 	wake_unlock(&vibdata.wklock);
 }
@@ -69,7 +73,7 @@ static void vibrator_enable(struct timed_output_dev *dev, int value)
 	if (value) {
 		wake_lock(&vibdata.wklock);
 
-		gpio_set_value(GPIO_MOTOR_EN, 1);
+		gpio_set_value(vibdata.gpio_en, 1);
 		omap_dm_timer_start(vibdata.gptimer);
 
 		vibdata.enabled = true;
@@ -154,19 +158,22 @@ static int __init omap4_tuna_vibrator_init(void)
 	if (!machine_is_tuna())
 		return 0;
 
-	omap_mux_init_gpio(GPIO_MOTOR_EN, OMAP_PIN_OUTPUT |
+	vibdata.gpio_en = (omap4_tuna_get_revision() >= 5) ?
+			GPIO_MOTOR_EN_REV05 : GPIO_MOTOR_EN;
+
+	omap_mux_init_gpio(vibdata.gpio_en, OMAP_PIN_OUTPUT |
 						OMAP_PIN_OFF_OUTPUT_LOW);
 	omap_mux_init_signal("dpm_emu18.dmtimer10_pwm_evt", OMAP_PIN_OUTPUT);
 
-	ret = gpio_request(GPIO_MOTOR_EN, "vibrator-en");
+	ret = gpio_request(vibdata.gpio_en, "vibrator-en");
 	if (ret)
 		return ret;
 
-	gpio_direction_output(GPIO_MOTOR_EN, 0);
+	gpio_direction_output(vibdata.gpio_en, 0);
 
 	ret = vibrator_init();
 	if (ret < 0)
-		gpio_free(GPIO_MOTOR_EN);
+		gpio_free(vibdata.gpio_en);
 
 	return ret;
 }
