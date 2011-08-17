@@ -34,6 +34,8 @@
 #define TUNA_GPIO_MLCD_RST		23
 
 struct regulator *tuna_oled_reg;
+struct regulator *tuna_oled_reg_iovcc;
+
 
 static void tuna_oled_set_power(bool enable)
 {
@@ -45,10 +47,28 @@ static void tuna_oled_set_power(bool enable)
 		}
 	}
 
-	if (enable)
-		regulator_enable(tuna_oled_reg);
-	else
-		regulator_disable(tuna_oled_reg);
+	if (omap4_tuna_get_revision() >= 5) {
+		if (IS_ERR_OR_NULL(tuna_oled_reg_iovcc)) {
+			tuna_oled_reg_iovcc = regulator_get(NULL, "vlcd-iovcc");
+			if (IS_ERR_OR_NULL(tuna_oled_reg_iovcc)) {
+				pr_err("Can't get vlcd for display!\n");
+				return;
+			}
+		}
+
+		if (enable) {
+			regulator_enable(tuna_oled_reg_iovcc);
+			regulator_enable(tuna_oled_reg);
+		} else {
+			regulator_disable(tuna_oled_reg);
+			regulator_disable(tuna_oled_reg_iovcc);
+		}
+	} else {
+		if (enable)
+			regulator_enable(tuna_oled_reg);
+		else
+			regulator_disable(tuna_oled_reg);
+	}
 }
 
 static const u8 tuna_oled_cmd_init_pre[] = {

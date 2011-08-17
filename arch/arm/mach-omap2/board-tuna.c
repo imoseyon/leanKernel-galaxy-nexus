@@ -480,6 +480,12 @@ static struct regulator_init_data tuna_vpp = {
 	},
 };
 
+static struct regulator_consumer_supply tuna_vusim_supplies[] = {
+	{
+		.supply = "vlcd-iovcc",
+	},
+};
+
 static struct regulator_init_data tuna_vusim = {
 	.constraints = {
 		.min_uV			= 2200000,
@@ -488,8 +494,9 @@ static struct regulator_init_data tuna_vusim = {
 					| REGULATOR_MODE_STANDBY,
 		.valid_ops_mask	 	= REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
-		.always_on		= true,
 	},
+	.num_consumer_supplies = ARRAY_SIZE(tuna_vusim_supplies),
+	.consumer_supplies = tuna_vusim_supplies,
 };
 
 static struct regulator_init_data tuna_vana = {
