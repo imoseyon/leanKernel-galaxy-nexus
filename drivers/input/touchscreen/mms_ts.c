@@ -109,6 +109,19 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 	int ret;
 	int i;
 	int sz;
+	u8 reg = MMS_INPUT_EVENT0;
+	struct i2c_msg msg[] = {
+		{
+			.addr   = client->addr,
+			.flags  = 0,
+			.buf    = &reg,
+			.len    = 1,
+		}, {
+			.addr   = client->addr,
+			.flags  = I2C_M_RD,
+			.buf    = buf,
+		},
+	};
 
 	sz = i2c_smbus_read_byte_data(client, MMS_INPUT_EVENT_PKT_SZ);
 	if (sz < 0) {
@@ -120,7 +133,14 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 	if (sz == 0)
 		goto out;
 
-	ret = i2c_smbus_read_i2c_block_data(client, MMS_INPUT_EVENT0, sz, buf);
+	msg[1].len = sz;
+	ret = i2c_transfer(client->adapter, msg, ARRAY_SIZE(msg));
+	if (ret != ARRAY_SIZE(msg)) {
+		dev_err(&client->dev,
+			"failed to read %d bytes of touch data (%d)\n",
+			sz, ret);
+		goto out;
+	}
 
 #if defined(VERBOSE_DEBUG)
 	print_hex_dump(KERN_DEBUG, "mms_ts raw: ",
