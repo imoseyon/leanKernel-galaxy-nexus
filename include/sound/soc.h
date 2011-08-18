@@ -238,6 +238,17 @@ enum snd_soc_bias_level {
 	SND_SOC_BIAS_ON,
 };
 
+enum snd_soc_dsp_state {
+	SND_SOC_DSP_STATE_NEW	= 0,
+	SND_SOC_DSP_STATE_OPEN,
+	SND_SOC_DSP_STATE_HW_PARAMS,
+	SND_SOC_DSP_STATE_PREPARE,
+	SND_SOC_DSP_STATE_START,
+	SND_SOC_DSP_STATE_STOP,
+	SND_SOC_DSP_STATE_HW_FREE,
+	SND_SOC_DSP_STATE_CLOSE,
+};
+
 struct snd_jack;
 struct snd_soc_card;
 struct snd_soc_pcm_stream;
@@ -877,6 +888,7 @@ struct snd_soc_dsp_runtime {
 	struct snd_pcm_runtime *runtime;
 	struct snd_pcm_hw_params params;
 	int runtime_update;
+	enum snd_soc_dsp_state state;
 };
 
 /* SoC machine DAI configuration, glues a codec and cpu DAI together */

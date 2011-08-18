@@ -587,11 +587,11 @@ static void capture_trigger(struct snd_pcm_substream *substream,
 			if (!snd_soc_dsp_is_op_for_be(fe, be, stream))
 				continue;
 
-			/* is the BE already in the trigger START state ? */
-			if (dsp_params->state == SND_SOC_DSP_LINK_STATE_START)
+			if ((be->dsp[stream].state != SND_SOC_DSP_STATE_PREPARE) &&
+			    (be->dsp[stream].state != SND_SOC_DSP_STATE_STOP))
 				continue;
 
-			be_substream = snd_soc_dsp_get_substream(dsp_params->be, stream);
+			be_substream = snd_soc_dsp_get_substream(be, stream);
 
 			/* mute the BE port */
 			mute_be(be, dai, stream);
@@ -604,6 +604,8 @@ static void capture_trigger(struct snd_pcm_substream *substream,
 
 			/* trigger the BE port */
 			snd_soc_dai_trigger(be_substream, cmd, be->cpu_dai);
+
+			be->dsp[stream].state = SND_SOC_DSP_STATE_START;
 		}
 
 		/* does this trigger() apply to the FE ? */
@@ -652,12 +654,15 @@ static void capture_trigger(struct snd_pcm_substream *substream,
 			if (!snd_soc_dsp_is_op_for_be(fe, be, stream))
 				continue;
 
-			/* only STOP BE in FREE state */
-			/* REVISIT: Investigate the appropriate state to check against */
-			//if (dsp_params->state != SND_SOC_DSP_LINK_STATE_FREE)
-			//	continue;
+			if (be->dsp[stream].state != SND_SOC_DSP_STATE_START)
+				continue;
 
-			be_substream = snd_soc_dsp_get_substream(dsp_params->be, stream);
+			/* only stop if last running user */
+			if (soc_dsp_fe_state_count(be, stream,
+					SND_SOC_DSP_STATE_START) > 1)
+				continue;
+
+			be_substream = snd_soc_dsp_get_substream(be, stream);
 
 			/* disable the BE port */
 			disable_be_port(be, dai, stream);
@@ -667,6 +672,8 @@ static void capture_trigger(struct snd_pcm_substream *substream,
 
 			/* trigger BE port */
 			snd_soc_dai_trigger(be_substream, cmd, be->cpu_dai);
+
+			be->dsp[stream].state = SND_SOC_DSP_STATE_STOP;
 		}
 		break;
 	default:
@@ -695,11 +702,11 @@ static void playback_trigger(struct snd_pcm_substream *substream,
 			if (!snd_soc_dsp_is_op_for_be(fe, be, stream))
 				continue;
 
-			/* is the BE already in the trigger START state ? */
-			if (dsp_params->state == SND_SOC_DSP_LINK_STATE_START)
+			if ((be->dsp[stream].state != SND_SOC_DSP_STATE_PREPARE) &&
+			    (be->dsp[stream].state != SND_SOC_DSP_STATE_STOP))
 				continue;
 
-			be_substream = snd_soc_dsp_get_substream(dsp_params->be, stream);
+			be_substream = snd_soc_dsp_get_substream(be, stream);
 
 			/* mute BE port */
 			mute_be(be, dai, stream);
@@ -715,6 +722,8 @@ static void playback_trigger(struct snd_pcm_substream *substream,
 
 			/* unmute the BE port */
 			unmute_be(be, dai, stream);
+
+			be->dsp[stream].state = SND_SOC_DSP_STATE_START;
 		}
 
 		/* does this trigger() apply to the FE ? */
@@ -765,11 +774,15 @@ static void playback_trigger(struct snd_pcm_substream *substream,
 			if (!snd_soc_dsp_is_op_for_be(fe, be, stream))
 				continue;
 
-			/* only STOP BE in FREE state */
-			if (dsp_params->state != SND_SOC_DSP_LINK_STATE_FREE)
+			if (be->dsp[stream].state != SND_SOC_DSP_STATE_START)
 				continue;
 
-			be_substream = snd_soc_dsp_get_substream(dsp_params->be, stream);
+			/* only stop if last running user */
+			if (soc_dsp_fe_state_count(be, stream,
+					SND_SOC_DSP_STATE_START) > 1)
+				continue;
+
+			be_substream = snd_soc_dsp_get_substream(be, stream);
 
 			/* disable the BE */
 			disable_be_port(be, dai, stream);
@@ -779,6 +792,8 @@ static void playback_trigger(struct snd_pcm_substream *substream,
 
 			/*  trigger the BE port */
 			snd_soc_dai_trigger(be_substream, cmd, be->cpu_dai);
+
+			be->dsp[stream].state = SND_SOC_DSP_STATE_STOP;
 		}
 		break;
 	default:
