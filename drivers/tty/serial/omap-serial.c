@@ -1586,7 +1586,7 @@ static int omap_serial_runtime_resume(struct device *dev)
 
 	if (up) {
 		u32 loss_cnt = omap_device_get_context_loss_count(up->pdev);
-		if (up->context_loss_cnt < loss_cnt)
+		if (up->context_loss_cnt != loss_cnt)
 			omap_uart_restore_context(up);
 
 		if (up->use_dma) {
