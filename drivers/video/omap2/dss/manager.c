@@ -29,6 +29,7 @@
 #include <linux/spinlock.h>
 #include <linux/jiffies.h>
 #include <linux/ratelimit.h>
+#include <linux/seq_file.h>
 
 #include <video/omapdss.h>
 #include <plat/cpu.h>
@@ -1904,6 +1905,52 @@ done:
 	return r;
 }
 
+#ifdef CONFIG_DEBUG_FS
+static void seq_print_cb(struct seq_file *s, struct omapdss_ovl_cb *cb)
+{
+	if (!cb->fn) {
+		seq_printf(s, "(none)\n");
+		return;
+	}
+
+	seq_printf(s, "mask=%c%c%c%c [%p] %pf\n",
+		   (cb->mask & DSS_COMPLETION_CHANGED) ? 'C' : '-',
+		   (cb->mask & DSS_COMPLETION_PROGRAMMED) ? 'P' : '-',
+		   (cb->mask & DSS_COMPLETION_DISPLAYED) ? 'D' : '-',
+		   (cb->mask & DSS_COMPLETION_RELEASED) ? 'R' : '-',
+		   cb->data,
+		   cb->fn);
+}
+#endif
+
+static void seq_print_cbs(struct omap_overlay_manager *mgr, struct seq_file *s)
+{
+#ifdef CONFIG_DEBUG_FS
+	struct manager_cache_data *mc;
+	unsigned long flags;
+
+	spin_lock_irqsave(&dss_cache.lock, flags);
+
+	mc = &dss_cache.manager_cache[mgr->id];
+
+	seq_printf(s, "  DISPC pipeline:\n\n"
+		      "    info:%13s ", mgr->info_dirty ? "DIRTY" : "clean");
+	seq_print_cb(s, &mgr->info.cb);
+	seq_printf(s, "    cache:%12s ", mc->dirty ? "DIRTY" : "clean");
+	seq_print_cb(s, &mc->cb.cache);
+	seq_printf(s, "    shadow:  %s %s ",
+			mc->cb.shadow_enabled ? "ACT" : "off",
+			mc->shadow_dirty ? "DIRTY" : "clean");
+	seq_print_cb(s, &mc->cb.shadow);
+	seq_printf(s, "    dispc:%12s ",
+			mc->cb.dispc_displayed ? "DISPLAYED" : "");
+	seq_print_cb(s, &mc->cb.dispc);
+	seq_printf(s, "\n");
+
+	spin_unlock_irqrestore(&dss_cache.lock, flags);
+#endif
+}
+
 static int dss_check_manager(struct omap_overlay_manager *mgr)
 {
 	/* if we have OMAP3 alpha compatibility, alpha blending is always on */
@@ -2053,6 +2100,7 @@ int dss_init_overlay_managers(struct platform_device *pdev)
 		mgr->wait_for_go = &dss_mgr_wait_for_go;
 		mgr->wait_for_vsync = &dss_mgr_wait_for_vsync;
 		mgr->blank = &omap_dss_mgr_blank;
+		mgr->dump_cb = &seq_print_cbs;
 
 		mgr->enable = &dss_mgr_enable;
 		mgr->disable = &dss_mgr_disable;
