@@ -824,6 +824,7 @@ static void omap_init_gpu(void)
 		return;
 	}
 
+	pdata->set_min_bus_tput = omap_pm_set_min_bus_tput;
 	pdata->device_scale = omap_device_scale;
 	pdata->device_enable = omap_device_enable;
 	pdata->device_idle = omap_device_idle;
