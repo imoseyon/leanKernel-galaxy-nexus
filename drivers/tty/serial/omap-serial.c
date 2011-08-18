@@ -600,9 +600,10 @@ static void serial_omap_shutdown(struct uart_port *port)
 
 	serial_omap_port_enable(up);
 	/*
-	 * Disable interrupts from this port
+	 * Disable interrupts & wakeup events from this port
 	 */
 	up->ier = 0;
+	serial_out(up, UART_OMAP_WER, 0);
 	serial_out(up, UART_IER, 0);
 
 	spin_lock_irqsave(&up->port.lock, flags);
