@@ -103,9 +103,10 @@
 #define SW_DHOST		((1 << 5) | (1 << 2))
 #define SW_AUTO			((0 << 5) | (0 << 2))
 
-/* Interrupt 1 */
+/* Interrupt Mask */
 #define INT_DETACH		(1 << 1)
 #define INT_ATTACH		(1 << 0)
+#define INT_AV_CHARGING		(1 << 8)
 
 static const unsigned int adc_timing[] = {
 	50, /* ms */
@@ -144,6 +145,7 @@ struct fsa9480_usbsw {
 	int				mansw;
 	u32				curr_dev;
 	struct mutex			lock;
+	u16				intr_mask;
 
 	int				num_notifiers;
 	struct usbsw_nb_info		notifiers[0];
@@ -299,7 +301,9 @@ static int fsa9480_reg_init(struct fsa9480_usbsw *usbsw)
 	}
 
 	/* mask interrupts (unmask attach/detach only) */
-	ret = i2c_smbus_write_word_data(client, FSA9480_REG_INT1_MASK, 0x1ffc);
+	usbsw->intr_mask = 0x1ffc;
+	ret = i2c_smbus_write_word_data(client, FSA9480_REG_INT1_MASK,
+			usbsw->intr_mask);
 	if (ret < 0) {
 		dev_err(&client->dev, "%s: err %d\n", __func__, ret);
 		return ret;
@@ -444,6 +448,14 @@ err:
 handled:
 	BUG_ON((usbsw->curr_dev == FSA9480_DETECT_NONE) &&
 	       (prev_dev != FSA9480_DETECT_NONE));
+
+	/* Disable the A/V Charger detection interrupt in case it was enabled
+	 * by the proxy wait callback.
+	 */
+	usbsw->intr_mask |= INT_AV_CHARGING;
+	i2c_smbus_write_word_data(client, FSA9480_REG_INT1_MASK,
+			usbsw->intr_mask);
+
 	mutex_unlock(&usbsw->lock);
 	enable_irq(usbsw->client->irq);
 
@@ -455,8 +467,18 @@ static int fsa9480_proxy_wait_callback(struct otg_id_notifier_block *nb)
 	struct usbsw_nb_info *nb_info =
 			container_of(nb, struct usbsw_nb_info, otg_id_nb);
 	struct fsa9480_usbsw *usbsw = nb_info->usbsw;
+	struct i2c_client *client = usbsw->client;
 
 	dev_info(&usbsw->client->dev, "taking proxy ownership of port\n");
+
+	mutex_lock(&usbsw->lock);
+
+	usbsw->intr_mask &= ~INT_AV_CHARGING;
+	i2c_smbus_write_word_data(client, FSA9480_REG_INT1_MASK,
+			usbsw->intr_mask);
+
+	mutex_unlock(&usbsw->lock);
+
 	usbsw->pdata->enable(true);
 	enable_irq(usbsw->client->irq);
 
@@ -484,6 +506,12 @@ static irqreturn_t fsa9480_irq_thread(int irq, void *data)
 	if (intr < 0) {
 		dev_err(&client->dev, "%s: err %d\n", __func__, intr);
 	} else if (intr == 0) {
+		/* When the FSA9480 triggers an interrupt with no status bits
+		 * set I have observed that the previous interrupt mask has
+		 * been lost and needs to be rewritten.
+		 */
+		i2c_smbus_write_word_data(client, FSA9480_REG_INT1_MASK,
+				usbsw->intr_mask);
 		dev_warn(&client->dev, "irq fired, but nothing happened\n");
 	} else {
 		dev_dbg(&client->dev, "got irq 0x%x\n", intr);
@@ -537,7 +565,9 @@ static int __devinit fsa9480_probe(struct i2c_client *client,
 	/* mask all irqs to prevent event processing between
 	 * request_irq and disable_irq
 	 */
-	i2c_smbus_write_word_data(client, FSA9480_REG_INT1_MASK, 0x1fff);
+	usbsw->intr_mask = 0x1fff;
+	i2c_smbus_write_word_data(client, FSA9480_REG_INT1_MASK,
+			usbsw->intr_mask);
 
 	ret = request_threaded_irq(client->irq, NULL, fsa9480_irq_thread,
 				   IRQF_TRIGGER_FALLING, "fsa9480", usbsw);
