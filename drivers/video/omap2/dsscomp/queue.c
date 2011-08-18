@@ -29,6 +29,8 @@
 #include <video/dsscomp.h>
 #include <plat/dsscomp.h>
 
+#include <linux/debugfs.h>
+
 #include "dsscomp.h"
 /* queue state */
 
@@ -50,6 +52,30 @@ static struct {
 
 static struct workqueue_struct *cb_wkq;		/* callback work queue */
 static struct dsscomp_dev *cdev;
+
+#ifdef CONFIG_DEBUG_FS
+LIST_HEAD(dbg_comps);
+DEFINE_MUTEX(dbg_mtx);
+#endif
+
+#ifdef CONFIG_DSSCOMP_DEBUG_LOG
+struct dbg_event_t dbg_events[128];
+u32 dbg_event_ix;
+#endif
+
+static inline void __log_state(dsscomp_t c, void *fn, u32 ev)
+{
+#ifdef CONFIG_DSSCOMP_DEBUG_LOG
+	if (c->dbg_used < ARRAY_SIZE(c->dbg_log)) {
+		u32 t = (u32) ktime_to_ms(ktime_get());
+		c->dbg_log[c->dbg_used].t = t;
+		c->dbg_log[c->dbg_used++].state = c->state;
+		__log_event(20 * c->ix + 20, t, c, ev ? "%pf on %s" : "%pf",
+				(u32) fn, (u32) log_status_str(ev));
+	}
+#endif
+}
+#define log_state(c, fn, ev) DO_IF_DEBUG_FS(__log_state(c, fn, ev))
 
 static inline void maskref_incbit(struct maskref *om, u32 ix)
 {
@@ -155,6 +181,11 @@ dsscomp_t dsscomp_new(struct omap_overlay_manager *mgr)
 	comp->frm.sync_id = 0;
 	comp->frm.mgr.ix = display_ix;
 	comp->state = DSSCOMP_STATE_ACTIVE;
+
+	DO_IF_DEBUG_FS({
+		__log_state(comp, dsscomp_new, 0);
+		list_add(&comp->dbg_q, &dbg_comps);
+	});
 
 	return comp;
 }
@@ -332,6 +363,8 @@ void dsscomp_drop(dsscomp_t comp)
 	if (debug & DEBUG_COMPOSITIONS)
 		dev_info(DEV(cdev), "[%p] released\n", comp);
 
+	DO_IF_DEBUG_FS(list_del(&comp->dbg_q));
+
 	kfree(comp);
 }
 EXPORT_SYMBOL(dsscomp_drop);
@@ -363,6 +396,7 @@ static void dsscomp_mgr_delayed_cb(struct work_struct *work)
 	/* handle programming & release */
 	if (status == DSS_COMPLETION_PROGRAMMED) {
 		comp->state = DSSCOMP_STATE_PROGRAMMED;
+		log_state(comp, dsscomp_mgr_delayed_cb, status);
 
 		/* update used overlay mask */
 		mgrq[ix].ovl_mask = comp->ovl_mask & ~comp->ovl_dmask;
@@ -374,10 +408,14 @@ static void dsscomp_mgr_delayed_cb(struct work_struct *work)
 		   comp->state == DSSCOMP_STATE_PROGRAMMED) {
 		/* composition is 1st displayed */
 		comp->state = DSSCOMP_STATE_DISPLAYED;
+		log_state(comp, dsscomp_mgr_delayed_cb, status);
 		if (debug & DEBUG_PHASES)
 			dev_info(DEV(cdev), "[%p] displayed\n", comp);
 	} else if (status & DSS_COMPLETION_RELEASED) {
 		/* composition is no longer displayed */
+		log_event(20 * comp->ix + 20, 0, comp, "%pf on %s",
+				(u32) dsscomp_mgr_delayed_cb,
+				(u32) log_status_str(status));
 		dsscomp_drop(comp);
 	}
 	mutex_unlock(&mtx);
@@ -541,6 +579,7 @@ skip_ovl_set:
 	/* apply changes and call update on manual panels */
 	/* no need for mutex as no callbacks are scheduled yet */
 	comp->state = DSSCOMP_STATE_APPLIED;
+	log_state(comp, dsscomp_apply, 0);
 
 	if (!d->win.w && !d->win.x)
 		d->win.w = dssdev->panel.timings.x_res - d->win.x;
@@ -625,6 +664,7 @@ int dsscomp_delayed_apply(dsscomp_t comp)
 
 	BUG_ON(comp->state != DSSCOMP_STATE_ACTIVE);
 	comp->state = DSSCOMP_STATE_APPLYING;
+	log_state(comp, dsscomp_delayed_apply, 0);
 
 	if (debug & DEBUG_PHASES)
 		dev_info(DEV(cdev), "[%p] applying\n", comp);
@@ -635,6 +675,107 @@ int dsscomp_delayed_apply(dsscomp_t comp)
 	return queue_work(mgrq[comp->ix].apply_workq, &wk->work) ? 0 : -EBUSY;
 }
 EXPORT_SYMBOL(dsscomp_delayed_apply);
+
+/*
+ * ===========================================================================
+ *		DEBUGFS
+ * ===========================================================================
+ */
+
+#ifdef CONFIG_DEBUG_FS
+void seq_print_comp(struct seq_file *s, dsscomp_t c)
+{
+	struct dsscomp_setup_mgr_data *d = &c->frm;
+	int i;
+
+	seq_printf(s, "  [%p]: %s%s\n", c, c->blank ? "blank " : "",
+		   c->state == DSSCOMP_STATE_ACTIVE ? "ACTIVE" :
+		   c->state == DSSCOMP_STATE_APPLYING ? "APPLYING" :
+		   c->state == DSSCOMP_STATE_APPLIED ? "APPLIED" :
+		   c->state == DSSCOMP_STATE_PROGRAMMED ? "PROGRAMMED" :
+		   c->state == DSSCOMP_STATE_DISPLAYED ? "DISPLAYED" :
+		   "???");
+	seq_printf(s, "    sync_id=%x, flags=%c%c%c\n",
+		   d->sync_id,
+		   (d->mode & DSSCOMP_SETUP_MODE_APPLY) ? 'A' : '-',
+		   (d->mode & DSSCOMP_SETUP_MODE_DISPLAY) ? 'D' : '-',
+		   (d->mode & DSSCOMP_SETUP_MODE_CAPTURE) ? 'C' : '-');
+	for (i = 0; i < d->num_ovls; i++) {
+		struct dss2_ovl_info *oi;
+		struct dss2_ovl_cfg *g;
+		oi = d->ovls + i;
+		g = &oi->cfg;
+		if (g->zonly) {
+			seq_printf(s, "    ovl%d={%s z%d}\n",
+				   g->ix, g->enabled ? "ON" : "off", g->zorder);
+		} else {
+			seq_printf(s, "    ovl%d={%s z%d %s%s *%d%%"
+						" %d*%d:%d,%d+%d,%d rot%d%s"
+						" => %d,%d+%d,%d %p/%p|%d}\n",
+				g->ix, g->enabled ? "ON" : "off", g->zorder,
+				dsscomp_get_color_name(g->color_mode) ? : "N/A",
+				g->pre_mult_alpha ? " premult" : "",
+				(g->global_alpha * 100 + 128) / 255,
+				g->width, g->height, g->crop.x, g->crop.y,
+				g->crop.w, g->crop.h,
+				g->rotation, g->mirror ? "+mir" : "",
+				g->win.x, g->win.y, g->win.w, g->win.h,
+				(void *) oi->ba, (void *) oi->uv, g->stride);
+		}
+	}
+	if (c->extra_cb)
+		seq_printf(s, "    gsync=[%p] %pf\n\n", c->extra_cb_data,
+								c->extra_cb);
+	else
+		seq_printf(s, "    gsync=[%p] (called)\n\n", c->extra_cb_data);
+}
+#endif
+
+void dsscomp_dbg_comps(struct seq_file *s)
+{
+#ifdef CONFIG_DEBUG_FS
+	dsscomp_t c;
+	u32 i;
+
+	mutex_lock(&dbg_mtx);
+	for (i = 0; i < cdev->num_mgrs; i++) {
+		struct omap_overlay_manager *mgr = cdev->mgrs[i];
+		seq_printf(s, "ACTIVE COMPOSITIONS on %s\n\n", mgr->name);
+		list_for_each_entry(c, &dbg_comps, dbg_q) {
+			struct dss2_mgr_info *mi = &c->frm.mgr;
+			if (mi->ix < cdev->num_displays &&
+			    cdev->displays[mi->ix]->manager == mgr)
+				seq_print_comp(s, c);
+		}
+
+		/* print manager cache */
+		mgr->dump_cb(mgr, s);
+	}
+	mutex_unlock(&dbg_mtx);
+#endif
+}
+
+void dsscomp_dbg_events(struct seq_file *s)
+{
+#ifdef CONFIG_DSSCOMP_DEBUG_LOG
+	u32 i;
+	struct dbg_event_t *d;
+
+	mutex_lock(&dbg_mtx);
+	for (i = dbg_event_ix; i < dbg_event_ix + ARRAY_SIZE(dbg_events); i++) {
+		d = dbg_events + (i % ARRAY_SIZE(dbg_events));
+		if (!d->ms)
+			continue;
+		seq_printf(s, "[% 5d.%03d] %*s[%08x] ",
+			   d->ms / 1000, d->ms % 1000,
+			   d->ix + ((u32) d->data) % 7,
+			   "", (u32) d->data);
+		seq_printf(s, d->fmt, d->a1, d->a2);
+		seq_printf(s, "\n");
+	}
+	mutex_unlock(&dbg_mtx);
+#endif
+}
 
 /*
  * ===========================================================================

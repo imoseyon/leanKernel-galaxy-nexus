@@ -99,6 +99,14 @@ static int color_mode_to_bpp(enum omap_color_mode color_mode)
 	return ci->a_bt + ci->r_bt + ci->g_bt + ci->b_bt + ci->x_bt;
 }
 
+#ifdef CONFIG_DEBUG_FS
+const char *dsscomp_get_color_name(enum omap_color_mode m)
+{
+	const struct color_info *ci = get_color_info(m);
+	return ci ? ci->name : NULL;
+}
+#endif
+
 union rect {
 	struct {
 		s32 x;

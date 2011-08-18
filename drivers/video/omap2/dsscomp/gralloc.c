@@ -62,6 +62,10 @@ static void dsscomp_gralloc_cb(void *data, int status)
 	if (status & DSS_COMPLETION_RELEASED) {
 		if (atomic_dec_and_test(&gsync->refs))
 			unpin_tiler_blocks(&gsync->slots);
+
+		log_event(0, 0, gsync, "--refs=%d on %s",
+				atomic_read(&gsync->refs),
+				(u32) log_status_str(status));
 	}
 
 	/* get completed list items in order, if any */
@@ -77,6 +81,10 @@ static void dsscomp_gralloc_cb(void *data, int status)
 	list_for_each_entry_safe(gsync, gsync_, &done, q) {
 		if (debug & DEBUG_GRALLOC_PHASES)
 			dev_info(DEV(cdev), "[%p] completed flip\n", gsync);
+
+		log_event(0, 0, gsync, "calling %pf [%p]",
+				(u32) gsync->cb_fn, (u32) gsync->cb_arg);
+
 		if (gsync->cb_fn)
 			gsync->cb_fn(gsync->cb_arg, 1);
 		kfree(gsync);
@@ -131,6 +139,10 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 	u32 ovl_new_use_mask[MAX_MANAGERS];
 	u32 mgr_set_mask = 0;
 	u32 ovl_set_mask = 0;
+#ifdef CONFIG_DEBUG_FS
+	u32 ms = ktime_to_ms(ktime_get());
+#endif
+
 
 	u32 channels[ARRAY_SIZE(d->mgrs)], ch;
 	int skip;
@@ -155,6 +167,9 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 	list_add_tail(&gsync->q, &flip_queue);
 	if (debug & DEBUG_GRALLOC_PHASES)
 		dev_info(DEV(cdev), "[%p] queuing flip\n", gsync);
+
+	log_event(0, ms, gsync, "new in %pf (refs=1)",
+			(u32) dsscomp_gralloc_queue, 0);
 
 	/* ignore frames while we are blanked */
 	skip = blanked;
@@ -323,6 +338,9 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 		comp[ch]->extra_cb = dsscomp_gralloc_cb;
 		comp[ch]->extra_cb_data = gsync;
 		atomic_inc(&gsync->refs);
+		log_event(0, ms, gsync, "++refs=%d for [%p]",
+				atomic_read(&gsync->refs), (u32) comp[ch]);
+
 		r = dsscomp_delayed_apply(comp[ch]);
 		if (r)
 			dev_err(DEV(cdev), "failed to apply comp (%d)\n", r);
@@ -380,6 +398,70 @@ static struct early_suspend early_suspend_info = {
 	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB,
 };
 #endif
+
+void dsscomp_dbg_gralloc(struct seq_file *s)
+{
+#ifdef CONFIG_DEBUG_FS
+	struct dsscomp_gralloc_t *g;
+	struct tiler1d_slot *t;
+	dsscomp_t c;
+	int i;
+
+	mutex_lock(&dbg_mtx);
+	seq_printf(s, "ACTIVE GRALLOC FLIPS\n\n");
+	list_for_each_entry(g, &flip_queue, q) {
+		char *sep = "";
+		seq_printf(s, "  [%p] (refs=%d)\n"
+			   "    slots=[", g, atomic_read(&g->refs));
+		list_for_each_entry(t, &g->slots, q) {
+			seq_printf(s, "%s%08x", sep, t->phys);
+			sep = ", ";
+		}
+		seq_printf(s, "]\n    cmdcb=[%08x] ", (u32) g->cb_arg);
+		if (g->cb_fn)
+			seq_printf(s, "%pf\n\n  ", g->cb_fn);
+		else
+			seq_printf(s, "(called)\n\n  ");
+
+		list_for_each_entry(c, &dbg_comps, dbg_q) {
+			if (c->extra_cb && c->extra_cb_data == g)
+				seq_printf(s, "|      %8s      ",
+					cdev->mgrs[c->ix]->name);
+		}
+		seq_printf(s, "\n  ");
+		list_for_each_entry(c, &dbg_comps, dbg_q) {
+			if (c->extra_cb && c->extra_cb_data == g)
+				seq_printf(s, "| [%08x] %7s ", (u32) c,
+					   log_state_str(c->state));
+		}
+#ifdef CONFIG_DSSCOMP_DEBUG_LOG
+		for (i = 0; i < ARRAY_SIZE(c->dbg_log); i++) {
+			int go = false;
+			seq_printf(s, "\n  ");
+			list_for_each_entry(c, &dbg_comps, dbg_q) {
+				if (!c->extra_cb || c->extra_cb_data != g)
+					continue;
+				if (i < c->dbg_used) {
+					u32 t = c->dbg_log[i].t;
+					u32 state = c->dbg_log[i].state;
+					seq_printf(s, "| % 6d.%03d %7s ",
+						t / 1000, t % 1000,
+						log_state_str(state));
+					go |= c->dbg_used > i + 1;
+				} else {
+					seq_printf(s, "%-21s", "|");
+				}
+			}
+			if (!go)
+				break;
+		}
+#endif
+		seq_printf(s, "\n\n");
+	}
+	seq_printf(s, "\n");
+	mutex_unlock(&dbg_mtx);
+#endif
+}
 
 void dsscomp_gralloc_init(struct dsscomp_dev *cdev_)
 {
