@@ -50,6 +50,8 @@
 #include <plat/usb.h>
 #include <plat/mmc.h>
 #include <plat/remoteproc.h>
+#include <plat/omap-serial.h>
+
 #include <mach/id.h>
 #include "timer-gp.h"
 
@@ -757,6 +759,10 @@ static struct omap_device_pad tuna_uart2_pads[] __initdata = {
 	},
 };
 
+static struct omap_uart_port_info tuna_uart2_info __initdata = {
+	.rts_mux_driver_control = 1,
+};
+
 static struct omap_device_pad tuna_uart3_pads[] __initdata = {
 	{
 		.name   = "uart3_tx_irtx.uart3_tx_irtx",
@@ -775,7 +781,7 @@ static inline void __init board_serial_init(void)
 	omap_serial_init_port_pads(0, tuna_uart1_pads,
 		ARRAY_SIZE(tuna_uart1_pads), NULL);
 	omap_serial_init_port_pads(1, tuna_uart2_pads,
-		ARRAY_SIZE(tuna_uart2_pads), NULL);
+		ARRAY_SIZE(tuna_uart2_pads), &tuna_uart2_info);
 	omap_serial_init_port_pads(2, tuna_uart3_pads,
 		ARRAY_SIZE(tuna_uart3_pads), NULL);
 	omap_serial_init_port_pads(3, NULL, 0, NULL);
