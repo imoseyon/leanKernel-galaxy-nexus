@@ -100,7 +100,8 @@ enum fw_resource_type {
 	RSC_IRQ		= 3,
 	RSC_TRACE	= 4,
 	RSC_BOOTADDR	= 5,
-	RSC_END		= 6,
+	RSC_CRASHDUMP	= 6,
+	RSC_END		= 7,
 };
 
 /**
@@ -226,6 +227,10 @@ enum rproc_event {
  * @trace_buf1: second, optional, trace buffer of the remote processor
  * @trace_len0: length of main trace buffer of the remote processor
  * @trace_len1: length of the second (and optional) trace buffer
+ * @cdump_buf0: main exception/crash dump buffer of the remote processor
+ * @cdump_buf1: second exception/crash dump buffer of the remote processor
+ * @cdump_len0: length of main crash dump buffer of the remote processor
+ * @cdump_len1: length of the second (and optional) crash dump buffer
  * @firmware_loading_complete: flags e/o asynchronous firmware loading
  * @mmufault_work: work in charge of notifing mmufault
  * @nb_error: notify block for fatal errors
@@ -249,6 +254,8 @@ struct rproc {
 	char *last_trace_buf0, *last_trace_buf1;
 	int trace_len0, trace_len1;
 	int last_trace_len0, last_trace_len1;
+	void *cdump_buf0, *cdump_buf1;
+	int cdump_len0, cdump_len1;
 	struct completion firmware_loading_complete;
 	struct work_struct error_work;
 	struct blocking_notifier_head nb_error;

@@ -131,6 +131,8 @@ DEBUGFS_READONLY_FILE(trace0_last, rproc->last_trace_buf0,
 						rproc->last_trace_len0);
 DEBUGFS_READONLY_FILE(trace1_last, rproc->last_trace_buf1,
 						rproc->last_trace_len1);
+DEBUGFS_READONLY_FILE(cdump0, rproc->cdump_buf0, rproc->cdump_len0);
+DEBUGFS_READONLY_FILE(cdump1, rproc->cdump_buf1, rproc->cdump_len1);
 
 #define DEBUGFS_ADD(name)						\
 	debugfs_create_file(#name, 0400, rproc->dbg_dir,		\
@@ -391,6 +393,8 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 	u64 da;
 	u64 trace_da0 = 0;
 	u64 trace_da1 = 0;
+	u64 cdump_da0 = 0;
+	u64 cdump_da1 = 0;
 	int ret = 0;
 
 	while (len >= sizeof(*rsc) && !ret) {
@@ -421,6 +425,21 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 				rproc->trace_len1 = rsc->len;
 				rproc->last_trace_len1 = rsc->len;
 				trace_da1 = da;
+			}
+			break;
+		case RSC_CRASHDUMP:
+			if (rproc->cdump_buf0 && rproc->cdump_buf1) {
+				dev_warn(dev, "skipping extra trace rsc %s\n",
+						rsc->name);
+				break;
+			}
+			/* store the da for processing at the end */
+			if (!cdump_da0) {
+				rproc->cdump_len0 = rsc->len;
+				cdump_da0 = da;
+			} else {
+				rproc->cdump_len1 = rsc->len;
+				cdump_da1 = da;
 			}
 			break;
 		case RSC_BOOTADDR:
@@ -527,6 +546,43 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 			ret = -EIO;
 		}
 	}
+
+	/*
+	 * post-process crash-dump buffers, as we cannot rely on the order of
+	 * the crash-dump section and the carveout sections.
+	 *
+	 * crash-dump memory _is_ normal memory, so we cast away the __iomem to
+	 * make sparse happy
+	 */
+	if (cdump_da0) {
+		ret = rproc_da_to_pa(rproc->memory_maps, cdump_da0, &pa);
+		if (ret)
+			goto error;
+		rproc->cdump_buf0 = (__force void *)
+					ioremap_nocache(pa, rproc->cdump_len0);
+		if (rproc->cdump_buf0)
+			DEBUGFS_ADD(cdump0);
+		else {
+			dev_err(dev, "can't ioremap cdump buffer0\n");
+			ret = -EIO;
+			goto error;
+		}
+	}
+	if (cdump_da1) {
+		ret = rproc_da_to_pa(rproc->memory_maps, cdump_da1, &pa);
+		if (ret)
+			goto error;
+		rproc->cdump_buf1 = (__force void *)
+					ioremap_nocache(pa, rproc->cdump_len1);
+		if (rproc->cdump_buf1)
+			DEBUGFS_ADD(cdump1);
+		else {
+			dev_err(dev, "can't ioremap cdump buffer1\n");
+			ret = -EIO;
+			goto error;
+		}
+	}
+
 error:
 	return ret;
 }
@@ -786,8 +842,15 @@ void rproc_put(struct rproc *rproc)
 	if (rproc->trace_buf1)
 		/* iounmap normal memory, so make sparse happy */
 		iounmap((__force void __iomem *) rproc->trace_buf1);
-
 	rproc->trace_buf0 = rproc->trace_buf1 = NULL;
+
+	if (rproc->cdump_buf0)
+		/* iounmap normal memory, so make sparse happy */
+		iounmap((__force void __iomem *) rproc->cdump_buf0);
+	if (rproc->cdump_buf1)
+		/* iounmap normal memory, so make sparse happy */
+		iounmap((__force void __iomem *) rproc->cdump_buf1);
+	rproc->cdump_buf0 = rproc->cdump_buf1 = NULL;
 
 	rproc_reset_poolmem(rproc);
 	memset(rproc->memory_maps, 0, sizeof(rproc->memory_maps));
