@@ -93,7 +93,6 @@ static u32 max_spi_irq, max_spi_reg;
 struct omap4_cpu_pm_info {
 	struct powerdomain *pwrdm;
 	void __iomem *scu_sar_addr;
-	void __iomem *l1_sar_addr;
 };
 
 static void __iomem *gic_dist_base;
@@ -155,27 +154,23 @@ static inline void clear_cpu_prev_pwrst(unsigned int cpu_id)
 static void scu_pwrst_prepare(unsigned int cpu_id, unsigned int cpu_state)
 {
 	struct omap4_cpu_pm_info *pm_info = &per_cpu(omap4_pm_info, cpu_id);
-	u32 scu_pwr_st, l1_state;
+	u32 scu_pwr_st;
 
 	switch (cpu_state) {
 	case PWRDM_POWER_RET:
 		scu_pwr_st = SCU_PM_DORMANT;
-		l1_state = 0x00;
 		break;
 	case PWRDM_POWER_OFF:
 		scu_pwr_st = SCU_PM_POWEROFF;
-		l1_state = 0xff;
 		break;
 	case PWRDM_POWER_ON:
 	case PWRDM_POWER_INACTIVE:
 	default:
 		scu_pwr_st = SCU_PM_NORMAL;
-		l1_state = 0x00;
 		break;
 	}
 
 	__raw_writel(scu_pwr_st, pm_info->scu_sar_addr);
-	__raw_writel(scu_pwr_st, pm_info->l1_sar_addr);
 }
 
 /*
@@ -532,7 +527,6 @@ int __init omap4_mpuss_init(void)
 	/* Initilaise per CPU PM information */
 	pm_info = &per_cpu(omap4_pm_info, 0x0);
 	pm_info->scu_sar_addr = sar_base + SCU_OFFSET0;
-	pm_info->l1_sar_addr = sar_base + L1_OFFSET0;
 	pm_info->pwrdm = pwrdm_lookup("cpu0_pwrdm");
 	if (!pm_info->pwrdm) {
 		pr_err("Lookup failed for CPU0 pwrdm\n");
@@ -548,7 +542,6 @@ int __init omap4_mpuss_init(void)
 
 	pm_info = &per_cpu(omap4_pm_info, 0x1);
 	pm_info->scu_sar_addr = sar_base + SCU_OFFSET1;
-	pm_info->l1_sar_addr = sar_base + L1_OFFSET1;
 	pm_info->pwrdm = pwrdm_lookup("cpu1_pwrdm");
 	if (!pm_info->pwrdm) {
 		pr_err("Lookup failed for CPU1 pwrdm\n");

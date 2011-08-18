@@ -131,6 +131,20 @@ ENTRY(omap4_cpu_suspend)
 	 */
 	bl	v7_flush_dcache_all
 
+	bl	omap4_get_sar_ram_base
+	ldr	r9, [r0, #OMAP_TYPE_OFFSET]
+	cmp	r9, #0x1			@ Check for HS device
+	bne	skip_secure_l1_flush
+	mov	r0, #SCU_PM_NORMAL
+	mov	r1, #0xFF			@ clean seucre L1
+	stmfd   r13!, {r4-r12, r14}
+	ldr	r12, =SCU_POWER_SECURE_INDEX
+	dsb
+	smc	#0
+	dsb
+	ldmfd   r13!, {r4-r12, r14}
+skip_secure_l1_flush:
+
 	/*
 	 * Clear the SCTLR.C bit to prevent further data cache
 	 * allocation. Clearing SCTLR.C would make all the data accesses
@@ -164,9 +178,8 @@ ENTRY(omap4_cpu_suspend)
 	mrc	p15, 0, r0, c0, c0, 5		@ Read MPIDR
 	ands	r0, r0, #0x0f
 	ldreq	r0, [r8, #SCU_OFFSET0]
-	ldreq	r1, [r8, #L1_OFFSET0]
 	ldrne	r0, [r8, #SCU_OFFSET1]
-	ldrne	r1, [r8, #L1_OFFSET0]
+	mov	r1, #0x00			@ Secure L1 is clean already
 	stmfd   r13!, {r4-r12, r14}
 	ldr	r12, =SCU_POWER_SECURE_INDEX
 	dsb
