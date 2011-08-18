@@ -895,6 +895,12 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 	/* Software Flow Control Configuration */
 	serial_omap_configure_xonxoff(up, termios);
 
+	/* Now we are ready for RX data: enable rts line */
+	if (up->rts_mux_driver_control && up->rts_pullup_in_suspend) {
+		omap_rts_mux_write(0, up->port.line);
+		up->rts_pullup_in_suspend = 0;
+	}
+
 	spin_unlock_irqrestore(&up->port.lock, flags);
 	serial_omap_port_disable(up);
 	dev_dbg(up->port.dev, "serial_omap_set_termios+%d\n", up->pdev->id);
@@ -1188,6 +1194,10 @@ static int serial_omap_suspend(struct device *dev)
 	struct uart_omap_port *up = dev_get_drvdata(dev);
 
 	if (up) {
+		if (up->rts_mux_driver_control) {
+			up->rts_pullup_in_suspend = 1;
+			omap_rts_mux_write(MUX_PULL_UP, up->port.line);
+		}
 		uart_suspend_port(&serial_omap_reg, &up->port);
 		up->console_lock = console_trylock();
 		serial_omap_pm(&up->port, 3, 0);
@@ -1422,6 +1432,8 @@ static int serial_omap_probe(struct platform_device *pdev)
 	up->enable_wakeup = omap_up_info->enable_wakeup;
 	up->wer = omap_up_info->wer;
 	up->chk_wakeup = omap_up_info->chk_wakeup;
+	up->rts_mux_driver_control = omap_up_info->rts_mux_driver_control;
+	up->rts_pullup_in_suspend = 0;
 
 	if (omap_up_info->use_dma) {
 		up->uart_dma.uart_dma_tx = dma_tx->start;
@@ -1570,6 +1582,8 @@ static int omap_serial_runtime_suspend(struct device *dev)
 	if (!up)
 		goto done;
 
+	if (up->rts_mux_driver_control)
+		omap_rts_mux_write(MUX_PULL_UP, up->port.line);
 	up->context_loss_cnt = omap_device_get_context_loss_count(up->pdev);
 	if (device_may_wakeup(dev))
 		up->enable_wakeup(up->pdev, true);
@@ -1595,6 +1609,8 @@ static int omap_serial_runtime_resume(struct device *dev)
 			omap_hwmod_set_slave_idlemode(od->hwmods[0],
 						HWMOD_IDLEMODE_NO);
 		}
+		if (up->rts_mux_driver_control && (!up->rts_pullup_in_suspend))
+			omap_rts_mux_write(0, up->port.line);
 	}
 
 	return 0;
