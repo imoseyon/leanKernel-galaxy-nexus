@@ -36,6 +36,7 @@
 #define OMAP_GPIO_DPRAM_VIA_RST		15
 #define OMAP_GPIO_DPRAM_PDA_ACTIVE	119
 #define OMAP_GPIO_DPRAM_PHONE_ACTIVE	120
+#define OMAP_GPIO_DPRAM_PWRHOLD_OFF		53
 
 #define OMAP_GPIO_CMC_SPI_CLK_ACK	178
 #define OMAP_GPIO_CMC_SPI_CLK_REQ	164
@@ -339,6 +340,7 @@ static struct modem_data cdma_modem_data = {
 	.gpio_phone_active = OMAP_GPIO_DPRAM_PHONE_ACTIVE,
 	.gpio_cp_dump_int = 0, /*ToDo:*/
 	.gpio_cp_warm_reset = 0,
+	.gpio_cp_off = OMAP_GPIO_DPRAM_PWRHOLD_OFF,
 
 	.modem_type = VIA_CBP71,
 	.link_type = LINKDEV_DPRAM,
@@ -378,6 +380,7 @@ static void dpram_cfg_gpio(void)
 
 	omap_mux_init_signal("gpmc_wait1.gpio_62", OMAP_WAKEUP_EN | OMAP_INPUT_EN);
 	omap_mux_init_signal("dpm_emu3", OMAP_MUX_MODE3);
+	omap_mux_init_signal("gpmc_ncs3.gpio_53", OMAP_PIN_OUTPUT);
 
 	gpio_request(GPIO_DPRAM_INT_N, "dpram_int");
 	gpio_direction_input(GPIO_DPRAM_INT_N);
@@ -446,6 +449,7 @@ static void cdma_modem_cfg_gpio(void)
 	unsigned gpio_cp_rst = cdma_modem_data.gpio_cp_reset;
 	unsigned gpio_pda_active = cdma_modem_data.gpio_pda_active;
 	unsigned gpio_phone_active = cdma_modem_data.gpio_phone_active;
+	unsigned gpio_cp_off = cdma_modem_data.gpio_cp_off;
 
 	dpram_cfg_gpio();
 	if (dpram_cfg_gpmc_clk()) {
@@ -471,6 +475,11 @@ static void cdma_modem_cfg_gpio(void)
 	if (gpio_phone_active) {
 		gpio_request(gpio_phone_active, "PHONE_ACTIVE");
 		gpio_direction_input(gpio_phone_active);
+	}
+
+	if (gpio_cp_off) {
+		gpio_request(gpio_cp_off, "VIA_OFF");
+		gpio_direction_output(gpio_cp_off, 1);
 	}
 
 	if (gpio_phone_active)
