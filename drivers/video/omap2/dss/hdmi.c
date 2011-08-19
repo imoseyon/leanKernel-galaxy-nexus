@@ -36,6 +36,7 @@
 #include <linux/clk.h>
 #include <video/omapdss.h>
 #include <video/hdmi_ti_4xxx_ip.h>
+#include <linux/gpio.h>
 #if defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI) || \
 	defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI_MODULE)
 #include <sound/soc.h>
@@ -60,6 +61,8 @@
 #define EDID_SIZE_BLOCK1_TIMING_DESCRIPTOR	4
 
 #define OMAP_HDMI_TIMINGS_NB			34
+
+#define GPIO_HDMI_HPD		63
 
 static struct {
 	struct mutex lock;
@@ -398,15 +401,26 @@ static void get_edid_timing_data(u8 *edid)
 	hdmi.mode = HDMI_DVI;
 }
 
-static void hdmi_read_edid(struct omap_video_timings *dp)
+u8 *hdmi_read_edid(struct omap_video_timings *dp)
 {
-	int ret = 0, code;
+	int ret = 0, code, i;
 
 	memset(hdmi.edid, 0, HDMI_EDID_MAX_LENGTH);
 
-	if (!hdmi.edid_set)
-		ret = read_ti_4xxx_edid(&hdmi.hdmi_data, hdmi.edid,
+	hdmi.edid_set = false;
+	ret = read_ti_4xxx_edid(&hdmi.hdmi_data, hdmi.edid,
 						HDMI_EDID_MAX_LENGTH);
+
+	for (i = 0; i < 256; i += 16)
+		pr_debug("edid[%03x] = %02x %02x %02x %02x %02x %02x %02x %02x "
+			 "%02x %02x %02x %02x %02x %02x %02x %02x\n", i,
+			hdmi.edid[i], hdmi.edid[i + 1], hdmi.edid[i + 2],
+			hdmi.edid[i + 3], hdmi.edid[i + 4], hdmi.edid[i + 5],
+			hdmi.edid[i + 6], hdmi.edid[i + 7], hdmi.edid[i + 8],
+			hdmi.edid[i + 9], hdmi.edid[i + 10], hdmi.edid[i + 11],
+			hdmi.edid[i + 12], hdmi.edid[i + 13], hdmi.edid[i + 14],
+			hdmi.edid[i + 15]);
+
 	if (!ret) {
 		if (!memcmp(hdmi.edid, edid_header, sizeof(edid_header))) {
 			/* search for timings of default resolution */
@@ -415,6 +429,7 @@ static void hdmi_read_edid(struct omap_video_timings *dp)
 		}
 	} else {
 		DSSWARN("failed to read E-EDID\n");
+		ret = -EINVAL;
 	}
 
 	if (!hdmi.edid_set) {
@@ -427,6 +442,7 @@ static void hdmi_read_edid(struct omap_video_timings *dp)
 
 	copy_hdmi_to_dss_timings(cea_vesa_timings[code].timings, dp);
 
+	return ret ? NULL : hdmi.edid;
 }
 
 static void update_hdmi_timings(struct hdmi_config *cfg,
@@ -508,6 +524,7 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 
 	if (!hdmi.custom_set) {
 		DSSDBG("Read EDID as no EDID is not set on poweron\n");
+
 		hdmi_read_edid(p);
 	}
 	code = get_timings_index();
@@ -595,7 +612,7 @@ static void hdmi_power_off(struct omap_dss_device *dssdev)
 	hdmi_ti_4xxx_set_pll_pwr(&hdmi.hdmi_data, HDMI_PLLPWRCMD_ALLOFF);
 	hdmi_runtime_put();
 	hdmi.deep_color = HDMI_DEEP_COLOR_24BIT;
-	hdmi.edid_set = 0;
+	hdmi.edid_set = false;
 }
 
 void omapdss_hdmi_set_deepcolor(int val)
@@ -606,6 +623,21 @@ void omapdss_hdmi_set_deepcolor(int val)
 int omapdss_hdmi_get_deepcolor(void)
 {
 	return hdmi.deep_color;
+}
+
+int hdmi_get_current_hpd()
+{
+	return gpio_get_value(GPIO_HDMI_HPD);
+}
+
+static irqreturn_t hpd_irq_handler(int irq, void *ptr)
+{
+	int hpd = hdmi_get_current_hpd();
+	pr_info("hpd %d\n", hpd);
+
+	hdmi_panel_hpd_handler(hpd);
+
+	return IRQ_HANDLED;
 }
 
 int omapdss_hdmi_display_check_timing(struct omap_dss_device *dssdev,
@@ -1210,6 +1242,15 @@ static int omapdss_hdmihw_probe(struct platform_device *pdev)
 	}
 
 	pm_runtime_enable(&pdev->dev);
+
+	r = request_irq(gpio_to_irq(GPIO_HDMI_HPD), hpd_irq_handler,
+			IRQF_DISABLED | IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
+			"hpd", NULL);
+	if (r < 0) {
+		pr_err("hdmi: request_irq %d failed\n",
+			gpio_to_irq(GPIO_HDMI_HPD));
+		return -EINVAL;
+	}
 
 	hdmi.hdmi_data.hdmi_core_sys_offset = HDMI_CORE_SYS;
 	hdmi.hdmi_data.hdmi_core_av_offset = HDMI_CORE_AV;
