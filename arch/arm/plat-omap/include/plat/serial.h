@@ -113,6 +113,10 @@ extern void omap_serial_init_port(struct omap_board_data *bdata,
 void __init omap_serial_init_port_pads(int id, struct omap_device_pad *pads,
 	int size, struct omap_uart_port_info *info);
 extern u32 omap_uart_resume_idle(void);
+
+#define MUX_PULL_UP	((1<<8) | (1<<4) | (1<<3) | (7))
+void omap_rts_mux_write(u16 val, int num);
+
 #endif
 
 #endif

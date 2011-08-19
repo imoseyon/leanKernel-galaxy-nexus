@@ -89,6 +89,7 @@ struct omap_uart_port_info {
 	u16			wer;		/* Module Wakeup register */
 	unsigned int		dma_rx_poll_rate; /* DMA RX poll_rate */
 	unsigned int		auto_sus_timeout; /* Auto_suspend timeout */
+	unsigned		rts_mux_driver_control:1;
 
 	void (*enable_wakeup)(struct platform_device *, bool);
 	bool (*chk_wakeup)(struct platform_device *);
@@ -150,6 +151,9 @@ struct uart_omap_port {
 	unsigned int		console_lock;
 	unsigned long		port_activity;
 	u32			context_loss_cnt;
+	/* RTS control via driver */
+	unsigned		rts_mux_driver_control:1;
+	unsigned		rts_pullup_in_suspend:1;
 
 	unsigned int		errata;
 	void (*enable_wakeup)(struct platform_device *, bool);

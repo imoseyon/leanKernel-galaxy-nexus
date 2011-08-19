@@ -319,6 +319,25 @@ struct omap_hwmod *omap_uart_hwmod_lookup(int num)
 	return oh;
 }
 
+void omap_rts_mux_write(u16 val, int num)
+{
+	struct omap_hwmod *oh;
+	int i;
+
+	oh = omap_uart_hwmod_lookup(num);
+	if (!oh)
+		return;
+
+	for (i = 0; i < oh->mux->nr_pads ; i++) {
+		if (strstr(oh->mux->pads[i].name, "rts")) {
+			omap_mux_write(oh->mux->pads[i].partition,
+					val,
+					oh->mux->pads[i].mux[0].reg_offset);
+			break;
+		}
+	}
+}
+
 static int __init omap_serial_early_init(void)
 {
 	int i = 0;
@@ -410,6 +429,7 @@ void __init omap_serial_init_port(struct omap_board_data *bdata,
 	pdata->dma_rx_poll_rate = info->dma_rx_poll_rate;
 	pdata->dma_rx_timeout = info->dma_rx_timeout;
 	pdata->auto_sus_timeout = info->auto_sus_timeout;
+	pdata->rts_mux_driver_control = info->rts_mux_driver_control;
 	if (bdata->id == omap_uart_con_id)
 		pdata->console_uart = true;
 
