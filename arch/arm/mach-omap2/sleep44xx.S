@@ -86,8 +86,9 @@ ENTRY(omap4_cpu_suspend)
 	mov	r6, r1
 	bl	omap4_get_sar_ram_base
 	mov	r8, r0
-	str	r6, [r8, #L2X0_OFFSET]		@ Store save state
 	ands	r5, r5, #0x0f
+	streq	r6, [r8, #L2X0_SAVE_OFFSET0]	@ Store save state
+	strne   r6, [r8, #L2X0_SAVE_OFFSET1]
 	orreq	r8, r8, #CPU0_SAVE_OFFSET
 	orrne	r8, r8, #CPU1_SAVE_OFFSET
 
@@ -212,7 +213,10 @@ skip_scu_gp_set:
 l2x_clean_inv:
 	bl	omap4_get_sar_ram_base
 	mov	r8, r0
-	ldr	r0, [r8, #L2X0_OFFSET]
+	mrc	p15, 0, r5, c0, c0, 5           @ Read MPIDR
+	ands	r5, r5, #0x0f
+	ldreq	r0, [r8, #L2X0_SAVE_OFFSET0]
+	ldrne	r0, [r8, #L2X0_SAVE_OFFSET1]
 	cmp	r0, #3
 	bne	do_WFI
 #ifdef CONFIG_PL310_ERRATA_727915
