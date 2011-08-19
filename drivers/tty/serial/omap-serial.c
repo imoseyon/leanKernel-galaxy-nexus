@@ -130,6 +130,20 @@ u32 omap_uart_resume_idle()
 	return ret;
 }
 
+int omap_uart_wake(u8 uart_num)
+{
+	if (uart_num > OMAP_MAX_HSUART_PORTS)
+		return -ENODEV;
+
+	if (!ui[uart_num - 1])
+		return -ENODEV;
+
+	serial_omap_port_enable(ui[uart_num - 1]);
+	serial_omap_port_disable(ui[uart_num - 1]);
+
+	return 0;
+}
+
 static void serial_omap_stop_rxdma(struct uart_omap_port *up)
 {
 	if (up->uart_dma.rx_dma_used) {
