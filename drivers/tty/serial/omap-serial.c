@@ -947,6 +947,14 @@ serial_omap_pm(struct uart_port *port, unsigned int state,
 		serial_omap_port_disable(up);
 }
 
+static void serial_omap_wake_peer(struct uart_port *port)
+{
+	struct uart_omap_port *up = (struct uart_omap_port *)port;
+
+	if (up->wake_peer)
+		up->wake_peer(port);
+}
+
 static void serial_omap_release_port(struct uart_port *port)
 {
 	dev_dbg(port->dev, "serial_omap_release_port+\n");
@@ -1184,6 +1192,7 @@ static struct uart_ops serial_omap_pops = {
 	.shutdown	= serial_omap_shutdown,
 	.set_termios	= serial_omap_set_termios,
 	.pm		= serial_omap_pm,
+	.wake_peer	= serial_omap_wake_peer,
 	.type		= serial_omap_type,
 	.release_port	= serial_omap_release_port,
 	.request_port	= serial_omap_request_port,
@@ -1446,6 +1455,7 @@ static int serial_omap_probe(struct platform_device *pdev)
 	up->enable_wakeup = omap_up_info->enable_wakeup;
 	up->wer = omap_up_info->wer;
 	up->chk_wakeup = omap_up_info->chk_wakeup;
+	up->wake_peer = omap_up_info->wake_peer;
 	up->rts_mux_driver_control = omap_up_info->rts_mux_driver_control;
 	up->rts_pullup_in_suspend = 0;
 
