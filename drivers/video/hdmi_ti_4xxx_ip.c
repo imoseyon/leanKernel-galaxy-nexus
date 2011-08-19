@@ -23,6 +23,7 @@
 #include <linux/module.h>
 #include <linux/err.h>
 #include <linux/io.h>
+#include <linux/seq_file.h>
 #include <linux/interrupt.h>
 #include <linux/mutex.h>
 #include <linux/delay.h>
@@ -800,6 +801,141 @@ void hdmi_ti_4xxx_basic_configure(struct hdmi_ip_data *ip_data,
 	hdmi_core_av_packet_config(ip_data, repeat_cfg);
 }
 EXPORT_SYMBOL(hdmi_ti_4xxx_basic_configure);
+
+void hdmi_ti_4xxx_dump_regs(struct hdmi_ip_data *ip_data, struct seq_file *s)
+{
+#define DUMPREG(g, r) seq_printf(s, "%-35s %08x\n", #r, hdmi_read_reg(g, r))
+
+	void __iomem *wp_base = hdmi_wp_base(ip_data);
+	void __iomem *core_sys_base = hdmi_core_sys_base(ip_data);
+	void __iomem *phy_base = hdmi_phy_base(ip_data);
+	void __iomem *pll_base = hdmi_pll_base(ip_data);
+	void __iomem *av_base = hdmi_av_base(ip_data);
+
+	/* wrapper registers */
+	DUMPREG(wp_base, HDMI_WP_REVISION);
+	DUMPREG(wp_base, HDMI_WP_SYSCONFIG);
+	DUMPREG(wp_base, HDMI_WP_IRQSTATUS_RAW);
+	DUMPREG(wp_base, HDMI_WP_IRQSTATUS);
+	DUMPREG(wp_base, HDMI_WP_PWR_CTRL);
+	DUMPREG(wp_base, HDMI_WP_IRQENABLE_SET);
+	DUMPREG(wp_base, HDMI_WP_VIDEO_SIZE);
+	DUMPREG(wp_base, HDMI_WP_VIDEO_TIMING_H);
+	DUMPREG(wp_base, HDMI_WP_VIDEO_TIMING_V);
+	DUMPREG(wp_base, HDMI_WP_WP_CLK);
+
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_VND_IDL);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_DEV_IDL);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_DEV_IDH);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_DEV_REV);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_SRST);
+	DUMPREG(core_sys_base, HDMI_CORE_CTRL1);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_SYS_STAT);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_VID_ACEN);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_VID_MODE);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_INTR_STATE);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_INTR1);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_INTR2);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_INTR3);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_INTR4);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_UMASK1);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_TMDS_CTRL);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_DE_DLY);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_DE_CTRL);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_DE_TOP);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_DE_CNTL);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_DE_CNTH);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_DE_LINL);
+	DUMPREG(core_sys_base, HDMI_CORE_SYS_DE_LINH_1);
+	DUMPREG(core_sys_base, HDMI_CORE_DDC_CMD);
+	DUMPREG(core_sys_base, HDMI_CORE_DDC_STATUS);
+	DUMPREG(core_sys_base, HDMI_CORE_DDC_ADDR);
+	DUMPREG(core_sys_base, HDMI_CORE_DDC_OFFSET);
+	DUMPREG(core_sys_base, HDMI_CORE_DDC_COUNT1);
+	DUMPREG(core_sys_base, HDMI_CORE_DDC_COUNT2);
+	DUMPREG(core_sys_base, HDMI_CORE_DDC_DATA);
+	DUMPREG(core_sys_base, HDMI_CORE_DDC_SEGM);
+
+	DUMPREG(av_base, HDMI_CORE_AV_HDMI_CTRL);
+	DUMPREG(av_base, HDMI_CORE_AV_AVI_DBYTE_NELEMS);
+	DUMPREG(av_base, HDMI_CORE_AV_SPD_DBYTE);
+	DUMPREG(av_base, HDMI_CORE_AV_SPD_DBYTE_NELEMS);
+	DUMPREG(av_base, HDMI_CORE_AV_AUD_DBYTE_NELEMS);
+	DUMPREG(av_base, HDMI_CORE_AV_MPEG_DBYTE);
+	DUMPREG(av_base, HDMI_CORE_AV_MPEG_DBYTE_NELEMS);
+	DUMPREG(av_base, HDMI_CORE_AV_GEN_DBYTE);
+	DUMPREG(av_base, HDMI_CORE_AV_GEN_DBYTE_NELEMS);
+	DUMPREG(av_base, HDMI_CORE_AV_GEN2_DBYTE);
+	DUMPREG(av_base, HDMI_CORE_AV_GEN2_DBYTE_NELEMS);
+	DUMPREG(av_base, HDMI_CORE_AV_ACR_CTRL);
+	DUMPREG(av_base, HDMI_CORE_AV_FREQ_SVAL);
+	DUMPREG(av_base, HDMI_CORE_AV_N_SVAL1);
+	DUMPREG(av_base, HDMI_CORE_AV_N_SVAL2);
+	DUMPREG(av_base, HDMI_CORE_AV_N_SVAL3);
+	DUMPREG(av_base, HDMI_CORE_AV_CTS_SVAL1);
+	DUMPREG(av_base, HDMI_CORE_AV_CTS_SVAL2);
+	DUMPREG(av_base, HDMI_CORE_AV_CTS_SVAL3);
+	DUMPREG(av_base, HDMI_CORE_AV_CTS_HVAL1);
+	DUMPREG(av_base, HDMI_CORE_AV_CTS_HVAL2);
+	DUMPREG(av_base, HDMI_CORE_AV_CTS_HVAL3);
+	DUMPREG(av_base, HDMI_CORE_AV_AUD_MODE);
+	DUMPREG(av_base, HDMI_CORE_AV_SPDIF_CTRL);
+	DUMPREG(av_base, HDMI_CORE_AV_HW_SPDIF_FS);
+	DUMPREG(av_base, HDMI_CORE_AV_SWAP_I2S);
+	DUMPREG(av_base, HDMI_CORE_AV_SPDIF_ERTH);
+	DUMPREG(av_base, HDMI_CORE_AV_I2S_IN_MAP);
+	DUMPREG(av_base, HDMI_CORE_AV_I2S_IN_CTRL);
+	DUMPREG(av_base, HDMI_CORE_AV_I2S_CHST0);
+	DUMPREG(av_base, HDMI_CORE_AV_I2S_CHST1);
+	DUMPREG(av_base, HDMI_CORE_AV_I2S_CHST2);
+	DUMPREG(av_base, HDMI_CORE_AV_I2S_CHST4);
+	DUMPREG(av_base, HDMI_CORE_AV_I2S_CHST5);
+	DUMPREG(av_base, HDMI_CORE_AV_ASRC);
+	DUMPREG(av_base, HDMI_CORE_AV_I2S_IN_LEN);
+	DUMPREG(av_base, HDMI_CORE_AV_AUDO_TXSTAT);
+	DUMPREG(av_base, HDMI_CORE_AV_AUD_PAR_BUSCLK_1);
+	DUMPREG(av_base, HDMI_CORE_AV_AUD_PAR_BUSCLK_2);
+	DUMPREG(av_base, HDMI_CORE_AV_AUD_PAR_BUSCLK_3);
+	DUMPREG(av_base, HDMI_CORE_AV_TEST_TXCTRL);
+
+	DUMPREG(av_base, HDMI_CORE_AV_DPD);
+	DUMPREG(av_base, HDMI_CORE_AV_PB_CTRL1);
+	DUMPREG(av_base, HDMI_CORE_AV_PB_CTRL2);
+	DUMPREG(av_base, HDMI_CORE_AV_AVI_TYPE);
+	DUMPREG(av_base, HDMI_CORE_AV_AVI_VERS);
+	DUMPREG(av_base, HDMI_CORE_AV_AVI_LEN);
+	DUMPREG(av_base, HDMI_CORE_AV_AVI_CHSUM);
+	DUMPREG(av_base, HDMI_CORE_AV_SPD_TYPE);
+	DUMPREG(av_base, HDMI_CORE_AV_SPD_VERS);
+	DUMPREG(av_base, HDMI_CORE_AV_SPD_LEN);
+	DUMPREG(av_base, HDMI_CORE_AV_SPD_CHSUM);
+	DUMPREG(av_base, HDMI_CORE_AV_AUDIO_TYPE);
+	DUMPREG(av_base, HDMI_CORE_AV_AUDIO_VERS);
+	DUMPREG(av_base, HDMI_CORE_AV_AUDIO_LEN);
+	DUMPREG(av_base, HDMI_CORE_AV_AUDIO_CHSUM);
+	DUMPREG(av_base, HDMI_CORE_AV_MPEG_TYPE);
+	DUMPREG(av_base, HDMI_CORE_AV_MPEG_VERS);
+	DUMPREG(av_base, HDMI_CORE_AV_MPEG_LEN);
+	DUMPREG(av_base, HDMI_CORE_AV_MPEG_CHSUM);
+	DUMPREG(av_base, HDMI_CORE_AV_CP_BYTE1);
+	DUMPREG(av_base, HDMI_CORE_AV_CEC_ADDR_ID);
+
+	DUMPREG(pll_base, PLLCTRL_PLL_CONTROL);
+	DUMPREG(pll_base, PLLCTRL_PLL_STATUS);
+	DUMPREG(pll_base, PLLCTRL_PLL_GO);
+	DUMPREG(pll_base, PLLCTRL_CFG1);
+	DUMPREG(pll_base, PLLCTRL_CFG2);
+	DUMPREG(pll_base, PLLCTRL_CFG3);
+	DUMPREG(pll_base, PLLCTRL_CFG4);
+
+	DUMPREG(phy_base, HDMI_TXPHY_TX_CTRL);
+	DUMPREG(phy_base, HDMI_TXPHY_DIGITAL_CTRL);
+	DUMPREG(phy_base, HDMI_TXPHY_POWER_CTRL);
+	DUMPREG(phy_base, HDMI_TXPHY_PAD_CFG_CTRL);
+
+#undef DUMPREG
+}
+EXPORT_SYMBOL(hdmi_ti_4xxx_dump_regs);
 
 static int __init hdmi_ti_4xxx_init(void)
 {

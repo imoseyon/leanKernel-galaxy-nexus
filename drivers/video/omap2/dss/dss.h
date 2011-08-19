@@ -518,6 +518,7 @@ void omapdss_hdmi_set_deepcolor(int val);
 
 int hdmi_panel_init(void);
 void hdmi_panel_exit(void);
+void hdmi_dump_regs(struct seq_file *s);
 
 int omap_dss_ovl_set_info(struct omap_overlay *ovl,
 		struct omap_overlay_info *info);

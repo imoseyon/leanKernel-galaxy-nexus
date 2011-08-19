@@ -26,6 +26,7 @@
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/interrupt.h>
+#include <linux/seq_file.h>
 #include <linux/mutex.h>
 #include <linux/delay.h>
 #include <linux/string.h>
@@ -1241,4 +1242,14 @@ int hdmi_init_platform_driver(void)
 void hdmi_uninit_platform_driver(void)
 {
 	return platform_driver_unregister(&omapdss_hdmihw_driver);
+}
+
+void hdmi_dump_regs(struct seq_file *s)
+{
+	if (hdmi_runtime_get())
+		return;
+
+	hdmi_ti_4xxx_dump_regs(&hdmi.hdmi_data, s);
+
+	hdmi_runtime_put();
 }

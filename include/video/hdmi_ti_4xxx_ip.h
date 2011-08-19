@@ -98,4 +98,5 @@ int hdmi_ti_4xxx_pll_program(struct hdmi_ip_data *ip_data,
 int hdmi_ti_4xxx_set_pll_pwr(struct hdmi_ip_data *ip_data, enum hdmi_pll_pwr val);
 void hdmi_ti_4xxx_basic_configure(struct hdmi_ip_data *ip_data,
 			struct hdmi_config *cfg);
+void hdmi_ti_4xxx_dump_regs(struct hdmi_ip_data *ip_data, struct seq_file *s);
 #endif
