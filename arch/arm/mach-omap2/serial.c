@@ -429,6 +429,7 @@ void __init omap_serial_init_port(struct omap_board_data *bdata,
 	pdata->dma_rx_poll_rate = info->dma_rx_poll_rate;
 	pdata->dma_rx_timeout = info->dma_rx_timeout;
 	pdata->auto_sus_timeout = info->auto_sus_timeout;
+	pdata->wake_peer = info->wake_peer;
 	pdata->rts_mux_driver_control = info->rts_mux_driver_control;
 	if (bdata->id == omap_uart_con_id)
 		pdata->console_uart = true;
