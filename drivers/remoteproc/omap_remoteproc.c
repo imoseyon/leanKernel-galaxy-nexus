@@ -437,6 +437,16 @@ static irqreturn_t omap_rproc_watchdog_isr(int irq, void *p)
 	return IRQ_HANDLED;
 }
 #endif
+
+static inline void _load_boot_addr(struct rproc *rproc, u64 bootaddr)
+{
+	struct omap_rproc_pdata *pdata = rproc->dev->platform_data;
+
+	if (pdata->boot_reg)
+		omap_writel(bootaddr, pdata->boot_reg);
+	return;
+}
+
 static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 {
 	struct device *dev = rproc->dev;
@@ -457,8 +467,11 @@ static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 	}
 
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
-	_init_pm_flags(rproc);
+	ret = _init_pm_flags(rproc);
+	if (ret)
+		return ret;
 #endif
+
 	for (i = 0; i < pdata->timers_cnt; i++) {
 		timers[i].odt = omap_dm_timer_request_specific(timers[i].id);
 		if (!timers[i].odt) {
@@ -478,6 +491,7 @@ static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 #endif
 	}
 
+	_load_boot_addr(rproc, bootaddr);
 	ret = omap_device_enable(pdev);
 out:
 	if (ret) {

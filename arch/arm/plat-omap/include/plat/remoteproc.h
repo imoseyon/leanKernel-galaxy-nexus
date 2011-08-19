@@ -44,6 +44,7 @@ struct omap_rproc_timers_info {
  * @memory_maps: table of da-to-pa iommu memory maps
  * @memory_pool: platform-specific pool data
  * @omap_rproc_timers_info: optional, timer(s) rproc can use
+ * @boot_reg: optional, control register for storing boot address
  */
 struct omap_rproc_pdata {
 	const char *name;
@@ -61,6 +62,7 @@ struct omap_rproc_pdata {
 	u32 suspend_addr;
 	u32 suspend_mask;
 	unsigned sus_timeout;
+	u32 boot_reg;
 	char *sus_mbox_name;
 	u8 timers_cnt;
 };
