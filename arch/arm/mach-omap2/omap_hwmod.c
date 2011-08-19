@@ -145,6 +145,7 @@
 #include <plat/omap_device.h>
 #include <plat/prcm.h>
 
+#include <mach/emif.h>
 #include "cm2xxx_3xxx.h"
 #include "cm44xx.h"
 #include "prm2xxx_3xxx.h"
@@ -1546,6 +1547,7 @@ static int _setup(struct omap_hwmod *oh, void *data)
  * that the copy process would be relatively complex due to the large number
  * of substructures.
  */
+
 static int __init _register(struct omap_hwmod *oh)
 {
 	int ms_id;
@@ -1577,6 +1579,10 @@ static int __init _register(struct omap_hwmod *oh)
 	 */
 	if (!strcmp(oh->name, MPU_INITIATOR_NAME))
 		mpu_oh = oh;
+	else if (!strcmp(oh->name, "emif1"))
+		emif_clear_irq(0);
+	else if (!strcmp(oh->name, "emif2"))
+		emif_clear_irq(1);
 
 	return 0;
 }

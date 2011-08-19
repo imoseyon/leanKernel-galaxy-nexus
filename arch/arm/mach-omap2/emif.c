@@ -1119,11 +1119,57 @@ static int __init omap_emif_device_init(void)
 }
 postcore_initcall(omap_emif_device_init);
 
+
+/* We need to disable interrupts of the EMIF
+ * module, because in a warm reboot scenario, there
+ * may be a pending irq that is not serviced and emif
+ * is stuck in transition. On the next boot HW mod
+ * fails emif inizalization with a timeout.
+ */
+void emif_clear_irq(int emif_id)
+{
+	u32 irq_mask = 0;
+	u32 base = 0;
+	u32 reg = 0;
+
+	if (emif_id == 0)
+		base = OMAP44XX_EMIF1_VIRT;
+	else
+		base = OMAP44XX_EMIF2_VIRT;
+
+	/* Disable the relevant interrupts for both LL and SYS */
+	irq_mask = OMAP44XX_REG_EN_TA_SYS_MASK | OMAP44XX_REG_EN_ERR_SYS_MASK
+		| OMAP44XX_REG_EN_DNV_SYS_MASK;
+	__raw_writel(irq_mask, base + OMAP44XX_EMIF_IRQENABLE_CLR_SYS);
+	__raw_writel(irq_mask, base + OMAP44XX_EMIF_IRQENABLE_CLR_LL);
+
+	/* Clear any pendining interrupts without overwritng reserved bits*/
+	reg = __raw_readl(base + OMAP44XX_EMIF_IRQSTATUS_SYS);
+	reg |= irq_mask;
+	__raw_writel(reg, base + OMAP44XX_EMIF_IRQSTATUS_SYS);
+
+	reg = __raw_readl(base + OMAP44XX_EMIF_IRQSTATUS_LL);
+	reg |= irq_mask;
+	__raw_writel(reg, base + OMAP44XX_EMIF_IRQSTATUS_LL);
+
+	 /* Dummy read to make sure writes are complete */
+	__raw_readl(base + OMAP44XX_EMIF_IRQENABLE_SET_LL);
+
+	return;
+}
+
+void emif_driver_shutdown(struct platform_device *pdev)
+{
+	emif_clear_irq(pdev->id);
+}
+
 static struct platform_driver omap_emif_driver = {
 	.probe = omap_emif_probe,
 	.driver = {
 		   .name = "omap_emif",
 		   },
+
+	.shutdown = emif_driver_shutdown,
 };
 
 static int __init omap_emif_register(void)
