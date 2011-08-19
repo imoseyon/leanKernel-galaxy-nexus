@@ -1539,7 +1539,6 @@ static int dapm_power_widgets(struct snd_soc_dapm_context *dapm, int event)
 			break;
 		}
 	}
-	mutex_unlock(&card->power_mutex);
 
 	/* If there are no DAPM widgets then try to figure out power from the
 	 * event type.
@@ -1610,6 +1609,8 @@ static int dapm_power_widgets(struct snd_soc_dapm_context *dapm, int event)
 	pop_wait(card->pop_time);
 
 	trace_snd_soc_dapm_done(card);
+
+	mutex_unlock(&card->power_mutex);
 
 	return 0;
 }
