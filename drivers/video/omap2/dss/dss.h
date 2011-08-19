@@ -430,7 +430,8 @@ int dispc_scaling_decision(u16 width, u16 height,
 
 bool dispc_go_busy(enum omap_channel channel);
 void dispc_go(enum omap_channel channel);
-void dispc_enable_channel(enum omap_channel channel, bool enable);
+void dispc_enable_channel(enum omap_channel channel,
+		enum omap_display_type type, bool enable);
 bool dispc_is_channel_enabled(enum omap_channel channel);
 int dispc_enable_plane(enum omap_plane plane, bool enable);
 void dispc_enable_replication(enum omap_plane plane, bool enable);

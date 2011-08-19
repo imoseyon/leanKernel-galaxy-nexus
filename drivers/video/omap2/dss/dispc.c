@@ -2291,7 +2291,7 @@ static void _enable_digit_out(bool enable)
 	REG_FLD_MOD(DISPC_CONTROL, enable ? 1 : 0, 1, 1);
 }
 
-static void dispc_enable_digit_out(bool enable)
+static void dispc_enable_digit_out(enum omap_display_type type, bool enable)
 {
 	struct completion frame_done_completion;
 	int r;
@@ -2329,9 +2329,12 @@ static void dispc_enable_digit_out(bool enable)
 				msecs_to_jiffies(100)))
 		DSSERR("timeout waiting for EVSYNC\n");
 
-	if (!wait_for_completion_timeout(&frame_done_completion,
-				msecs_to_jiffies(100)))
-		DSSERR("timeout waiting for EVSYNC\n");
+	/* Don't wait for the odd field  in the case of HDMI */
+	if (type != OMAP_DISPLAY_TYPE_HDMI) {
+		if (!wait_for_completion_timeout(&frame_done_completion,
+					msecs_to_jiffies(100)))
+			DSSERR("timeout waiting for EVSYNC\n");
+	}
 
 	r = omap_dispc_unregister_isr(dispc_disable_isr,
 			&frame_done_completion,
@@ -2365,13 +2368,14 @@ bool dispc_is_channel_enabled(enum omap_channel channel)
 		BUG();
 }
 
-void dispc_enable_channel(enum omap_channel channel, bool enable)
+void dispc_enable_channel(enum omap_channel channel,
+		enum omap_display_type type, bool enable)
 {
 	if (channel == OMAP_DSS_CHANNEL_LCD ||
 			channel == OMAP_DSS_CHANNEL_LCD2)
 		dispc_enable_lcd_out(channel, enable);
 	else if (channel == OMAP_DSS_CHANNEL_DIGIT)
-		dispc_enable_digit_out(enable);
+		dispc_enable_digit_out(type, enable);
 	else
 		BUG();
 }

@@ -2041,13 +2041,13 @@ static void omap_dss_mgr_get_info(struct omap_overlay_manager *mgr,
 
 static int dss_mgr_enable(struct omap_overlay_manager *mgr)
 {
-	dispc_enable_channel(mgr->id, 1);
+	dispc_enable_channel(mgr->id, mgr->device->type, 1);
 	return 0;
 }
 
 static int dss_mgr_disable(struct omap_overlay_manager *mgr)
 {
-	dispc_enable_channel(mgr->id, 0);
+	dispc_enable_channel(mgr->id, mgr->device->type, 0);
 	return 0;
 }
 
