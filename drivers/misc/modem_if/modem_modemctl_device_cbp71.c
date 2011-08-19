@@ -39,13 +39,16 @@ static int cbp71_on(struct modem_ctl *mc)
 
 	pr_info("[MODEM_IF] cbp71_on()\n");
 
-	if (!mc->gpio_cp_reset) {
+	if (!mc->gpio_cp_off || !mc->gpio_cp_reset) {
 		pr_err("[MODEM_IF] no gpio data\n");
 		return -ENXIO;
 	}
 	gpio_set_value(mc->gpio_cp_reset, 0);
 	msleep(600);
 	gpio_set_value(mc->gpio_cp_reset, 1);
+	msleep(100);
+	gpio_set_value(mc->gpio_cp_off, 0);
+	msleep(300);
 
 	gpio_set_value(mc->gpio_pda_active, 1);
 
@@ -92,7 +95,7 @@ static int cbp71_off(struct modem_ctl *mc)
 {
 	pr_debug("[MODEM_IF] cbp71_off()\n");
 
-	if (!mc->gpio_cp_reset) {
+	if (!mc->gpio_cp_off || !mc->gpio_cp_reset) {
 		pr_err("[MODEM_IF] no gpio data\n");
 		return -ENXIO;
 	}
@@ -195,6 +198,7 @@ int cbp71_init_modemctl_device(struct modem_ctl *mc,
 	mc->gpio_cp_dump_int = pdata->gpio_cp_dump_int;
 	mc->gpio_flm_uart_sel = pdata->gpio_flm_uart_sel;
 	mc->gpio_cp_warm_reset = pdata->gpio_cp_warm_reset;
+	mc->gpio_cp_off = pdata->gpio_cp_off;
 
 	pdev = to_platform_device(mc->dev);
 	mc->irq_phone_active = platform_get_irq(pdev, 0);

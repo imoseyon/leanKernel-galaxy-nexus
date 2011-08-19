@@ -200,6 +200,7 @@ struct modem_ctl {
 	unsigned gpio_cp_dump_int;
 	unsigned gpio_flm_uart_sel;
 	unsigned gpio_cp_warm_reset;
+	unsigned gpio_cp_off;
 
 	int irq_phone_active;
 
@@ -207,7 +208,6 @@ struct modem_ctl {
 
 #ifdef CONFIG_LTE_MODEM_CMC221
 	const struct attribute_group *group;
-	unsigned gpio_cp_off;
 	unsigned gpio_slave_wakeup;
 	unsigned gpio_host_wakeup;
 	unsigned gpio_host_active;
