@@ -722,7 +722,8 @@ static int dss_mgr_wait_for_go(struct omap_overlay_manager *mgr)
 
 	if (dssdev->type == OMAP_DISPLAY_TYPE_VENC
 			|| dssdev->type == OMAP_DISPLAY_TYPE_HDMI) {
-		irq = DISPC_IRQ_EVSYNC_ODD | DISPC_IRQ_EVSYNC_EVEN;
+		irq = DISPC_IRQ_EVSYNC_ODD | DISPC_IRQ_EVSYNC_EVEN
+						| DISPC_IRQ_FRAMEDONETV;
 	} else {
 		if (dssdev->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE) {
 			enum omap_dss_update_mode mode;
@@ -800,7 +801,8 @@ int dss_mgr_wait_for_go_ovl(struct omap_overlay *ovl)
 
 	if (dssdev->type == OMAP_DISPLAY_TYPE_VENC
 			|| dssdev->type == OMAP_DISPLAY_TYPE_HDMI) {
-		irq = DISPC_IRQ_EVSYNC_ODD | DISPC_IRQ_EVSYNC_EVEN;
+		irq = DISPC_IRQ_EVSYNC_ODD | DISPC_IRQ_EVSYNC_EVEN
+						| DISPC_IRQ_FRAMEDONETV;
 	} else {
 		if (dssdev->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE) {
 			enum omap_dss_update_mode mode;
@@ -1373,7 +1375,7 @@ static void dss_completion_irq_handler(void *data, u32 mask)
 	const u32 masks[] = {
 		DISPC_IRQ_FRAMEDONE | DISPC_IRQ_VSYNC,
 		DISPC_IRQ_FRAMEDONE2 | DISPC_IRQ_VSYNC2,
-		/*DISPC_IRQ_FRAMEDONE_DIG |*/ DISPC_IRQ_EVSYNC_EVEN |
+		DISPC_IRQ_FRAMEDONETV | DISPC_IRQ_EVSYNC_EVEN |
 		DISPC_IRQ_EVSYNC_ODD
 	};
 	int i;
@@ -1411,7 +1413,7 @@ static void schedule_completion_irq(void)
 	const u32 masks[] = {
 		DISPC_IRQ_FRAMEDONE | DISPC_IRQ_VSYNC,
 		DISPC_IRQ_FRAMEDONE2 | DISPC_IRQ_VSYNC2,
-		/*DISPC_IRQ_FRAMEDONE_DIG |*/ DISPC_IRQ_EVSYNC_EVEN |
+		DISPC_IRQ_FRAMEDONETV | DISPC_IRQ_EVSYNC_EVEN |
 		DISPC_IRQ_EVSYNC_ODD
 	};
 	u32 mask = 0;
