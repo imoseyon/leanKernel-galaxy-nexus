@@ -87,6 +87,28 @@ static inline int be_connect(struct snd_soc_pcm_runtime *fe,
 	return 1;
 }
 
+static inline void be_reparent(struct snd_soc_pcm_runtime *fe,
+			struct snd_soc_pcm_runtime *be, int stream)
+{
+	struct snd_soc_dsp_params *dsp_params;
+	struct snd_pcm_substream *fe_substream, *be_substream;
+
+	/* reparent if BE is connected to other FEs */
+	if (!be->dsp[stream].users)
+		return;
+
+	be_substream = snd_soc_dsp_get_substream(be, stream);
+
+	list_for_each_entry(dsp_params, &be->dsp[stream].fe_clients, list_fe) {
+		if (dsp_params->fe != fe) {
+			fe_substream = snd_soc_dsp_get_substream(dsp_params->fe,
+								stream);
+			be_substream->runtime = fe_substream->runtime;
+			break;
+		}
+	}
+}
+
 static inline void be_disconnect(struct snd_soc_pcm_runtime *fe, int stream)
 {
 	struct snd_soc_dsp_params *dsp_params, *d;
@@ -99,6 +121,9 @@ static inline void be_disconnect(struct snd_soc_pcm_runtime *fe, int stream)
 				stream ? "capture" : "playback",
 				fe->dai_link->name, stream ? "<-" : "->",
 				be->dai_link->name);
+
+			/* BEs still alive need new FE */
+			be_reparent(fe, be, stream);
 
 #ifdef CONFIG_DEBUG_FS
 			debugfs_remove(dsp_params->debugfs_state);
