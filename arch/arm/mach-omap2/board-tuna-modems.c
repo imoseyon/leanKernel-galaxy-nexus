@@ -18,9 +18,9 @@
 #include <linux/gpio.h>
 #include <linux/clk.h>
 #include <linux/err.h>
+#include <linux/delay.h>
 
 #include <mach/omap4-common.h>
-#include <linux/platform_data/dpram.h>
 #include <linux/platform_data/modem.h>
 #include "board-tuna.h"
 #include "mux.h"
@@ -36,7 +36,8 @@
 #define OMAP_GPIO_DPRAM_VIA_RST		15
 #define OMAP_GPIO_DPRAM_PDA_ACTIVE	119
 #define OMAP_GPIO_DPRAM_PHONE_ACTIVE	120
-#define OMAP_GPIO_DPRAM_PWRHOLD_OFF		53
+#define OMAP_GPIO_DPRAM_PWRHOLD_OFF	53
+#define OMAP_GPIO_DPRAM_INT_N		62
 
 #define OMAP_GPIO_CMC_SPI_CLK_ACK	178
 #define OMAP_GPIO_CMC_SPI_CLK_REQ	164
@@ -50,44 +51,26 @@
 #define OMAP_GPIO_CMC_RST		50
 #define OMAP_GPIO_221_PMIC_PWRHOLD_OFF	163
 
-#define OMAP2_PA_MODEMIF		0x4000000
-#define DP_ACCESS_ENBLE			0x2
+#define DPRAM_START_ADDRESS	0x04000000
+#define DPRAM_SIZE              0x4000
+#define DPRAM_END_ADDRESS	(DPRAM_START_ADDRESS + DPRAM_SIZE - 1)
 
-#define DP_HEAD_SIZE			0x2
-#define DP_TAIL_SIZE			0x2
+#define GPMC_CONTROL_BASE_ADDR	0x50000000
+#define GPMC_CONFIG1_1		(GPMC_CONTROL_BASE_ADDR + 0x90)
+#define GPMC_CONFIG2_1		(GPMC_CONTROL_BASE_ADDR + 0x94)
+#define GPMC_CONFIG3_1		(GPMC_CONTROL_BASE_ADDR + 0x98)
+#define GPMC_CONFIG4_1		(GPMC_CONTROL_BASE_ADDR + 0x9C)
+#define GPMC_CONFIG5_1		(GPMC_CONTROL_BASE_ADDR + 0xA0)
+#define GPMC_CONFIG6_1		(GPMC_CONTROL_BASE_ADDR + 0xA4)
+#define GPMC_CONFIG7_1		(GPMC_CONTROL_BASE_ADDR + 0xA8)
 
-#define DP_FMT_OUT_BUFF_SIZE		2044
-#define DP_RAW_OUT_BUFF_SIZE		6128
-#define DP_FMT_IN_BUFF_SIZE		2044
-#define DP_RAW_IN_BUFF_SIZE		6128
-
-#define MBXCP2AP_OFFSET			0x3FFC
-#define MBXAP2CP_OFFSET			0x3FFE
-#define MBXCP2AP_SIZE			0x2
-#define MBXAP2CP_SIZE			0x2
-
-#define DP_CTL_START_ADDRESS	OMAP2_PA_MODEMIF
-#define DP_CTL_END_ADDRESS	(OMAP2_PA_MODEMIF + DPRAM_MAGIC_CODE_SIZE +\
-					DP_ACCESS_ENBLE - 1)
-#define DP_FMT_OUT_START_ADDRESS	(DP_CTL_END_ADDRESS + 1)
-#define DP_FMT_OUT_END_ADDRESS	(DP_FMT_OUT_START_ADDRESS + DP_HEAD_SIZE +\
-					DP_TAIL_SIZE + DP_FMT_OUT_BUFF_SIZE - 1)
-
-#define DP_RAW_OUT_START_ADDRESS	(DP_FMT_OUT_END_ADDRESS + 1)
-#define DP_RAW_OUT_END_ADDRESS	(DP_RAW_OUT_START_ADDRESS + DP_HEAD_SIZE +\
-					DP_TAIL_SIZE + DP_RAW_OUT_BUFF_SIZE - 1)
-
-#define DP_FMT_IN_START_ADDRESS	(DP_RAW_OUT_END_ADDRESS + 1)
-#define DP_FMT_IN_END_ADDRESS	(DP_FMT_IN_START_ADDRESS + DP_HEAD_SIZE +\
-					DP_TAIL_SIZE + DP_FMT_IN_BUFF_SIZE - 1)
-
-#define DP_RAW_IN_START_ADDRESS	(DP_FMT_IN_END_ADDRESS + 1)
-#define DP_RAW_IN_END_ADDRESS	(DP_RAW_IN_START_ADDRESS + DP_HEAD_SIZE +\
-					DP_TAIL_SIZE + DP_RAW_IN_BUFF_SIZE - 1)
-
-#define DP_MBX_START_ADDRESS	(OMAP2_PA_MODEMIF + MBXCP2AP_OFFSET)
-#define DP_MBX_END_ADDRESS	(DP_MBX_START_ADDRESS + MBXCP2AP_SIZE +\
-					MBXAP2CP_SIZE - 1)
+#define DPRAM_GPMC_CONFIG1	0x00001201
+#define DPRAM_GPMC_CONFIG2	0x000f1200
+#define DPRAM_GPMC_CONFIG3	0x44040400
+#define DPRAM_GPMC_CONFIG4	0x0e05f155
+#define DPRAM_GPMC_CONFIG5	0x000e1016
+#define DPRAM_GPMC_CONFIG6	0x060603c3
+#define DPRAM_GPMC_CONFIG7	0x00000F44
 
 /* umts target platform data */
 static struct modem_io_t umts_io_devices[] = {
@@ -382,9 +365,9 @@ static void dpram_cfg_gpio(void)
 	omap_mux_init_signal("dpm_emu3", OMAP_MUX_MODE3);
 	omap_mux_init_signal("gpmc_ncs3.gpio_53", OMAP_PIN_OUTPUT);
 
-	gpio_request(GPIO_DPRAM_INT_N, "dpram_int");
-	gpio_direction_input(GPIO_DPRAM_INT_N);
-	irq_set_irq_type(OMAP_GPIO_IRQ(GPIO_DPRAM_INT_N),
+	gpio_request(OMAP_GPIO_DPRAM_INT_N, "dpram_int");
+	gpio_direction_input(OMAP_GPIO_DPRAM_INT_N);
+	irq_set_irq_type(OMAP_GPIO_IRQ(OMAP_GPIO_DPRAM_INT_N),
 				IRQ_TYPE_LEVEL_LOW);
 
 	/*dpram platform init setting*/
@@ -497,44 +480,14 @@ static struct resource cdma_modem_res[] = {
 	},
 	[1] = {
 		.name = "cdma_dpram_int",
-		.start = 0,  /* dpram int */
-		.end = 0,
+		.start = OMAP_GPIO_IRQ(OMAP_GPIO_DPRAM_INT_N),
+		.end = OMAP_GPIO_IRQ(OMAP_GPIO_DPRAM_INT_N),
 		.flags = IORESOURCE_IRQ,
 	},
 	[2] = {
-		.name = "cdma_dpram_ctl",
-		.start = DP_CTL_START_ADDRESS,
-		.end = DP_CTL_END_ADDRESS,
-		.flags = IORESOURCE_MEM,
-	},
-	[3] = {
-		.name = "cdma_dpram_fmt_out",
-		.start = DP_FMT_OUT_START_ADDRESS,
-		.end = DP_FMT_OUT_END_ADDRESS,
-		.flags = IORESOURCE_MEM,
-	},
-	[4] = {
-		.name = "cdma_dpram_raw_out",
-		.start = DP_RAW_OUT_START_ADDRESS,
-		.end = DP_RAW_OUT_END_ADDRESS,
-		.flags = IORESOURCE_MEM,
-	},
-	[5] = {
-		.name = "cdma_dpram_fmt_in",
-		.start = DP_FMT_IN_START_ADDRESS,
-		.end = DP_FMT_IN_END_ADDRESS,
-		.flags = IORESOURCE_MEM,
-	},
-	[6] = {
-		.name = "cdma_dpram_raw_in",
-		.start = DP_RAW_IN_START_ADDRESS,
-		.end = DP_RAW_IN_END_ADDRESS,
-		.flags = IORESOURCE_MEM,
-	},
-	[7] = {
-		.name = "cdma_dpram_mbx",
-		.start = DP_MBX_START_ADDRESS,
-		.end = DP_MBX_END_ADDRESS,
+		.name = "cdma_dpram",
+		.start = DPRAM_START_ADDRESS,
+		.end = DPRAM_END_ADDRESS,
 		.flags = IORESOURCE_MEM,
 	},
 };
