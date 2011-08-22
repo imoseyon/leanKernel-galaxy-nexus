@@ -44,6 +44,8 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 
+#include <plat/board-tuna-bluetooth.h>
+#include <plat/omap-serial.h>
 #include <plat/board.h>
 #include <plat/common.h>
 #include <plat/cpu.h>
@@ -759,10 +761,6 @@ static struct omap_device_pad tuna_uart2_pads[] __initdata = {
 	},
 };
 
-static struct omap_uart_port_info tuna_uart2_info __initdata = {
-	.rts_mux_driver_control = 1,
-};
-
 static struct omap_device_pad tuna_uart3_pads[] __initdata = {
 	{
 		.name   = "uart3_tx_irtx.uart3_tx_irtx",
@@ -774,6 +772,16 @@ static struct omap_device_pad tuna_uart3_pads[] __initdata = {
 		.enable = OMAP_PIN_INPUT | OMAP_MUX_MODE0,
 		.idle   = OMAP_PIN_INPUT | OMAP_MUX_MODE0,
 	},
+};
+
+static struct omap_uart_port_info tuna_uart2_info __initdata = {
+	.use_dma	= 0,
+	.dma_rx_buf_size = DEFAULT_RXDMA_BUFSIZE,
+	.dma_rx_poll_rate = DEFAULT_RXDMA_POLLRATE,
+	.dma_rx_timeout = DEFAULT_RXDMA_TIMEOUT,
+	.auto_sus_timeout = DEFAULT_AUTOSUSPEND_DELAY,
+	.wake_peer	= bcm_bt_lpm_exit_lpm_locked,
+	.rts_mux_driver_control = 1,
 };
 
 static inline void __init board_serial_init(void)
