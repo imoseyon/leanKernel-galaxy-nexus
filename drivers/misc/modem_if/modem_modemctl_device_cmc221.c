@@ -74,9 +74,10 @@ static int cmc221_reset(struct modem_ctl *mc)
 
 	gpio_set_value(mc->gpio_cp_reset, 0);
 	msleep(100);
-
 	gpio_set_value(mc->gpio_cp_reset, 1);
-	msleep(100);
+
+	mc->phone_state = STATE_BOOTING;
+
 	return 0;
 }
 
@@ -116,7 +117,6 @@ static void mc_work(struct work_struct *work_arg)
 
 	int phone_active;
 	char *envs[2] = { NULL, NULL };
-
 
 	phone_active = cmc221_get_active(mc);
 	if (phone_active < 0) {

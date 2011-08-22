@@ -40,8 +40,8 @@ int lte_airplain_mode;
 #endif
 
 enum xmit_bootloader_status {
-	XMIT_BOOT_DOWNLOAD_NOT_YET = 0,
-	XMIT_BOOTLOADER_OK,
+	XMIT_BOOT_READY,
+	XMIT_LOADER_READY,
 };
 
 struct lte_modem_bootloader {
@@ -90,7 +90,7 @@ int bootloader_write(struct lte_modem_bootloader *loader,
 	int ret = 0;
 	unsigned char lenbuf[4];
 
-	if (loader->xmit_status == XMIT_BOOTLOADER_OK) {
+	if (loader->xmit_status == XMIT_LOADER_READY) {
 		memcpy(lenbuf, &len, ARRAY_SIZE(lenbuf));
 		for (i = 0 ; i < ARRAY_SIZE(lenbuf) ; i++) {
 			ret = spi_xmit(loader, lenbuf[i]);
@@ -146,11 +146,14 @@ long bootloader_ioctl(struct file *flip,
 				param.len);
 
 		ret = bootloader_write(loader, param.buf, param.len);
-		if (ret < 0)
+		if (ret < 0) {
 			dev_err(&loader->spi_dev->dev, "failed to xmit boot bin\n");
-		else
-			if (loader->xmit_status == XMIT_BOOT_DOWNLOAD_NOT_YET)
-				loader->xmit_status = XMIT_BOOTLOADER_OK;
+		} else {
+			if (loader->xmit_status == XMIT_BOOT_READY)
+				loader->xmit_status = XMIT_LOADER_READY;
+			else
+				loader->xmit_status = XMIT_BOOT_READY;
+		}
 
 		break;
 	case IOCTL_LTE_MODEM_LTE2AP_STATUS:
@@ -243,7 +246,7 @@ int __devinit lte_modem_bootloader_probe(struct spi_device *spi)
 	}
 
 	loader->gpio_lte2ap_status = pdata->gpio_lte2ap_status;
-	loader->xmit_status = XMIT_BOOT_DOWNLOAD_NOT_YET;
+	loader->xmit_status = XMIT_BOOT_READY;
 
 	spi_set_drvdata(spi, loader);
 

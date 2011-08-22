@@ -62,7 +62,7 @@ static struct modem_ctl *create_modemctl_device(struct platform_device *pdev)
 		return NULL;
 	}
 
-	pr_info("[MODEM_IF] %s:create_modemctl_device DONE\n", modemctl->name);
+	pr_debug("[MODEM_IF] %s:create_modemctl_device DONE\n", modemctl->name);
 	return modemctl;
 }
 
@@ -96,7 +96,7 @@ static struct io_device *create_io_device(struct modem_io_t *io_t,
 		return NULL;
 	}
 
-	pr_info("[MODEM_IF] %s : create_io_device DONE\n", io_t->name);
+	pr_debug("[MODEM_IF] %s : create_io_device DONE\n", io_t->name);
 	return iod;
 }
 
@@ -148,7 +148,7 @@ static int __devinit modem_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, modemctl);
 
-	pr_info("[MODEM_IF] modem_probe DONE\n");
+	pr_debug("[MODEM_IF] modem_probe DONE\n");
 	return 0;
 
 err_free_modemctl:
