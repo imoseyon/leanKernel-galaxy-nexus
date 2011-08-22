@@ -32,8 +32,7 @@
 
 static int cbp71_on(struct modem_ctl *mc)
 {
-	int RetVal = 0;
-	int dpram_init_RetVal = 0;
+	int ret;
 	struct dpram_link_device *dpram_ld =
 				to_dpram_link_device(mc->iod->link);
 
@@ -47,9 +46,9 @@ static int cbp71_on(struct modem_ctl *mc)
 	msleep(600);
 	gpio_set_value(mc->gpio_cp_reset, 1);
 	msleep(100);
+
 	gpio_set_value(mc->gpio_cp_off, 0);
 	msleep(300);
-
 	gpio_set_value(mc->gpio_pda_active, 1);
 
 	mc->iod->modem_state_changed(mc->iod, STATE_BOOTING);
@@ -58,29 +57,20 @@ static int cbp71_on(struct modem_ctl *mc)
 	* Waiting as the this called from IOCTL->UM thread */
 	pr_debug("[MODEM_IF] power control waiting for INT_MASK_CMD_PIF_INIT_DONE\n");
 
-	/* 1HZ = 1 clock tick, 100 default */
 	dpram_ld->clear_interrupt(dpram_ld);
 
-	dpram_init_RetVal =
-		wait_event_interruptible_timeout(
-				dpram_ld->dpram_init_cmd_wait_q,
-				dpram_ld->dpram_init_cmd_wait_condition,
-				DPRAM_INIT_TIMEOUT);
-
-	if (!dpram_init_RetVal) {
-		/*RetVal will be 0 on timeout, non zero if interrupted */
+	ret = wait_for_completion_interruptible_timeout(
+			&dpram_ld->dpram_init_cmd, DPRAM_INIT_TIMEOUT);
+	if (!ret) {
+		/* ret will be 0 on timeout, < zero if interrupted */
 		pr_warn("[MODEM_IF] INIT_START cmd was not arrived.\n");
 		pr_warn("init_cmd_wait_condition is 0 and wait timeout happend\n");
 		return -ENXIO;
 	}
 
-	RetVal = wait_event_interruptible_timeout(
-			dpram_ld->modem_pif_init_done_wait_q,
-			dpram_ld->modem_pif_init_wait_condition,
-			PIF_TIMEOUT);
-
-	if (!RetVal) {
-		/*RetVal will be 0 on timeout, non zero if interrupted */
+	ret = wait_for_completion_interruptible_timeout(
+			&dpram_ld->modem_pif_init_done, PIF_TIMEOUT);
+	if (!ret) {
 		pr_warn("[MODEM_IF] PIF init failed\n");
 		pr_warn("pif_init_wait_condition is 0 and wait timeout happend\n");
 		return -ENXIO;
@@ -95,7 +85,7 @@ static int cbp71_on(struct modem_ctl *mc)
 
 static int cbp71_off(struct modem_ctl *mc)
 {
-	pr_debug("[MODEM_IF] cbp71_off()\n");
+	pr_info("[MODEM_IF] cbp71_off()\n");
 
 	if (!mc->gpio_cp_off || !mc->gpio_cp_reset) {
 		pr_err("[MODEM_IF] no gpio data\n");
@@ -217,7 +207,6 @@ int cbp71_init_modemctl_device(struct modem_ctl *mc,
 
 	cbp71_get_ops(mc);
 
-	/*TODO: check*/
 	ret = request_irq(mc->irq_phone_active, phone_active_irq_handler,
 				IRQF_TRIGGER_HIGH, "phone_active", mc);
 	if (ret) {

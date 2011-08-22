@@ -154,7 +154,6 @@ struct link_device {
 	struct work_struct tx_work;
 	struct delayed_work tx_delayed_work;
 
-	int irq; /* for dpram int */
 	unsigned com_state;
 
 	/* called during init to associate an io device with this link */

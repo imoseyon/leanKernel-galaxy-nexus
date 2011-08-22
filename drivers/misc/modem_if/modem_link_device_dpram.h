@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Google, Inc.
+ * Copyright (C) 2011 Google, Inc.
  * Copyright (C) 2010 Samsung Electronics.
  *
  * This software is licensed under the terms of the GNU General Public
@@ -17,96 +17,62 @@
 #ifndef __MODEM_LINK_DEVICE_DPRAM_H__
 #define __MODEM_LINK_DEVICE_DPRAM_H__
 
-#define DPRAM_ERR_MSG_LEN		128
-#define DPRAM_ERR_DEVICE		"dpramerr"
+#define FMT_IDX			0
+#define RAW_IDX			1
+#define MAX_IDX			2
 
-#define MAX_IDX				2
+#define DP_FMT_OUT_BUFF_SIZE		2044
+#define DP_RAW_OUT_BUFF_SIZE		6128
+#define DP_FMT_IN_BUFF_SIZE		2044
+#define DP_RAW_IN_BUFF_SIZE		6128
 
-#define DPRAM_BASE_PTR			0x4000000
+struct dpram_circ {
+	u16 head;
+	u16 tail;
+};
 
-#define DPRAM_START_ADDRESS		0
-#define DPRAM_MAGIC_CODE_ADDRESS	DPRAM_START_ADDRESS
-#define DPRAM_GOTA_MAGIC_CODE_SIZE		0x4
-#define DPRAM_PDA2PHONE_FORMATTED_START_ADDRESS	\
-	(DPRAM_START_ADDRESS + DPRAM_GOTA_MAGIC_CODE_SIZE)
-#define BSP_DPRAM_BASE_SIZE		0x1ff8
-#define DPRAM_END_OF_ADDRESS		(BSP_DPRAM_BASE_SIZE - 1)
-#define DPRAM_INTERRUPT_SIZE		0x2
-#define DPRAM_PDA2PHONE_INTERRUPT_ADDRESS	\
-	(DPRAM_START_ADDRESS + BSP_DPRAM_BASE_SIZE -  DPRAM_INTERRUPT_SIZE*2)
-#define DPRAM_PHONE2PDA_INTERRUPT_ADDRESS	\
-	(DPRAM_START_ADDRESS + BSP_DPRAM_BASE_SIZE)
-#define DPRAM_BUFFER_SIZE			\
-	(DPRAM_PHONE2PDA_INTERRUPT_ADDRESS - DPRAM_PDA2PHONE_FORMATTED_START_ADDRESS)
-#define DPRAM_INDEX_SIZE		0x2
+struct dpram_ota_header {
+	u8 start_index;
+	u16 nframes;
+	u16 curframe;
+	u16 len;
 
-#define MAGIC_DMDL			0x4445444C
+} __packed;
 
-#define INT_GOTA_MASK_VALID		0xA000
-#define MASK_CMD_RECEIVE_READY_NOTIFICATION	0xA100
-#define MASK_CMD_DOWNLOAD_START_REQUEST		0xA200
-#define MASK_CMD_DOWNLOAD_START_RESPONSE	0xA301
-#define MASK_CMD_IMAGE_SEND_REQUEST		0xA400
-#define MASK_CMD_IMAGE_SEND_RESPONSE		0xA500
-#define MASK_CMD_SEND_DONE_REQUEST		0xA600
-#define MASK_CMD_SEND_DONE_RESPONSE		0xA701
-#define MASK_CMD_STATUS_UPDATE_NOTIFICATION	0xA800
-#define MASK_CMD_UPDATE_DONE_NOTIFICATION	0xA900
-#define MASK_CMD_EFS_CLEAR_RESPONSE		0xAB00
-#define MASK_CMD_ALARM_BOOT_OK			0xAC00
-#define MASK_CMD_ALARM_BOOT_FAIL		0xAD00
+struct dpram_map {
+	u16	magic;
+	u16	enable;
 
-#define WRITEIMG_HEADER_SIZE			8
-#define WRITEIMG_TAIL_SIZE			4
-#define WRITEIMG_BODY_SIZE			\
-	(DPRAM_BUFFER_SIZE - WRITEIMG_HEADER_SIZE - WRITEIMG_TAIL_SIZE)
+	struct dpram_circ fmt_out;
+	u8	fmt_out_buff[DP_FMT_OUT_BUFF_SIZE];
 
-#define DPDN_DEFAULT_WRITE_LEN			WRITEIMG_BODY_SIZE
-#define CMD_DL_START_REQ			0x9200
-#define CMD_IMG_SEND_REQ			0x9400
-#define CMD_DL_SEND_DONE_REQ			0x9600
+	struct dpram_circ raw_out;
+	u8	raw_out_buff[DP_RAW_OUT_BUFF_SIZE];
 
-#define MASK_CMD_RESULT_FAIL			0x0002
-#define MASK_CMD_RESULT_SUCCESS			0x0001
+	struct dpram_circ fmt_in;
+	u8	fmt_in_buff[DP_FMT_IN_BUFF_SIZE];
 
-#define START_INDEX				0x007F
-#define END_INDEX				0x007E
+	struct dpram_circ raw_in;
+	u8	raw_in_buff[DP_RAW_IN_BUFF_SIZE];
 
-#define CMD_IMG_SEND_REQ			0x9400
+	u8	padding[16];
+	u16	mbx_cp2ap;
+	u16	mbx_ap2cp;
 
-#define CRC_TAB_SIZE				256
-#define CRC_16_L_SEED				0xFFFF
-
+} __packed;
 
 struct dpram_device {
-	/* DPRAM memory addresses */
-	u16           *in_head_addr;
-	u16           *in_tail_addr;
-	u8            *in_buff_addr;
-	unsigned long  in_buff_size;
+	struct dpram_circ __iomem *in;
+	u8 __iomem	*in_buff_addr;
+	int		in_buff_size;
 
-	u16           *out_head_addr;
-	u16           *out_tail_addr;
-	u8            *out_buff_addr;
-	unsigned long  out_buff_size;
-
-	unsigned long  in_head_saved;
-	unsigned long  in_tail_saved;
-	unsigned long  out_head_saved;
-	unsigned long  out_tail_saved;
+	struct dpram_circ __iomem *out;
+	u8 __iomem	*out_buff_addr;
+	int		out_buff_size;
 
 	u16            mask_req_ack;
 	u16            mask_res_ack;
 	u16            mask_send;
-};
-
-struct memory_region {
-	u8 *control;
-	u8 *fmt_out;
-	u8 *raw_out;
-	u8 *fmt_in;
-	u8 *raw_in;
-	u8 *mbx;
 };
 
 struct dpram_link_device {
@@ -116,61 +82,24 @@ struct dpram_link_device {
 	 * to find where to send incoming packets to */
 	struct list_head list_of_io_devices;
 
-	struct modem_data *pdata;
-
-	/*only dpram*/
-	struct wake_lock dpram_wake_lock;
 	atomic_t raw_txq_req_ack_rcvd;
 	atomic_t fmt_txq_req_ack_rcvd;
-	u8 is_net_stopped ;
-	int phone_sync;
-	u8 phone_status;
 
-	 struct work_struct xmit_work_struct;
-
-	struct workqueue_struct *gota_wq;
-	struct work_struct gota_cmd_work;
-
+	struct dpram_map __iomem *dpram;
 	struct dpram_device dev_map[MAX_IDX];
 
-	u8 dpram_read_data[131072];
-
-	int dpram_init_cmd_wait_condition;
-	wait_queue_head_t dpram_init_cmd_wait_q;
-
-	int modem_pif_init_wait_condition;
-	wait_queue_head_t modem_pif_init_done_wait_q;
-
+	struct completion dpram_init_cmd;
+	struct completion modem_pif_init_done;
 	struct completion gota_download_start_complete;
+	struct completion gota_send_done;
+	struct completion gota_update_done;
 
-	int gota_send_done_cmd_wait_condition;
-	wait_queue_head_t gota_send_done_cmd_wait_q;
-
-	int gota_update_done_cmd_wait_condition;
-	wait_queue_head_t gota_update_done_cmd_wait_q;
-
-	u16 gota_irq_hander_cmd;
-
-	unsigned int is_dpram_err ;
-
-	char dpram_err_buf[DPRAM_ERR_MSG_LEN];
-
-	struct fasync_struct *dpram_err_async_q;
-
+	int irq;
 	void (*clear_interrupt)(struct dpram_link_device *);
-
-	struct memory_region m_region;
-
-	unsigned long  fmt_out_buff_size;
-	unsigned long  raw_out_buff_size;
-	unsigned long  fmt_in_buff_size;
-	unsigned long  raw_in_buff_size;
-
-	struct delayed_work delayed_tx;
-	struct sk_buff *delayed_skb;
-	u8 delayed_count;
 };
+
 /* converts from struct link_device* to struct xxx_link_device* */
 #define to_dpram_link_device(linkdev) \
 			container_of(linkdev, struct dpram_link_device, ld)
+
 #endif
