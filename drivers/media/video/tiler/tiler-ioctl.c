@@ -383,9 +383,9 @@ static long tiler_ioctl(struct file *filp, u32 cmd, unsigned long arg)
 		/* buffer registration is per process */
 		list_for_each_entry(_b, &pi->bufs, by_pid) {
 			if (buf_info.offset == _b->buf_info.offset) {
-				_m_unregister_buf(_b);
 				/* only retrieve buffer length */
 				buf_info.length = _b->buf_info.length;
+				_m_unregister_buf(_b);
 				r = 0;
 				break;
 			}

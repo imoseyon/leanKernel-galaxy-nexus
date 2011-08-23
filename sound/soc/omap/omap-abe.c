@@ -1300,14 +1300,14 @@ static struct snd_soc_dai_driver omap_abe_dai[] = {
 		.suspend = omap_abe_dai_suspend,
 		.resume = omap_abe_dai_resume,
 		.playback = {
-			.stream_name = "Voice Playback",
+			.stream_name = "MODEM Playback",
 			.channels_min = 1,
 			.channels_max = 2,
 			.rates = SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000,
 			.formats = OMAP_ABE_FORMATS,
 		},
 		.capture = {
-			.stream_name = "Voice Capture",
+			.stream_name = "MODEM Capture",
 			.channels_min = 1,
 			.channels_max = 2,
 			.rates = SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000,
