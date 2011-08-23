@@ -320,15 +320,6 @@ static void tuna_gsd4t_gps_gpio(void)
 	omap_mux_init_signal("mcspi1_cs0.gpio_137", OMAP_PIN_OUTPUT);
 	/* GPS_UART_SEL - GPIO 164 */
 	omap_mux_init_signal("usbb2_ulpitll_dat3.gpio_164", OMAP_PIN_OUTPUT);
-
-	if (omap4_tuna_get_revision() >= TUNA_REV_03) {
-		/* GPS_UART_CTS - GPIO 139 */
-		omap_mux_init_signal("mcspi1_cs2.gpio_139",
-					OMAP_MUX_MODE1 | OMAP_PIN_INPUT);
-		/* GPS_UART_RTS - GPIO 140 */
-		omap_mux_init_signal("mcspi1_cs3.gpio_140",
-					OMAP_MUX_MODE1 | OMAP_PIN_OUTPUT);
-	}
 }
 
 static void tuna_gsd4t_gps_init(void)
