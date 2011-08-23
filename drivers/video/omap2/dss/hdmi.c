@@ -629,6 +629,8 @@ void omapdss_hdmi_display_set_timing(struct omap_dss_device *dssdev)
 
 	hdmi.custom_set = 1;
 	cm = hdmi_get_code(&dssdev->panel.timings);
+	/* turn the hdmi off and on to get new timings to use */
+	omapdss_hdmi_display_disable(dssdev);
 	hdmi.code = cm.code;
 	hdmi.mode = cm.mode;
 	omapdss_hdmi_display_enable(dssdev);
