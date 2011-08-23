@@ -42,6 +42,7 @@
 #include <plat/common.h>
 #include <plat/omap_device.h>
 #include <plat/temperature_sensor.h>
+#include <plat/omap-pm.h>
 
 /* TO DO: This needs to be fixed */
 #include "../../../../arch/arm/mach-omap2/control.h"
@@ -664,9 +665,12 @@ static int omap_temp_sensor_runtime_resume(struct device *dev)
 	struct omap_temp_sensor *temp_sensor =
 			platform_get_drvdata(to_platform_device(dev));
 
-	temp = omap_device_get_context_loss_count(to_platform_device(dev));
+	temp = omap_pm_get_dev_context_loss_count(dev);
 
-	if (temp != context_loss_count && context_loss_count != 0)
+	/* consider error return from context loss as:
+	 * force context restore with a WARN_ON() */
+	if (WARN_ON(temp < 0) ||
+			(temp != context_loss_count && context_loss_count != 0))
 		omap_temp_sensor_restore_ctxt(temp_sensor);
 
 	context_loss_count = temp;
