@@ -440,7 +440,7 @@ static struct snd_soc_dai_driver dai[] = {
 {
 	.name = "Bluetooth",
 	.playback = {
-		.stream_name = "Playback",
+		.stream_name = "BT Playback",
 		.channels_min = 1,
 		.channels_max = 2,
 		.rates = SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000 |
@@ -448,7 +448,7 @@ static struct snd_soc_dai_driver dai[] = {
 		.formats = SNDRV_PCM_FMTBIT_S16_LE,
 	},
 	.capture = {
-		.stream_name = "Capture",
+		.stream_name = "BT Capture",
 		.channels_min = 1,
 		.channels_max = 2,
 		.rates = SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000 |
@@ -460,14 +460,14 @@ static struct snd_soc_dai_driver dai[] = {
 {
 	.name = "FM Digital",
 	.playback = {
-		.stream_name = "Playback",
+		.stream_name = "FM Playback",
 		.channels_min = 1,
 		.channels_max = 2,
 		.rates = SNDRV_PCM_RATE_48000,
 		.formats = SNDRV_PCM_FMTBIT_S16_LE,
 	},
 	.capture = {
-		.stream_name = "Capture",
+		.stream_name = "FM Capture",
 		.channels_min = 1,
 		.channels_max = 2,
 		.rates = SNDRV_PCM_RATE_48000,
@@ -477,7 +477,7 @@ static struct snd_soc_dai_driver dai[] = {
 {
 	.name = "HDMI",
 	.playback = {
-		.stream_name = "Playback",
+		.stream_name = "HDMI Playback",
 		.channels_min = 2,
 		.channels_max = 8,
 		.rates = SNDRV_PCM_RATE_32000 | SNDRV_PCM_RATE_44100 |

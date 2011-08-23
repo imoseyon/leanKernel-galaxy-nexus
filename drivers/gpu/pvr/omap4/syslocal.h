@@ -157,10 +157,9 @@ typedef struct _SYS_SPECIFIC_DATA_TAG_
 #if defined(PVR_OMAP_USE_DM_TIMER_API)
 	struct omap_dm_timer *psGPTimer;
 #endif
-	IMG_UINT32 ui32NumOvFeqs;
-	IMG_UINT32 ui32OvFreq;
-	IMG_UINT32 ui32NormalFreq;
-	IMG_UINT32 ui32LowPowerFreq;
+	IMG_UINT32 ui32SGXFreqListSize;
+	IMG_UINT32 *pui32SGXFreqList;
+	IMG_UINT32 ui32SGXFreqListIndex;
 #endif	
 } SYS_SPECIFIC_DATA;
 

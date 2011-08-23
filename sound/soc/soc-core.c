@@ -1138,6 +1138,9 @@ int snd_soc_suspend(struct device *dev)
 	struct snd_soc_codec *codec;
 	int i;
 
+	/* cancel pending deferred resume if any */
+	cancel_work_sync(&card->deferred_resume_work);
+
 	/* If the initialization of this soc device failed, there is no codec
 	 * associated with it. Just bail out in this case.
 	 */
