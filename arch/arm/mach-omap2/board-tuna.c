@@ -91,6 +91,7 @@ EXPORT_SYMBOL(sec_class);
 #define REBOOT_FLAG_RECOVERY	0x52564352
 #define REBOOT_FLAG_FASTBOOT	0x54534146
 #define REBOOT_FLAG_NORMAL	0x4D524F4E
+#define REBOOT_FLAG_POWER_OFF	0x46464F50
 
 #define UART_NUM_FOR_GPS	0
 
@@ -977,6 +978,8 @@ static int tuna_notifier_call(struct notifier_block *this,
 			else if (!strcmp(_cmd, "bootloader"))
 				flag = REBOOT_FLAG_FASTBOOT;
 		}
+	} else if (code == SYS_POWER_OFF) {
+		flag = REBOOT_FLAG_POWER_OFF;
 	}
 
 	/* The Samsung LOKE bootloader will look for the boot flag at a fixed
@@ -1119,6 +1122,15 @@ static void __init omap4_tuna_led_init(void)
 				ARRAY_SIZE(tuna_i2c4_boardinfo));
 }
 
+/* always reboot into charger mode on "power-off". Let the bootloader
+ * figure out if we should truly power-off or not.
+ */
+static void tuna_power_off(void)
+{
+	printk(KERN_EMERG "Rebooting into bootloader for power-off.\n");
+	arm_pm_restart('c', NULL);
+}
+
 static void __init tuna_init(void)
 {
 	int package = OMAP_PACKAGE_CBS;
@@ -1130,6 +1142,8 @@ static void __init tuna_init(void)
 	omap4_tuna_init_hw_rev();
 
 	omap4_tuna_emif_init();
+
+	pm_power_off = tuna_power_off;
 
 	register_reboot_notifier(&tuna_reboot_notifier);
 
