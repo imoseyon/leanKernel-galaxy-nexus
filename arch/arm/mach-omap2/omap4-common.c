@@ -205,13 +205,11 @@ static int __init omap_l2_cache_init(void)
 	/* Setup POR Control register */
 	por_ctrl = readl_relaxed(l2cache_base + L2X0_PREFETCH_CTRL);
 
-#if 0
 	/*
 	 * Double linefill is available only on OMAP4460 L2X0.
 	 */
 	if (cpu_is_omap446x())
 		por_ctrl |= 1 << L2X0_PREFETCH_DOUBLE_LINEFILL_SHIFT;
-#endif
 	if (!mpu_prefetch_disable_errata) {
 		por_ctrl |= 1 << L2X0_PREFETCH_DATA_PREFETCH_SHIFT;
 		por_ctrl |= L2X0_POR_OFFSET_VALUE;
