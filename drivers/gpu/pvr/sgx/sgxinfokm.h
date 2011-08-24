@@ -131,6 +131,10 @@ typedef struct _PVRSRV_SGXDEV_INFO_
 	PPVRSRV_KERNEL_MEM_INFO	psKernelVDMSnapShotBufferMemInfo; 
 	PPVRSRV_KERNEL_MEM_INFO	psKernelVDMCtrlStreamBufferMemInfo; 
 #endif
+#if defined(SGX_FEATURE_VDM_CONTEXT_SWITCH) && \
+	defined(FIX_HW_BRN_33657) && defined(SUPPORT_SECURE_33657_FIX)
+	PPVRSRV_KERNEL_MEM_INFO	psKernelVDMStateUpdateBufferMemInfo; 
+#endif
 #if defined(PVRSRV_USSE_EDM_STATUS_DEBUG)
 	PPVRSRV_KERNEL_MEM_INFO	psKernelEDMStatusBufferMemInfo; 
 #endif
