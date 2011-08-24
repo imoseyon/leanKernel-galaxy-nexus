@@ -63,6 +63,7 @@ config OMAP2_DSS_VENC
 config OMAP4_DSS_HDMI
 	bool "HDMI support"
 	depends on ARCH_OMAP4
+	select HDMI_TI_4XXX_IP
         default y
 	help
 	  HDMI Interface. This adds the High Definition Multimedia Interface.

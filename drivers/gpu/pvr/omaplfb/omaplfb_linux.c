@@ -278,7 +278,8 @@ void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 		struct fb_fix_screeninfo sFBFix = psDevInfo->psLINFBInfo->fix;
 		struct dsscomp_setup_dispc_data d = {
 			.num_ovls = 1,
-			.mgr.alpha_blending = 1,
+			.num_mgrs = 1,
+			.mgrs[0].alpha_blending = 1,
 			.ovls[0] = {
 				.cfg = {
 					.win.w = sFBVar.xres,

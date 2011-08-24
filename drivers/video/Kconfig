@@ -2387,6 +2387,13 @@ config FB_PUV3_UNIGFX
 	  Choose this option if you want to use the Unigfx device as a
 	  framebuffer device. Without the support of PCI & AGP.
 
+config HDMI_TI_4XXX_IP
+	tristate
+	default n
+	help
+	  HDMI Library Interface , for TI OMAP4/Netra IP.
+	  See http://www.hdmi.org/ for HDMI specification.
+
 source "drivers/video/omap/Kconfig"
 source "drivers/video/omap2/Kconfig"
 

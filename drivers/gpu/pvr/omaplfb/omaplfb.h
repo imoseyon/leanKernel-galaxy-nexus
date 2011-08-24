@@ -125,6 +125,9 @@ typedef struct OMAPLFB_FBINFO_TAG
 
 	
 	PVRSRV_PIXEL_FORMAT ePixelFormat;
+
+	OMAPLFB_BOOL        bIs2D;
+	IMG_UINT32          uiBytesPerPixel;
 }OMAPLFB_FBINFO;
 
 typedef struct OMAPLFB_DEVINFO_TAG

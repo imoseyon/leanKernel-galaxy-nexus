@@ -1253,11 +1253,13 @@ static int omapfb_blank(int blank, struct fb_info *fbi)
 
 	switch (blank) {
 	case FB_BLANK_UNBLANK:
-		if (display->state != OMAP_DSS_DISPLAY_SUSPENDED)
-			goto exit;
-
-		if (display->driver->resume)
-			r = display->driver->resume(display);
+		if (display->state == OMAP_DSS_DISPLAY_SUSPENDED) {
+			if (display->driver->resume)
+				r = display->driver->resume(display);
+		} else if (display->state == OMAP_DSS_DISPLAY_DISABLED) {
+			if (display->driver->enable)
+				r = display->driver->enable(display);
+		}
 
 		break;
 
@@ -1272,6 +1274,8 @@ static int omapfb_blank(int blank, struct fb_info *fbi)
 
 		if (display->driver->suspend)
 			r = display->driver->suspend(display);
+		else if (display->driver->disable)
+			display->driver->disable(display);
 
 		break;
 

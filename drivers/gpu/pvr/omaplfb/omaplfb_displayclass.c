@@ -37,6 +37,12 @@
 #include "kerneldisplay.h"
 #include "omaplfb.h"
 
+#if defined(CONFIG_ION_OMAP)
+#include <linux/ion.h>
+#include <linux/omap_ion.h>
+extern struct ion_client *gpsIONClient;
+#endif
+
 #define OMAPLFB_COMMAND_COUNT		1
 
 #define	OMAPLFB_VSYNC_SETTLE_COUNT	5
@@ -422,7 +428,6 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 		goto ExitUnLock;
 	}		
 
-	
 	UNREFERENCED_PARAMETER(ui32Flags);
 	
 #if defined(PVR_OMAPFB3_UPDATE_MODE)
@@ -459,19 +464,25 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 	
 	psBuffer[i].psNext = &psBuffer[0];
 
-	
 	for(i=0; i<ui32BufferCount; i++)
 	{
 		IMG_UINT32 ui32SwapBuffer = i + ui32BuffersToSkip;
 		IMG_UINT32 ui32BufferOffset = ui32SwapBuffer * (IMG_UINT32)psDevInfo->sFBInfo.ulRoundedBufferSize;
+		if (psDevInfo->sFBInfo.bIs2D)
+		{
+			ui32BufferOffset = 0;
+		}
 
 		psBuffer[i].psSyncData = ppsSyncData[i];
-
 		psBuffer[i].sSysAddr.uiAddr = psDevInfo->sFBInfo.sSysAddr.uiAddr + ui32BufferOffset;
 		psBuffer[i].sCPUVAddr = psDevInfo->sFBInfo.sCPUVAddr + ui32BufferOffset;
 		psBuffer[i].ulYOffset = ui32BufferOffset / psDevInfo->sFBInfo.ulByteStride;
+		if (psDevInfo->sFBInfo.bIs2D)
+		{
+			psBuffer[i].sSysAddr.uiAddr += ui32SwapBuffer *
+				ALIGN((IMG_UINT32)psDevInfo->sFBInfo.ulWidth * psDevInfo->sFBInfo.uiBytesPerPixel, PAGE_SIZE);
+		}
 		psBuffer[i].psDevInfo = psDevInfo;
-
 		OMAPLFBInitBufferForSwap(&psBuffer[i]);
 	}
 
@@ -767,6 +778,12 @@ void OMAPLFBSwapHandler(OMAPLFB_BUFFER *psBuffer)
 	psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete((IMG_HANDLE)psBuffer->hCmdComplete, IMG_TRUE);
 }
 
+#if defined(CONFIG_DSSCOMP)
+
+#include <mach/tiler.h>
+#include <video/dsscomp.h>
+#include <plat/dsscomp.h>
+
 static IMG_BOOL ProcessFlipV1(IMG_HANDLE hCmdCookie,
 							  OMAPLFB_DEVINFO *psDevInfo,
 							  OMAPLFB_SWAPCHAIN *psSwapChain,
@@ -789,7 +806,37 @@ static IMG_BOOL ProcessFlipV1(IMG_HANDLE hCmdCookie,
 #if defined(NO_HARDWARE)
 		psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete((IMG_HANDLE)psBuffer->hCmdComplete, IMG_FALSE);
 #else
-		OMAPLFBQueueBufferForSwap(psSwapChain, psBuffer);
+		if (is_tiler_addr(psBuffer->sSysAddr.uiAddr)) {
+			IMG_UINT32 w = psBuffer->psDevInfo->sDisplayDim.ui32Width;
+			IMG_UINT32 h = psBuffer->psDevInfo->sDisplayDim.ui32Height;
+			struct omap_overlay_manager *mgr = omap_dss_get_overlay_manager(0);
+			dsscomp_t comp = dsscomp_new(mgr);
+			struct dss2_ovl_info oi = {
+				.cfg = {
+					.width = w,
+					.win.w = w,
+					.crop.w = w,
+					.height = h,
+					.win.h = h,
+					.crop.h = h,
+					.stride = psBuffer->psDevInfo->sDisplayDim.ui32ByteStride,
+					.color_mode = OMAP_DSS_COLOR_ARGB32,
+					.enabled = 1,
+					.global_alpha = 255,
+				},
+			};
+			struct dss2_mgr_info mi = { .alpha_blending = 1, };
+			struct dss2_rect_t win = { .w = 0 };
+			oi.ba = (u32) psBuffer->sSysAddr.uiAddr;
+			dsscomp_set_ovl(comp, &oi);
+			dsscomp_set_mgr(comp, &mi);
+			dsscomp_setup(comp, DSSCOMP_SETUP_DISPLAY, win);
+			dsscomp_delayed_apply(comp);
+
+			psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete((IMG_HANDLE)psBuffer->hCmdComplete, IMG_TRUE);
+		} else {
+			OMAPLFBQueueBufferForSwap(psSwapChain, psBuffer);
+		}
 #endif
 	}
 
@@ -797,12 +844,6 @@ static IMG_BOOL ProcessFlipV1(IMG_HANDLE hCmdCookie,
 
 	return IMG_TRUE;
 }
-
-#if defined(CONFIG_DSSCOMP)
-
-#include <mach/tiler.h>
-#include <video/dsscomp.h>
-#include <plat/dsscomp.h>
 
 #include "servicesint.h"
 #include "services.h"
@@ -820,13 +861,25 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 	struct tiler_pa_info *apsTilerPAs[5];
 	IMG_UINT32 i, k;
 
-	BUG_ON(uiDssDataLength != sizeof(*psDssData));
+	if(uiDssDataLength != sizeof(*psDssData))
+	{
+		WARN(1, "invalid size of private data (%d vs %d)",
+		     uiDssDataLength, sizeof(*psDssData));
+		return IMG_FALSE;
+	}
+
+	if(psDssData->num_ovls == 0 || ui32NumMemInfos == 0)
+	{
+		WARN(1, "must have at least one layer");
+		return IMG_FALSE;
+	}
 
 	for(i = k = 0; i < ui32NumMemInfos && i < ARRAY_SIZE(apsTilerPAs); i++, k++)
 	{
 		struct tiler_pa_info *psTilerInfo;
 		LinuxMemArea *psLinuxMemArea;
 		IMG_UINT32 ui32NumPages;
+		IMG_UINT32 uiAddr;
 		int j;
 
 		psLinuxMemArea = ppsMemInfos[i]->sMemBlk.hOSMemHandle;
@@ -834,17 +887,24 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 
 		apsTilerPAs[k] = NULL;
 
-		
+		uiAddr = (IMG_UINT32) LinuxMemAreaToCpuPAddr(psLinuxMemArea, 0).uiAddr;
+		/* NV12 buffers do not need meminfos */
 		if(psDssData->ovls[k].cfg.color_mode == OMAP_DSS_COLOR_NV12)
 		{
-			
+			/* must have still 2 meminfos in array */
 			BUG_ON(i + 1 >= ui32NumMemInfos);
-			psDssData->ovls[k].ba = (u32)LinuxMemAreaToCpuPAddr(psLinuxMemArea, 0).uiAddr;
+			psDssData->ovls[k].ba = uiAddr;
 
 			i++;
 			psLinuxMemArea = ppsMemInfos[i]->sMemBlk.hOSMemHandle;
 			psDssData->ovls[k].uv = (u32)LinuxMemAreaToCpuPAddr(psLinuxMemArea, 0).uiAddr;
 
+			continue;
+		}
+		/* check if it is a TILER buffer */
+		else if(is_tiler_addr(uiAddr))
+		{
+			psDssData->ovls[k].ba = uiAddr;
 			continue;
 		}
 
@@ -870,12 +930,19 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 				(u32)LinuxMemAreaToCpuPAddr(psLinuxMemArea, j << PAGE_SHIFT).uiAddr;
 		}
 
-		
+		/* need base address for in-page offset */
 		psDssData->ovls[k].ba = (u32)ppsMemInfos[i]->pvLinAddrKM;
 		apsTilerPAs[k] = psTilerInfo;
 	}
 
-	BUG_ON(psDssData->num_ovls == 0);
+	/* set up cloned layer addresses (but don't duplicate tiler_pas) */
+	for(i = k; i < psDssData->num_ovls && i < ARRAY_SIZE(apsTilerPAs); i++)
+	{
+		unsigned int ix = psDssData->ovls[i].ba;
+		apsTilerPAs[i] = apsTilerPAs[ix];
+		psDssData->ovls[i].ba = psDssData->ovls[ix].ba;
+		psDssData->ovls[i].uv = psDssData->ovls[ix].uv;
+	}
 
 	dsscomp_gralloc_queue(psDssData, apsTilerPAs,
 						  (void *)psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete,
@@ -895,13 +962,8 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
                             IMG_UINT32  ui32DataSize,
                             IMG_VOID   *pvData)
 {
-	DISPLAYCLASS_FLIP_COMMAND2 *psFlipCmd2;
 	DISPLAYCLASS_FLIP_COMMAND *psFlipCmd;
 	OMAPLFB_DEVINFO *psDevInfo;
-
-	struct dsscomp_setup_mgr_data *dss_data;
-	struct tiler_pa_info *tiler_pas[5];
-	unsigned long i;
 
 	if(!hCmdCookie || !pvData)
 	{
@@ -1030,14 +1092,69 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 	
 	OMAPLFBPrintInfo(psDevInfo);
 
-	
-	psPVRFBInfo->sSysAddr.uiAddr = psLINFBInfo->fix.smem_start;
-	psPVRFBInfo->sCPUVAddr = psLINFBInfo->screen_base;
+	/* hijack LINFB */
+	if(1)
+	{
+		/* for some reason we need at least 3 buffers in the swap chain */
+		int n = FBSize / RoundUpToMultiple(psLINFBInfo->fix.line_length * psLINFBInfo->var.yres, ulLCM);
+		int res;
+		ion_phys_addr_t phys;
+		size_t size;
+		struct tiler_view_t view;
 
-	psPVRFBInfo->ulWidth = psLINFBInfo->var.xres;
-	psPVRFBInfo->ulHeight = psLINFBInfo->var.yres;
-	psPVRFBInfo->ulByteStride =  psLINFBInfo->fix.line_length;
-	psPVRFBInfo->ulFBSize = FBSize;
+		struct omap_ion_tiler_alloc_data sAllocData = {
+			/* TILER will align width to 128-bytes */
+			/* however, SGX must have full page width */
+			.w = ALIGN(psLINFBInfo->var.xres, PAGE_SIZE / (psLINFBInfo->var.bits_per_pixel / 8)),
+			.h = psLINFBInfo->var.yres,
+			.fmt = psLINFBInfo->var.bits_per_pixel == 16 ? TILER_PIXEL_FMT_16BIT : TILER_PIXEL_FMT_32BIT,
+			.flags = 0,
+		};
+
+		printk(KERN_DEBUG DRIVER_PREFIX
+			" %s: Device %u: Requesting %d TILER 2D framebuffers\n", __FUNCTION__, uiFBDevID, n);
+
+		/* HACK: limit to MAX 3 FBs to save TILER container space */
+		if (n > 3)
+			n = 3;
+		sAllocData.w *= n;
+
+		psPVRFBInfo->uiBytesPerPixel = psLINFBInfo->var.bits_per_pixel >> 3;
+		psPVRFBInfo->bIs2D = OMAPLFB_TRUE;
+
+		res = omap_ion_tiler_alloc(gpsIONClient, &sAllocData);
+		if (res < 0)
+		{
+			printk(KERN_ERR DRIVER_PREFIX
+				" %s: Device %u: Could not allocate 2D framebuffer(%d)\n", __FUNCTION__, uiFBDevID, res);
+			goto ErrorModPut;
+		}
+
+		psLINFBInfo->fix.smem_start = ion_phys(gpsIONClient, sAllocData.handle, &phys, &size);
+
+		psPVRFBInfo->sSysAddr.uiAddr = phys;
+		psPVRFBInfo->sCPUVAddr = 0;
+
+		psPVRFBInfo->ulWidth = psLINFBInfo->var.xres;
+		psPVRFBInfo->ulHeight = psLINFBInfo->var.yres;
+
+		tilview_create(&view, phys, sAllocData.w, sAllocData.h);
+		psPVRFBInfo->ulByteStride = view.v_inc;
+
+		/* this is an "effective" FB size to get correct number of buffers */
+		psPVRFBInfo->ulFBSize = sAllocData.h * n * psPVRFBInfo->ulByteStride;
+	}
+	else
+	{
+		psPVRFBInfo->sSysAddr.uiAddr = psLINFBInfo->fix.smem_start;
+		psPVRFBInfo->sCPUVAddr = psLINFBInfo->screen_base;
+
+		psPVRFBInfo->ulWidth = psLINFBInfo->var.xres;
+		psPVRFBInfo->ulHeight = psLINFBInfo->var.yres;
+		psPVRFBInfo->ulByteStride =  psLINFBInfo->fix.line_length;
+		psPVRFBInfo->ulFBSize = FBSize;
+		psPVRFBInfo->bIs2D = OMAPLFB_FALSE;
+	}
 	psPVRFBInfo->ulBufferSize = psPVRFBInfo->ulHeight * psPVRFBInfo->ulByteStride;
 	
 	psPVRFBInfo->ulRoundedBufferSize = RoundUpToMultiple(psPVRFBInfo->ulBufferSize, ulLCM);
