@@ -156,16 +156,6 @@ struct dsi_clock_info {
 	bool use_sys_clk;
 };
 
-/* HDMI PLL structure */
-struct hdmi_pll_info {
-	u16 regn;
-	u16 regm;
-	u32 regmf;
-	u16 regm2;
-	u16 regsd;
-	u16 dcofreq;
-};
-
 struct seq_file;
 struct platform_device;
 
@@ -440,7 +430,8 @@ int dispc_scaling_decision(u16 width, u16 height,
 
 bool dispc_go_busy(enum omap_channel channel);
 void dispc_go(enum omap_channel channel);
-void dispc_enable_channel(enum omap_channel channel, bool enable);
+void dispc_enable_channel(enum omap_channel channel,
+		enum omap_display_type type, bool enable);
 bool dispc_is_channel_enabled(enum omap_channel channel);
 int dispc_enable_plane(enum omap_plane plane, bool enable);
 void dispc_enable_replication(enum omap_plane plane, bool enable);
@@ -522,8 +513,15 @@ void omapdss_hdmi_display_disable(struct omap_dss_device *dssdev);
 void omapdss_hdmi_display_set_timing(struct omap_dss_device *dssdev);
 int omapdss_hdmi_display_check_timing(struct omap_dss_device *dssdev,
 					struct omap_video_timings *timings);
+int hdmi_panel_hpd_handler(int hpd);
+int omapdss_hdmi_get_deepcolor(void);
+void omapdss_hdmi_set_deepcolor(int val);
+int hdmi_get_current_hpd(void);
+u8 *hdmi_read_edid(struct omap_video_timings *);
+
 int hdmi_panel_init(void);
 void hdmi_panel_exit(void);
+void hdmi_dump_regs(struct seq_file *s);
 
 int omap_dss_ovl_set_info(struct omap_overlay *ovl,
 		struct omap_overlay_info *info);

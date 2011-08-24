@@ -1,7 +1,7 @@
 /*
- * hdmi.h
+ * hdmi_ti_4xxx_ip.h
  *
- * HDMI driver definition for TI OMAP4 processors.
+ * HDMI header definition for TI81xx, TI38xx, TI OMAP4 etc processors.
  *
  * Copyright (C) 2010-2011 Texas Instruments Incorporated - http://www.ti.com/
  *
@@ -18,24 +18,19 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _OMAP4_DSS_HDMI_H_
-#define _OMAP4_DSS_HDMI_H_
+#ifndef _HDMI_TI_4xxx_H_
+#define _HDMI_TI_4xxx_H_
 
 #include <linux/string.h>
 #include <video/omapdss.h>
-
-#define HDMI_WP		0x0
-#define HDMI_CORE_SYS		0x400
-#define HDMI_CORE_AV		0x900
-#define HDMI_PLLCTRL		0x200
-#define HDMI_PHY		0x300
+#include <video/hdmi_ti_4xxx_ip.h>
 
 struct hdmi_reg { u16 idx; };
 
 #define HDMI_REG(idx)			((const struct hdmi_reg) { idx })
 
 /* HDMI Wrapper */
-#define HDMI_WP_REG(idx)			HDMI_REG(HDMI_WP + idx)
+#define HDMI_WP_REG(idx)			HDMI_REG(idx)
 
 #define HDMI_WP_REVISION			HDMI_WP_REG(0x0)
 #define HDMI_WP_SYSCONFIG			HDMI_WP_REG(0x10)
@@ -54,7 +49,7 @@ struct hdmi_reg { u16 idx; };
 #define HDMI_WP_AUDIO_DATA			HDMI_WP_REG(0x8C)
 
 /* HDMI IP Core System */
-#define HDMI_CORE_SYS_REG(idx)			HDMI_REG(HDMI_CORE_SYS + idx)
+#define HDMI_CORE_SYS_REG(idx)			HDMI_REG(idx)
 
 #define HDMI_CORE_SYS_VND_IDL			HDMI_CORE_SYS_REG(0x0)
 #define HDMI_CORE_SYS_DEV_IDL			HDMI_CORE_SYS_REG(0x8)
@@ -95,7 +90,7 @@ struct hdmi_reg { u16 idx; };
 #define HDMI_CORE_DDC_SEGM			HDMI_CORE_SYS_REG(0x3B8)
 
 /* HDMI IP Core Audio Video */
-#define HDMI_CORE_AV_REG(idx)			HDMI_REG(HDMI_CORE_AV + idx)
+#define HDMI_CORE_AV_REG(idx)			HDMI_REG(idx)
 
 #define HDMI_CORE_AV_HDMI_CTRL			HDMI_CORE_AV_REG(0xBC)
 #define HDMI_CORE_AV_DPD			HDMI_CORE_AV_REG(0xF4)
@@ -175,7 +170,7 @@ struct hdmi_reg { u16 idx; };
 #define HDMI_CORE_AV_GEN_DBYTE_ELSIZE		0x4
 
 /* PLL */
-#define HDMI_PLL_REG(idx)			HDMI_REG(HDMI_PLLCTRL + idx)
+#define HDMI_PLL_REG(idx)			HDMI_REG(idx)
 
 #define PLLCTRL_PLL_CONTROL			HDMI_PLL_REG(0x0)
 #define PLLCTRL_PLL_STATUS			HDMI_PLL_REG(0x4)
@@ -186,46 +181,28 @@ struct hdmi_reg { u16 idx; };
 #define PLLCTRL_CFG4				HDMI_PLL_REG(0x20)
 
 /* HDMI PHY */
-#define HDMI_PHY_REG(idx)			HDMI_REG(HDMI_PHY + idx)
+#define HDMI_PHY_REG(idx)			HDMI_REG(idx)
 
 #define HDMI_TXPHY_TX_CTRL			HDMI_PHY_REG(0x0)
 #define HDMI_TXPHY_DIGITAL_CTRL		HDMI_PHY_REG(0x4)
 #define HDMI_TXPHY_POWER_CTRL			HDMI_PHY_REG(0x8)
 #define HDMI_TXPHY_PAD_CFG_CTRL		HDMI_PHY_REG(0xC)
 
-/* HDMI EDID Length  */
-#define HDMI_EDID_MAX_LENGTH			256
-#define EDID_TIMING_DESCRIPTOR_SIZE		0x12
-#define EDID_DESCRIPTOR_BLOCK0_ADDRESS		0x36
-#define EDID_DESCRIPTOR_BLOCK1_ADDRESS		0x80
-#define EDID_SIZE_BLOCK0_TIMING_DESCRIPTOR	4
-#define EDID_SIZE_BLOCK1_TIMING_DESCRIPTOR	4
-
-#define OMAP_HDMI_TIMINGS_NB			34
-
-#define REG_FLD_MOD(idx, val, start, end) \
-	hdmi_write_reg(idx, FLD_MOD(hdmi_read_reg(idx), val, start, end))
-#define REG_GET(idx, start, end) \
-	FLD_GET(hdmi_read_reg(idx), start, end)
-
-/* HDMI timing structure */
-struct hdmi_timings {
-	struct omap_video_timings timings;
-	int vsync_pol;
-	int hsync_pol;
-};
+#define FLD_MASK(start, end)	(((1 << ((start) - (end) + 1)) - 1) << (end))
+#define FLD_VAL(val, start, end) (((val) << (end)) & FLD_MASK(start, end))
+#define FLD_GET(val, start, end) (((val) & FLD_MASK(start, end)) >> (end))
+#define FLD_MOD(orig, val, start, end) \
+	(((orig) & ~FLD_MASK(start, end)) | FLD_VAL(val, start, end))
+#define REG_FLD_MOD(base, idx, val, start, end) \
+	hdmi_write_reg(base, idx, FLD_MOD(hdmi_read_reg(base, idx),\
+							val, start, end))
+#define REG_GET(base, idx, start, end) \
+	FLD_GET(hdmi_read_reg(base, idx), start, end)
 
 enum hdmi_phy_pwr {
 	HDMI_PHYPWRCMD_OFF = 0,
 	HDMI_PHYPWRCMD_LDOON = 1,
 	HDMI_PHYPWRCMD_TXON = 2
-};
-
-enum hdmi_pll_pwr {
-	HDMI_PLLPWRCMD_ALLOFF = 0,
-	HDMI_PLLPWRCMD_PLLONLY = 1,
-	HDMI_PLLPWRCMD_BOTHON_ALLCLKS = 2,
-	HDMI_PLLPWRCMD_BOTHON_NOPHYCLK = 3
 };
 
 enum hdmi_clk_refsel {
@@ -261,11 +238,6 @@ enum hdmi_core_packet_mode {
 	HDMI_PACKETMODE30BITPERPIXEL = 5,
 	HDMI_PACKETMODE36BITPERPIXEL = 6,
 	HDMI_PACKETMODE48BITPERPIXEL = 7
-};
-
-enum hdmi_core_hdmi_dvi {
-	HDMI_DVI = 0,
-	HDMI_HDMI = 1
 };
 
 enum hdmi_core_tclkselclkmult {
@@ -566,17 +538,6 @@ struct hdmi_video_interface {
 	int	hsp;	/* Hsync polarity */
 	int	interlacing;
 	int	tm;	/* Timing mode */
-};
-
-struct hdmi_cm {
-	int	code;
-	int	mode;
-};
-
-struct hdmi_config {
-	struct hdmi_timings timings;
-	u16	interlace;
-	struct hdmi_cm cm;
 };
 
 struct hdmi_audio_format {

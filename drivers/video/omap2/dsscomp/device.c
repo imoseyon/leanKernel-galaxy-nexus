@@ -31,8 +31,6 @@
 #include <linux/anon_inodes.h>
 #include <linux/list.h>
 #include <linux/miscdevice.h>
-#include <linux/seq_file.h>
-#include <linux/debugfs.h>
 #include <linux/uaccess.h>
 #include <linux/sched.h>
 #include <linux/syscalls.h>
@@ -43,6 +41,8 @@
 #include <video/dsscomp.h>
 #include <plat/dsscomp.h>
 #include "dsscomp.h"
+
+#include <linux/debugfs.h>
 
 static DECLARE_WAIT_QUEUE_HEAD(waitq);
 static DEFINE_MUTEX(wait_mtx);
@@ -445,6 +445,25 @@ static const struct file_operations comp_fops = {
 	.unlocked_ioctl = comp_ioctl,
 };
 
+static int dsscomp_debug_show(struct seq_file *s, void *unused)
+{
+	void (*fn)(struct seq_file *s) = s->private;
+	fn(s);
+	return 0;
+}
+
+static int dsscomp_debug_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, dsscomp_debug_show, inode->i_private);
+}
+
+static const struct file_operations dsscomp_debug_fops = {
+	.open           = dsscomp_debug_open,
+	.read           = seq_read,
+	.llseek         = seq_lseek,
+	.release        = single_release,
+};
+
 static int dsscomp_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -466,6 +485,16 @@ static int dsscomp_probe(struct platform_device *pdev)
 	cdev->dbgfs = debugfs_create_dir("dsscomp", NULL);
 	if (IS_ERR_OR_NULL(cdev->dbgfs))
 		dev_warn(DEV(cdev), "failed to create debug files.\n");
+	else {
+		debugfs_create_file("comps", S_IRUGO,
+			cdev->dbgfs, dsscomp_dbg_comps, &dsscomp_debug_fops);
+		debugfs_create_file("gralloc", S_IRUGO,
+			cdev->dbgfs, dsscomp_dbg_gralloc, &dsscomp_debug_fops);
+#ifdef CONFIG_DSSCOMP_DEBUG_LOG
+		debugfs_create_file("log", S_IRUGO,
+			cdev->dbgfs, dsscomp_dbg_events, &dsscomp_debug_fops);
+#endif
+	}
 
 	platform_set_drvdata(pdev, cdev);
 
@@ -485,7 +514,6 @@ static int dsscomp_remove(struct platform_device *pdev)
 	struct dsscomp_dev *cdev = platform_get_drvdata(pdev);
 	misc_deregister(&cdev->dev);
 	debugfs_remove_recursive(cdev->dbgfs);
-
 	dsscomp_queue_exit();
 	dsscomp_gralloc_exit();
 	kfree(cdev);
@@ -521,6 +549,34 @@ static void __exit dsscomp_exit(void)
 	platform_device_unregister(&dsscomp_pdev);
 	platform_driver_unregister(&dsscomp_pdriver);
 }
+
+#define DUMP_CHUNK 256
+static char dump_buf[64 * 1024];
+void dsscomp_kdump(void)
+{
+	struct seq_file s = {
+		.buf = dump_buf,
+		.size = sizeof(dump_buf) - 1,
+	};
+	int i;
+
+	dsscomp_dbg_events(&s);
+	dsscomp_dbg_comps(&s);
+	dsscomp_dbg_gralloc(&s);
+
+	for (i = 0; i < s.count; i += DUMP_CHUNK) {
+		if ((s.count - i) > DUMP_CHUNK) {
+			char c = s.buf[i + DUMP_CHUNK];
+			s.buf[i + DUMP_CHUNK] = 0;
+			pr_cont("%s", s.buf + i);
+			s.buf[i + DUMP_CHUNK] = c;
+		} else {
+			s.buf[s.count] = 0;
+			pr_cont("%s", s.buf + i);
+		}
+	}
+}
+EXPORT_SYMBOL(dsscomp_kdump);
 
 MODULE_LICENSE("GPL v2");
 module_init(dsscomp_init);

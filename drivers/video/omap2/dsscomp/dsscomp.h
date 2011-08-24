@@ -24,6 +24,10 @@
 
 #include <linux/miscdevice.h>
 #include <linux/debugfs.h>
+#include <linux/seq_file.h>
+#ifdef CONFIG_DSSCOMP_DEBUG_LOG
+#include <linux/hrtimer.h>
+#endif
 
 #define MAX_OVERLAYS	5
 #define MAX_MANAGERS	3
@@ -64,6 +68,18 @@ struct dsscomp_dev {
 
 extern int debug;
 
+#ifdef CONFIG_DEBUG_FS
+extern struct mutex dbg_mtx;
+extern struct list_head dbg_comps;
+#define DO_IF_DEBUG_FS(cmd) {	\
+	mutex_lock(&dbg_mtx);	\
+	cmd;			\
+	mutex_unlock(&dbg_mtx);	\
+}
+#else
+#define DO_IF_DEBUG_FS(cmd)
+#endif
+
 enum dsscomp_state {
 	DSSCOMP_STATE_ACTIVE		= 0xAC54156E,
 	DSSCOMP_STATE_APPLYING		= 0xB554C591,
@@ -95,6 +111,14 @@ struct dsscomp_data {
 	void (*extra_cb)(void *data, int status);
 	void *extra_cb_data;
 	bool must_apply;	/* whether composition must be applied */
+
+#ifdef CONFIG_DEBUG_FS
+	struct list_head dbg_q;
+	u32 dbg_used;
+	struct {
+		u32 t, state;
+	} dbg_log[8];
+#endif
 };
 
 struct dsscomp_sync_obj {
@@ -132,5 +156,54 @@ void dump_comp_info(struct dsscomp_dev *cdev, struct dsscomp_setup_mgr_data *d,
 void dump_total_comp_info(struct dsscomp_dev *cdev,
 				struct dsscomp_setup_dispc_data *d,
 				const char *phase);
+const char *dsscomp_get_color_name(enum omap_color_mode m);
+
+void dsscomp_dbg_comps(struct seq_file *s);
+void dsscomp_dbg_gralloc(struct seq_file *s);
+
+#define log_state_str(s) (\
+	(s) == DSSCOMP_STATE_ACTIVE		? "ACTIVE"	: \
+	(s) == DSSCOMP_STATE_APPLYING		? "APPLY'N"	: \
+	(s) == DSSCOMP_STATE_APPLIED		? "APPLIED"	: \
+	(s) == DSSCOMP_STATE_PROGRAMMED		? "PROGR'D"	: \
+	(s) == DSSCOMP_STATE_DISPLAYED		? "DISPL'D"	: "INVALID")
+
+#define log_status_str(ev) ( \
+	((ev) & DSS_COMPLETION_CHANGED)		? "CHANGED"	: \
+	(ev) == DSS_COMPLETION_DISPLAYED	? "DISPLAYED"	: \
+	(ev) == DSS_COMPLETION_PROGRAMMED	? "PROGRAMMED"	: \
+	(ev) == DSS_COMPLETION_TORN		? "TORN"	: \
+	(ev) == DSS_COMPLETION_RELEASED		? "RELEASED"	: \
+	((ev) & DSS_COMPLETION_RELEASED)	? "ECLIPSED"	: "???")
+
+#ifdef CONFIG_DSSCOMP_DEBUG_LOG
+extern struct dbg_event_t {
+	u32 ms, a1, a2, ix;
+	void *data;
+	const char *fmt;
+} dbg_events[128];
+extern u32 dbg_event_ix;
+
+void dsscomp_dbg_events(struct seq_file *s);
+#endif
+
+static inline
+void __log_event(u32 ix, u32 ms, void *data, const char *fmt, u32 a1, u32 a2)
+{
+#ifdef CONFIG_DSSCOMP_DEBUG_LOG
+	if (!ms)
+		ms = ktime_to_ms(ktime_get());
+	dbg_events[dbg_event_ix].ms = ms;
+	dbg_events[dbg_event_ix].data = data;
+	dbg_events[dbg_event_ix].fmt = fmt;
+	dbg_events[dbg_event_ix].a1 = a1;
+	dbg_events[dbg_event_ix].a2 = a2;
+	dbg_events[dbg_event_ix].ix = ix;
+	dbg_event_ix = (dbg_event_ix + 1) % ARRAY_SIZE(dbg_events);
+#endif
+}
+
+#define log_event(ix, ms, data, fmt, a1, a2) \
+	DO_IF_DEBUG_FS(__log_event(ix, ms, data, fmt, a1, a2))
 
 #endif
