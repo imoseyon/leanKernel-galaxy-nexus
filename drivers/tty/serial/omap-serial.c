@@ -44,6 +44,7 @@
 #include <plat/omap-serial.h>
 #include <plat/omap_device.h>
 #include <plat/serial.h>
+#include <plat/omap-pm.h>
 
 static struct uart_omap_port *ui[OMAP_MAX_HSUART_PORTS];
 
@@ -1608,7 +1609,7 @@ static int omap_serial_runtime_suspend(struct device *dev)
 
 	if (up->rts_mux_driver_control)
 		omap_rts_mux_write(MUX_PULL_UP, up->port.line);
-	up->context_loss_cnt = omap_device_get_context_loss_count(up->pdev);
+	up->context_loss_cnt = omap_pm_get_dev_context_loss_count(dev);
 	if (device_may_wakeup(dev))
 		up->enable_wakeup(up->pdev, true);
 	else
@@ -1623,8 +1624,13 @@ static int omap_serial_runtime_resume(struct device *dev)
 	struct omap_device *od;
 
 	if (up) {
-		u32 loss_cnt = omap_device_get_context_loss_count(up->pdev);
-		if (up->context_loss_cnt != loss_cnt)
+		int loss_cnt = omap_pm_get_dev_context_loss_count(dev);
+
+		/* We don't expect error in this function
+		 * Just in case its an error:
+		 * treat it as force-context-restore */
+		if (WARN_ON(loss_cnt < 0) ||
+				(up->context_loss_cnt != loss_cnt))
 			omap_uart_restore_context(up);
 
 		if (up->use_dma) {

@@ -151,7 +151,7 @@ struct uart_omap_port {
 	char			name[20];
 	unsigned int		console_lock;
 	unsigned long		port_activity;
-	u32			context_loss_cnt;
+	int			context_loss_cnt;
 	/* RTS control via driver */
 	unsigned		rts_mux_driver_control:1;
 	unsigned		rts_pullup_in_suspend:1;

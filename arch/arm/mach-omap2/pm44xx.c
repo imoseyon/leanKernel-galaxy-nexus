@@ -289,12 +289,14 @@ out:
 }
 
 #define CONTROL_PADCONF_WAKEUPEVENT_0	0x4a1001d8
+#define CONTROL_WKUP_PADCONF_WAKEUPEVENT_0	0x4a31E07C
 
 static void _print_prcm_wakeirq(int irq)
 {
 	int i, bit;
 	int iopad_wake_found = 0;
 	u32 prcm_irqs1, prcm_irqs2;
+	long unsigned int wkup_pad_event;
 
 	prcm_irqs1 = omap4_prm_read_inst_reg(OMAP4430_PRM_OCP_SOCKET_INST,
 					     OMAP4_PRM_IRQSTATUS_MPU_OFFSET);
@@ -305,7 +307,7 @@ static void _print_prcm_wakeirq(int irq)
 	prcm_irqs2 &= omap4_prm_read_inst_reg(OMAP4430_PRM_OCP_SOCKET_INST,
 					      OMAP4_PRM_IRQENABLE_MPU_2_OFFSET);
 
-	if (prcm_irqs1 & OMAP4430_IO_ST_MASK)
+	if (prcm_irqs1 & OMAP4430_IO_ST_MASK) {
 		for (i = 0; i <= 6; i++) {
 			long unsigned int wkevt =
 				omap_readl(CONTROL_PADCONF_WAKEUPEVENT_0 + i*4);
@@ -316,6 +318,12 @@ static void _print_prcm_wakeirq(int irq)
 				iopad_wake_found = 1;
 			}
 		}
+		wkup_pad_event = omap_readl(CONTROL_WKUP_PADCONF_WAKEUPEVENT_0);
+		for_each_set_bit(bit, &wkup_pad_event, 25) {
+			pr_info("Resume caused by wakeup I/O pad: CONTROL_WKUP_PADCONF_WAKEUPEVENT_0[%d]\n", bit);
+			iopad_wake_found = 1;
+		}
+	}
 
 	if (prcm_irqs1 & ~OMAP4430_IO_ST_MASK || !iopad_wake_found ||
 	    prcm_irqs2)

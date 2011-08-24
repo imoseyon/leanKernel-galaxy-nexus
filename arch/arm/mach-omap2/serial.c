@@ -431,8 +431,12 @@ void __init omap_serial_init_port(struct omap_board_data *bdata,
 	pdata->auto_sus_timeout = info->auto_sus_timeout;
 	pdata->wake_peer = info->wake_peer;
 	pdata->rts_mux_driver_control = info->rts_mux_driver_control;
-	if (bdata->id == omap_uart_con_id)
+	if (bdata->id == omap_uart_con_id) {
 		pdata->console_uart = true;
+#ifdef CONFIG_DEBUG_LL
+		pdata->auto_sus_timeout = -1;
+#endif
+	}
 
 	if (pdata->use_dma &&
 			cpu_is_omap44xx() && omap_rev() > OMAP4430_REV_ES1_0)
