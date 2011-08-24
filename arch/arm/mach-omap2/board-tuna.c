@@ -332,7 +332,7 @@ static int uart1_rts_ctrl_write(struct file *file, const char __user *buffer,
 		omap_rts_mux_write(OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE7,
 							UART_NUM_FOR_GPS);
 	} else if (!strncmp(buf, "0", 1)) {
-		omap_rts_mux_write(OMAP_PIN_OUTPUT | OMAP_MUX_MODE0,
+		omap_rts_mux_write(OMAP_PIN_OUTPUT | OMAP_MUX_MODE1,
 							UART_NUM_FOR_GPS);
 	}
 
