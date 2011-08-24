@@ -46,7 +46,7 @@ struct lpj_info {
 	unsigned int	freq;
 };
 
-#define THROTTLE_DELAY_MS 1000
+#define THROTTLE_DELAY_MS 10000
 
 static DEFINE_PER_CPU(struct lpj_info, lpj_ref);
 static struct lpj_info global_lpj_ref;
