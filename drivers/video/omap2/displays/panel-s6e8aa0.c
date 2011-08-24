@@ -1501,10 +1501,7 @@ static void s6e8aa0_power_off(struct omap_dss_device *dssdev)
 
 static int s6e8aa0_start(struct omap_dss_device *dssdev)
 {
-	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
 	int r = 0;
-
-	mutex_lock(&s6->lock);
 
 	dsi_bus_lock(dssdev);
 
@@ -1520,17 +1517,11 @@ static int s6e8aa0_start(struct omap_dss_device *dssdev)
 		dssdev->manager->enable(dssdev->manager);
 	}
 
-	mutex_unlock(&s6->lock);
-
 	return r;
 }
 
 static void s6e8aa0_stop(struct omap_dss_device *dssdev)
 {
-	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
-
-	mutex_lock(&s6->lock);
-
 	dssdev->manager->disable(dssdev->manager);
 
 	dsi_bus_lock(dssdev);
@@ -1538,28 +1529,39 @@ static void s6e8aa0_stop(struct omap_dss_device *dssdev)
 	s6e8aa0_power_off(dssdev);
 
 	dsi_bus_unlock(dssdev);
-
-	mutex_unlock(&s6->lock);
 }
 
 static void s6e8aa0_disable(struct omap_dss_device *dssdev)
 {
+	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
+
 	dev_dbg(&dssdev->dev, "disable\n");
 
+	mutex_lock(&s6->lock);
 	if (dssdev->state == OMAP_DSS_DISPLAY_ACTIVE)
 		s6e8aa0_stop(dssdev);
 
 	dssdev->state = OMAP_DSS_DISPLAY_DISABLED;
+	mutex_unlock(&s6->lock);
 }
 
 static int s6e8aa0_enable(struct omap_dss_device *dssdev)
 {
+	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
+	int ret;
+
 	dev_dbg(&dssdev->dev, "enable\n");
 
-	if (dssdev->state != OMAP_DSS_DISPLAY_DISABLED)
-		return -EINVAL;
+	mutex_lock(&s6->lock);
+	if (dssdev->state != OMAP_DSS_DISPLAY_DISABLED) {
+		ret = -EINVAL;
+		goto out;
+	}
 
-	return s6e8aa0_start(dssdev);
+	ret = s6e8aa0_start(dssdev);
+out:
+	mutex_unlock(&s6->lock);
+	return ret;
 }
 
 static void s6e8aa0_framedone_cb(int err, void *data)
@@ -1640,26 +1642,41 @@ static enum omap_dss_update_mode s6e8aa0_get_update_mode(struct omap_dss_device
 #ifdef CONFIG_PM
 static int s6e8aa0_resume(struct omap_dss_device *dssdev)
 {
+	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
+	int ret;
+
 	dev_dbg(&dssdev->dev, "resume\n");
 
-	if (dssdev->state != OMAP_DSS_DISPLAY_SUSPENDED)
-		return -EINVAL;
+	mutex_lock(&s6->lock);
+	if (dssdev->state != OMAP_DSS_DISPLAY_SUSPENDED) {
+		ret = -EINVAL;
+		goto out;
+	}
 
-	return s6e8aa0_start(dssdev);
+	ret = s6e8aa0_start(dssdev);
+out:
+	mutex_unlock(&s6->lock);
+	return ret;
 }
 
 static int s6e8aa0_suspend(struct omap_dss_device *dssdev)
 {
+	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
+	int ret = 0;
+
 	dev_dbg(&dssdev->dev, "suspend\n");
 
-	if (dssdev->state != OMAP_DSS_DISPLAY_ACTIVE)
-		return -EINVAL;
+	mutex_lock(&s6->lock);
+	if (dssdev->state != OMAP_DSS_DISPLAY_ACTIVE) {
+		ret = -EINVAL;
+		goto out;
+	}
 
 	s6e8aa0_stop(dssdev);
-
 	dssdev->state = OMAP_DSS_DISPLAY_SUSPENDED;
-
-	return 0;
+out:
+	mutex_unlock(&s6->lock);
+	return ret;
 }
 #endif
 
