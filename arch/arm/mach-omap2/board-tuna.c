@@ -740,6 +740,14 @@ static struct omap_board_mux board_wkup_mux[] __initdata = {
 
 static struct omap_device_pad tuna_uart1_pads[] __initdata = {
 	{
+		.name	= "mcspi1_cs3.uart1_rts",
+		.enable	= OMAP_PIN_OUTPUT | OMAP_MUX_MODE1,
+	},
+	{
+		.name	= "mcspi1_cs2.uart1_cts",
+		.enable	= OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE1,
+	},
+	{
 		.name   = "uart3_cts_rctx.uart1_tx",
 		.enable = OMAP_PIN_OUTPUT | OMAP_MUX_MODE1,
 	},
