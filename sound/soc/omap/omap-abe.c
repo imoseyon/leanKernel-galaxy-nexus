@@ -811,6 +811,8 @@ static int omap_abe_dai_startup(struct snd_pcm_substream *substream,
 
 	abe_priv->active_dais++;
 
+	abe_dsp_pm_get();
+
 	if (dai->id == ABE_FRONTEND_DAI_MODEM) {
 
 		ret = modem_get_dai(substream, dai);
@@ -1094,6 +1096,9 @@ static void omap_abe_dai_shutdown(struct snd_pcm_substream *substream,
 		snd_soc_dai_shutdown(abe_priv->modem_substream[substream->stream],
 				abe_priv->modem_dai);
 	}
+
+	abe_dsp_shutdown();
+	abe_dsp_pm_put();
 
 	abe_priv->active_dais--;
 }
