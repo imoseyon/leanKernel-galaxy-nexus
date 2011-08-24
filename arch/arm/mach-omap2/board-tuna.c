@@ -33,6 +33,8 @@
 #include <linux/reboot.h>
 #include <linux/memblock.h>
 #include <linux/sysfs.h>
+#include <linux/uaccess.h>
+#include <linux/proc_fs.h>
 #include <linux/spi/spi.h>
 #include <linux/platform_data/lte_modem_bootloader.h>
 #include <plat/mcspi.h>
@@ -88,6 +90,8 @@ EXPORT_SYMBOL(sec_class);
 #define REBOOT_FLAG_RECOVERY	0x52564352
 #define REBOOT_FLAG_FASTBOOT	0x54534146
 #define REBOOT_FLAG_NORMAL	0x4D524F4E
+
+#define UART_NUM_FOR_GPS	0
 
 static int tuna_hw_rev;
 
@@ -310,6 +314,48 @@ static struct platform_device *tuna_devices[] __initdata = {
 	&tuna_gpio_i2c5_device,
 };
 
+/*
+ * The UART1 is for GPS, and CSR GPS chip should control uart1 rts level
+ * for gps firmware download.
+ */
+static int uart1_rts_ctrl_write(struct file *file, const char __user *buffer,
+						size_t count, loff_t *offs)
+{
+	char buf[10] = {0,};
+
+	if (count > sizeof(buf) - 1)
+		return -EINVAL;
+	if (copy_from_user(buf, buffer, count))
+		return -EFAULT;
+
+	if (!strncmp(buf, "1", 1)) {
+		omap_rts_mux_write(OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE7,
+							UART_NUM_FOR_GPS);
+	} else if (!strncmp(buf, "0", 1)) {
+		omap_rts_mux_write(OMAP_PIN_OUTPUT | OMAP_MUX_MODE0,
+							UART_NUM_FOR_GPS);
+	}
+
+	return count;
+}
+
+static const struct file_operations uart1_rts_ctrl_proc_fops = {
+	.write	= uart1_rts_ctrl_write,
+};
+
+static int __init tuna_gps_rts_ctrl_init(void)
+{
+	struct proc_dir_entry *p_entry;
+
+	p_entry = proc_create("mcspi1_cs3_ctrl", 0666, NULL,
+						&uart1_rts_ctrl_proc_fops);
+
+	if (!p_entry)
+		return -ENOMEM;
+
+	return 0;
+}
+
 static void tuna_gsd4t_gps_gpio(void)
 {
 	/* AP_AGPS_TSYNC - GPIO 18 */
@@ -350,6 +396,8 @@ static void tuna_gsd4t_gps_init(void)
 
 	gpio_export_link(gps_dev, "GPS_nRST", GPIO_GPS_nRST);
 	gpio_export_link(gps_dev, "GPS_PWR_EN", GPIO_GPS_PWR_EN);
+
+	tuna_gps_rts_ctrl_init();
 
 err:
 	return;
