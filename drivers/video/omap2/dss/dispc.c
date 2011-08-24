@@ -3652,11 +3652,15 @@ int omap_dispc_wait_for_irq_interruptible_timeout(u32 irqmask,
 	int r;
 	DECLARE_COMPLETION_ONSTACK(completion);
 
+	r = dispc_runtime_get();
+	if (r)
+		return r;
+
 	r = omap_dispc_register_isr(dispc_irq_wait_handler, &completion,
 			irqmask);
 
 	if (r)
-		return r;
+		goto done;
 
 	timeout = wait_for_completion_interruptible_timeout(&completion,
 			timeout);
@@ -3664,12 +3668,14 @@ int omap_dispc_wait_for_irq_interruptible_timeout(u32 irqmask,
 	omap_dispc_unregister_isr(dispc_irq_wait_handler, &completion, irqmask);
 
 	if (timeout == 0)
-		return -ETIMEDOUT;
+		r = -ETIMEDOUT;
+	else  if (timeout == -ERESTARTSYS)
+		r = timeout;
 
-	if (timeout == -ERESTARTSYS)
-		return -ERESTARTSYS;
+done:
+	dispc_runtime_put();
 
-	return 0;
+	return r;
 }
 
 #ifdef CONFIG_OMAP2_DSS_FAKE_VSYNC
