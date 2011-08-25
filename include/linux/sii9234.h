@@ -29,6 +29,7 @@ struct sii9234_platform_data {
 	void (*enable)(bool enable);
 	void (*power)(int on);
 	void (*enable_vbus)(bool enable);
+	void (*vbus_present)(bool on);
 	struct i2c_client *mhl_tx_client;
 	struct i2c_client *tpi_client;
 	struct i2c_client *hdmi_rx_client;

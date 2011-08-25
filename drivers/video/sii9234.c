@@ -600,6 +600,9 @@ static void sii9234_power_down(struct sii9234_data *sii9234)
 {
 	disable_irq_nosync(sii9234->pdata->mhl_tx_client->irq);
 
+	if (sii9234->state == STATE_ESTABLISHED)
+		sii9234->pdata->vbus_present(false);
+
 	sii9234->state = STATE_DISCONNECTED;
 	sii9234->claimed = false;
 
@@ -811,6 +814,7 @@ static int sii9234_detection_callback(struct otg_id_notifier_block *nb)
 
 	pr_info("si9234: connection established\n");
 	sii9234->claimed = true;
+	sii9234->pdata->vbus_present(true);
 	mutex_unlock(&sii9234->lock);
 
 	return OTG_ID_HANDLED;
