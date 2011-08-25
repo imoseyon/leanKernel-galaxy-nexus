@@ -92,6 +92,7 @@ static struct max17040_platform_data max17043_pdata = {
 	.charger_online = charger_is_online,
 	.charger_enable = charger_is_charging,
 	.skip_reset	= true,
+	.min_capacity	= 3,
 };
 
 static const __initdata struct i2c_board_info max17043_i2c[] = {
