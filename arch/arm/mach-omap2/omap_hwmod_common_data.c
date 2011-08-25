@@ -49,6 +49,15 @@ struct omap_hwmod_sysc_fields omap_hwmod_sysc_type2 = {
 	.srst_shift	= SYSC_TYPE2_SOFTRESET_SHIFT,
 };
 
+/**
+ * struct omap_hwmod_sysc_type3 - TYPE3 sysconfig scheme.
+ *
+ * To be used by hwmod structure to specify the sysconfig offsets if the
+ * device ip is compliant only implements the sidle feature.
+ */
+struct omap_hwmod_sysc_fields omap_hwmod_sysc_type3 = {
+	.sidle_shift	= SYSC_TYPE3_SIDLEMODE_SHIFT,
+};
 
 /*
  * omap_hwmod class data
