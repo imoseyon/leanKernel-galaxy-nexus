@@ -11,13 +11,15 @@
 #endif
 static bool blanked;
 
-#define NUM_TILER1D_SLOTS 8
-#define TILER1D_SLOT_SIZE (4 << 20)
+#define NUM_TILER1D_SLOTS 2
+#define TILER1D_SLOT_SIZE (16 << 20)
 
 static struct tiler1d_slot {
 	struct list_head q;
 	tiler_blk_handle slot;
 	u32 phys;
+	u32 size;
+	u32 *page_map;
 } slots[NUM_TILER1D_SLOTS];
 static struct list_head free_slots;
 static struct dsscomp_dev *cdev;
@@ -139,6 +141,8 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 	u32 ovl_new_use_mask[MAX_MANAGERS];
 	u32 mgr_set_mask = 0;
 	u32 ovl_set_mask = 0;
+	struct tiler1d_slot *slot = NULL;
+	u32 slot_used = 0;
 #ifdef CONFIG_DEBUG_FS
 	u32 ms = ktime_to_ms(ktime_get());
 #endif
@@ -260,6 +264,7 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 	for (i = 0; i < d->num_ovls; i++) {
 		struct dss2_ovl_info *oi = d->ovls + i;
 		u32 mgr_ix = oi->cfg.mgr_ix;
+		u32 size;
 
 		/* verify manager index */
 		if (mgr_ix >= d->num_mgrs) {
@@ -278,33 +283,51 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 			swap_rb_in_ovl_info(d->ovls + i);
 
 		/* map non-TILER buffers to 1D */
-		if (pas[i] && oi->cfg.enabled) {
-			struct tiler1d_slot *slot = NULL;
+
+		/* skip 2D and disabled layers */
+		if (!pas[i] || !oi->cfg.enabled)
+			goto skip_map1d;
+
+		/* framebuffer is marked with uv = 0 and is contiguous */
+		if (!oi->uv) {
+			oi->ba = pas[i]->mem[0] + (oi->ba & ~PAGE_MASK);
+			goto skip_map1d;
+		}
+
+		if (!slot) {
 			if (down_timeout(&free_slots_sem,
 						msecs_to_jiffies(100))) {
 				dev_warn(DEV(cdev), "could not obtain tiler slot");
 				/* disable unpinned layers */
 				oi->cfg.enabled = false;
-				continue;
+				goto skip_map1d;
 			}
 			mutex_lock(&mtx);
 			slot = list_first_entry(&free_slots, typeof(*slot), q);
-			r = tiler_pin_block(slot->slot, pas[i]->mem,
-								pas[i]->num_pg);
-			if (r) {
-				dev_err(DEV(cdev), "failed to pin %d pages into"
-					" %d-pg slots (%d)\n", pas[i]->num_pg,
-					TILER1D_SLOT_SIZE >> PAGE_SHIFT, r);
-				mutex_unlock(&mtx);
-				up(&free_slots_sem);
-				/* disable unpinned layers */
-				oi->cfg.enabled = false;
-				continue;
-			}
 			list_move(&slot->q, &gsync->slots);
-			oi->ba = slot->phys + (oi->ba & ~PAGE_MASK);
 			mutex_unlock(&mtx);
 		}
+
+		size = oi->cfg.stride * oi->cfg.height;
+		if (oi->cfg.color_mode == OMAP_DSS_COLOR_NV12)
+			size += size >> 2;
+		size = DIV_ROUND_UP(size, PAGE_SIZE);
+
+		if (slot_used + size > slot->size) {
+			dev_err(DEV(cdev), "tiler slot not big enough for frame %d + %d > %d",
+				slot_used, size, slot->size);
+			/* disable unpinned layers */
+			oi->cfg.enabled = false;
+			goto skip_map1d;
+		}
+
+		/* "map" into TILER 1D - will happen after loop */
+		oi->ba = slot->phys + (slot_used << PAGE_SHIFT) +
+			(oi->ba & ~PAGE_MASK);
+		memcpy(slot->page_map + slot_used, pas[i]->mem,
+		       sizeof(*slot->page_map) * size);
+		slot_used += size;
+skip_map1d:
 
 		if (oi->cfg.enabled)
 			ovl_new_use_mask[ch] |= 1 << oi->cfg.ix;
@@ -315,6 +338,15 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 								oi->cfg.ix, r);
 		else
 			ovl_set_mask |= 1 << oi->cfg.ix;
+	}
+
+	if (slot && slot_used) {
+		r = tiler_pin_block(slot->slot, slot->page_map,
+						slot_used);
+		if (r)
+			dev_err(DEV(cdev), "failed to pin %d pages into"
+				" %d-pg slots (%d)\n", slot_used,
+				TILER1D_SLOT_SIZE >> PAGE_SHIFT, r);
 	}
 
 	for (ch = 0; ch < MAX_MANAGERS; ch++) {
@@ -483,10 +515,20 @@ void dsscomp_gralloc_init(struct dsscomp_dev *cdev_)
 			tiler_blk_handle slot =
 				tiler_alloc_block_area(TILFMT_PAGE,
 					TILER1D_SLOT_SIZE, 1, &phys, NULL);
-			if (IS_ERR_OR_NULL(slot))
+			if (IS_ERR_OR_NULL(slot)) {
+				pr_err("could not allocate slot");
 				break;
+			}
 			slots[i].slot = slot;
 			slots[i].phys = phys;
+			slots[i].size = TILER1D_SLOT_SIZE >> PAGE_SHIFT;
+			slots[i].page_map = kmalloc(sizeof(*slots[i].page_map) *
+						slots[i].size, GFP_KERNEL);
+			if (!slots[i].page_map) {
+				pr_err("could not allocate page_map");
+				tiler_free_block_area(slot);
+				break;
+			}
 			list_add(&slots[i].q, &free_slots);
 			up(&free_slots_sem);
 		}
