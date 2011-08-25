@@ -139,16 +139,32 @@ static void max17040_get_vcell(struct i2c_client *client)
 	chip->vcell = ((msb << 4) + (lsb >> 4)) * 1250;
 }
 
+#define TO_FIXED(a,b) (((a) << 8) + (b))
+#define FIXED_TO_INT(x) ((int)((x) >> 8))
+#define FIXED_MULT(x,y) ((((u32)(x) * (u32)(y)) + (1 << 7)) >> 8)
+#define FIXED_DIV(x,y) ((((u32)(x) << 8) + ((u32)(y) >> 1)) / (u32)(y))
+
 static void max17040_get_soc(struct i2c_client *client)
 {
 	struct max17040_chip *chip = i2c_get_clientdata(client);
 	u8 msb;
 	u8 lsb;
+	u32 val;
+	u32 fmin_cap = TO_FIXED(chip->pdata->min_capacity, 0);
 
 	msb = max17040_read_reg(client, MAX17040_SOC_MSB);
 	lsb = max17040_read_reg(client, MAX17040_SOC_LSB);
 
-	chip->soc = min(msb, (u8)100);
+	/* convert msb.lsb to Q8.8 */
+	val = TO_FIXED(msb, lsb);
+	if (val <= fmin_cap) {
+		chip->soc = 0;
+		return;
+	}
+
+	val = FIXED_MULT(TO_FIXED(100, 0), val - fmin_cap);
+	val = FIXED_DIV(val, TO_FIXED(100, 0) - fmin_cap);
+	chip->soc = clamp(FIXED_TO_INT(val), 0, 100);
 }
 
 static void max17040_get_version(struct i2c_client *client)

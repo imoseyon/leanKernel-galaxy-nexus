@@ -15,6 +15,9 @@ struct max17040_platform_data {
 	int (*charger_online)(void);
 	int (*charger_enable)(void);
 	bool skip_reset;
+	int min_capacity; /* minimum allowable capacity. The reported capacity
+			     will be scaled from [<min_capacity>,100] to
+			     [0,100] */
 };
 
 #endif
