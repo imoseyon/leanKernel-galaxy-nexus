@@ -1576,16 +1576,21 @@ static int s6e8aa0_power_on(struct omap_dss_device *dssdev)
 		}
 
 		/* reset s6e8aa0 bridge */
-		s6e8aa0_hw_reset(dssdev);
+		if(!dssdev->skip_init){
+			s6e8aa0_hw_reset(dssdev);
 
-		/* XXX */
-		msleep(100);
-		s6e8aa0_config(dssdev);
+			/* XXX */
+			msleep(100);
+			s6e8aa0_config(dssdev);
 
-		dsi_video_mode_enable(dssdev, 0x3E); /* DSI_DT_PXLSTREAM_24BPP_PACKED; */
+			dsi_video_mode_enable(dssdev, 0x3E); /* DSI_DT_PXLSTREAM_24BPP_PACKED; */
+		}
 
 		s6->enabled = 1;
 	}
+
+	if(dssdev->skip_init)
+		dssdev->skip_init = false;
 
 err:
 	return ret;
