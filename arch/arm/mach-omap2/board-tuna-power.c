@@ -34,6 +34,7 @@
 #define GPIO_TA_NCONNECTED	142
 #define GPIO_CHARGE_N		13
 #define GPIO_CHG_CUR_ADJ	102
+#define GPIO_FUEL_ALERT		44
 
 #define TPS62361_GPIO   7
 
@@ -99,6 +100,7 @@ static const __initdata struct i2c_board_info max17043_i2c[] = {
 	{
 		I2C_BOARD_INFO("max17040", (0x6C >> 1)),
 		.platform_data = &max17043_pdata,
+		.irq = OMAP_GPIO_IRQ(GPIO_FUEL_ALERT),
 	}
 };
 
@@ -152,6 +154,7 @@ void __init omap4_tuna_power_init(void)
 	omap_mux_init_gpio(charger_gpios[1].gpio, OMAP_PIN_INPUT);
 	omap_mux_init_gpio(charger_gpios[2].gpio, OMAP_PIN_OUTPUT);
 	omap_mux_init_gpio(charger_gpios[3].gpio, OMAP_PIN_OUTPUT);
+	omap_mux_init_gpio(GPIO_FUEL_ALERT, OMAP_PIN_INPUT);
 
 	pdev = platform_device_register_resndata(NULL, "pda-power", -1,
 		NULL, 0, &charger_pdata, sizeof(charger_pdata));
