@@ -92,11 +92,11 @@ static int max17040_get_property(struct power_supply *psy,
 	return 0;
 }
 
-static int max17040_write_reg(struct i2c_client *client, int reg, u8 value)
+static int max17040_write_reg(struct i2c_client *client, int reg, u16 val)
 {
 	int ret;
 
-	ret = i2c_smbus_write_byte_data(client, reg, value);
+	ret = i2c_smbus_write_word_data(client, reg, cpu_to_be16(val));
 
 	if (ret < 0)
 		dev_err(&client->dev, "%s: err %d\n", __func__, ret);
@@ -104,39 +104,39 @@ static int max17040_write_reg(struct i2c_client *client, int reg, u8 value)
 	return ret;
 }
 
-static int max17040_read_reg(struct i2c_client *client, int reg)
+static int max17040_read_reg(struct i2c_client *client, int reg, u16 *val)
 {
 	int ret;
 
-	ret = i2c_smbus_read_byte_data(client, reg);
+	ret = i2c_smbus_read_word_data(client, reg);
 
-	if (ret < 0)
+	if (ret < 0) {
 		dev_err(&client->dev, "%s: err %d\n", __func__, ret);
+		*val = 0;
+		return ret;
+	}
 
-	return ret;
+	*val = be16_to_cpu(ret);
+	return 0;
 }
 
 static void max17040_reset(struct i2c_client *client)
 {
-	max17040_write_reg(client, MAX17040_CMD_MSB, 0x54);
-	max17040_write_reg(client, MAX17040_CMD_LSB, 0x00);
+	max17040_write_reg(client, MAX17040_CMD_MSB, 0x5400);
 
 	msleep(125);
 
-	max17040_write_reg(client, MAX17040_MODE_MSB, 0x40);
-	max17040_write_reg(client, MAX17040_MODE_LSB, 0x00);
+	max17040_write_reg(client, MAX17040_MODE_MSB, 0x4000);
 }
 
 static void max17040_get_vcell(struct i2c_client *client)
 {
 	struct max17040_chip *chip = i2c_get_clientdata(client);
-	u8 msb;
-	u8 lsb;
+	u16 val;
 
-	msb = max17040_read_reg(client, MAX17040_VCELL_MSB);
-	lsb = max17040_read_reg(client, MAX17040_VCELL_LSB);
+	max17040_read_reg(client, MAX17040_VCELL_MSB, &val);
 
-	chip->vcell = ((msb << 4) + (lsb >> 4)) * 1250;
+	chip->vcell = (val >> 4) * 1250;
 }
 
 #define TO_FIXED(a,b) (((a) << 8) + (b))
@@ -147,16 +147,14 @@ static void max17040_get_vcell(struct i2c_client *client)
 static void max17040_get_soc(struct i2c_client *client)
 {
 	struct max17040_chip *chip = i2c_get_clientdata(client);
-	u8 msb;
-	u8 lsb;
 	u32 val;
 	u32 fmin_cap = TO_FIXED(chip->pdata->min_capacity, 0);
+	u16 regval;
 
-	msb = max17040_read_reg(client, MAX17040_SOC_MSB);
-	lsb = max17040_read_reg(client, MAX17040_SOC_LSB);
+	max17040_read_reg(client, MAX17040_SOC_MSB, &regval);
 
 	/* convert msb.lsb to Q8.8 */
-	val = TO_FIXED(msb, lsb);
+	val = TO_FIXED(regval >> 8, regval & 0xff);
 	if (val <= fmin_cap) {
 		chip->soc = 0;
 		return;
@@ -169,13 +167,11 @@ static void max17040_get_soc(struct i2c_client *client)
 
 static void max17040_get_version(struct i2c_client *client)
 {
-	u8 msb;
-	u8 lsb;
+	u16 val;
 
-	msb = max17040_read_reg(client, MAX17040_VER_MSB);
-	lsb = max17040_read_reg(client, MAX17040_VER_LSB);
+	max17040_read_reg(client, MAX17040_VER_MSB, &val);
 
-	dev_info(&client->dev, "MAX17040 Fuel-Gauge Ver %d%d\n", msb, lsb);
+	dev_info(&client->dev, "MAX17040 Fuel-Gauge Ver %d\n", val);
 }
 
 static void max17040_get_online(struct i2c_client *client)
