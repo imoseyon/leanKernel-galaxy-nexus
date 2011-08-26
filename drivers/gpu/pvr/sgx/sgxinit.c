@@ -141,7 +141,7 @@ static PVRSRV_ERROR InitDevInfo(PVRSRV_PER_PROCESS_DATA *psPerProc,
 
 	psDevInfo->psKernelSGXTA3DCtlMemInfo = (PVRSRV_KERNEL_MEM_INFO *)psInitInfo->hKernelSGXTA3DCtlMemInfo;
 
-#if defined(FIX_HW_BRN_31272) || defined(FIX_HW_BRN_31920) || defined(FIX_HW_BRN_33920)
+#if defined(FIX_HW_BRN_31272) || defined(FIX_HW_BRN_31780) || defined(FIX_HW_BRN_33920)
 	psDevInfo->psKernelSGXPTLAWriteBackMemInfo = (PVRSRV_KERNEL_MEM_INFO *)psInitInfo->hKernelSGXPTLAWriteBackMemInfo;
 #endif
 
@@ -164,6 +164,10 @@ static PVRSRV_ERROR InitDevInfo(PVRSRV_PER_PROCESS_DATA *psPerProc,
 #if defined(SGX_FEATURE_VDM_CONTEXT_SWITCH) && defined(FIX_HW_BRN_31425)
 	psDevInfo->psKernelVDMSnapShotBufferMemInfo = (PVRSRV_KERNEL_MEM_INFO *)psInitInfo->hKernelVDMSnapShotBufferMemInfo;
 	psDevInfo->psKernelVDMCtrlStreamBufferMemInfo = (PVRSRV_KERNEL_MEM_INFO *)psInitInfo->hKernelVDMCtrlStreamBufferMemInfo;
+#endif
+#if defined(SGX_FEATURE_VDM_CONTEXT_SWITCH) && \
+	defined(FIX_HW_BRN_33657) && defined(SUPPORT_SECURE_33657_FIX)
+	psDevInfo->psKernelVDMStateUpdateBufferMemInfo = (PVRSRV_KERNEL_MEM_INFO *)psInitInfo->hKernelVDMStateUpdateBufferMemInfo;
 #endif
 #if defined(PVRSRV_USSE_EDM_STATUS_DEBUG)
 	psDevInfo->psKernelEDMStatusBufferMemInfo = (PVRSRV_KERNEL_MEM_INFO *)psInitInfo->hKernelEDMStatusBufferMemInfo;
