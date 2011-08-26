@@ -1524,6 +1524,8 @@ static int twl6040_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
 	int ret;
 
+	priv->sysclk = twl6040_get_sysclk(twl6040);
+
 	switch (clk_id) {
 	case TWL6040_SYSCLK_SEL_LPPLL:
 		ret = twl6040_set_pll(twl6040, TWL6040_LPPLL_ID,
@@ -1655,6 +1657,7 @@ static int twl6040_probe(struct snd_soc_codec *codec)
 
 	priv->codec = codec;
 	codec->control_data = dev_get_drvdata(codec->dev->parent);
+	codec->dapm.idle_bias_off = 1;
 
 	if (pdata && pdata->hs_left_step && pdata->hs_right_step) {
 		priv->hs_left_step = pdata->hs_left_step;
