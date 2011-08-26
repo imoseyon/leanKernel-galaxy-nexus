@@ -1020,6 +1020,41 @@ static int omapfb_check_var(struct fb_var_screeninfo *var, struct fb_info *fbi)
 	return r;
 }
 
+void omapfb_fb2dss_timings(struct fb_videomode *fb_timings,
+			struct omap_video_timings *dss_timings)
+{
+	dss_timings->x_res = fb_timings->xres;
+	dss_timings->y_res = fb_timings->yres;
+	if (fb_timings->vmode & FB_VMODE_INTERLACED)
+		dss_timings->y_res /= 2;
+	dss_timings->pixel_clock = fb_timings->pixclock ?
+					PICOS2KHZ(fb_timings->pixclock) : 0;
+	dss_timings->hfp = fb_timings->right_margin;
+	dss_timings->hbp = fb_timings->left_margin;
+	dss_timings->hsw = fb_timings->hsync_len;
+	dss_timings->vfp = fb_timings->lower_margin;
+	dss_timings->vbp = fb_timings->upper_margin;
+	dss_timings->vsw = fb_timings->vsync_len;
+}
+EXPORT_SYMBOL(omapfb_fb2dss_timings);
+
+void omapfb_dss2fb_timings(struct omap_video_timings *dss_timings,
+			struct fb_videomode *fb_timings)
+{
+	memset(fb_timings, 0, sizeof(*fb_timings));
+	fb_timings->xres = dss_timings->x_res;
+	fb_timings->yres = dss_timings->y_res;
+	fb_timings->pixclock = dss_timings->pixel_clock ?
+					KHZ2PICOS(dss_timings->pixel_clock) : 0;
+	fb_timings->right_margin = dss_timings->hfp;
+	fb_timings->left_margin = dss_timings->hbp;
+	fb_timings->hsync_len = dss_timings->hsw;
+	fb_timings->lower_margin = dss_timings->vfp;
+	fb_timings->upper_margin = dss_timings->vbp;
+	fb_timings->vsync_len = dss_timings->vsw;
+}
+EXPORT_SYMBOL(omapfb_dss2fb_timings);
+
 /* set the video mode according to info->var */
 static int omapfb_set_par(struct fb_info *fbi)
 {

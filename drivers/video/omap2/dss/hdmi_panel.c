@@ -202,6 +202,11 @@ static void hdmi_hotplug_detect_worker(struct work_struct *work)
 		if (state == HPD_STATE_START) {
 			dssdev->driver->enable(dssdev);
 		} else if (hdmi_read_edid(&dssdev->panel.timings)) {
+			/* get monspecs from edid */
+			hdmi_get_monspecs(&dssdev->panel.monspecs);
+			pr_info("panel size %d by %d\n",
+					dssdev->panel.monspecs.max_x,
+					dssdev->panel.monspecs.max_y);
 			switch_set_state(&hdmi.hpd_switch, 1);
 			return;
 		} else if (state == HPD_STATE_EDID_TRYLAST){
@@ -265,6 +270,16 @@ err:
 	return r;
 }
 
+static int hdmi_get_modedb(struct omap_dss_device *dssdev,
+			   struct fb_videomode *modedb, int modedb_len)
+{
+	struct fb_monspecs *specs = &dssdev->panel.monspecs;
+	if (specs->modedb_len < modedb_len)
+		modedb_len = specs->modedb_len;
+	memcpy(modedb, specs->modedb, sizeof(*modedb) * modedb_len);
+	return modedb_len;
+}
+
 static struct omap_dss_driver hdmi_driver = {
 	.probe		= hdmi_panel_probe,
 	.remove		= hdmi_panel_remove,
@@ -275,6 +290,8 @@ static struct omap_dss_driver hdmi_driver = {
 	.get_timings	= hdmi_get_timings,
 	.set_timings	= hdmi_set_timings,
 	.check_timings	= hdmi_check_timings,
+	.get_modedb	= hdmi_get_modedb,
+	.set_mode	= omapdss_hdmi_display_set_mode,
 	.driver			= {
 		.name   = "hdmi_panel",
 		.owner  = THIS_MODULE,

@@ -35,6 +35,7 @@
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/ratelimit.h>
 
 #include <plat/sram.h>
 #include <plat/clock.h>
@@ -3516,7 +3517,7 @@ static void dispc_error_worker(struct work_struct *work)
 		struct omap_overlay_manager *manager = NULL;
 		bool enable = false;
 
-		DSSERR("SYNC_LOST_DIGIT, disabling TV\n");
+		pr_err_ratelimited("SYNC_LOST_DIGIT, disabling TV\n");
 
 		for (i = 0; i < omap_dss_get_num_overlay_managers(); ++i) {
 			struct omap_overlay_manager *mgr;
