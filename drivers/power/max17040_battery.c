@@ -22,6 +22,8 @@
 #include <linux/slab.h>
 #include <linux/android_alarm.h>
 #include <linux/suspend.h>
+#include <linux/interrupt.h>
+#include <linux/reboot.h>
 
 #define MAX17040_VCELL_MSB	0x02
 #define MAX17040_VCELL_LSB	0x03
@@ -38,6 +40,8 @@
 
 #define MAX17040_DELAY		1000
 #define MAX17040_BATTERY_FULL	95
+
+#define HAS_ALERT_INTERRUPT(ver)	(ver >= 3)
 
 #define FAST_POLL		(1 * 60)
 #define SLOW_POLL		(10 * 60)
@@ -64,6 +68,8 @@ struct max17040_chip {
 	ktime_t last_poll;
 	int slow_poll;
 	int shutdown;
+	/* chip version */
+	u16 ver;
 };
 
 static int max17040_get_property(struct power_supply *psy,
@@ -167,9 +173,11 @@ static void max17040_get_soc(struct i2c_client *client)
 
 static void max17040_get_version(struct i2c_client *client)
 {
+	struct max17040_chip *chip = i2c_get_clientdata(client);
 	u16 val;
 
 	max17040_read_reg(client, MAX17040_VER_MSB, &val);
+	chip->ver = val;
 
 	dev_info(&client->dev, "MAX17040 Fuel-Gauge Ver %d\n", val);
 }
@@ -311,12 +319,26 @@ static struct notifier_block max17040_pm_notifier_block = {
 	.notifier_call = max17040_pm_notifier,
 };
 
+static irqreturn_t max17040_alert(int irq, void *data)
+{
+	struct max17040_chip *chip = data;
+	struct i2c_client *client = chip->client;
+
+	dev_info(&client->dev, "Low battery alert, shutting down...\n");
+
+	kernel_power_off();
+
+	return IRQ_HANDLED;
+}
+
 static int __devinit max17040_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
 	struct i2c_adapter *adapter = to_i2c_adapter(client->dev.parent);
 	struct max17040_chip *chip;
 	int ret;
+	u16 val;
+	u16 athd;
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE))
 		return -EIO;
@@ -367,6 +389,24 @@ static int __devinit max17040_probe(struct i2c_client *client,
 	}
 	schedule_work(&chip->work);
 
+	if (HAS_ALERT_INTERRUPT(chip->ver)) {
+		/* setting the low SOC alert threshold */
+		max17040_read_reg(client, MAX17040_RCOMP_MSB, &val);
+		athd = chip->pdata->min_capacity > 1 ?
+			chip->pdata->min_capacity - 1 : 0;
+		max17040_write_reg(client, MAX17040_RCOMP_MSB,
+				(val & ~0x1f) | (-athd & 0x1f));
+
+		/* add alert irq handler */
+		ret = request_threaded_irq(client->irq, NULL, max17040_alert,
+				IRQF_TRIGGER_FALLING, "fuel gauge alert", chip);
+		if (ret < 0) {
+			dev_err(&client->dev,
+				"request_threaded_irq() failed: %d", ret);
+			goto err_pm_notifier;
+		}
+	}
+
 	return 0;
 
 err_pm_notifier:
@@ -388,6 +428,8 @@ static int __devexit max17040_remove(struct i2c_client *client)
 	alarm_cancel(&chip->alarm);
 	cancel_work_sync(&chip->work);
 	wake_lock_destroy(&chip->work_wake_lock);
+	if (HAS_ALERT_INTERRUPT(chip->ver))
+		free_irq(client->irq, chip);
 	kfree(chip);
 	return 0;
 }
