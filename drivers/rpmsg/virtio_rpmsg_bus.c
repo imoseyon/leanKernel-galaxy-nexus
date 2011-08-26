@@ -420,9 +420,8 @@ static void *get_a_buf(struct virtproc_info *vrp)
 	unsigned int len;
 	void *buf = NULL;
 
-	/* protect svq from simultaneous concurrent manipulations */
-	mutex_lock(&vrp->svq_lock);
-
+	/* make sure the descriptors are updated before reading */
+	rmb();
 	/* either pick the next unused buffer */
 	if (vrp->last_sbuf < vrp->num_bufs / 2)
 		buf = vrp->sbufs + vrp->buf_size * vrp->last_sbuf++;
@@ -430,7 +429,6 @@ static void *get_a_buf(struct virtproc_info *vrp)
 	else
 		buf = virtqueue_get_buf(vrp->svq, &len);
 
-	mutex_unlock(&vrp->svq_lock);
 	return buf;
 }
 
@@ -457,10 +455,18 @@ int rpmsg_send_offchannel_raw(struct rpmsg_channel *rpdev, u32 src, u32 dst,
 		return -EMSGSIZE;
 	}
 
+	/*
+	 * protect svq from simultaneous concurrent manipulations,
+	 * and serialize the sending of messages
+	 */
+	if (mutex_lock_interruptible(&vrp->svq_lock))
+		return -ERESTARTSYS;
 	/* grab a buffer */
 	msg = get_a_buf(vrp);
-	if (!msg && !wait)
-		return -ENOMEM;
+	if (!msg && !wait) {
+		err = -ENOMEM;
+		goto out;
+	}
 
 	/* no free buffer ? wait for one (but bail after 15 seconds) */
 	if (!msg) {
@@ -480,12 +486,15 @@ int rpmsg_send_offchannel_raw(struct rpmsg_channel *rpdev, u32 src, u32 dst,
 		/* on success, suppress "tx-complete" interrupts again */
 		virtqueue_disable_cb(vrp->svq);
 
-		if (err < 0)
-			return -ERESTARTSYS;
+		if (err < 0) {
+			err = -ERESTARTSYS;
+			goto out;
+		}
 
 		if (!msg) {
 			dev_err(dev, "timeout waiting for buffer\n");
-			return -ETIMEDOUT;
+			err = -ETIMEDOUT;
+			goto out;
 		}
 	}
 
@@ -506,15 +515,14 @@ int rpmsg_send_offchannel_raw(struct rpmsg_channel *rpdev, u32 src, u32 dst,
 	sim_addr = vrp->sim_base + offset;
 	sg_init_one(&sg, sim_addr, sizeof(*msg) + len);
 
-	/* protect svq from simultaneous concurrent manipulations */
-	mutex_lock(&vrp->svq_lock);
-
 	/* add message to the remote processor's virtqueue */
 	err = virtqueue_add_buf_gfp(vrp->svq, &sg, 1, 0, msg, GFP_KERNEL);
 	if (err < 0) {
 		dev_err(dev, "virtqueue_add_buf_gfp failed: %d\n", err);
 		goto out;
 	}
+	/* descriptors must be written before kicking remote processor */
+	wmb();
 
 	/* tell the remote processor it has a pending message to read */
 	virtqueue_kick(vrp->svq);
@@ -538,6 +546,8 @@ static void rpmsg_recv_done(struct virtqueue *rvq)
 	struct device *dev = &rvq->vdev->dev;
 	int err;
 
+	/* make sure the descriptors are updated before reading */
+	rmb();
 	msg = virtqueue_get_buf(rvq, &len);
 	if (!msg) {
 		dev_err(dev, "uhm, incoming signal, but no used buffer ?\n");
@@ -570,6 +580,8 @@ static void rpmsg_recv_done(struct virtqueue *rvq)
 		dev_err(dev, "failed to add a virtqueue buffer: %d\n", err);
 		return;
 	}
+	/* descriptors must be written before kicking remote processor */
+	wmb();
 
 	/* tell the remote processor we added another available rx buffer */
 	virtqueue_kick(vrp->rvq);
