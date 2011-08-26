@@ -26,7 +26,7 @@
  * Secure HAL, PPA services available
  */
 #define PPA_SERVICE_PL310_POR		0x23
-#define PPA_SERVICE_NS_SMP		0x25
+#define PPA_SERVICE_DEFAULT_POR_NS_SMP	0x25
 /*
  * Secure HAL API flags
  */
