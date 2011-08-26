@@ -107,6 +107,24 @@ struct omap_dss_cpr_coefs {
 
 #endif
 
+/* copy of fb_videomode */
+struct dsscomp_videomode {
+	const char *name;	/* optional */
+	__u32 refresh;		/* optional */
+	__u32 xres;
+	__u32 yres;
+	__u32 pixclock;
+	__u32 left_margin;
+	__u32 right_margin;
+	__u32 upper_margin;
+	__u32 lower_margin;
+	__u32 hsync_len;
+	__u32 vsync_len;
+	__u32 sync;
+	__u32 vmode;
+	__u32 flag;
+};
+
 /*
  * Stereoscopic Panel types
  * row, column, overunder, sidebyside options
@@ -528,8 +546,9 @@ struct dsscomp_wb_copy_data {
 /*
  * ioctl: DSSCOMP_QUERY_DISPLAY, struct dsscomp_display_info
  *
- * Gets informations about the display.  Fill in ix before calling
- * ioctl, and rest of the fields are filled in by ioctl.
+ * Gets informations about the display.  Fill in ix and modedb_len before
+ * calling ioctl, and rest of the fields are filled in by ioctl.  Up to
+ * modedb_len timings are retrieved in the order of display preference.
  *
  * Returns: 0 on success, non-0 error value on failure.
  */
@@ -543,6 +562,24 @@ struct dsscomp_display_info {
 	struct omap_video_timings timings;
 	struct s3d_disp_info s3d_info;	/* any S3D specific information */
 	struct dss2_mgr_info mgr;	/* manager information */
+	__u16 width_in_mm;		/* screen dimensions */
+	__u16 height_in_mm;
+
+	__u32 modedb_len;		/* number of video timings */
+	struct dsscomp_videomode modedb[];	/* display supported timings */
+};
+
+/*
+ * ioctl: DSSCOMP_SETUP_DISPLAY, struct dsscomp_setup_display_data
+ *
+ * Gets informations about the display.  Fill in ix before calling
+ * ioctl, and rest of the fields are filled in by ioctl.
+ *
+ * Returns: 0 on success, non-0 error value on failure.
+ */
+struct dsscomp_setup_display_data {
+	__u32 ix;			/* display index (sysfs/display#) */
+	struct dsscomp_videomode mode;	/* video timings */
 };
 
 /*
@@ -583,6 +620,6 @@ struct dsscomp_wait_data {
 #define DSSCOMP_QUERY_DISPLAY	_IOWR('O', 131, struct dsscomp_display_info)
 #define DSSCOMP_WAIT		_IOW('O', 132, struct dsscomp_wait_data)
 
-#define DSSCOMP_SETUP_DISPC	_IOW('O', 127, struct dsscomp_setup_dispc_data)
-
+#define DSSCOMP_SETUP_DISPC	_IOW('O', 133, struct dsscomp_setup_dispc_data)
+#define DSSCOMP_SETUP_DISPLAY	_IOW('O', 134, struct dsscomp_setup_display_data)
 #endif
