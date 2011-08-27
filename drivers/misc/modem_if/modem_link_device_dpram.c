@@ -27,7 +27,6 @@
 #include <linux/proc_fs.h>
 #include <linux/if_arp.h>
 #include <linux/platform_data/modem.h>
-#include <linux/crc-ccitt.h>
 #include "modem_prj.h"
 #include "modem_link_device_dpram.h"
 
@@ -878,9 +877,7 @@ static int dpram_download(struct dpram_link_device *dpld,
 	u32 dwWriteLen, dwWrittenLen, dwTotWrittenLen;
 	u16 nTotalFrame = 0;
 	u8 *pDest;
-	u8 *pDest_Data;
 	u16 pLen = 0;
-	u16 nCrc;
 	int nrRetry = 0;
 	u16 g_TotFrame = 0;
 	u16 g_CurFrame = 1;
@@ -892,7 +889,6 @@ static int dpram_download(struct dpram_link_device *dpld,
 	u32 raw_in_size = 0;
 	u32 mailbox_size = 0;
 	int buffOffest = 0;
-	const u8 *crcdata;
 	int download_send_done_RetVal = 0;
 	int download_update_done_RetVal = 0;
 
@@ -931,8 +927,6 @@ static int dpram_download(struct dpram_link_device *dpld,
 
 		*pDest++ = (u8)pLen;
 		*pDest++ = (u8)((u16)pLen >> 8);
-
-		pDest_Data = pDest;
 
 		if (pLen == DPDN_DEFAULT_WRITE_LEN) {
 			memcpy((u8 *)pDest, (u8 *)buf, fmt_out_size - 7);
@@ -975,21 +969,9 @@ static int dpram_download(struct dpram_link_device *dpld,
 						pLen - (fmt_out_size - 7));
 				pDest = (u8 *)(dpld->m_region.raw_out + pLen -
 						(fmt_out_size - 7));
-
-				memset((void *)pDest,
-					0x0,
-					DPDN_DEFAULT_WRITE_LEN -
-					(fmt_out_size - 7) - pLen);
-				pDest = (u8 *)(dpld->m_region.raw_out +
-					DPDN_DEFAULT_WRITE_LEN -
-					(fmt_out_size - 7) - pLen);
-				}
 			}
+		}
 
-		crcdata = (u8 *) pDest_Data;
-		nCrc = crc_ccitt((u16)CRC_16_L_SEED, crcdata, (size_t)pLen/2);
-		*pDest++ = (u8)(nCrc);
-		*pDest++ = (u8)((u16)nCrc >> 8) & 0xFF;
 		pDest = (u8 *)(dpld->m_region.raw_out +
 			(BSP_DPRAM_BASE_SIZE - fmt_out_size - control_size) -
 			DPRAM_INDEX_SIZE);
