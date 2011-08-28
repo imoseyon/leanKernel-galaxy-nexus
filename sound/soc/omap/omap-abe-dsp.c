@@ -61,6 +61,9 @@
 #include "abe/abe_main.h"
 #include "abe/port_mgr.h"
 
+#define OMAP_ABE_HS_DC_OFFSET_STEP	(1800 / 8)
+#define OMAP_ABE_HF_DC_OFFSET_STEP	(4600 / 8)
+
 static const char *abe_memory_bank[5] = {
 	"dmem",
 	"cmem",
@@ -120,6 +123,14 @@ struct abe_data {
 	int irq;
 	int opp;
 	unsigned long opp_freqs[OMAP_ABE_OPP_COUNT];
+
+	/* DC offset cancellation */
+	int power_mode;
+	u32 dc_hsl;
+	u32 dc_hsr;
+	u32 dc_hfl;
+	u32 dc_hfr;
+
 	int active;
 
 	/* coefficients */
@@ -264,6 +275,48 @@ void abe_dsp_shutdown(void)
 	}
 }
 EXPORT_SYMBOL_GPL(abe_dsp_shutdown);
+
+void abe_dsp_set_hs_offset(int left, int right, int mult)
+{
+	/* TODO: do not use abe global structure */
+	if (the_abe == NULL)
+		return;
+
+	if (left >= 8)
+		left -= 16;
+	the_abe->dc_hsl = OMAP_ABE_HS_DC_OFFSET_STEP * left * mult;
+
+	if (right >= 8)
+		right -= 16;
+	the_abe->dc_hsr = OMAP_ABE_HS_DC_OFFSET_STEP * right * mult;
+}
+EXPORT_SYMBOL(abe_dsp_set_hs_offset);
+
+void abe_dsp_set_hf_offset(int left, int right)
+{
+	/* TODO: do not use abe global structure */
+	if (the_abe == NULL)
+		return;
+
+	if (left >= 8)
+		left -= 16;
+	the_abe->dc_hfl = OMAP_ABE_HF_DC_OFFSET_STEP * left;
+
+	if (right >= 8)
+		right -= 16;
+	the_abe->dc_hfr = OMAP_ABE_HF_DC_OFFSET_STEP * right;
+}
+EXPORT_SYMBOL(abe_dsp_set_hf_offset);
+
+void abe_dsp_set_power_mode(int mode)
+{
+	if (the_abe == NULL)
+		return;
+
+	/* TODO: do not use abe global structure */
+	the_abe->power_mode = mode;
+}
+EXPORT_SYMBOL(abe_dsp_set_power_mode);
 
 /*
  * These TLV settings will need fine tuned for each individual control
@@ -2093,6 +2146,14 @@ static int aess_restore_context(struct abe_data *abe)
 
 	abe_set_router_configuration(UPROUTE, 0, (u32 *)abe->router);
 
+	/* DC offset cancellation setting */
+	if (abe->power_mode)
+		abe_write_pdmdl_offset(1, abe->dc_hsl * 2, abe->dc_hsr * 2);
+	else
+		abe_write_pdmdl_offset(1, abe->dc_hsl, abe->dc_hsr);
+
+	abe_write_pdmdl_offset(2, abe->dc_hfl, abe->dc_hfr);
+
 	for (i = 0; i < abe->hdr.num_equ; i++)
 		abe_dsp_set_equalizer(i, abe->equ_profile[i]);
 
@@ -2454,6 +2515,13 @@ static int abe_resume(struct snd_soc_dai *dai)
 	}
 
 	abe_set_router_configuration(UPROUTE, 0, (u32 *)abe->router);
+
+	if (abe->power_mode)
+		abe_write_pdmdl_offset(1, abe->dc_hsl * 2, abe->dc_hsr * 2);
+	else
+		abe_write_pdmdl_offset(1, abe->dc_hsl, abe->dc_hsr);
+
+	abe_write_pdmdl_offset(2, abe->dc_hfl, abe->dc_hfr);
 
 	for (i = 0; i < abe->hdr.num_equ; i++)
 		abe_dsp_set_equalizer(i, abe->equ_profile[i]);
