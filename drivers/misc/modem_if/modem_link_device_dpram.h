@@ -154,11 +154,10 @@ struct dpram_link_device {
 	unsigned int is_dpram_err ;
 
 	char dpram_err_buf[DPRAM_ERR_MSG_LEN];
+
 	struct fasync_struct *dpram_err_async_q;
 
 	void (*clear_interrupt)(struct dpram_link_device *);
-
-	char cpdump_debug_file_name[DPRAM_ERR_MSG_LEN];
 
 	struct memory_region m_region;
 

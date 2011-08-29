@@ -126,19 +126,17 @@ static void cmd_req_active_handler(struct dpram_link_device *dpld)
 
 static void cmd_error_display_handler(struct dpram_link_device *dpld)
 {
-	char buf[DPRAM_ERR_MSG_LEN] = {0,};
+	struct io_device *iod = NULL;
 
-	if (dpld->phone_status) {
-		memcpy(dpld->cpdump_debug_file_name,
-				dpld->m_region.fmt_in + 4,
-				sizeof(dpld->cpdump_debug_file_name));
-	} else {
-		/* --- can't catch the CDMA watchdog reset!!*/
-		sprintf((void *)buf, "8 $PHONE-OFF");
+	dpld->is_dpram_err = TRUE;
+
+	list_for_each_entry(iod, &dpld->list_of_io_devices, list) {
+		if ((iod->format == IPC_FMT) && (iod->modem_state_changed)) {
+			iod->modem_state_changed(iod, STATE_CRASH_EXIT);
+			break;
+		}
 	}
 
-	memcpy(dpld->dpram_err_buf, buf, DPRAM_ERR_MSG_LEN);
-	dpld->is_dpram_err = TRUE;
 	kill_fasync(&dpld->dpram_err_async_q, SIGIO, POLL_IN);
 }
 
@@ -1076,7 +1074,6 @@ static int if_dpram_init(struct platform_device *pdev, struct link_device *ld)
 	struct dpram_link_device *dpld = to_dpram_link_device(ld);
 
 	dpld->is_dpram_err = FALSE;
-	strcpy(&dpld->cpdump_debug_file_name[0], "CDMA Crash");
 	wake_lock_init(&dpld->dpram_wake_lock, WAKE_LOCK_SUSPEND, "DPRAM");
 
 	init_waitqueue_head(&dpld->modem_pif_init_done_wait_q);
