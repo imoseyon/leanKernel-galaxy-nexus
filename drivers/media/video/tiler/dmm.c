@@ -39,14 +39,31 @@
 #define DEBUG(x, y)
 #endif
 
+static struct omap_dmm_platform_data *device_data;
+
+static int dmm_probe(struct platform_device *pdev)
+{
+	if (!pdev || !pdev->dev.platform_data) {
+		printk(KERN_ERR "dmm: invalid platform data\n");
+		return -EINVAL;
+	}
+
+	device_data = pdev->dev.platform_data;
+
+	printk(KERN_INFO "dmm: probe base: %p, irq %d\n",
+		device_data->base, device_data->irq);
+	writel(0x88888888, device_data->base + DMM_TILER_OR__0);
+	writel(0x88888888, device_data->base + DMM_TILER_OR__1);
+
+	return 0;
+}
+
 static struct platform_driver dmm_driver_ldm = {
+	.probe = dmm_probe,
 	.driver = {
 		.owner = THIS_MODULE,
 		.name = "dmm",
 	},
-	.probe = NULL,
-	.shutdown = NULL,
-	.remove = NULL,
 };
 
 s32 dmm_pat_refill(struct dmm *dmm, struct pat *pd, enum pat_mode mode)

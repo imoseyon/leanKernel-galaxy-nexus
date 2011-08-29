@@ -34,6 +34,7 @@
 #include <mach/omap4-common.h>
 #include <mach/emif.h>
 #include <mach/lpddr2-elpida.h>
+#include <mach/dmm.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -709,6 +710,7 @@ static void __init omap4_panda_init(void)
 	omap4_ehci_init();
 	usb_musb_init(&musb_board_data);
 
+	omap_dmm_init();
 	omap4_panda_display_init();
 
 }
