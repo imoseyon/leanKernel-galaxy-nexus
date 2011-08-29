@@ -79,20 +79,29 @@
 #define CMD_DL_START_REQ		0x9200
 #define CMD_IMG_SEND_REQ		0x9400
 #define CMD_DL_SEND_DONE_REQ		0x9600
+#define CMD_UL_RECEIVE_RESP		0x9601
+#define CMD_UL_RECEIVE_DONE_RESP	0x9801
 
 #define START_INDEX			0x7F
 #define END_INDEX			0x7E
 
 #define DP_MAGIC_CODE			0xAA
 #define DP_MAGIC_DMDL			0x4445444C
+#define DP_MAGIC_UMDL			0x4445444D
 #define DP_DPRAM_SIZE			0x4000
 #define DP_DEFAULT_WRITE_LEN		8168
+#define DP_DEFAULT_DUMP_LEN		16366
+#define DP_DUMP_HEADER_SIZE		7
 
 #define GOTA_TIMEOUT			(50 * HZ)
 #define GOTA_SEND_TIMEOUT		(200 * HZ)
+#define DUMP_TIMEOUT			(30 * HZ)
+#define DUMP_START_TIMEOUT		(100 * HZ)
 
 static int
 dpram_download(struct dpram_link_device *dpld, const char *buf, int len);
+static int
+dpram_upload(struct dpram_link_device *dpld, struct dpram_firmware *uploaddata);
 
 static inline int dpram_readh(void __iomem *p_dest)
 {
@@ -313,6 +322,17 @@ static int dpram_modem_update(struct link_device *ld, struct io_device *iod,
 	return dpram_process_modem_update(dpld, &fw);
 }
 
+static int dpram_dump_update(struct link_device *ld, struct io_device *iod,
+							unsigned long _arg)
+{
+	struct dpram_link_device *dpld = to_dpram_link_device(ld);
+	struct dpram_firmware *fw = (struct dpram_firmware *)_arg ;
+
+	pr_debug("[DPRAM] dpram_dump_update()\n");
+
+	return dpram_upload(dpld, fw);
+}
+
 static int dpram_read(struct dpram_link_device *dpld,
 		      struct dpram_device *device, int dev_idx)
 {
@@ -499,6 +519,11 @@ static void gota_cmd_handler(struct dpram_link_device *dpld, u16 cmd)
 	case GOTA_CMD_UPDATE_DONE:
 		pr_debug("[GOTA] Send CP-->AP UPDATE_DONE\n");
 		complete_all(&dpld->gota_update_done);
+		break;
+
+	case GOTA_CMD_IMAGE_SEND_RESP:
+		pr_debug("[DPRAM] Send CP-->AP IMAGE_SEND_RESP\n");
+		complete_all(&dpld->dump_receive_done);
 		break;
 
 	default:
@@ -700,6 +725,25 @@ static int dpram_set_dlmagic(struct link_device *ld, struct io_device *iod)
 	return 0;
 }
 
+static int dpram_set_ulmagic(struct link_device *ld, struct io_device *iod)
+{
+	struct dpram_link_device *dpld = to_dpram_link_device(ld);
+	struct dpram_map *dpram = (void *)dpld->dpram;
+	u8 *dest;
+	dest = (u8 *)(&dpram->fmt_out);
+
+	dpram_writew(DP_MAGIC_UMDL, &dpld->dpram->magic);
+
+	dpram_writeb((u8)START_INDEX, dest + 0);
+	dpram_writeb((u8)0x1, dest + 1);
+	dpram_writeb((u8)0x1, dest + 2);
+	dpram_writeb((u8)0x0, dest + 3);
+	dpram_writeb((u8)END_INDEX, dest + 4);
+	dpram_write_command(dpld, CMD_DL_START_REQ);
+
+	return 0;
+}
+
 static int
 dpram_download(struct dpram_link_device *dpld, const char *buf, int len)
 {
@@ -771,6 +815,114 @@ dpram_download(struct dpram_link_device *dpld, const char *buf, int len)
 	return 0;
 }
 
+static int
+dpram_upload(struct dpram_link_device *dpld, struct dpram_firmware *uploaddata)
+{
+	struct io_device *iod = dpram_find_iod(dpld, FMT_IDX);
+	struct dpram_map *dpram = (void *)dpld->dpram;
+	struct ul_header header;
+	u8 *dest;
+	u8 *buff = vmalloc(DP_DEFAULT_DUMP_LEN);
+	u16 plen = 0;
+	u32 tlen = 0;
+	int ret;
+	int region = 0;
+
+	pr_debug("[DPRAM] dpram_upload()\n");
+
+	ret = wait_for_completion_interruptible_timeout(
+			&dpld->gota_download_start_complete,
+			DUMP_START_TIMEOUT);
+	if (!ret) {
+		pr_err("[GOTA] CP didn't send DOWNLOAD_START\n");
+		goto err_out;
+	}
+
+	wake_lock(&dpld->dpram_wake_lock);
+
+	memset(buff, 0, DP_DEFAULT_DUMP_LEN);
+
+	dpram_write_command(dpld, CMD_IMG_SEND_REQ);
+	pr_debug("[DPRAM] write CMD_IMG_SEND_REQ(0x9400)\n");
+
+	while (1) {
+		init_completion(&dpld->dump_receive_done);
+		ret = wait_for_completion_interruptible_timeout(
+				&dpld->dump_receive_done, DUMP_TIMEOUT);
+		if (!ret) {
+			pr_err("[DPRAM] CP didn't send DATA_SEND_DONE_RESP\n");
+			goto err_out;
+		}
+
+		dest = (u8 *)(&dpram->fmt_out);
+
+		header.bop = *(u8 *)(dest);
+		header.total_frame = *(u16 *)(dest + 1);
+		header.curr_frame = *(u16 *)(dest + 3);
+		header.len = *(u16 *)(dest + 5);
+
+		pr_debug("total frame:%d, current frame:%d, data len:%d\n",
+			header.total_frame, header.curr_frame,
+			header.len);
+
+		dest += DP_DUMP_HEADER_SIZE;
+		plen = min(header.len, (u16)DP_DEFAULT_DUMP_LEN);
+
+		memcpy(buff, dest, plen);
+		dest += plen;
+		pr_err("plen = %d\n", plen);
+
+		ret = copy_to_user(uploaddata->firmware + tlen,	buff,  plen);
+		if (ret < 0) {
+			pr_err("[DPRAM] Copy to user failed\n");
+			goto err_out;
+		}
+
+		tlen += plen;
+
+		if (header.total_frame == header.curr_frame) {
+			if (region) {
+				uploaddata->is_delta = tlen - uploaddata->size;
+				dpram_write_command(dpld, CMD_UL_RECEIVE_RESP);
+				break;
+			} else {
+				uploaddata->size = tlen;
+				region = 1;
+			}
+		}
+		dpram_write_command(dpld, CMD_UL_RECEIVE_RESP);
+	}
+
+	pr_debug("1st dump region data size=%d\n", uploaddata->size);
+	pr_debug("2st dump region data size=%d\n", uploaddata->is_delta);
+
+	init_completion(&dpld->gota_send_done);
+	ret = wait_for_completion_interruptible_timeout(
+			&dpld->gota_send_done, DUMP_TIMEOUT);
+	if (!ret) {
+		pr_err("[GOTA] CP didn't send SEND_DONE_RESP\n");
+		goto err_out;
+	}
+
+	dpram_write_command(dpld, CMD_UL_RECEIVE_DONE_RESP);
+	pr_debug("[DPRAM] write CMD_UL_RECEIVE_DONE_RESP(0x9801)\n");
+
+	dpram_writew(0, &dpld->dpram->magic); /*clear magic code */
+
+	if (iod && iod->modem_state_changed)
+		iod->modem_state_changed(iod, STATE_CRASH_EXIT);
+	wake_unlock(&dpld->dpram_wake_lock);
+
+	vfree(buff);
+	return 0;
+
+err_out:
+	vfree(buff);
+	pr_err("CDMA dump error out\n");
+	wake_unlock(&dpld->dpram_wake_lock);
+	return -EIO;
+}
+
 struct link_device *dpram_create_link_device(struct platform_device *pdev)
 {
 	int ret;
@@ -791,17 +943,23 @@ struct link_device *dpram_create_link_device(struct platform_device *pdev)
 	skb_queue_head_init(&ld->sk_raw_tx_q);
 	INIT_DELAYED_WORK(&ld->tx_delayed_work, dpram_write_work);
 
+	wake_lock_init(&dpld->dpram_wake_lock, WAKE_LOCK_SUSPEND, "DPRAM");
+
 	init_completion(&dpld->modem_pif_init_done);
 	init_completion(&dpld->dpram_init_cmd);
 	init_completion(&dpld->gota_send_done);
 	init_completion(&dpld->gota_update_done);
 	init_completion(&dpld->gota_download_start_complete);
+	init_completion(&dpld->dump_receive_done);
 
 	ld->name = "dpram";
 	ld->attach = dpram_attach_io_dev;
 	ld->send = dpram_send;
 	ld->gota_start = dpram_set_dlmagic;
 	ld->modem_update = dpram_modem_update;
+	ld->dump_start = dpram_set_ulmagic;
+	ld->dump_update = dpram_dump_update;
+
 	dpld->clear_interrupt = dpram_clear_interrupt;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);

@@ -75,6 +75,13 @@ struct dpram_device {
 	u16            mask_send;
 };
 
+struct ul_header {
+	u8 bop;
+	u16 total_frame;
+	u16 curr_frame;
+	u16 len;
+};
+
 struct dpram_link_device {
 	struct link_device ld;
 
@@ -88,11 +95,14 @@ struct dpram_link_device {
 	struct dpram_map __iomem *dpram;
 	struct dpram_device dev_map[MAX_IDX];
 
+	struct wake_lock dpram_wake_lock;
+
 	struct completion dpram_init_cmd;
 	struct completion modem_pif_init_done;
 	struct completion gota_download_start_complete;
 	struct completion gota_send_done;
 	struct completion gota_update_done;
+	struct completion dump_receive_done;
 
 	int irq;
 	void (*clear_interrupt)(struct dpram_link_device *);
