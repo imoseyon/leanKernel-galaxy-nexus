@@ -307,3 +307,4 @@ obj-y					+= common-board-devices.o
 obj-$(CONFIG_OMAP_REMOTE_PROC)		+= remoteproc.o
 obj-$(CONFIG_OMAP_HSI_DEVICE)		+= omap_hsi.o
 obj-$(CONFIG_SEC_MODEM)			+= board-tuna-modems.o
+obj-$(CONFIG_ARCH_OMAP4)		+= omap_dmm.o
