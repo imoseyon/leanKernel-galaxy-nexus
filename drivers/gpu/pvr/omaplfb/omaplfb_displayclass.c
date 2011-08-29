@@ -1091,7 +1091,7 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 
 	
 	OMAPLFBPrintInfo(psDevInfo);
-
+#if defined(CONFIG_ION_OMAP)
 	/* hijack LINFB */
 	if(1)
 	{
@@ -1145,6 +1145,7 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 		psPVRFBInfo->ulFBSize = sAllocData.h * n * psPVRFBInfo->ulByteStride;
 	}
 	else
+#else
 	{
 		psPVRFBInfo->sSysAddr.uiAddr = psLINFBInfo->fix.smem_start;
 		psPVRFBInfo->sCPUVAddr = psLINFBInfo->screen_base;
@@ -1155,6 +1156,7 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 		psPVRFBInfo->ulFBSize = FBSize;
 		psPVRFBInfo->bIs2D = OMAPLFB_FALSE;
 	}
+#endif
 	psPVRFBInfo->ulBufferSize = psPVRFBInfo->ulHeight * psPVRFBInfo->ulByteStride;
 	
 	psPVRFBInfo->ulRoundedBufferSize = RoundUpToMultiple(psPVRFBInfo->ulBufferSize, ulLCM);
