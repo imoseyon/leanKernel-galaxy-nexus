@@ -404,11 +404,24 @@ static void sii9234_enable_vbus(bool enable)
 
 }
 
+static void sii9234_vbus_present(bool on)
+{
+	struct tuna_otg *tuna_otg = &tuna_otg_xceiv;
+
+	tuna_otg->otg.state = OTG_STATE_B_IDLE;
+	tuna_otg->otg.default_a = false;
+	tuna_otg->otg.last_event = on ? USB_EVENT_VBUS : USB_EVENT_NONE;
+	atomic_notifier_call_chain(&tuna_otg->otg.notifier,
+				on ? USB_EVENT_VBUS : USB_EVENT_NONE,
+				tuna_otg->otg.gadget);
+}
+
 static struct sii9234_platform_data sii9234_pdata = {
 	.prio = TUNA_OTG_ID_SII9234_PRIO,
 	.enable = tuna_mux_usb_to_mhl,
 	.power = sii9234_power,
 	.enable_vbus = sii9234_enable_vbus,
+	.vbus_present = sii9234_vbus_present,
 };
 
 static struct i2c_board_info __initdata tuna_i2c5_boardinfo[] = {
