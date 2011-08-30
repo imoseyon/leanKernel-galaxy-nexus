@@ -300,7 +300,7 @@ static int __init omap4_twl_tps62361_enable(struct voltagedomain *voltdm)
 		pr_err("%s:Err:TWL6030: sysen sleep(%d)\n", __func__, ret1);
 		ret = ret1;
 	}
-	ret1 = _twl_i2c_rmw_u8(TWL6030_MODULE_ID0, TWL6030_MSK_SYSEN_SLEEP,
+	ret1 = _twl_i2c_rmw_u8(TWL6030_MODULE_ID0, TWL6030_MSK_SYSEN_OFF,
 				0x00, TWL6030_REG_SYSEN_CFG_TRANS);
 	if (ret1) {
 		pr_err("%s:Err:TWL6030: sysen off(%d)\n", __func__, ret1);
