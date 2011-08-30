@@ -83,7 +83,7 @@
 #define twl_has_madc()	false
 #endif
 
-#ifdef CONFIG_TWL4030_POWER
+#if defined(CONFIG_TWL4030_POWER) || defined(CONFIG_TWL6030_POWER)
 #define twl_has_power()        true
 #else
 #define twl_has_power()        false
@@ -1253,8 +1253,12 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	}
 
 	/* load power event scripts */
-	if (twl_has_power() && pdata->power)
-		twl4030_power_init(pdata->power);
+	if (twl_has_power()) {
+		if (twl_class_is_4030() && pdata->power)
+			twl4030_power_init(pdata->power);
+		if (twl_class_is_6030())
+			twl6030_power_init(pdata->power);
+	}
 
 	/* Maybe init the T2 Interrupt subsystem */
 	if (client->irq

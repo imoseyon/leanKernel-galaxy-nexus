@@ -99,7 +99,7 @@ obj-$(CONFIG_ARCH_OMAP3)		+= prcm.o cm2xxx_3xxx.o prm2xxx_3xxx.o \
 obj-$(CONFIG_ARCH_OMAP4)		+= prcm.o cm2xxx_3xxx.o cminst44xx.o \
 					   cm44xx.o prcm_mpu44xx.o \
 					   prminst44xx.o vc44xx_data.o \
-					   vp44xx_data.o dvfs.o
+					   vp44xx_data.o dvfs.o omap4-sar.o
 
 # OMAP voltage domains
 ifeq ($(CONFIG_PM),y)

@@ -54,6 +54,9 @@ POR_params:
 .word 1, 0
 
 
+ppa_zero_params:
+	.word		0x0
+
 /*
  * =============================
  * == CPU suspend entry point ==
@@ -86,8 +89,9 @@ ENTRY(omap4_cpu_suspend)
 	mov	r6, r1
 	bl	omap4_get_sar_ram_base
 	mov	r8, r0
-	str	r6, [r8, #L2X0_OFFSET]		@ Store save state
 	ands	r5, r5, #0x0f
+	streq	r6, [r8, #L2X0_SAVE_OFFSET0]	@ Store save state
+	strne   r6, [r8, #L2X0_SAVE_OFFSET1]
 	orreq	r8, r8, #CPU0_SAVE_OFFSET
 	orrne	r8, r8, #CPU1_SAVE_OFFSET
 
@@ -131,6 +135,20 @@ ENTRY(omap4_cpu_suspend)
 	 */
 	bl	v7_flush_dcache_all
 
+	bl	omap4_get_sar_ram_base
+	ldr	r9, [r0, #OMAP_TYPE_OFFSET]
+	cmp	r9, #0x1			@ Check for HS device
+	bne	skip_secure_l1_flush
+	mov	r0, #SCU_PM_NORMAL
+	mov	r1, #0xFF			@ clean seucre L1
+	stmfd   r13!, {r4-r12, r14}
+	ldr	r12, =SCU_POWER_SECURE_INDEX
+	dsb
+	smc	#0
+	dsb
+	ldmfd   r13!, {r4-r12, r14}
+skip_secure_l1_flush:
+
 	/*
 	 * Clear the SCTLR.C bit to prevent further data cache
 	 * allocation. Clearing SCTLR.C would make all the data accesses
@@ -164,9 +182,8 @@ ENTRY(omap4_cpu_suspend)
 	mrc	p15, 0, r0, c0, c0, 5		@ Read MPIDR
 	ands	r0, r0, #0x0f
 	ldreq	r0, [r8, #SCU_OFFSET0]
-	ldreq	r1, [r8, #L1_OFFSET0]
 	ldrne	r0, [r8, #SCU_OFFSET1]
-	ldrne	r1, [r8, #L1_OFFSET0]
+	mov	r1, #0x00			@ Secure L1 is clean already
 	stmfd   r13!, {r4-r12, r14}
 	ldr	r12, =SCU_POWER_SECURE_INDEX
 	dsb
@@ -185,6 +202,14 @@ skip_scu_gp_set:
 	isb
 	dsb
 
+	mrc	p15, 0, r0, c1, c1, 2		@Read NSACR data
+	tst	r0, #(1 << 18)
+	mrcne	p15, 0, r0, c1, c0, 1
+	bicne	r0, r0, #(1 << 6)
+	mcrne	p15, 0, r0, c1, c0, 1
+	isb
+
+
 #ifdef CONFIG_CACHE_L2X0
 	/*
 	 * Clean and invalidate the L2 cache.
@@ -199,7 +224,10 @@ skip_scu_gp_set:
 l2x_clean_inv:
 	bl	omap4_get_sar_ram_base
 	mov	r8, r0
-	ldr	r0, [r8, #L2X0_OFFSET]
+	mrc	p15, 0, r5, c0, c0, 5           @ Read MPIDR
+	ands	r5, r5, #0x0f
+	ldreq	r0, [r8, #L2X0_SAVE_OFFSET0]
+	ldrne	r0, [r8, #L2X0_SAVE_OFFSET1]
 	cmp	r0, #3
 	bne	do_WFI
 #ifdef CONFIG_PL310_ERRATA_727915
@@ -211,11 +239,11 @@ l2x_clean_inv:
 #endif
 	bl	omap4_get_l2cache_base
 	mov	r2, r0
-	mov	r0, #0xff
-	str	r0, [r2, #L2X0_CLEAN_WAY]
+	ldr	r0, =0xffff
+	str	r0, [r2, #L2X0_CLEAN_INV_WAY]
 wait:
-	ldr	r0, [r2, #L2X0_CLEAN_WAY]
-	ands	r0, r0, #0xff
+	ldr	r0, [r2, #L2X0_CLEAN_INV_WAY]
+	ands    r0, r0, #0xff
 	bne	wait
 #ifdef CONFIG_PL310_ERRATA_727915
 	mov	r0, #0x00
@@ -246,6 +274,13 @@ do_WFI:
 	tst	r0, #(1 << 2)			@ Check C bit enabled?
 	orreq	r0, r0, #(1 << 2)		@ Enable the C bit
 	mcreq	p15, 0, r0, c1, c0, 0
+	isb
+
+	/* Enable SMP bit if it's being disabled */
+	mrc	p15, 0, r0, c1, c0, 1
+	tst	r0, #(1 << 6)			@ Check SMP bit enabled?
+	orreq	r0, r0, #(1 << 6)
+	mcreq	p15, 0, r0, c1, c0, 1
 	isb
 
 	/*
@@ -292,6 +327,52 @@ ENDPROC(omap4_cpu_suspend)
  */
 
 ENTRY(omap4_cpu_resume)
+	/*
+	 * CPU1 must check if CPU0 is alive/awaken.
+	 * if PL310 is OFF, MPUSS was OFF and CPU0 is still off,
+	 * CPU1 must go to sleep and wait for CPU0.
+	 * CPU0 is needed for any PPA API to work.
+	 */
+	mrc     p15, 0, r0, c0, c0, 5	@ Get cpuID
+	ands    r0, r0, #0x0f		@ Continue boot if CPU0
+	beq	continue_boot
+	ldr     r8, =OMAP44XX_SAR_RAM_BASE
+	ldr	r9, [r8, #OMAP_TYPE_OFFSET]
+	cmp	r9, #0x1		@ Check for HS device
+	bne	continue_boot		@ Continue on GP devcies
+	ldr	r2, =OMAP44XX_L2CACHE_BASE
+	ldr	r0, [r2, #L2X0_CTRL]
+	and	r0, #0x0f
+	cmp	r0, #1				@ is CPU0 already UP?
+	beq	ppa_cp15_cpu1_configure		@ CPU1 HS go to next stage
+	/*
+	 * CPU0 and CPU1 are release together from OFF mode, however,
+	 * CPU0 can be busy doing restore operations while waking
+	 * from OFF mode, However, for many PPA services we need
+	 * CPU0, so, we ask CPU1 to loop back to stagger CPU1 behind CPU0
+	 */
+	b omap4_cpu_resume
+
+ppa_cp15_cpu1_configure:
+	/*
+	 * Configure CP15 for CPU1 on HS devices:
+	 * In HS devices CPU0's CP15 is configured at wakeup by PPA, CPU1 must
+	 * call PPA to configure it.
+	 * In 4430 devices CPU1 this call also enables the access to SMP bit,
+	 * on 4460 devices, CPU1 will have SMP bit access by default.
+	 */
+	mov     r0, #PPA_SERVICE_DEFAULT_POR_NS_SMP
+	adr	r3, ppa_zero_params		@ Pointer to parameters
+	LM_CALL_PPA_SERVICE_PA
+	isb
+	dsb
+	cmp	r0, #0x0			@ API returns 0 on success.
+	bne	ppa_cp15_cpu1_configure		@ retry if we did succeed
+
+	/* Fall through to continue with boot */
+
+continue_boot:
+
 #ifdef CONFIG_CACHE_L2X0
 	/*
 	 * Restore the L2 AUXCTRL and enable the L2 cache.
@@ -341,6 +422,19 @@ skip_por:
 	dsb
 skip_l2en:
 #endif
+
+	/* Check if we have Public access to SMP bit */
+	mrc	p15, 0, r0, c1, c1, 2		@ Read NSACR data
+	tst	r0, #(1 << 18)
+	beq	skip_ns_smp_enable		@ Skip if still no access
+
+	/* Set the SMP bit if it is not already set */
+	mrc	p15, 0, r0, c1, c0, 1
+	tst	r0, #(1 << 6)			@ Check SMP bit enabled?
+	orreq	r0, r0, #(1 << 6)
+	mcreq	p15, 0, r0, c1, c0, 1
+	isb
+skip_ns_smp_enable:
 
 	/*
 	 * Check the wakeup cpuid and use appropriate

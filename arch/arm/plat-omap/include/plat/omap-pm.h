@@ -372,4 +372,6 @@ int omap_pm_set_min_mpu_freq(struct device *dev, unsigned long f);
 void omap_pm_enable_off_mode(void);
 void omap_pm_disable_off_mode(void);
 
+extern bool off_mode_enabled;
+
 #endif

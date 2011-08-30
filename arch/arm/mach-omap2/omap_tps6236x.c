@@ -72,6 +72,8 @@
 #define TWL6030_REG_VMEM_CFG_GRP			0x64
 #define TWL6030_REG_MSK_TRANSITION			0x20
 #define TWL6030_BIT_APE_GRP				BIT(0)
+#define TWL6030_BIT_CON_GRP				BIT(1)
+#define TWL6030_BIT_MOD_GRP				BIT(2)
 #define TWL6030_MSK_PREQ1				BIT(5)
 #define TWL6030_MSK_SYSEN_OFF				(0x3 << 4)
 #define TWL6030_MSK_SYSEN_SLEEP				(0x3 << 2)
@@ -183,6 +185,7 @@ static struct omap_voltdm_pmic omap4_mpu_pmic = {
 	.ret_volt		= 830000,
 	.off_volt		= 0,
 	.volt_setup_time	= 0,
+	.switch_on_time		= 1000,
 	.vp_erroroffset		= OMAP4_VP_CONFIG_ERROROFFSET,
 	.vp_vstepmin		= OMAP4_VP_VSTEPMIN_VSTEPMIN,
 	.vp_vstepmax		= OMAP4_VP_VSTEPMAX_VSTEPMAX,
@@ -300,7 +303,7 @@ static int __init omap4_twl_tps62361_enable(struct voltagedomain *voltdm)
 		pr_err("%s:Err:TWL6030: sysen sleep(%d)\n", __func__, ret1);
 		ret = ret1;
 	}
-	ret1 = _twl_i2c_rmw_u8(TWL6030_MODULE_ID0, TWL6030_MSK_SYSEN_SLEEP,
+	ret1 = _twl_i2c_rmw_u8(TWL6030_MODULE_ID0, TWL6030_MSK_SYSEN_OFF,
 				0x00, TWL6030_REG_SYSEN_CFG_TRANS);
 	if (ret1) {
 		pr_err("%s:Err:TWL6030: sysen off(%d)\n", __func__, ret1);
@@ -308,7 +311,8 @@ static int __init omap4_twl_tps62361_enable(struct voltagedomain *voltdm)
 	}
 
 	/* Map up SYSEN on TWL core to control TPS */
-	ret1 = _twl_i2c_rmw_u8(TWL6030_MODULE_ID0, TWL6030_BIT_APE_GRP,
+	ret1 = _twl_i2c_rmw_u8(TWL6030_MODULE_ID0, TWL6030_BIT_APE_GRP |
+				TWL6030_BIT_MOD_GRP | TWL6030_BIT_CON_GRP,
 			TWL6030_BIT_APE_GRP, TWL6030_REG_SYSEN_CFG_GRP);
 	if (ret1) {
 		pr_err("%s:Err:TWL6030: map APE SYEN(%d)\n", __func__, ret1);

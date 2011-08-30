@@ -25,6 +25,26 @@ extern int omap4_idle_init(void);
 extern void omap4_enter_sleep(unsigned int cpu, unsigned int power_state,
 				bool suspend);
 extern void omap4_trigger_ioctrl(void);
+extern u32 omap4_device_off_counter;
+
+#ifdef CONFIG_PM
+extern void omap4_device_set_state_off(u8 enable);
+extern bool omap4_device_prev_state_off(void);
+extern bool omap4_device_next_state_off(void);
+extern void omap4_device_clear_prev_off_state(void);
+#else
+static inline void omap4_device_set_state_off(u8 enable)
+{
+}
+static inline bool omap4_device_prev_state_off(void)
+{
+	return false;
+}
+static inline bool omap4_device_next_state_off(void)
+{
+	return false;
+}
+#endif
 
 #if defined(CONFIG_PM_OPP)
 extern int omap3_opp_init(void);
@@ -72,13 +92,11 @@ extern struct omap_dm_timer *gptimer_wakeup;
 extern void omap2_pm_dump(int mode, int resume, unsigned int us);
 extern void omap2_pm_wakeup_on_timer(u32 seconds, u32 milliseconds);
 extern int omap2_pm_debug;
-extern u32 enable_off_mode;
 extern u32 sleep_while_idle;
 #else
 #define omap2_pm_dump(mode, resume, us)		do {} while (0);
 #define omap2_pm_wakeup_on_timer(seconds, milliseconds)	do {} while (0);
 #define omap2_pm_debug				0
-#define enable_off_mode 0
 #define sleep_while_idle 0
 #endif
 #ifdef CONFIG_PM_ADVANCED_DEBUG

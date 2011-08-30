@@ -26,7 +26,7 @@
  * Secure HAL, PPA services available
  */
 #define PPA_SERVICE_PL310_POR		0x23
-#define PPA_SERVICE_NS_SMP		0x25
+#define PPA_SERVICE_DEFAULT_POR_NS_SMP	0x25
 /*
  * Secure HAL API flags
  */
@@ -35,6 +35,15 @@
 #define FLAG_IRQ_ENABLE			0x2
 #define FLAG_FIQ_ENABLE			0x1
 #define NO_FLAG				0x0
+
+/*
+ * SAR restore phase USB HOST static port
+ * configuration
+ */
+#define OMAP4_USBHOST_CLKSEL_UTMI_P2_INT_P1_INT		0x0
+#define OMAP4_USBHOST_CLKSEL_UTMI_P2_INT_P1_EXT		0x1
+#define OMAP4_USBHOST_CLKSEL_UTMI_P2_EXT_P1_INT		0x2
+#define OMAP4_USBHOST_CLKSEL_UTMI_P2_EXT_P1_EXT		0x3
 
 #ifndef __ASSEMBLER__
 
@@ -131,6 +140,22 @@ static inline u32 omap4_secure_dispatcher(u32 idx, u32 flag, u32 nargs,
 #endif	/* CONFIG_SMP */
 
 extern int omap4_prcm_freq_update(void);
+
+#ifdef CONFIG_PM
+extern int omap4_sar_save(void);
+extern void omap4_sar_overwrite(void);
+extern void omap4_sar_usbhost_init(u32 fck_source);
+#else
+void omap4_sar_save(void)
+{
+}
+void omap4_sar_overwrite(void)
+{
+}
+void omap4_sar_usbhost_init(u32 fck_source)
+{
+}
+#endif
 
 #endif /* __ASSEMBLER__ */
 #endif /* OMAP_ARCH_OMAP4_COMMON_H */
