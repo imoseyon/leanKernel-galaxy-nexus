@@ -116,6 +116,7 @@ struct omap_vc_channel {
 	u16 cmd_reg_addr;
 	u8 cfg_channel;
 	u32 setup_time;
+	u32 setup_voltage_common;
 	bool i2c_high_speed;
 
 	/* register access data */

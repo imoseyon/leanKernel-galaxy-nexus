@@ -37,7 +37,6 @@ static void __iomem *l2cache_base;
 
 static void __iomem *gic_dist_base_addr;
 static void __iomem *gic_cpu_base;
-static void __iomem *sar_ram_base;
 static struct clockdomain *l4_secure_clkdm;
 static void *dram_barrier_base;
 
@@ -274,36 +273,6 @@ static int __init omap_barriers_init(void)
 }
 core_initcall(omap_barriers_init);
 
-void __iomem *omap4_get_sar_ram_base(void)
-{
-	return sar_ram_base;
-}
-
-/*
- * SAR RAM used to save and restore the HW
- * context in low power modes
- */
-static int __init omap4_sar_ram_init(void)
-{
-	/*
-	 * To avoid code running on other OMAPs in
-	 * multi-omap builds
-	 */
-	if (!cpu_is_omap44xx())
-		return -ENODEV;
-
-	/* Static mapping, never released */
-	sar_ram_base = ioremap(OMAP44XX_SAR_RAM_BASE, SZ_8K);
-	if (WARN_ON(!sar_ram_base))
-		return -ENODEV;
-
-	l4_secure_clkdm = clkdm_lookup("l4_secure_clkdm");
-
-	return 0;
-}
-early_initcall(omap4_sar_ram_init);
-
-
 /*
  * omap4_sec_dispatcher: Routine to dispatch low power secure
  * service routines
@@ -326,6 +295,10 @@ u32 omap4_secure_dispatcher(u32 idx, u32 flag, u32 nargs, u32 arg1, u32 arg2,
 	param[2] = arg2;
 	param[3] = arg3;
 	param[4] = arg4;
+
+	/* Look-up Only once */
+	if (!l4_secure_clkdm)
+		l4_secure_clkdm = clkdm_lookup("l4_secure_clkdm");
 
 	/*
 	 * Put l4 secure to software wakeup  so that secure

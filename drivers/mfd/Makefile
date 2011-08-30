@@ -45,6 +45,7 @@ obj-$(CONFIG_TWL6030_PWM)	+= twl6030-pwm.o
 obj-$(CONFIG_TWL6030_MADC)	+= twl6030-madc.o
 obj-$(CONFIG_TWL6040_CODEC)	+= twl6040-codec.o twl6040-irq.o
 obj-$(CONFIG_TWL6030_POWEROFF)	+= twl6030-poweroff.o
+obj-$(CONFIG_TWL6030_POWER)    += twl6030-power.o
 
 obj-$(CONFIG_MFD_MC13XXX)	+= mc13xxx-core.o
 

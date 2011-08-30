@@ -522,6 +522,26 @@ static inline int twl6030_mmc_card_detect(struct device *dev, int slot)
 #define RES_MAIN_REF            28
 
 #define TOTAL_RESOURCES		28
+/* 6030 extra resources */
+#define RES_V1V29		29
+#define RES_V1V8		30
+#define RES_V2V1		31
+#define RES_VDD3		32
+#define RES_VMEM		33
+#define RES_VANA		34
+#define RES_VUAX1		35
+#define RES_VCXIO		36
+#define RES_VPP			37
+#define RES_VRTC		38
+#define RES_REGEN2		39
+#define RES_32KCLKAO		40
+#define RES_32KCLKG		41
+#define RES_32KCLKAUDIO		42
+#define RES_BIAS		43
+#define RES_VBATMIN_HI		44
+#define RES_RC6MHZ		45
+#define RES_TEMP		46
+
 /*
  * Power Bus Message Format ... these can be sent individually by Linux,
  * but are usually part of downloaded scripts that are run when various
@@ -641,6 +661,7 @@ struct twl4030_script {
 struct twl4030_resconfig {
 	u8 resource;
 	u8 devgroup;	/* Processor group that Power resource belongs to */
+	/* The following are used by TWL4030 only */
 	u8 type;	/* Power resource addressed, 6 / broadcast message */
 	u8 type2;	/* Power resource addressed, 3 / broadcast message */
 	u8 remap_off;	/* off state remapping */
@@ -648,14 +669,25 @@ struct twl4030_resconfig {
 };
 
 struct twl4030_power_data {
-	struct twl4030_script **scripts;
-	unsigned num;
+	struct twl4030_script **scripts;	/* used in TWL4030 only */
+	unsigned num;				/* used in TWL4030 only */
 	struct twl4030_resconfig *resource_config;
 #define TWL4030_RESCONFIG_UNDEF	((u8)-1)
 };
 
+#ifdef CONFIG_TWL4030_POWER
 extern void twl4030_power_init(struct twl4030_power_data *triton2_scripts);
 extern int twl4030_remove_script(u8 flags);
+#else
+static inline void twl4030_power_init(struct twl4030_power_data *triton2_scripts) { }
+static inline int twl4030_remove_script(u8 flags) { return -EINVAL; }
+#endif
+
+#ifdef CONFIG_TWL6030_POWER
+extern void twl6030_power_init(struct twl4030_power_data *power_data);
+#else
+extern inline void twl6030_power_init(struct twl4030_power_data *power_data) { }
+#endif
 
 struct twl4030_codec_audio_data {
 	unsigned int digimic_delay; /* in ms */

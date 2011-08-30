@@ -40,9 +40,10 @@ struct omap_vdd_info;
 /**
  * struct omap_vfsm_instance - per-voltage manager FSM register/bitfield
  * data
- * @voltsetup_mask: SETUP_TIME* bitmask in the PRM_VOLTSETUP* register
- * @voltsetup_reg: register offset of PRM_VOLTSETUP from PRM base
+ * @voltsetup_mask: SETUP_TIME* bitmask of PRM_VOLTSETUP* register(RET/SLEEP)
+ * @voltsetup_reg: register offset of PRM_VOLTSETUP from PRM base(RET/SLEEP)
  * @voltsetup_shift: SETUP_TIME* field shift in the PRM_VOLTSETUP* register
+ * @voltsetupoff_reg: register offset of PRM_VOLTSETUP*_OFF from PRM base
  *
  * XXX What about VOLTOFFSET/VOLTCTRL?
  * XXX It is not necessary to have both a _mask and a _shift for the same
@@ -52,6 +53,7 @@ struct omap_vfsm_instance {
 	u32 voltsetup_mask;
 	u8 voltsetup_reg;
 	u8 voltsetup_shift;
+	u8 voltsetupoff_reg;
 };
 
 /**
@@ -188,6 +190,7 @@ struct omap_volt_data {
  * @i2c_hscll_high: PMIC interface speed config for highspeed mode (T high)
  * @i2c_scll_low: PMIC interface speed config for fullspeed mode (T low)
  * @i2c_scll_high: PMIC interface speed config for fullspeed mode (T high)
+ * @switch_on_time: time taken for switch on the DCDC in uSec
  */
 struct omap_voltdm_pmic {
 	int slew_rate;
@@ -197,6 +200,7 @@ struct omap_voltdm_pmic {
 	u32 ret_volt;
 	u32 off_volt;
 	u16 volt_setup_time;
+	u16 switch_on_time;
 	u8 vp_erroroffset;
 	u8 vp_vstepmin;
 	u8 vp_vstepmax;

@@ -51,6 +51,7 @@ u32 enable_off_mode;
 u32 sleep_while_idle;
 u32 wakeup_timer_seconds;
 u32 wakeup_timer_milliseconds;
+u32 omap4_device_off_counter = 0;
 
 #ifdef CONFIG_PM_ADVANCED_DEBUG
 static u32 saved_reg_num;
@@ -465,6 +466,8 @@ static int pwrdm_dbg_show_timer(struct powerdomain *pwrdm, void *user)
 static int pm_dbg_show_counters(struct seq_file *s, void *unused)
 {
 	pwrdm_for_each(pwrdm_dbg_show_counter, s);
+	if (cpu_is_omap44xx())
+		seq_printf(s, "DEVICE-OFF:%d\n", omap4_device_off_counter);
 	clkdm_for_each(clkdm_dbg_show_counter, s);
 
 	return 0;
@@ -628,6 +631,10 @@ static int option_get(void *data, u64 *val)
 {
 	u32 *option = data;
 
+	if (option == &enable_off_mode) {
+		enable_off_mode = off_mode_enabled;
+	}
+
 	*val = *option;
 #ifdef CONFIG_PM_ADVANCED_DEBUG
 	if (option == &saved_reg_addr) {
@@ -648,7 +655,10 @@ static int option_set(void *data, u64 val)
 	if (option == &wakeup_timer_milliseconds && val >= 1000)
 		return -EINVAL;
 
-	*option = val;
+	if (cpu_is_omap443x() && omap_type() == OMAP2_DEVICE_TYPE_GP)
+		*option = 0;
+	else
+		*option = val;
 
 	if (option == &enable_off_mode) {
 		if (val)
@@ -711,12 +721,14 @@ static int __init pm_dbg_init(void)
 
 		}
 
-	(void) debugfs_create_file("enable_off_mode", S_IRUGO | S_IWUSR, d,
-				   &enable_off_mode, &pm_dbg_option_fops);
 	(void) debugfs_create_file("sleep_while_idle", S_IRUGO | S_IWUSR, d,
 				   &sleep_while_idle, &pm_dbg_option_fops);
 
 skip_reg_debufs:
+#ifdef CONFIG_OMAP_ALLOW_OSWR
+	(void) debugfs_create_file("enable_off_mode", S_IRUGO | S_IWUSR, d,
+				   &enable_off_mode, &pm_dbg_option_fops);
+#endif
 	(void) debugfs_create_file("wakeup_timer_seconds", S_IRUGO | S_IWUSR, d,
 				   &wakeup_timer_seconds, &pm_dbg_option_fops);
 	(void) debugfs_create_file("wakeup_timer_milliseconds",

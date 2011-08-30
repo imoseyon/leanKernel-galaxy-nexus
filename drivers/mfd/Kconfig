@@ -218,6 +218,18 @@ config TWL4030_POWER
 	  and load scripts controlling which resources are switched off/on
 	  or reset when a sleep, wakeup or warm reset event occurs.
 
+config TWL6030_POWER
+	bool "Support power resources on TWL6030 family chips"
+	depends on TWL4030_CORE
+	help
+	  Say yes here if you want to use the power resources on the
+	  TWL6030 family chips.  Most of these resources are regulators,
+	  which have a separate driver; some are control signals, such
+	  as clock request handshaking.
+
+	  This driver defaults to assuming only APPs processor uses
+	  the resource, it can however be overridden by board file
+
 config TWL4030_CODEC
 	bool
 	depends on TWL4030_CORE

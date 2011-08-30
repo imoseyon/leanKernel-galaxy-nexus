@@ -64,6 +64,10 @@
 #include "prcm44xx.h"
 #include "prm44xx.h"
 #include "prm-regbits-44xx.h"
+#include "cm.h"
+#include "prm.h"
+#include "cm44xx.h"
+#include "prcm-common.h"
 
 #ifdef CONFIG_SMP
 
@@ -93,7 +97,6 @@ static u32 max_spi_irq, max_spi_reg;
 struct omap4_cpu_pm_info {
 	struct powerdomain *pwrdm;
 	void __iomem *scu_sar_addr;
-	void __iomem *l1_sar_addr;
 };
 
 static void __iomem *gic_dist_base;
@@ -149,33 +152,53 @@ static inline void clear_cpu_prev_pwrst(unsigned int cpu_id)
 	pwrdm_clear_all_prev_pwrst(pm_info->pwrdm);
 }
 
+struct reg_tuple {
+	void __iomem *addr;
+	u32 val;
+};
+
+static struct reg_tuple tesla_reg[] = {
+	{.addr = OMAP4430_CM_TESLA_CLKSTCTRL},
+	{.addr = OMAP4430_CM_TESLA_TESLA_CLKCTRL},
+	{.addr = OMAP4430_PM_TESLA_PWRSTCTRL},
+};
+
+static struct reg_tuple ivahd_reg[] = {
+	{.addr = OMAP4430_CM_IVAHD_CLKSTCTRL},
+	{.addr = OMAP4430_CM_IVAHD_IVAHD_CLKCTRL},
+	{.addr = OMAP4430_CM_IVAHD_SL2_CLKCTRL},
+	{.addr = OMAP4430_PM_IVAHD_PWRSTCTRL}
+};
+
+static struct reg_tuple l3instr_reg[] = {
+	{.addr = OMAP4430_CM_L3INSTR_L3_3_CLKCTRL},
+	{.addr = OMAP4430_CM_L3INSTR_L3_INSTR_CLKCTRL},
+	{.addr = OMAP4430_CM_L3INSTR_OCP_WP1_CLKCTRL},
+};
+
 /*
  * Store the SCU power status value to scratchpad memory
  */
 static void scu_pwrst_prepare(unsigned int cpu_id, unsigned int cpu_state)
 {
 	struct omap4_cpu_pm_info *pm_info = &per_cpu(omap4_pm_info, cpu_id);
-	u32 scu_pwr_st, l1_state;
+	u32 scu_pwr_st;
 
 	switch (cpu_state) {
 	case PWRDM_POWER_RET:
 		scu_pwr_st = SCU_PM_DORMANT;
-		l1_state = 0x00;
 		break;
 	case PWRDM_POWER_OFF:
 		scu_pwr_st = SCU_PM_POWEROFF;
-		l1_state = 0xff;
 		break;
 	case PWRDM_POWER_ON:
 	case PWRDM_POWER_INACTIVE:
 	default:
 		scu_pwr_st = SCU_PM_NORMAL;
-		l1_state = 0x00;
 		break;
 	}
 
 	__raw_writel(scu_pwr_st, pm_info->scu_sar_addr);
-	__raw_writel(scu_pwr_st, pm_info->l1_sar_addr);
 }
 
 /*
@@ -272,6 +295,20 @@ static void save_gic_wakeupgen_secure(void)
 
 
 /*
+ * API to save Secure RAM, GIC, WakeupGen Registers using secure API
+ * for HS/EMU device
+ */
+static void save_secure_all(void)
+{
+	u32 ret;
+	ret = omap4_secure_dispatcher(HAL_SAVEALL_INDEX,
+					FLAG_START_CRITICAL,
+					1, omap4_secure_ram_phys, 0, 0, 0);
+	if (ret)
+		pr_debug("Secure all context save failed\n");
+}
+
+/*
  * API to save Secure RAM using secure API
  * for HS/EMU device
  */
@@ -321,6 +358,44 @@ static inline void cpu_clear_prev_logic_pwrst(unsigned int cpu_id)
 		omap4_prcm_mpu_write_inst_reg(reg, OMAP4430_PRCM_MPU_CPU0_INST,
 					OMAP4_RM_CPU0_CPU0_CONTEXT_OFFSET);
 	}
+}
+
+static inline void save_ivahd_tesla_regs(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(tesla_reg); i++)
+		tesla_reg[i].val = __raw_readl(tesla_reg[i].addr);
+
+	for (i = 0; i < ARRAY_SIZE(ivahd_reg); i++)
+		ivahd_reg[i].val = __raw_readl(ivahd_reg[i].addr);
+}
+
+static inline void restore_ivahd_tesla_regs(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(tesla_reg); i++)
+		__raw_writel(tesla_reg[i].val, tesla_reg[i].addr);
+
+	for (i = 0; i < ARRAY_SIZE(ivahd_reg); i++)
+		__raw_writel(ivahd_reg[i].val, ivahd_reg[i].addr);
+}
+
+static inline void save_l3instr_regs(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(l3instr_reg); i++)
+		l3instr_reg[i].val = __raw_readl(l3instr_reg[i].addr);
+}
+
+static inline void restore_l3instr_regs(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(l3instr_reg); i++)
+		__raw_writel(l3instr_reg[i].val, l3instr_reg[i].addr);
 }
 
 /*
@@ -389,6 +464,19 @@ int omap4_enter_lowpower(unsigned int cpu, unsigned int power_state)
 	 */
 	pwrdm_clear_all_prev_pwrst(mpuss_pd);
 	mpuss_clear_prev_logic_pwrst();
+	if (omap4_device_next_state_off()) {
+		if (omap_type() == OMAP2_DEVICE_TYPE_GP) {
+			omap_wakeupgen_save();
+			gic_save_context();
+		} else {
+			save_secure_all();
+			save_ivahd_tesla_regs();
+			save_l3instr_regs();
+		}
+		save_state = 3;
+		goto cpu_prepare;
+	}
+
 	switch (pwrdm_read_next_pwrst(mpuss_pd)) {
 	case PWRDM_POWER_RET:
 		/*
@@ -401,6 +489,8 @@ int omap4_enter_lowpower(unsigned int cpu, unsigned int power_state)
 				gic_save_context();
 			} else {
 				save_gic_wakeupgen_secure();
+				save_ivahd_tesla_regs();
+				save_l3instr_regs();
 			}
 			save_state = 2;
 		}
@@ -412,6 +502,8 @@ int omap4_enter_lowpower(unsigned int cpu, unsigned int power_state)
 			gic_save_context();
 		} else {
 			save_gic_wakeupgen_secure();
+			save_ivahd_tesla_regs();
+			save_l3instr_regs();
 			save_secure_ram();
 		}
 		save_state = 3;
@@ -478,6 +570,13 @@ cpu_prepare:
 		gic_dist_enable();
 	}
 
+	if ((omap4_device_prev_state_off()) &&
+			(omap_type() != OMAP2_DEVICE_TYPE_GP)) {
+		omap4_secure_dispatcher(0x21, 4, 0, 0, 0, 0, 0);
+		restore_ivahd_tesla_regs();
+		restore_l3instr_regs();
+	}
+
 	pwrdm_post_transition();
 
 ret:
@@ -532,7 +631,6 @@ int __init omap4_mpuss_init(void)
 	/* Initilaise per CPU PM information */
 	pm_info = &per_cpu(omap4_pm_info, 0x0);
 	pm_info->scu_sar_addr = sar_base + SCU_OFFSET0;
-	pm_info->l1_sar_addr = sar_base + L1_OFFSET0;
 	pm_info->pwrdm = pwrdm_lookup("cpu0_pwrdm");
 	if (!pm_info->pwrdm) {
 		pr_err("Lookup failed for CPU0 pwrdm\n");
@@ -548,7 +646,6 @@ int __init omap4_mpuss_init(void)
 
 	pm_info = &per_cpu(omap4_pm_info, 0x1);
 	pm_info->scu_sar_addr = sar_base + SCU_OFFSET1;
-	pm_info->l1_sar_addr = sar_base + L1_OFFSET1;
 	pm_info->pwrdm = pwrdm_lookup("cpu1_pwrdm");
 	if (!pm_info->pwrdm) {
 		pr_err("Lookup failed for CPU1 pwrdm\n");
