@@ -6,6 +6,10 @@ config SND_OMAP_SOC_ABE_DSP
 	tristate
 	select SND_DYNAMIC_MINORS
 
+config SND_OMAP_SOC_MCASP
+	tristate
+	select SND_SOC_SPDIF
+
 config SND_OMAP_SOC_MCBSP
 	tristate
 	select OMAP_MCBSP

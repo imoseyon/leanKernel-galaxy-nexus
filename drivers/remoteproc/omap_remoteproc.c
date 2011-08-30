@@ -29,7 +29,9 @@
 #include <plat/mailbox.h>
 #include <plat/common.h>
 #include <plat/omap-pm.h>
+#include <plat/dmtimer.h>
 #include "../../arch/arm/mach-omap2/dvfs.h"
+#include "../../arch/arm/mach-omap2/clockdomain.h"
 
 #define PM_SUSPEND_MBOX		0xffffff07
 #define PM_SUSPEND_TIMEOUT	300
@@ -140,11 +142,12 @@ static int omap_rproc_iommu_isr(struct iommu *iommu, u32 da, u32 errs, void *p)
 
 int omap_rproc_activate(struct omap_device *od)
 {
-	int i;
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+	int i, ret = 0;
 	struct rproc *rproc = platform_get_drvdata(&od->pdev);
 	struct device *dev = rproc->dev;
 	struct omap_rproc_pdata *pdata = dev->platform_data;
+	struct omap_rproc_timers_info *timers = pdata->timers;
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	struct omap_rproc_priv *rpp = rproc->priv;
 	struct iommu *iommu;
 
@@ -158,22 +161,57 @@ int omap_rproc_activate(struct omap_device *od)
 		rpp->iommu = iommu;
 	}
 #endif
-	for (i = 0; i < od->hwmods_cnt; i++)
-		omap_hwmod_enable(od->hwmods[i]);
 
-	return 0;
+	/**
+	 * Domain is in HW SUP thus in hw_auto but
+	 * since remoteproc will be enabled clkdm
+	 * needs to be in sw_sup (Do not let it idle).
+	 */
+	if (pdata->clkdm)
+		clkdm_wakeup(pdata->clkdm);
+
+	for (i = 0; i < pdata->timers_cnt; i++)
+		omap_dm_timer_start(timers[i].odt);
+
+	for (i = 0; i < od->hwmods_cnt; i++) {
+		ret = omap_hwmod_enable(od->hwmods[i]);
+		if (ret) {
+			for (i = 0; i < pdata->timers_cnt; i++)
+				omap_dm_timer_stop(timers[i].odt);
+			break;
+		}
+	}
+
+	/**
+	 * Domain is in force_wkup but since remoteproc
+	 * was enabled it is safe now to switch clkdm
+	 * to hw_auto (let it idle).
+	 */
+	if (pdata->clkdm)
+		clkdm_allow_idle(pdata->clkdm);
+
+	return ret;
 }
 
 int omap_rproc_deactivate(struct omap_device *od)
 {
-	int i;
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+	int i, ret = 0;
 	struct rproc *rproc = platform_get_drvdata(&od->pdev);
+	struct device *dev = rproc->dev;
+	struct omap_rproc_pdata *pdata = dev->platform_data;
+	struct omap_rproc_timers_info *timers = pdata->timers;
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	struct omap_rproc_priv *rpp = rproc->priv;
 #endif
 
-	for (i = 0; i < od->hwmods_cnt; i++)
-		omap_hwmod_shutdown(od->hwmods[i]);
+	for (i = 0; i < od->hwmods_cnt; i++) {
+		ret = omap_hwmod_shutdown(od->hwmods[i]);
+		if (ret)
+			goto err;
+	}
+
+	for (i = 0; i < pdata->timers_cnt; i++)
+		omap_dm_timer_stop(timers[i].odt);
 
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	if (rpp->iommu) {
@@ -181,7 +219,8 @@ int omap_rproc_deactivate(struct omap_device *od)
 		rpp->iommu = NULL;
 	}
 #endif
-	return 0;
+err:
+	return ret;
 }
 
 static int omap_rproc_iommu_init(struct rproc *rproc,
@@ -285,11 +324,33 @@ static void _destroy_pm_flags(struct rproc *rproc)
 
 static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 {
-	struct platform_device *pdev = to_platform_device(rproc->dev);
+	struct device *dev = rproc->dev;
+	struct platform_device *pdev = to_platform_device(dev);
+	struct omap_rproc_pdata *pdata = dev->platform_data;
+	struct omap_rproc_timers_info *timers = pdata->timers;
+	int ret, i;
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	_init_pm_flags(rproc);
 #endif
-	return omap_device_enable(pdev);
+	for (i = 0; i < pdata->timers_cnt; i++) {
+		timers[i].odt = omap_dm_timer_request_specific(timers[i].id);
+		if (!timers[i].odt) {
+			ret = -EBUSY;
+			goto out;
+		}
+		omap_dm_timer_set_source(timers[i].odt, OMAP_TIMER_SRC_SYS_CLK);
+	}
+
+	ret = omap_device_enable(pdev);
+out:
+	if (ret) {
+		while (i--) {
+			omap_dm_timer_free(timers[i].odt);
+			timers[i].odt = NULL;
+		}
+	}
+
+	return ret;
 }
 
 static int omap_rproc_iommu_exit(struct rproc *rproc)
@@ -305,11 +366,24 @@ static int omap_rproc_iommu_exit(struct rproc *rproc)
 
 static inline int omap_rproc_stop(struct rproc *rproc)
 {
-	struct platform_device *pdev = to_platform_device(rproc->dev);
+	struct device *dev = rproc->dev;
+	struct platform_device *pdev = to_platform_device(dev);
+	struct omap_rproc_pdata *pdata = dev->platform_data;
+	struct omap_rproc_timers_info *timers = pdata->timers;
+	int ret, i;
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	_destroy_pm_flags(rproc);
 #endif
-	return omap_device_idle(pdev);
+	ret = omap_device_idle(pdev);
+	if (ret)
+		goto err;
+
+	for (i = 0; i < pdata->timers_cnt; i++) {
+		omap_dm_timer_free(timers[i].odt);
+		timers[i].odt = NULL;
+	}
+err:
+	return ret;
 }
 
 static int omap_rproc_set_lat(struct rproc *rproc, long val)
@@ -344,6 +418,8 @@ static struct rproc_ops omap_rproc_ops = {
 static int omap_rproc_probe(struct platform_device *pdev)
 {
 	struct omap_rproc_pdata *pdata = pdev->dev.platform_data;
+
+	pdata->clkdm = clkdm_lookup(pdata->clkdm_name);
 
 	return rproc_register(&pdev->dev, pdata->name, &omap_rproc_ops,
 				pdata->firmware, pdata->memory_pool,
