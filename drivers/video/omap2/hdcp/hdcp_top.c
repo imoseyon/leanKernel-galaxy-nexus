@@ -21,12 +21,12 @@
 
 #include <linux/module.h>
 #include <linux/uaccess.h>
-#include <linux/cdev.h>
 #include <linux/delay.h>
 #include <linux/wait.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/completion.h>
+#include <linux/miscdevice.h>
 #include "../../hdmi_ti_4xxx_ip.h"
 #include "../dss/dss.h"
 #include "hdcp.h"
@@ -875,7 +875,7 @@ static struct file_operations hdcp_fops = {
 	.unlocked_ioctl = hdcp_ioctl,
 };
 
-static struct cdev hdcp_cdev;
+struct miscdevice mdev;
 
 /*-----------------------------------------------------------------------------
  * Function: hdcp_init
@@ -903,21 +903,14 @@ static int __init hdcp_init(void)
 
 	mutex_init(&hdcp.lock);
 
-	/* Get the major number for this module */
-	if (alloc_chrdev_region(&hdcp.dev_id, 0, 1, "hdcp")) {
-		printk(KERN_ERR "HDCP: Cound not register character device\n");
-		goto err_register;
-	}
+	mdev.minor = MISC_DYNAMIC_MINOR;
+	mdev.name = "hdcp";
+	mdev.mode = 0666;
+	mdev.fops = &hdcp_fops;
 
-	/* Initialize character device */
-	cdev_init(&hdcp_cdev, &hdcp_fops);
-	hdcp_cdev.owner = THIS_MODULE;
-	hdcp_cdev.ops = &hdcp_fops;
-
-	/* add char driver */
-	if (cdev_add(&hdcp_cdev, hdcp.dev_id, 1)) {
+	if (misc_register(&mdev)) {
 		printk(KERN_ERR "HDCP: Could not add character driver\n");
-		goto err_add_driver;
+		goto err_register;
 	}
 
 	mutex_lock(&hdcp.lock);
@@ -960,9 +953,7 @@ static int __init hdcp_init(void)
 	return 0;
 
 err_add_driver:
-	cdev_del(&hdcp_cdev);
-
-	unregister_chrdev_region(hdcp.dev_id, 1);
+	misc_deregister(&mdev);
 
 err_register:
 	mutex_destroy(&hdcp.lock);
@@ -994,15 +985,13 @@ static void __exit hdcp_exit(void)
 
 	hdcp_release_dss();
 
+	misc_deregister(&mdev);
+
 	/* Unmap HDMI WP / DESHDCP */
 	iounmap(hdcp.hdmi_wp_base_addr);
 	iounmap(hdcp.deshdcp_base_addr);
 
 	destroy_workqueue(hdcp.workqueue);
-
-	/* Unregister char device */
-	cdev_del(&hdcp_cdev);
-	unregister_chrdev_region(hdcp.dev_id, 1);
 
 	mutex_unlock(&hdcp.lock);
 
