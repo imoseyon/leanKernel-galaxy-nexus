@@ -1498,7 +1498,8 @@ static int dapm_power_widgets(struct snd_soc_dapm_context *dapm, int event)
 	trace_snd_soc_dapm_start(card);
 
 	list_for_each_entry(d, &card->dapm_list, list)
-		if (d->n_widgets || d->codec == NULL)
+		if (d->n_widgets || d->codec == NULL ||
+				strstr(d->codec->name, "null-codec"))
 			d->dev_power = 0;
 
 	/* Check which widgets we need to power and store them in
@@ -2861,6 +2862,36 @@ static void soc_dapm_stream_event(struct snd_soc_dapm_context *dapm,
 		dapm->stream_event(dapm);
 }
 
+static void soc_dapm_platform_stream_event(struct snd_soc_platform *platform,
+	const char *stream, int event)
+{
+	soc_dapm_stream_event(&platform->dapm, stream, event);
+}
+
+static void soc_dapm_codec_stream_event(struct snd_soc_codec *codec,
+	const char *stream, int event)
+{
+	soc_dapm_stream_event(&codec->dapm, stream, event);
+}
+
+void snd_soc_dapm_platform_stream_event(struct snd_soc_platform *platform,
+	const char *stream, int event)
+{
+	mutex_lock(&platform->card->dapm_mutex);
+	soc_dapm_platform_stream_event(platform, stream, event);
+	mutex_unlock(&platform->card->dapm_mutex);
+}
+EXPORT_SYMBOL(snd_soc_dapm_platform_stream_event);
+
+void snd_soc_dapm_codec_stream_event(struct snd_soc_codec *codec,
+	const char *stream, int event)
+{
+	mutex_lock(&codec->card->dapm_mutex);
+	soc_dapm_codec_stream_event(codec, stream, event);
+	mutex_unlock(&codec->card->dapm_mutex);
+}
+EXPORT_SYMBOL(snd_soc_dapm_codec_stream_event);
+
 /**
  * snd_soc_dapm_stream_event - send a stream event to the dapm core
  * @rtd: PCM runtime data
@@ -2880,8 +2911,8 @@ int snd_soc_dapm_stream_event(struct snd_soc_pcm_runtime *rtd,
 
 	mutex_lock(&rtd->card->dapm_mutex);
 
-	soc_dapm_stream_event(&rtd->platform->dapm, stream, event);
-	soc_dapm_stream_event(&rtd->codec->dapm, stream, event);
+	soc_dapm_platform_stream_event(rtd->platform, stream, event);
+	soc_dapm_codec_stream_event(rtd->codec, stream, event);
 
 	mutex_unlock(&rtd->card->dapm_mutex);
 	return 0;

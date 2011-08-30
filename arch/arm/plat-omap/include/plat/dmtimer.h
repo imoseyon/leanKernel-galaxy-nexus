@@ -35,6 +35,7 @@
 #ifndef __ASM_ARCH_DMTIMER_H
 #define __ASM_ARCH_DMTIMER_H
 
+#include <linux/spinlock_types.h>
 /* clock sources */
 #define OMAP_TIMER_SRC_SYS_CLK			0x00
 #define OMAP_TIMER_SRC_32_KHZ			0x01
@@ -93,6 +94,7 @@ struct omap_dm_timer {
 	unsigned posted:1;
 	unsigned is_early_init:1;
 	unsigned needs_manual_reset:1;
+	spinlock_t lock;
 	u8 func_offset;
 	u8 intr_offset;
 	bool loses_context;

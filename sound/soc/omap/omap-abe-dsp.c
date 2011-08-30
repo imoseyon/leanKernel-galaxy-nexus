@@ -98,6 +98,12 @@ struct fw_header {
 	u32 num_equ;		/* number of equalizers */
 };
 
+struct abe_opp_req {
+	struct device *dev;
+        struct list_head node;
+	int opp;
+};
+
 /*
  * ABE private data.
  */
@@ -108,6 +114,7 @@ struct abe_data {
 	struct delayed_work delayed_work;
 	struct mutex mutex;
 	struct mutex opp_mutex;
+	struct mutex opp_req_mutex;
 	struct clk *clk;
 	void __iomem *io_base[5];
 	int irq;
@@ -128,6 +135,9 @@ struct abe_data {
 
 	/* DAPM mixer config - TODO: some of this can be replaced with HAL update */
 	u32 widget_opp[ABE_NUM_DAPM_REG + 1];
+
+	struct list_head opp_req;
+	int opp_req_count;
 
 	u16 router[16];
 	int loss_count;
@@ -171,6 +181,8 @@ struct abe_data {
 };
 
 static struct abe_data *the_abe;
+
+static int aess_set_runtime_opp_level(struct abe_data *abe);
 
 // TODO: map to the new version of HAL
 static unsigned int abe_dsp_read(struct snd_soc_platform *platform,
@@ -1806,6 +1818,91 @@ static const struct snd_pcm_hardware omap_abe_hardware = {
 	.buffer_bytes_max	= 24 * 1024 * 2,
 };
 
+static struct abe_opp_req *abe_opp_req_lookup(struct abe_data *abe,
+					struct device *dev)
+{
+	struct abe_opp_req *req, *tmp_req;
+
+	req = NULL;
+	list_for_each_entry(tmp_req, &abe->opp_req, node) {
+		if (tmp_req->dev == dev) {
+			req = tmp_req;
+			break;
+		}
+	}
+
+	return req;
+}
+
+static int abe_get_opp_req(struct abe_data *abe)
+{
+	struct abe_opp_req *req;
+	int opp = 0;
+
+	list_for_each_entry(req, &abe->opp_req, node)
+		opp |= req->opp;
+
+	opp = (1 << (fls(opp) - 1)) * 25;
+
+	return opp;
+}
+
+int abe_add_opp_req(struct device *dev, int opp)
+{
+	struct abe_opp_req *req;
+	int ret = 0;
+
+	mutex_lock(&the_abe->opp_req_mutex);
+
+	req = abe_opp_req_lookup(the_abe, dev);
+	if (!req) {
+		req = kzalloc(sizeof(struct abe_opp_req), GFP_KERNEL);
+		if (!req) {
+			ret = -ENOMEM;
+			goto out;
+		}
+		req->dev = dev;
+		/* use the same convention as ABE DSP DAPM */
+		req->opp = 1 << opp;
+		list_add(&req->node, &the_abe->opp_req);
+		the_abe->opp_req_count++;
+	} else {
+		req->opp = opp;
+	}
+
+	aess_set_runtime_opp_level(the_abe);
+
+out:
+	mutex_unlock(&the_abe->opp_req_mutex);
+	return ret;
+}
+EXPORT_SYMBOL(abe_add_opp_req);
+
+int abe_remove_opp_req(struct device *dev)
+{
+	struct abe_opp_req *req;
+	int ret = 0;
+
+	mutex_lock(&the_abe->opp_req_mutex);
+
+	req = abe_opp_req_lookup(the_abe, dev);
+	if (!req) {
+		dev_err(dev, "trying to remove an invalid opp req\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	list_del(&req->node);
+	the_abe->opp_req_count--;
+	kfree(req);
+
+	aess_set_runtime_opp_level(the_abe);
+
+out:
+	mutex_unlock(&the_abe->opp_req_mutex);
+	return ret;
+}
+EXPORT_SYMBOL(abe_remove_opp_req);
 
 static int abe_set_opp_mode(struct abe_data *abe, int opp)
 {
@@ -1882,7 +1979,7 @@ err_scale:
 
 static int aess_set_runtime_opp_level(struct abe_data *abe)
 {
-	int i, opp = 0;
+	int i, req_opp, opp = 0;
 
 	mutex_lock(&abe->opp_mutex);
 
@@ -1896,8 +1993,11 @@ static int aess_set_runtime_opp_level(struct abe_data *abe)
 	}
 	opp = (1 << (fls(opp) - 1)) * 25;
 
+	/* opps requested outside ABE DSP driver (e.g. McPDM) */
+	req_opp = abe_get_opp_req(abe);
+
 	pm_runtime_get_sync(abe->dev);
-	abe_set_opp_mode(abe, opp);
+	abe_set_opp_mode(abe, max(opp, req_opp));
 	pm_runtime_put_sync(abe->dev);
 
 	mutex_unlock(&abe->opp_mutex);
@@ -2625,6 +2725,9 @@ static int __devinit abe_engine_probe(struct platform_device *pdev)
 	abe->dev = &pdev->dev;
 	mutex_init(&abe->mutex);
 	mutex_init(&abe->opp_mutex);
+	mutex_init(&abe->opp_req_mutex);
+	INIT_LIST_HEAD(&abe->opp_req);
+	abe->opp_req_count = 0;
 
 	ret = snd_soc_register_platform(abe->dev,
 			&omap_aess_platform);
