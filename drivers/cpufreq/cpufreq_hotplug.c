@@ -36,8 +36,8 @@
 /* Keep 10% of idle under the up threshold when decreasing the frequency */
 #define DEFAULT_FREQ_DOWN_DIFFERENTIAL			(10)
 
-/* less than 20% avg load across online CPUs decreases frequency */
-#define DEFAULT_DOWN_FREQ_MAX_LOAD			(30)
+/* less than 35% avg load across online CPUs decreases frequency */
+#define DEFAULT_DOWN_FREQ_MAX_LOAD			(35)
 
 /* default sampling period (uSec) is bogus; 10x ondemand's default for x86 */
 #define DEFAULT_SAMPLING_PERIOD				(100000)
