@@ -503,6 +503,7 @@ static void mute_fe_port(struct snd_pcm_substream *substream,
 			abe_mute_gain(MIXDL1, MIX_DL1_INPUT_MM_DL);
 		break;
 	case ABE_FRONTEND_DAI_VOICE:
+	case ABE_FRONTEND_DAI_MODEM:
 		if (omap_abe_port_is_enabled(abe_priv->abe,
 						abe_priv->port[OMAP_ABE_BE_PORT_PDM_DL2]))
 			abe_mute_gain(MIXDL2, MIX_DL2_INPUT_VX_DL);
@@ -543,6 +544,7 @@ static void unmute_fe_port(struct snd_pcm_substream *substream,
 			abe_unmute_gain(MIXDL1, MIX_DL1_INPUT_MM_DL);
 		break;
 	case ABE_FRONTEND_DAI_VOICE:
+	case ABE_FRONTEND_DAI_MODEM:
 		if (omap_abe_port_is_enabled(abe_priv->abe,
 						abe_priv->port[OMAP_ABE_BE_PORT_PDM_DL2]))
 			abe_unmute_gain(MIXDL2, MIX_DL2_INPUT_VX_DL);
@@ -585,11 +587,11 @@ static void capture_trigger(struct snd_pcm_substream *substream,
 			if (!snd_soc_dsp_is_op_for_be(fe, be, stream))
 				continue;
 
-			/* is the BE already in the trigger START state ? */
-			if (dsp_params->state == SND_SOC_DSP_LINK_STATE_START)
+			if ((be->dsp[stream].state != SND_SOC_DSP_STATE_PREPARE) &&
+			    (be->dsp[stream].state != SND_SOC_DSP_STATE_STOP))
 				continue;
 
-			be_substream = snd_soc_dsp_get_substream(dsp_params->be, stream);
+			be_substream = snd_soc_dsp_get_substream(be, stream);
 
 			/* mute the BE port */
 			mute_be(be, dai, stream);
@@ -602,6 +604,8 @@ static void capture_trigger(struct snd_pcm_substream *substream,
 
 			/* trigger the BE port */
 			snd_soc_dai_trigger(be_substream, cmd, be->cpu_dai);
+
+			be->dsp[stream].state = SND_SOC_DSP_STATE_START;
 		}
 
 		/* does this trigger() apply to the FE ? */
@@ -650,12 +654,15 @@ static void capture_trigger(struct snd_pcm_substream *substream,
 			if (!snd_soc_dsp_is_op_for_be(fe, be, stream))
 				continue;
 
-			/* only STOP BE in FREE state */
-			/* REVISIT: Investigate the appropriate state to check against */
-			//if (dsp_params->state != SND_SOC_DSP_LINK_STATE_FREE)
-			//	continue;
+			if (be->dsp[stream].state != SND_SOC_DSP_STATE_START)
+				continue;
 
-			be_substream = snd_soc_dsp_get_substream(dsp_params->be, stream);
+			/* only stop if last running user */
+			if (soc_dsp_fe_state_count(be, stream,
+					SND_SOC_DSP_STATE_START) > 1)
+				continue;
+
+			be_substream = snd_soc_dsp_get_substream(be, stream);
 
 			/* disable the BE port */
 			disable_be_port(be, dai, stream);
@@ -665,6 +672,8 @@ static void capture_trigger(struct snd_pcm_substream *substream,
 
 			/* trigger BE port */
 			snd_soc_dai_trigger(be_substream, cmd, be->cpu_dai);
+
+			be->dsp[stream].state = SND_SOC_DSP_STATE_STOP;
 		}
 		break;
 	default:
@@ -693,11 +702,11 @@ static void playback_trigger(struct snd_pcm_substream *substream,
 			if (!snd_soc_dsp_is_op_for_be(fe, be, stream))
 				continue;
 
-			/* is the BE already in the trigger START state ? */
-			if (dsp_params->state == SND_SOC_DSP_LINK_STATE_START)
+			if ((be->dsp[stream].state != SND_SOC_DSP_STATE_PREPARE) &&
+			    (be->dsp[stream].state != SND_SOC_DSP_STATE_STOP))
 				continue;
 
-			be_substream = snd_soc_dsp_get_substream(dsp_params->be, stream);
+			be_substream = snd_soc_dsp_get_substream(be, stream);
 
 			/* mute BE port */
 			mute_be(be, dai, stream);
@@ -713,6 +722,8 @@ static void playback_trigger(struct snd_pcm_substream *substream,
 
 			/* unmute the BE port */
 			unmute_be(be, dai, stream);
+
+			be->dsp[stream].state = SND_SOC_DSP_STATE_START;
 		}
 
 		/* does this trigger() apply to the FE ? */
@@ -763,11 +774,15 @@ static void playback_trigger(struct snd_pcm_substream *substream,
 			if (!snd_soc_dsp_is_op_for_be(fe, be, stream))
 				continue;
 
-			/* only STOP BE in FREE state */
-			if (dsp_params->state != SND_SOC_DSP_LINK_STATE_FREE)
+			if (be->dsp[stream].state != SND_SOC_DSP_STATE_START)
 				continue;
 
-			be_substream = snd_soc_dsp_get_substream(dsp_params->be, stream);
+			/* only stop if last running user */
+			if (soc_dsp_fe_state_count(be, stream,
+					SND_SOC_DSP_STATE_START) > 1)
+				continue;
+
+			be_substream = snd_soc_dsp_get_substream(be, stream);
 
 			/* disable the BE */
 			disable_be_port(be, dai, stream);
@@ -777,6 +792,8 @@ static void playback_trigger(struct snd_pcm_substream *substream,
 
 			/*  trigger the BE port */
 			snd_soc_dai_trigger(be_substream, cmd, be->cpu_dai);
+
+			be->dsp[stream].state = SND_SOC_DSP_STATE_STOP;
 		}
 		break;
 	default:
@@ -793,6 +810,8 @@ static int omap_abe_dai_startup(struct snd_pcm_substream *substream,
 	dev_dbg(dai->dev, "%s: %s\n", __func__, dai->name);
 
 	abe_priv->active_dais++;
+
+	abe_dsp_pm_get();
 
 	if (dai->id == ABE_FRONTEND_DAI_MODEM) {
 
@@ -1077,6 +1096,9 @@ static void omap_abe_dai_shutdown(struct snd_pcm_substream *substream,
 		snd_soc_dai_shutdown(abe_priv->modem_substream[substream->stream],
 				abe_priv->modem_dai);
 	}
+
+	abe_dsp_shutdown();
+	abe_dsp_pm_put();
 
 	abe_priv->active_dais--;
 }

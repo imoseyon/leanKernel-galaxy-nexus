@@ -28,6 +28,11 @@
 #include <linux/interrupt.h>
 #include <linux/mfd/core.h>
 
+#define TWL6040_NO_SUPPLY		0
+#define TWL6040_VIO_SUPPLY		1
+#define TWL6040_VDD_SUPPLY		2
+
+
 #define TWL6040_REG_ASICID		0x01
 #define TWL6040_REG_ASICREV		0x02
 #define TWL6040_REG_INTID		0x03

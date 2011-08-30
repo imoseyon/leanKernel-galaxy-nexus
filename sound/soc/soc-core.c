@@ -561,13 +561,22 @@ int soc_pcm_open(struct snd_pcm_substream *substream)
 	if (rtd->dai_link->no_host_mode == SND_SOC_DAI_LINK_NO_HOST)
 		snd_soc_set_runtime_hwparams(substream, &no_host_hardware);
 
+	if (rtd->dai_link->pre) {
+		ret = rtd->dai_link->pre(substream);
+		if (ret < 0) {
+			printk(KERN_ERR "asoc: can't setup DAI link %s\n",
+				rtd->dai_link->name);
+			goto out;
+		}
+	}
+
 	/* startup the audio subsystem */
 	if (cpu_dai->driver->ops->startup) {
 		ret = cpu_dai->driver->ops->startup(substream, cpu_dai);
 		if (ret < 0) {
 			printk(KERN_ERR "asoc: can't open interface %s\n",
 				cpu_dai->name);
-			goto out;
+			goto cpu_err;
 		}
 	}
 
@@ -712,6 +721,9 @@ codec_dai_err:
 platform_err:
 	if (cpu_dai->driver->ops->shutdown)
 		cpu_dai->driver->ops->shutdown(substream, cpu_dai);
+cpu_err:
+	if (rtd->dai_link->post)
+		rtd->dai_link->post(substream);
 out:
 	mutex_unlock(&rtd->pcm_mutex);
 	return ret;
@@ -790,6 +802,10 @@ int soc_pcm_close(struct snd_pcm_substream *substream)
 
 	if (platform->driver->ops && platform->driver->ops->close)
 		platform->driver->ops->close(substream);
+
+	if (rtd->dai_link->post)
+		rtd->dai_link->post(substream);
+
 	cpu_dai->runtime = NULL;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
