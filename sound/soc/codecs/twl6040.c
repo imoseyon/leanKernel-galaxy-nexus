@@ -162,59 +162,59 @@ static const u8 twl6040_reg[TWL6040_CACHEREGNUM] = {
 	0x00, /* TWL6040_STATUS (ro)	0x2E	*/
 };
 
-/*
- * twl6040 vio/gnd registers:
- * registers under vio/gnd supply can be accessed
- * before the power-up sequence, after NRESPWRON goes high
- */
-static const int twl6040_vio_reg[TWL6040_VIOREGNUM] = {
-	TWL6040_REG_ASICID,
-	TWL6040_REG_ASICREV,
-	TWL6040_REG_INTID,
-	TWL6040_REG_INTMR,
-	TWL6040_REG_NCPCTL,
-	TWL6040_REG_LDOCTL,
-	TWL6040_REG_AMICBCTL,
-	TWL6040_REG_DMICBCTL,
-	TWL6040_REG_HKCTL1,
-	TWL6040_REG_HKCTL2,
-	TWL6040_REG_GPOCTL,
-	TWL6040_REG_TRIM1,
-	TWL6040_REG_TRIM2,
-	TWL6040_REG_TRIM3,
-	TWL6040_REG_HSOTRIM,
-	TWL6040_REG_HFOTRIM,
-	TWL6040_REG_ACCCTL,
-	TWL6040_REG_STATUS,
-};
 
-/*
- * twl6040 vdd/vss registers:
- * registers under vdd/vss supplies can only be accessed
- * after the power-up sequence
- */
-static const int twl6040_vdd_reg[TWL6040_VDDREGNUM] = {
-	TWL6040_REG_HPPLLCTL,
-	TWL6040_REG_LPPLLCTL,
-	TWL6040_REG_LPPLLDIV,
-	TWL6040_REG_MICLCTL,
-	TWL6040_REG_MICRCTL,
-	TWL6040_REG_MICGAIN,
-	TWL6040_REG_LINEGAIN,
-	TWL6040_REG_HSLCTL,
-	TWL6040_REG_HSRCTL,
-	TWL6040_REG_HSGAIN,
-	TWL6040_REG_EARCTL,
-	TWL6040_REG_HFLCTL,
-	TWL6040_REG_HFLGAIN,
-	TWL6040_REG_HFRCTL,
-	TWL6040_REG_HFRGAIN,
-	TWL6040_REG_VIBCTLL,
-	TWL6040_REG_VIBDATL,
-	TWL6040_REG_VIBCTLR,
-	TWL6040_REG_VIBDATR,
-	TWL6040_REG_ALB,
-	TWL6040_REG_DLB,
+/* twl6040 vio/gnd registers: registers under vio/gnd supply can be accessed
+ * twl6040 vdd/vss registers: registers under vdd/vss supplies can only be
+ * accessed after the power-up sequence */
+
+static const u8 twl6040_reg_supply[TWL6040_CACHEREGNUM] = {
+	TWL6040_NO_SUPPLY,  /* not used			*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_ASICID (ro)	*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_ASICREV (ro)	*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_INTID		*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_INTMR		*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_NCPCTRL		*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_LDOCTL		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_HPPLLCTL		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_LPPLLCTL		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_LPPLLDIV		*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_AMICBCTL		*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_DMICBCTL		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_MICLCTL		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_MICRCTL		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_MICGAIN		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_LINEGAIN		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_HSLCTL		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_HSRCTL		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_HSGAIN		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_EARCTL		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_HFLCTL		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_HFLGAIN		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_HFRCTL		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_HFRGAIN		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_VIBCTLL		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_VIBDATL		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_VIBCTLR		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_VIBDATR		*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_HKCTL1		*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_HKCTL2		*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_GPOCTL		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_ALB		*/
+	TWL6040_VDD_SUPPLY, /* TWL6040_DLB		*/
+	TWL6040_NO_SUPPLY,  /* not used			*/
+	TWL6040_NO_SUPPLY,  /* not used			*/
+	TWL6040_NO_SUPPLY,  /* not used			*/
+	TWL6040_NO_SUPPLY,  /* not used			*/
+	TWL6040_NO_SUPPLY,  /* not used			*/
+	TWL6040_NO_SUPPLY,  /* not used			*/
+	TWL6040_NO_SUPPLY,  /* not used			*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_TRIM1		*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_TRIM2		*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_TRIM3		*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_HSOTRIM		*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_HFOTRIM		*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_ACCCTL		*/
+	TWL6040_VIO_SUPPLY, /* TWL6040_STATUS (ro)	*/
 };
 
 /*
@@ -248,13 +248,19 @@ static inline void twl6040_write_reg_cache(struct snd_soc_codec *codec,
  * read from twl6040 hardware register
  */
 static int twl6040_read_reg_volatile(struct snd_soc_codec *codec,
-			unsigned int reg)
+					unsigned int reg)
 {
 	struct twl6040 *twl6040 = codec->control_data;
-	u8 value;
+	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
+	u8 value = 0;
 
 	if (reg >= TWL6040_CACHEREGNUM)
 		return -EIO;
+
+	/* read access not supported while in sleep state */
+	if ((twl6040_reg_supply[reg] == TWL6040_VDD_SUPPLY) &&
+		!priv->codec_powered)
+		return -EINVAL;
 
 	value = twl6040_reg_read(twl6040, reg);
 	twl6040_write_reg_cache(codec, reg, value);
@@ -269,21 +275,32 @@ static int twl6040_write(struct snd_soc_codec *codec,
 			unsigned int reg, unsigned int value)
 {
 	struct twl6040 *twl6040 = codec->control_data;
+	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
+	int ret = 0;
 
 	if (reg >= TWL6040_CACHEREGNUM)
 		return -EIO;
 
 	twl6040_write_reg_cache(codec, reg, value);
-	return twl6040_reg_write(twl6040, reg, value);
+
+	if ((twl6040_reg_supply[reg] == TWL6040_VIO_SUPPLY) ||
+		priv->codec_powered)
+		ret = twl6040_reg_write(twl6040, reg, value);
+	else
+		dev_dbg(codec->dev, "deferring register 0x%02x write: %02x\n",
+			reg, value);
+
+	return ret;
 }
 
 static void twl6040_init_vio_regs(struct snd_soc_codec *codec)
 {
 	u8 *cache = codec->reg_cache;
-	int reg, i;
+	int reg;
 
-	for (i = 0; i < TWL6040_VIOREGNUM; i++) {
-		reg = twl6040_vio_reg[i];
+	for (reg = 0; reg < TWL6040_CACHEREGNUM; reg++) {
+		if (twl6040_reg_supply[reg] != TWL6040_VIO_SUPPLY)
+			continue;
 		/*
 		 * skip read-only registers (ASICID, ASICREV, STATUS)
 		 * and registers shared among MFD children
@@ -309,10 +326,11 @@ static void twl6040_init_vio_regs(struct snd_soc_codec *codec)
 static void twl6040_init_vdd_regs(struct snd_soc_codec *codec)
 {
 	u8 *cache = codec->reg_cache;
-	int reg, i;
+	int reg;
 
-	for (i = 0; i < TWL6040_VDDREGNUM; i++) {
-		reg = twl6040_vdd_reg[i];
+	for (reg = 0; reg < TWL6040_CACHEREGNUM; reg++) {
+		if (twl6040_reg_supply[reg] != TWL6040_VDD_SUPPLY)
+			continue;
 		/* skip vibra and pll registers */
 		switch (reg) {
 		case TWL6040_REG_VIBCTLL:
@@ -1506,6 +1524,8 @@ static int twl6040_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
 	int ret;
 
+	priv->sysclk = twl6040_get_sysclk(twl6040);
+
 	switch (clk_id) {
 	case TWL6040_SYSCLK_SEL_LPPLL:
 		ret = twl6040_set_pll(twl6040, TWL6040_LPPLL_ID,
@@ -1535,11 +1555,26 @@ static int twl6040_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 	return 0;
 }
 
+static int twl6040_digital_mute(struct snd_soc_dai *dai, int mute)
+{
+	/*
+	 * pop-noise reduction sequence requires to shutdown
+	 * analog side before CPU DAI
+	 */
+	if (mute)
+		snd_soc_dapm_codec_stream_event(dai->codec,
+				dai->driver->playback.stream_name,
+				SND_SOC_DAPM_STREAM_STOP);
+
+	return 0;
+}
+
 static struct snd_soc_dai_ops twl6040_dai_ops = {
 	.startup	= twl6040_startup,
 	.hw_params	= twl6040_hw_params,
 	.prepare	= twl6040_prepare,
 	.set_sysclk	= twl6040_set_dai_sysclk,
+	.digital_mute	= twl6040_digital_mute,
 };
 
 static struct snd_soc_dai_driver twl6040_dai[] = {
@@ -1622,6 +1657,7 @@ static int twl6040_probe(struct snd_soc_codec *codec)
 
 	priv->codec = codec;
 	codec->control_data = dev_get_drvdata(codec->dev->parent);
+	codec->dapm.idle_bias_off = 1;
 
 	if (pdata && pdata->hs_left_step && pdata->hs_right_step) {
 		priv->hs_left_step = pdata->hs_left_step;

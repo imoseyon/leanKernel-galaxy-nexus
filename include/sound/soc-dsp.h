@@ -37,15 +37,11 @@ enum snd_soc_dsp_trigger {
 };
 
 /*
- * The DSP Backend state.
+ * The DSP Frontend -> Backend link state.
  */
 enum snd_soc_dsp_link_state {
 	SND_SOC_DSP_LINK_STATE_NEW	= 0,	/* newly created path */
 	SND_SOC_DSP_LINK_STATE_FREE,			/* path to be dismantled */
-	SND_SOC_DSP_LINK_STATE_HW_PARAMS,		/* path hw_params configured */
-	SND_SOC_DSP_LINK_STATE_PREPARE,		/* path is prepared */
-	SND_SOC_DSP_LINK_STATE_START,		/* path is started */
-	SND_SOC_DSP_LINK_STATE_PAUSED,		/* path is paused */
 };
 
 struct snd_soc_dsp_params {
@@ -105,6 +101,9 @@ static inline int snd_soc_dsp_platform_trigger(struct snd_pcm_substream *substre
 		return platform->driver->ops->trigger(substream, cmd);
 	return 0;
 }
+
+int soc_dsp_fe_state_count(struct snd_soc_pcm_runtime *be, int stream,
+			enum snd_soc_dsp_state state);
 
 /* Runtime update - open/close Backend DSP paths depending on mixer updates */
 int soc_dsp_runtime_update(struct snd_soc_dapm_widget *widget);
