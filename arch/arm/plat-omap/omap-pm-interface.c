@@ -26,7 +26,7 @@
 
 #include "omap-pm-helper.h"
 
-static bool off_mode_enabled;
+bool off_mode_enabled;
 
 /*
  * Device-driver-originated constraints (via board-*.c files)

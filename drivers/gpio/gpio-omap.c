@@ -41,6 +41,8 @@ struct gpio_regs {
 	u32 risingdetect;
 	u32 fallingdetect;
 	u32 dataout;
+	u32 debounce;
+	u32 debounce_en;
 };
 
 struct gpio_bank {
@@ -1263,9 +1265,6 @@ static int omap_gpio_pm_runtime_suspend(struct device *dev)
 	u32 l1 = 0, l2 = 0;
 	int j;
 
-	for (j = 0; j < hweight_long(bank->dbck_enable_mask); j++)
-		clk_disable(bank->dbck);
-
 	/* If going to OFF, remove triggering for all
 	 * non-wakeup GPIOs.  Otherwise spurious IRQs will be
 	 * generated.  See OMAP2420 Errata item 1.101. */
@@ -1289,6 +1288,9 @@ save_gpio_ctx:
 	if (bank->get_context_loss_count)
 		bank->ctx_loss_count = bank->get_context_loss_count(bank->dev);
 	omap_gpio_save_context(bank);
+	for (j = 0; j < hweight_long(bank->dbck_enable_mask); j++)
+		clk_disable(bank->dbck);
+
 #endif
 	return 0;
 }
@@ -1386,7 +1388,7 @@ void omap2_gpio_prepare_for_idle(int off_mode)
 		if (!bank->mod_usage || !bank->loses_context)
 			continue;
 
-		if (IS_ERR_VALUE(pm_runtime_put_sync(bank->dev) < 0))
+		if (IS_ERR_VALUE(pm_runtime_put_sync_suspend(bank->dev) < 0))
 			dev_err(bank->dev, "%s: GPIO bank %d "
 					"pm_runtime_put_sync failed\n",
 					__func__, bank->id);
@@ -1414,7 +1416,7 @@ void omap_gpio_save_context(struct gpio_bank *bank)
 	bank->context.irqenable2 =
 			__raw_readl(bank->base + bank->regs->irqenable2);
 	bank->context.wake_en =
-			__raw_readl(bank->base + bank->regs->wkup_status);
+			__raw_readl(bank->base + bank->regs->wkup_set);
 	bank->context.ctrl = __raw_readl(bank->base + bank->regs->ctrl);
 	bank->context.oe = __raw_readl(bank->base + bank->regs->direction);
 	bank->context.leveldetect0 =
@@ -1426,6 +1428,12 @@ void omap_gpio_save_context(struct gpio_bank *bank)
 	bank->context.fallingdetect =
 			__raw_readl(bank->base + bank->regs->fallingdetect);
 	bank->context.dataout = __raw_readl(bank->base + bank->regs->dataout);
+	if (bank->dbck_enable_mask) {
+		bank->context.debounce = __raw_readl(bank->base +
+						     bank->regs->debounce);
+		bank->context.debounce_en = __raw_readl(bank->base +
+						bank->regs->debounce_en);
+	}
 	bank->saved_context = 1;
 }
 
@@ -1433,14 +1441,9 @@ void omap_gpio_restore_context(struct gpio_bank *bank)
 {
 	if(!bank->saved_context)
 		return;
-	__raw_writel(bank->context.irqenable1,
-				bank->base + bank->regs->irqenable);
-	__raw_writel(bank->context.irqenable2,
-				bank->base + bank->regs->irqenable2);
 	__raw_writel(bank->context.wake_en,
-				bank->base + bank->regs->wkup_status);
+				bank->base + bank->regs->wkup_set);
 	__raw_writel(bank->context.ctrl, bank->base + bank->regs->ctrl);
-	__raw_writel(bank->context.oe, bank->base + bank->regs->direction);
 	__raw_writel(bank->context.leveldetect0,
 				bank->base + bank->regs->leveldetect0);
 	__raw_writel(bank->context.leveldetect1,
@@ -1449,7 +1452,24 @@ void omap_gpio_restore_context(struct gpio_bank *bank)
 				bank->base + bank->regs->risingdetect);
 	__raw_writel(bank->context.fallingdetect,
 				bank->base + bank->regs->fallingdetect);
-	__raw_writel(bank->context.dataout, bank->base + bank->regs->dataout);
+	if (bank->regs->set_dataout && bank->regs->clr_dataout)
+		__raw_writel(bank->context.dataout,
+				bank->base + bank->regs->set_dataout);
+	else
+		__raw_writel(bank->context.dataout,
+				bank->base + bank->regs->dataout);
+	__raw_writel(bank->context.oe, bank->base + bank->regs->direction);
+	if (bank->dbck_enable_mask) {
+		__raw_writel(bank->context.debounce, bank->base +
+			     bank->regs->debounce);
+		__raw_writel(bank->context.debounce_en,
+			     bank->base + bank->regs->debounce_en);
+	}
+	__raw_writel(bank->context.irqenable1,
+				bank->base + bank->regs->irqenable);
+	__raw_writel(bank->context.irqenable2,
+				bank->base + bank->regs->irqenable2);
+	bank->saved_context = 0;
 }
 #endif
 
