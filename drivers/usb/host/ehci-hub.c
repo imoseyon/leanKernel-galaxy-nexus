@@ -1063,6 +1063,32 @@ static int ehci_hub_control (
 			temp &= ~PORT_WKCONN_E;
 			temp |= PORT_WKDISC_E | PORT_WKOC_E;
 			ehci_writel(ehci, temp | PORT_SUSPEND, status_reg);
+
+			/*
+			 * Special workaround sequence:
+			 * - Set suspend bit
+			 * - Wait 4ms for suspend to take effect
+			 *   - alternatively read the line state
+			 *     in PORTSC
+			 * - switch to internal 60 MHz clock
+			 * - wait 1ms
+			 * - switch back to external clock
+			 */
+			{
+				u32 temp_reg;
+				mdelay(4);
+#define	L3INIT_HSUSBHOST_CLKCTRL			0x4A009358
+				temp_reg = omap_readl(L3INIT_HSUSBHOST_CLKCTRL);
+				temp_reg |= 1 << 8;
+				temp_reg &= ~(1 << 24);
+				omap_writel(temp_reg, L3INIT_HSUSBHOST_CLKCTRL);
+
+				mdelay(1);
+				temp_reg &= ~(1 << 8);
+				temp_reg |= 1 << 24;
+				omap_writel(temp_reg, L3INIT_HSUSBHOST_CLKCTRL);
+			}
+
 			if (hostpc_reg) {
 				spin_unlock_irqrestore(&ehci->lock, flags);
 				msleep(5);/* 5ms for HCD enter low pwr mode */
