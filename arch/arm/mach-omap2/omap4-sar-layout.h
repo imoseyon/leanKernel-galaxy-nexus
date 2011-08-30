@@ -11,6 +11,59 @@
 #ifndef OMAP_ARCH_OMAP4_SAR_LAYOUT_H
 #define OMAP_ARCH_OMAP4_SAR_LAYOUT_H
 
+#include <mach/hardware.h>
+#include <mach/omap4-common.h>
+#include <mach/emif-44xx.h>
+#include <mach/dmm-44xx.h>
+#include <mach/ctrl_module_pad_core_44xx.h>
+
+#include "cm1_44xx.h"
+#include "cm2_44xx.h"
+#include "prcm-common.h"
+
+/*
+ * The SAR RAM is maintained during Device OFF mode.
+ * It is split into 4 banks with different privilege accesses
+ *
+ * ---------------------------------------------------------------------
+ * Access mode			Bank	Address Range
+ * ---------------------------------------------------------------------
+ * HS/GP : Public		1	0x4A32_6000 - 0x4A32_6FFF (4kB)
+ * HS/GP : Public, Secured
+ * if padconfaccdisable=1	2	0x4A32_7000 - 0x4A32_73FF (1kB)
+ * HS/EMU : Secured
+ * GP : Public			3	0x4A32_8000 - 0x4A32_87FF (2kB)
+ * HS/GP :
+ * Secure Priviledge,
+ * write once.			4	0x4A32_9000 - 0x4A32_93FF (1kB)
+ * ---------------------------------------------------------------------
+ * The SAR RAM save regiter layout is fixed since restore is done by hardware.
+ */
+
+#define MODULE_ADDR_IDX				0
+#define MODULE_OFFSET_IDX			1
+#define MODULE_NB_REGS_IDX			2
+#define SAR_RAM_OFFSET_IDX			3
+
+/*
+ * Module Index used to lookup VA using index
+ */
+#define MAX_SAR_MODULES				14
+#define EMIF1_INDEX				0
+#define EMIF2_INDEX				1
+#define DMM_INDEX				2
+#define CM1_INDEX				3
+#define CM2_INDEX				4
+#define C2C_INDEX				5
+#define CTRL_MODULE_PAD_CORE_INDEX		6
+#define L3_CLK1_INDEX				7
+#define L3_CLK2_INDEX				8
+#define L3_CLK3_INDEX				9
+#define USBTLL_INDEX				10
+#define UHH_INDEX				11
+#define L4CORE_INDEX				12
+#define L4PER_INDEX				13
+
 /*
  * SAR BANK offsets from base address OMAP44XX_SAR_RAM_BASE
  */
@@ -26,13 +79,12 @@
 #define MMU_OFFSET1				0xd10
 #define SCU_OFFSET0				0xd20
 #define SCU_OFFSET1				0xd24
-#define L2X0_OFFSET				0xd28
-#define L2X0_AUXCTRL_OFFSET			0xd2c
-#define L1_OFFSET0				0xd30
-#define L1_OFFSET1				0xd34
-#define OMAP_TYPE_OFFSET			0xd38
-#define L2X0_LOCKDOWN_OFFSET0			0xd3c
-#define L2X0_PREFETCHCTRL_OFFSET		0xd40
+#define L2X0_AUXCTRL_OFFSET			0xd28
+#define OMAP_TYPE_OFFSET			0xd2c
+#define L2X0_LOCKDOWN_OFFSET0			0xd30
+#define L2X0_PREFETCHCTRL_OFFSET		0xd34
+#define L2X0_SAVE_OFFSET0			0xd38
+#define L2X0_SAVE_OFFSET1			0xd3c
 
 /* CPUx Wakeup Non-Secure Physical Address offsets in SAR_BANK3 */
 #define CPU0_WAKEUP_NS_PA_ADDR_OFFSET		0xa04

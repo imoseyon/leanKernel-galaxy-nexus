@@ -148,8 +148,8 @@ extern int gpmc_cs_reserved(int cs);
 extern int gpmc_prefetch_enable(int cs, int fifo_th, int dma_mode,
 					unsigned int u32_count, int is_write);
 extern int gpmc_prefetch_reset(int cs);
-extern void omap3_gpmc_save_context(void);
-extern void omap3_gpmc_restore_context(void);
+extern void omap_gpmc_save_context(void);
+extern void omap_gpmc_restore_context(void);
 extern int gpmc_read_status(int cmd);
 extern int gpmc_cs_configure(int cs, int cmd, int wval);
 extern int gpmc_nand_read(int cs, int cmd);
