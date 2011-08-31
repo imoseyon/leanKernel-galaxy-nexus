@@ -199,6 +199,8 @@
  */
 #define TXDATADMADIS	BIT(0)
 
+#define MCASP_ALLOWED_PPM	100
+
 /*
  * Stream DMA parameters
  */
@@ -279,7 +281,8 @@ static int mcasp_compute_clock_dividers(long fclk_rate, int tgt_sample_rate,
 	 * the transmit clock.
 	 */
 	long divisor;
-	int i;
+	unsigned long ppm;
+	int sample_rate, i;
 	BUG_ON(!out_div_lo);
 	BUG_ON(!out_div_hi);
 
@@ -291,11 +294,19 @@ static int mcasp_compute_clock_dividers(long fclk_rate, int tgt_sample_rate,
 
 	fclk_rate >>= 7;
 
-	/* Next, make sure that our target Fs divides fClk/128 */
-	if  (fclk_rate % tgt_sample_rate)
+	/* rounded division: fclk_rate / tgt_sample_rate + 0.5 */
+	divisor = (2 * fclk_rate + tgt_sample_rate) / (2 * tgt_sample_rate);
+	if (!divisor)
 		return -EINVAL;
 
-	divisor = fclk_rate / tgt_sample_rate;
+	sample_rate = fclk_rate / divisor;
+
+	/* ppm calculation in two steps to avoid overflow */
+	ppm = abs(tgt_sample_rate - sample_rate);
+	ppm = (1000000 * ppm) / tgt_sample_rate;
+
+	if (ppm > MCASP_ALLOWED_PPM)
+		return -EINVAL;
 
 	/* At this point, divisor holds the product of the two divider values we
 	 * need to use for ACLKXCTL and AHCLKXCTL.  ACLKXCTL holds a 5 bit
@@ -317,42 +328,6 @@ static int mcasp_compute_clock_dividers(long fclk_rate, int tgt_sample_rate,
 	*out_div_hi = (divisor / i) - 1;
 
 	return (*out_div_hi <= 4096) ? 0 : -EINVAL;
-}
-
-static int mcasp_compute_playback_rates(long fclk_rate)
-{
-	static const int rate_table[][2] = {
-		{ 5512, SNDRV_PCM_RATE_5512 },
-		{ 8000, SNDRV_PCM_RATE_8000 },
-		{ 11025, SNDRV_PCM_RATE_11025 },
-		{ 16000, SNDRV_PCM_RATE_16000 },
-		{ 22050, SNDRV_PCM_RATE_22050 },
-		{ 32000, SNDRV_PCM_RATE_32000 },
-		{ 44100, SNDRV_PCM_RATE_44100 },
-		{ 48000, SNDRV_PCM_RATE_48000 },
-		{ 64000, SNDRV_PCM_RATE_64000 },
-		{ 88200, SNDRV_PCM_RATE_88200 },
-		{ 96000, SNDRV_PCM_RATE_96000 },
-		{ 176400, SNDRV_PCM_RATE_176400 },
-		{ 192000, SNDRV_PCM_RATE_192000 },
-	};
-	int i, res;
-
-	if (!fclk_rate)
-		return 0;
-
-	res = 0;
-	for (i = 0; i < ARRAY_SIZE(rate_table); ++i) {
-		int lo, hi;
-
-		if (!mcasp_compute_clock_dividers(fclk_rate,
-					rate_table[i][0],
-					&lo,
-					&hi))
-			res |= rate_table[i][1];
-	}
-
-	return res;
 }
 
 static int mcasp_start_tx(struct omap_mcasp *mcasp)
@@ -566,6 +541,11 @@ static struct snd_soc_dai_ops omap_mcasp_dai_ops = {
 
 };
 
+#define MCASP_RATES	(SNDRV_PCM_RATE_22050 | SNDRV_PCM_RATE_32000 | \
+			 SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000 | \
+			 SNDRV_PCM_RATE_88200 | SNDRV_PCM_RATE_96000 | \
+			 SNDRV_PCM_RATE_176400 | SNDRV_PCM_RATE_192000)
+
 static struct snd_soc_dai_driver omap_mcasp_dai[] = {
 	{
 		.name		= "omap-mcasp-dai",
@@ -573,6 +553,7 @@ static struct snd_soc_dai_driver omap_mcasp_dai[] = {
 			.channels_min	= 1,
 			.channels_max	= 384,
 			.formats	= SNDRV_PCM_FMTBIT_S16_LE,
+			.rates		= MCASP_RATES,
 		},
 		.ops		= &omap_mcasp_dai_ops,
 	},
@@ -612,15 +593,6 @@ static __devinit int omap_mcasp_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, mcasp);
 	mcasp->dev = &pdev->dev;
-
-	omap_mcasp_dai[0].playback.rates =
-		mcasp_compute_playback_rates(fclk_rate);
-	if (!omap_mcasp_dai[0].playback.rates) {
-		dev_err(&pdev->dev, "no valid sample rates can be produce from"
-				" a %ld Hz fClk\n", fclk_rate);
-		ret = -ENODEV;
-		goto err;
-	}
 
 	ret = snd_soc_register_dai(&pdev->dev, omap_mcasp_dai);
 
