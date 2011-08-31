@@ -101,7 +101,7 @@ static int omap_timer_get_context_loss(struct device *dev)
 }
 
 #else
-#define omap_gpio_get_context_loss NULL
+#define omap_timer_get_context_loss NULL
 #endif
 
 struct omap_device_pm_latency omap2_dmtimer_latency[] = {
