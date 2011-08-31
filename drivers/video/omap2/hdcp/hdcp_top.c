@@ -27,6 +27,7 @@
 #include <linux/mm.h>
 #include <linux/completion.h>
 #include <linux/miscdevice.h>
+#include <linux/firmware.h>
 #include "../../hdmi_ti_4xxx_ip.h"
 #include "../dss/dss.h"
 #include "hdcp.h"
@@ -877,6 +878,52 @@ static struct file_operations hdcp_fops = {
 
 struct miscdevice mdev;
 
+static void hdcp_load_keys_cb(const struct firmware *fw, void *context)
+{
+	struct hdcp_enable_control *en_ctrl;
+
+	if (!fw) {
+		pr_err("HDCP: failed to load keys\n");
+		return;
+	}
+
+	if (fw->size != sizeof(en_ctrl->key)) {
+		pr_err("HDCP: encrypted key file wrong size %d\n", fw->size);
+		return;
+	}
+
+	en_ctrl = kmalloc(sizeof(*en_ctrl), GFP_KERNEL);
+	if (!en_ctrl) {
+		pr_err("HDCP: can't allocated space for keys\n");
+		return;
+	}
+
+	memcpy(en_ctrl->key, fw->data, sizeof(en_ctrl->key));
+	en_ctrl->nb_retry = 0;
+
+	hdcp.en_ctrl = en_ctrl;
+	hdcp.retry_cnt = hdcp.en_ctrl->nb_retry;
+	hdcp.hdcp_state = HDCP_ENABLE_PENDING;
+	pr_info("HDCP: loaded keys\n");
+
+}
+
+static int hdcp_load_keys(void)
+{
+	int ret;
+
+	ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+				      "hdcp.keys", mdev.this_device, GFP_KERNEL,
+				      &hdcp, hdcp_load_keys_cb);
+	if (ret < 0) {
+		pr_err("HDCP: request_firmware_nowait failed: %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+
 /*-----------------------------------------------------------------------------
  * Function: hdcp_init
  *-----------------------------------------------------------------------------
@@ -949,6 +996,8 @@ static int __init hdcp_init(void)
 	hdcp_release_dss();
 
 	mutex_unlock(&hdcp.lock);
+
+	hdcp_load_keys();
 
 	return 0;
 
