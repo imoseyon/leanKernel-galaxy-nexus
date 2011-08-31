@@ -207,10 +207,6 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 			}
 		}
 
-		if (pdata->set_min_bus_tput)
-			pdata->set_min_bus_tput(&gpsPVRLDMDev->dev,
-				OCP_INITIATOR_AGENT, 1000000);
-
 		res = pm_runtime_get_sync(&gpsPVRLDMDev->dev);
 		if (res < 0)
 		{
@@ -285,10 +281,6 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 				psSysSpecData->ui32SGXFreqListIndex = psSysSpecData->ui32SGXFreqListSize - 1;
 			}
 		}
-
-		if (pdata->set_min_bus_tput)
-			pdata->set_min_bus_tput(&gpsPVRLDMDev->dev,
-				OCP_INITIATOR_AGENT, -1);
 	}
 #endif
 
