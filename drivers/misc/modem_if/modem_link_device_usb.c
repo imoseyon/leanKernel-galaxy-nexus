@@ -396,7 +396,9 @@ static int if_usb_resume(struct usb_interface *intf)
 					pr_debug("pm_runtime_put_autosuspend fail\n");
 			}
 		}
-
+		SET_SLAVE_WAKEUP(usb_ld->pdata, 1);
+		udelay(100);
+		SET_SLAVE_WAKEUP(usb_ld->pdata, 0);
 		return 0;
 	}
 
@@ -651,9 +653,6 @@ static irqreturn_t usb_resume_irq(int irq, void *data)
 			wake_up(&usb_ld->l2_wait);
 		usb_ld->resume_status = CP_INITIATED_RESUME;
 		pm_runtime_put_autosuspend(&usb_ld->usbdev->dev);
-		SET_SLAVE_WAKEUP(usb_ld->pdata, 1);
-		udelay(100);
-		SET_SLAVE_WAKEUP(usb_ld->pdata, 0);
 	}
 
 	return IRQ_HANDLED;
