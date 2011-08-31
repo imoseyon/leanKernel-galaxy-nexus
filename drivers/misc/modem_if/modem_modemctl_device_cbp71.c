@@ -102,7 +102,8 @@ static int cbp71_off(struct modem_ctl *mc)
 		return -ENXIO;
 	}
 
-	pr_warn("[MODEM_IF] Phone power Off. - do nothing\n");
+	gpio_set_value(mc->gpio_cp_off, 1);
+	gpio_set_value(mc->gpio_cp_reset, 0);
 
 	mc->iod->modem_state_changed(mc->iod, STATE_OFFLINE);
 
