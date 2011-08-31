@@ -30,6 +30,7 @@
 #include "powerdomain.h"
 #include "clockdomain.h"
 #include <plat/serial.h>
+#include <plat/omap-pm.h>
 
 #include "pm.h"
 #include "control.h"

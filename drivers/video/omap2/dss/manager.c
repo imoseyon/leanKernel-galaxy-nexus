@@ -1074,8 +1074,7 @@ static int configure_overlay(enum omap_plane plane)
 	dispc_set_burst_size(plane, c->burst_size);
 	dispc_set_zorder(plane, c->zorder);
 	dispc_enable_zorder(plane, 1);
-	if (!cpu_is_omap44xx())
-		dispc_setup_plane_fifo(plane, c->fifo_low, c->fifo_high);
+	dispc_setup_plane_fifo(plane, c->fifo_low, c->fifo_high);
 	if (plane != OMAP_DSS_GFX)
 		_dispc_setup_color_conv_coef(plane, &c->cconv);
 
