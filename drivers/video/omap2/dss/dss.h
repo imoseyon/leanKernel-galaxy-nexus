@@ -156,6 +156,30 @@ struct dsi_clock_info {
 	bool use_sys_clk;
 };
 
+struct dispc_config {
+	u32 sizex, sizey;
+	u32 burstsize;
+	u32 pixelinc;
+	u32 rowinc;
+	u32 bursttype;
+	u32 antiflicker;
+	u32 doublestride;
+	u32 ba;
+	u32 bacbcr;
+	u32 format;
+	u32 rotation;
+	u32 gfx_top_buffer;
+	u32 gfx_bottom_buffer;
+	u32 vid1_top_buffer;
+	u32 vid1_bottom_buffer;
+	u32 vid2_top_buffer;
+	u32 vid2_bottom_buffer;
+	u32 vid3_top_buffer;
+	u32 vid3_bottom_buffer;
+	u32 wb_top_buffer;
+	u32 wb_bottom_buffer;
+};
+
 struct seq_file;
 struct platform_device;
 
@@ -472,7 +496,7 @@ int dispc_set_clock_div(enum omap_channel channel,
 		struct dispc_clock_info *cinfo);
 int dispc_get_clock_div(enum omap_channel channel,
 		struct dispc_clock_info *cinfo);
-
+u32 sa_calc_wrap(struct dispc_config *dispc_reg_config, u32 channel_no);
 
 /* VENC */
 #ifdef CONFIG_OMAP2_DSS_VENC

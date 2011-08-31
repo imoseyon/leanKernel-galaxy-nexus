@@ -65,15 +65,17 @@
  *    needs to be scaled to. This API then internally finds out the voltage
  *    domain to which the device belongs to and the voltage to which the voltage
  *    domain needs to be put to for the device to be scaled to the new frequency
- *    from he device opp table. Then this API will add requested frequency into
+ *    from the device opp table. Then this API will add requested frequency into
  *    the corresponding target device frequency list and add voltage request to
  *    the corresponding vdd. Subsequently it calls voltage scale function which
  *    will find out the highest requested voltage for the given vdd and scales
- *    the voltage to the required one. It also runs through the list of all
+ *    the voltage to the required one and also adds corresponding frequency
+ *    request for that voltage. It also runs through the list of all
  *    scalable devices belonging to this voltage domain and scale them to the
  *    appropriate frequencies using the set_rate pointer in the device opp
  *    tables.
- * 6. Handle inter VDD dependecies.
+ * 6. Handle inter VDD dependecies. This will take care of scaling domain's voltage
+ *    and frequency together.
  *
  *
  * DOC: The Core DVFS data structure:
@@ -270,8 +272,8 @@ struct omap_vdd_dvfs_info *_voltdm_to_dvfs_info(struct voltagedomain *voltdm)
  * @volt:	voltage to search for in uV
  *
  * Searches for exact match in the OPP list and returns handle to the matching
- * OPP if found, else returns ERR_PTR in case of error and should be handled
- * using IS_ERR. If there are multiple opps with same voltage, it will return
+ * OPP if found, else return the max available OPP.
+ * If there are multiple opps with same voltage, it will return
  * the first available entry. Return pointer should be checked against IS_ERR.
  *
  * NOTE: since this uses OPP functions, use under rcu_lock. This function also
@@ -285,8 +287,14 @@ static struct opp *_volt_to_opp(struct device *dev, unsigned long volt)
 
 	do {
 		opp = opp_find_freq_ceil(dev, &f);
-		if (IS_ERR(opp))
+		if (IS_ERR(opp)) {
+			/*
+			 * if there is no OPP for corresponding volt
+			 * then return max available instead
+			 */
+			opp = opp_find_freq_floor(dev, &f);
 			break;
+		}
 		if (opp_get_voltage(opp) >= volt)
 			break;
 		f++;
@@ -528,8 +536,11 @@ static int _dep_scan_table(struct device *dev,
 		struct omap_vdd_dep_info *dep_info, unsigned long main_volt)
 {
 	struct omap_vdd_dep_volt *dep_table = dep_info->dep_table;
-	int i;
-	unsigned long dep_volt = 0;
+	struct device *target_dev;
+	struct omap_vdd_dvfs_info *tdvfs_info;
+	struct opp *opp;
+	int i, ret;
+	unsigned long dep_volt = 0, new_freq = 0;
 
 	if (!dep_table) {
 		dev_err(dev, "%s: deptable not present for vdd%s\n",
@@ -561,12 +572,43 @@ static int _dep_scan_table(struct device *dev,
 	}
 
 	/* See if dep_volt is possible for the vdd*/
-	i = _add_vdd_user(_voltdm_to_dvfs_info(dep_info->_dep_voltdm),
+	ret = _add_vdd_user(_voltdm_to_dvfs_info(dep_info->_dep_voltdm),
 			dev, dep_volt);
-	if (i)
+	if (ret)
 		dev_err(dev, "%s: Failed to add dep to domain %s volt=%ld\n",
 				__func__, dep_info->name, dep_volt);
-	return i;
+
+	/* And also add corresponding freq request */
+	tdvfs_info = _voltdm_to_dvfs_info(dep_info->_dep_voltdm);
+	if (!tdvfs_info) {
+		dev_warn(dev, "%s: no dvfs_info\n",
+				__func__);
+		return -ENODEV;
+	}
+	target_dev = _dvfs_info_to_dev(tdvfs_info);
+	if (!target_dev) {
+		dev_warn(dev, "%s: no target_dev\n",
+			__func__);
+		return -ENODEV;
+	}
+
+	rcu_read_lock();
+	opp = _volt_to_opp(target_dev, dep_volt);
+	if (!IS_ERR(opp))
+		new_freq = opp_get_freq(opp);
+	rcu_read_unlock();
+
+	if (new_freq) {
+		ret = _add_freq_request(tdvfs_info, dev, target_dev, new_freq);
+		if (ret) {
+			dev_err(target_dev, "%s: freqadd(%s) failed %d[f=%ld,"
+					"v=%ld]\n", __func__, dev_name(dev),
+					i, new_freq, dep_volt);
+			return ret;
+		}
+	}
+
+	return ret;
 }
 
 /**
@@ -838,10 +880,11 @@ int omap_device_scale(struct device *req_dev, struct device *target_dev,
 			unsigned long rate)
 {
 	struct opp *opp;
-	unsigned long volt, freq = rate;
+	unsigned long volt, freq = rate, new_freq = 0;
 	struct omap_vdd_dvfs_info *tdvfs_info;
 	struct platform_device *pdev;
 	struct omap_device *od;
+	struct device *dev;
 	int ret = 0;
 
 	pdev = container_of(target_dev, struct platform_device, dev);
@@ -901,6 +944,32 @@ int omap_device_scale(struct device *req_dev, struct device *target_dev,
 		_remove_freq_request(tdvfs_info, req_dev,
 			target_dev);
 		goto out;
+	}
+
+	dev = _dvfs_info_to_dev(tdvfs_info);
+	if (!dev) {
+		dev_warn(dev, "%s: no target_dev\n",
+			__func__);
+		ret = -ENODEV;
+		goto out;
+	}
+
+	if (dev != target_dev) {
+		rcu_read_lock();
+		opp = _volt_to_opp(dev, volt);
+		if (!IS_ERR(opp))
+			new_freq = opp_get_freq(opp);
+		rcu_read_unlock();
+		if (new_freq) {
+			ret = _add_freq_request(tdvfs_info, req_dev, dev,
+						new_freq);
+			if (ret) {
+				dev_err(target_dev, "%s: freqadd(%s) failed %d"
+					"[f=%ld, v=%ld]\n", __func__,
+					dev_name(req_dev), ret, freq, volt);
+				goto out;
+			}
+		}
 	}
 
 	/* Do the actual scaling */

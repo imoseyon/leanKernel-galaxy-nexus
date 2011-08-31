@@ -27,7 +27,8 @@ struct gpu_platform_data {
 	/* Number of overdrive frequencies */
 	unsigned int ovfreqs;
 
-	int (*set_min_bus_tput)(struct device *dev, u8 agent_id, long r);
+	void (*set_min_bus_tput)(struct device *dev, u8 agent_id,
+						unsigned long r);
 	int (*device_scale) (struct device *req_dev, struct device *target_dev,
 			unsigned long rate);
 	int (*device_enable) (struct platform_device *pdev);
