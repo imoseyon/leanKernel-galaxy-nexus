@@ -42,6 +42,11 @@
 #include <linux/pm_runtime.h>
 #include <linux/pm_qos_params.h>
 
+#ifdef CONFIG_ARCH_OMAP4
+#include "../../../arch/arm/mach-omap2/cm2_44xx.h"
+#include "../../../arch/arm/mach-omap2/cm-regbits-44xx.h"
+#endif
+
 /* I2C controller revisions */
 #define OMAP_I2C_REV_2			0x20
 
@@ -262,6 +267,51 @@ static inline u16 omap_i2c_read_reg(struct omap_i2c_dev *i2c_dev, int reg)
 {
 	return __raw_readw(i2c_dev->base +
 				(i2c_dev->regs[reg] << i2c_dev->reg_shift));
+}
+
+static void omap_i2c_dump(struct omap_i2c_dev *dev)
+{
+	struct clk *fclk;
+	unsigned long fclk_rate;
+
+	dev_info(dev->dev, "sysc=0x%04x stat=0x%04x syss=0x%04x con=0x%04x\n",
+		 omap_i2c_read_reg(dev, OMAP_I2C_SYSC_REG),
+		 omap_i2c_read_reg(dev, OMAP_I2C_STAT_REG),
+		 omap_i2c_read_reg(dev, OMAP_I2C_SYSS_REG),
+		 omap_i2c_read_reg(dev, OMAP_I2C_CON_REG));
+
+	pr_info("we=0x%04x sa=0x%04x cnt=%d buf=0x%04x bufstat=0x%04x\n",
+		omap_i2c_read_reg(dev, OMAP_I2C_WE_REG),
+		omap_i2c_read_reg(dev, OMAP_I2C_SA_REG),
+		omap_i2c_read_reg(dev, OMAP_I2C_CNT_REG),
+		omap_i2c_read_reg(dev, OMAP_I2C_BUF_REG),
+		omap_i2c_read_reg(dev, OMAP_I2C_BUFSTAT_REG));
+
+	fclk = clk_get(dev->dev, "fck");
+	fclk_rate = clk_get_rate(fclk);
+	clk_put(fclk);
+
+	pr_info("fclk=%lu"
+#ifdef CONFIG_ARCH_OMAP4
+		" gated=%s"
+#endif
+		" psc=0x%04x scll=0x%04x sclh=0x%04x\n",
+		fclk_rate,
+#ifdef CONFIG_ARCH_OMAP4
+		__raw_readl(OMAP4430_CM_L4PER_CLKSTCTRL) &
+		OMAP4430_CLKACTIVITY_PER_96M_GFCLK_MASK ? "no" : "yes",
+#endif
+		omap_i2c_read_reg(dev, OMAP_I2C_PSC_REG),
+		omap_i2c_read_reg(dev, OMAP_I2C_SCLL_REG),
+		omap_i2c_read_reg(dev, OMAP_I2C_SCLH_REG));
+
+#ifdef CONFIG_ARCH_OMAP4
+	pr_info("CLKCTRL: 1:0x%08x 2:0x%08x 3:0x%08x 4:0x%08x\n",
+		__raw_readl(OMAP4430_CM_L4PER_I2C1_CLKCTRL),
+		__raw_readl(OMAP4430_CM_L4PER_I2C2_CLKCTRL),
+		__raw_readl(OMAP4430_CM_L4PER_I2C3_CLKCTRL),
+		__raw_readl(OMAP4430_CM_L4PER_I2C4_CLKCTRL));
+#endif
 }
 
 static void omap_i2c_unidle(struct omap_i2c_dev *dev)
@@ -513,6 +563,7 @@ static int omap_i2c_wait_for_bb(struct omap_i2c_dev *dev)
 	while (omap_i2c_read_reg(dev, OMAP_I2C_STAT_REG) & OMAP_I2C_STAT_BB) {
 		if (time_after(jiffies, timeout)) {
 			dev_warn(dev->dev, "timeout waiting for bus ready\n");
+			omap_i2c_dump(dev);
 			return -ETIMEDOUT;
 		}
 		msleep(1);
@@ -603,6 +654,7 @@ static int omap_i2c_xfer_msg(struct i2c_adapter *adap,
 		return r;
 	if (r == 0) {
 		dev_err(dev->dev, "controller timed out\n");
+		omap_i2c_dump(dev);
 		omap_i2c_init(dev);
 		return -ETIMEDOUT;
 	}
