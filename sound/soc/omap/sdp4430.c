@@ -697,6 +697,7 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 		.post = sdp4430_mcpdm_twl6040_post,
 		.ops = &sdp4430_mcpdm_ops,
 		.be_id = OMAP_ABE_DAI_PDM_DL1,
+		.ignore_suspend = 1,
 	},
 	{
 		.name = OMAP_ABE_BE_PDM_UL1,
@@ -712,7 +713,10 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 
 		.no_pcm = 1, /* don't create ALSA pcm for this */
 		.ops = &sdp4430_mcpdm_ops,
+		.pre = sdp4430_mcpdm_twl6040_pre,
+		.post = sdp4430_mcpdm_twl6040_post,
 		.be_id = OMAP_ABE_DAI_PDM_UL,
+		.ignore_suspend = 1,
 	},
 	{
 		.name = OMAP_ABE_BE_PDM_DL2,
@@ -732,6 +736,7 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 		.post = sdp4430_mcpdm_twl6040_post,
 		.ops = &sdp4430_mcpdm_ops,
 		.be_id = OMAP_ABE_DAI_PDM_DL2,
+		.ignore_suspend = 1,
 	},
 	{
 		.name = OMAP_ABE_BE_PDM_VIB,
@@ -767,6 +772,7 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 		.be_hw_params_fixup = mcbsp_be_hw_params_fixup,
 		.ops = &sdp4430_mcbsp_ops,
 		.be_id = OMAP_ABE_DAI_BT_VX,
+		.ignore_suspend = 1,
 	},
 	{
 		.name = OMAP_ABE_BE_BT_VX_DL,
@@ -784,6 +790,7 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 		.be_hw_params_fixup = mcbsp_be_hw_params_fixup,
 		.ops = &sdp4430_mcbsp_ops,
 		.be_id = OMAP_ABE_DAI_BT_VX,
+		.ignore_suspend = 1,
 	},
 	{
 		.name = OMAP_ABE_BE_MM_EXT0,
