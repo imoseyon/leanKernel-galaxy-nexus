@@ -30,6 +30,7 @@
 #include <linux/usb/otg.h>
 #include <linux/delay.h>
 #include <linux/sii9234.h>
+#include <linux/mutex.h>
 
 #include <plat/usb.h>
 
@@ -37,6 +38,7 @@
 #include "board-tuna.h"
 
 #define GPIO_JACK_INT_N		4
+#define GPIO_CP_USB_ON		22
 #define GPIO_HDMI_HPD		63
 #define GPIO_MHL_SEL		96
 #define GPIO_AP_SEL		97
@@ -68,6 +70,17 @@
 #define USB_ID_SEL_MHL		1
 
 #define IF_UART_SEL_DEFAULT	1
+#define IF_UART_SEL_AP		1
+#define IF_UART_SEL_CP		0
+
+#define TUNA_MANUAL_USB_NONE	0
+#define TUNA_MANUAL_USB_MODEM	1
+#define TUNA_MANUAL_USB_AP	2
+
+#define TUNA_MANUAL_UART_NONE	0
+#define TUNA_MANUAL_UART_MODEM	1
+#define TUNA_MANUAL_UART_LTE	2
+#define TUNA_MANUAL_UART_AP	3
 
 #define TUNA_OTG_ID_FSA9480_PRIO		INT_MIN
 #define TUNA_OTG_ID_SII9234_PRIO		INT_MIN + 1
@@ -78,8 +91,12 @@ struct tuna_otg {
 	struct device			dev;
 
 	struct regulator		*vusb;
+	struct mutex			lock;
+
 	bool				reg_on;
-	bool				jig_attached;
+	int				usb_manual_mode;
+	int				uart_manual_mode;
+	int				current_device;
 };
 static struct tuna_otg tuna_otg_xceiv;
 
@@ -114,6 +131,34 @@ static int tuna_usb_id_mux_states[] = {
 	[TUNA_USB_MUX_FSA] = USB_ID_SEL_FSA,
 	[TUNA_USB_MUX_MHL] = USB_ID_SEL_MHL,
 	[TUNA_USB_MUX_AP] = USB_ID_SEL_FSA,
+};
+
+static ssize_t tuna_otg_usb_sel_show(struct device *dev,
+				     struct device_attribute *attr,
+				     char *buf);
+static ssize_t tuna_otg_usb_sel_store(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf, size_t size);
+static ssize_t tuna_otg_uart_switch_show(struct device *dev,
+					 struct device_attribute *attr,
+					 char *buf);
+static ssize_t tuna_otg_uart_switch_store(struct device *dev,
+					  struct device_attribute *attr,
+					  const char *buf, size_t size);
+
+static DEVICE_ATTR(usb_sel, S_IRUSR | S_IWUSR,
+			tuna_otg_usb_sel_show, tuna_otg_usb_sel_store);
+static DEVICE_ATTR(uart_sel, S_IRUSR | S_IWUSR,
+			tuna_otg_uart_switch_show, tuna_otg_uart_switch_store);
+
+static struct attribute *manual_mode_attributes[] = {
+	&dev_attr_usb_sel.attr,
+	&dev_attr_uart_sel.attr,
+	NULL,
+};
+
+static const struct attribute_group manual_mode_group = {
+	.attrs = manual_mode_attributes,
 };
 
 static void tuna_mux_usb(int state)
@@ -194,36 +239,93 @@ static void tuna_vusb_enable(struct tuna_otg *tuna_otg, bool enable)
 	}
 }
 
+static void tuna_ap_usb_attach(struct tuna_otg *tuna_otg)
+{
+	tuna_vusb_enable(tuna_otg, true);
+
+	if (omap4_tuna_get_revision() >= 3) {
+		tuna_fsa3200_mux_pair(TUNA_USB_MUX_AP);
+	} else {
+		tuna_mux_usb(TUNA_USB_MUX_AP);
+		tuna_mux_usb_id(TUNA_USB_MUX_FSA);
+	}
+
+	tuna_otg->otg.state = OTG_STATE_B_IDLE;
+	tuna_otg->otg.default_a = false;
+	tuna_otg->otg.last_event = USB_EVENT_VBUS;
+	atomic_notifier_call_chain(&tuna_otg->otg.notifier,
+				   USB_EVENT_VBUS,
+				   tuna_otg->otg.gadget);
+}
+
+static void tuna_ap_usb_detach(struct tuna_otg *tuna_otg)
+{
+	tuna_vusb_enable(tuna_otg, false);
+
+	tuna_otg->otg.state = OTG_STATE_B_IDLE;
+	tuna_otg->otg.default_a = false;
+	tuna_otg->otg.last_event = USB_EVENT_NONE;
+	atomic_notifier_call_chain(&tuna_otg->otg.notifier,
+				   USB_EVENT_NONE,
+				   tuna_otg->otg.gadget);
+}
+
+static void tuna_cp_usb_attach(struct tuna_otg *tuna_otg)
+{
+	if (omap4_tuna_get_type() == TUNA_TYPE_MAGURO)
+		gpio_set_value(GPIO_CP_USB_ON, 1);
+
+	tuna_mux_usb_to_fsa(true);
+}
+
+static void tuna_cp_usb_detach(struct tuna_otg *tuna_otg)
+{
+	if (omap4_tuna_get_type() == TUNA_TYPE_MAGURO)
+		gpio_set_value(GPIO_CP_USB_ON, 0);
+}
+
+static void tuna_ap_uart_actions(struct tuna_otg *tuna_otg)
+{
+	tuna_mux_usb_to_fsa(true);
+	gpio_set_value(GPIO_IF_UART_SEL, IF_UART_SEL_AP);
+}
+
+static void tuna_cp_uart_actions(struct tuna_otg *tuna_otg)
+{
+	tuna_mux_usb_to_fsa(true);
+	gpio_set_value(GPIO_IF_UART_SEL, IF_UART_SEL_CP);
+}
+
+static void tuna_lte_uart_actions(struct tuna_otg *tuna_otg)
+{
+	tuna_mux_usb_to_fsa(true);
+
+	/* The LTE modem's UART lines are connected to the V_AUDIO_L and
+	 * V_AUDIO_R pins on the FSA9480.  The RIL will configure the FSA9480
+	 * separately to set manual routing.
+	 */
+}
+
 static void tuna_fsa_usb_detected(int device)
 {
 	struct tuna_otg *tuna_otg = &tuna_otg_xceiv;
+	int old_device;
+
+	mutex_lock(&tuna_otg->lock);
+
+	old_device = tuna_otg->current_device;
+	tuna_otg->current_device = device;
 
 	pr_debug("detected %x\n", device);
 	switch (device) {
 	case FSA9480_DETECT_USB:
-		tuna_vusb_enable(tuna_otg, true);
-
-		if (omap4_tuna_get_revision() >= 3) {
-			tuna_fsa3200_mux_pair(TUNA_USB_MUX_AP);
-		} else {
-			tuna_mux_usb(TUNA_USB_MUX_AP);
-			tuna_mux_usb_id(TUNA_USB_MUX_FSA);
-		}
-
-		tuna_otg->otg.state = OTG_STATE_B_IDLE;
-		tuna_otg->otg.default_a = false;
-		tuna_otg->otg.last_event = USB_EVENT_VBUS;
-		atomic_notifier_call_chain(&tuna_otg->otg.notifier,
-					   USB_EVENT_VBUS,
-					   tuna_otg->otg.gadget);
+		if (tuna_otg->usb_manual_mode == TUNA_MANUAL_USB_MODEM)
+			tuna_cp_usb_attach(tuna_otg);
+		else
+			tuna_ap_usb_attach(tuna_otg);
 		break;
 	case FSA9480_DETECT_CHARGER:
-		if (omap4_tuna_get_revision() >= 3) {
-			tuna_fsa3200_mux_pair(TUNA_USB_MUX_FSA);
-		} else {
-			tuna_mux_usb(TUNA_USB_MUX_FSA);
-			tuna_mux_usb_id(TUNA_USB_MUX_FSA);
-		}
+		tuna_mux_usb_to_fsa(true);
 
 		tuna_otg->otg.state = OTG_STATE_B_IDLE;
 		tuna_otg->otg.default_a = false;
@@ -250,36 +352,41 @@ static void tuna_fsa_usb_detected(int device)
 					   tuna_otg->otg.gadget);
 		break;
 	case FSA9480_DETECT_NONE:
+		tuna_mux_usb_to_fsa(true);
 
-		if (omap4_tuna_get_revision() >= 3) {
-			tuna_fsa3200_mux_pair(TUNA_USB_MUX_FSA);
-		} else {
-			tuna_mux_usb(TUNA_USB_MUX_FSA);
-			tuna_mux_usb_id(TUNA_USB_MUX_FSA);
-		}
-
-		tuna_vusb_enable(tuna_otg, false);
-
-		tuna_otg->otg.state = OTG_STATE_B_IDLE;
-		tuna_otg->otg.default_a = false;
-		tuna_otg->otg.last_event = USB_EVENT_NONE;
-
-		/* If the previously attached cable was a JIG cable then don't
-		 * notify the USB driver of the cable detach.
-		 */
-		if (tuna_otg->jig_attached) {
-			tuna_otg->jig_attached = false;
+		switch (old_device) {
+		case FSA9480_DETECT_JIG:
 			break;
-		}
-
-		atomic_notifier_call_chain(&tuna_otg->otg.notifier,
-					   USB_EVENT_NONE,
-					   tuna_otg->otg.gadget);
+		case FSA9480_DETECT_USB:
+			if (tuna_otg->usb_manual_mode == TUNA_MANUAL_USB_MODEM)
+				tuna_cp_usb_detach(tuna_otg);
+			else
+				tuna_ap_usb_detach(tuna_otg);
+			break;
+		case FSA9480_DETECT_USB_HOST:
+		case FSA9480_DETECT_CHARGER:
+		default:
+			tuna_ap_usb_detach(tuna_otg);
+			break;
+		};
 		break;
 	case FSA9480_DETECT_JIG:
-		tuna_otg->jig_attached = true;
+		switch (tuna_otg->uart_manual_mode) {
+		case TUNA_MANUAL_UART_MODEM:
+			tuna_cp_uart_actions(tuna_otg);
+			break;
+		case TUNA_MANUAL_UART_LTE:
+			tuna_lte_uart_actions(tuna_otg);
+			break;
+		case TUNA_MANUAL_UART_AP:
+		default:
+			tuna_ap_uart_actions(tuna_otg);
+			break;
+		};
 		break;
 	}
+
+	mutex_unlock(&tuna_otg->lock);
 }
 
 static struct fsa9480_detect_set fsa_detect_sets[] = {
@@ -353,23 +460,139 @@ static int tuna_otg_set_suspend(struct otg_transceiver *otg, int suspend)
 	return omap4430_phy_suspend(otg->dev, suspend);
 }
 
-static void omap4_tuna_uart_switch_init(void)
+static ssize_t tuna_otg_usb_sel_show(struct device *dev,
+				     struct device_attribute *attr,
+				     char *buf)
 {
-	struct device *uartswitch_dev;
+	struct tuna_otg *tuna_otg = dev_get_drvdata(dev);
+	const char* mode;
 
-	uartswitch_dev = device_create(sec_class, NULL, 0, NULL, "uart_switch");
-	if (IS_ERR(uartswitch_dev)) {
-		pr_err("Failed to create device(uart_switch)!\n");
-		return;
+	switch (tuna_otg->usb_manual_mode) {
+	case TUNA_MANUAL_USB_AP:
+		mode = "PDA";
+		break;
+	case TUNA_MANUAL_USB_MODEM:
+		mode = "MODEM";
+		break;
+	default:
+		mode = "NONE";
+	};
+
+	return sprintf(buf, "%s\n", mode);
+}
+
+static ssize_t tuna_otg_usb_sel_store(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf, size_t size)
+{
+	struct tuna_otg *tuna_otg = dev_get_drvdata(dev);
+	size_t len = strlen(buf);
+	int old_mode;
+
+	mutex_lock(&tuna_otg->lock);
+
+	old_mode = tuna_otg->usb_manual_mode;
+
+	if (!strncasecmp(buf, "PDA", 3) && len == 4) {
+		tuna_otg->usb_manual_mode = TUNA_MANUAL_USB_AP;
+
+		/* If we are transitioning from CP USB to AP USB then notify the
+		 * USB stack that is now attached.
+		 */
+		if (tuna_otg->current_device == FSA9480_DETECT_USB &&
+				old_mode == TUNA_MANUAL_USB_MODEM) {
+			tuna_cp_usb_detach(tuna_otg);
+			tuna_ap_usb_attach(tuna_otg);
+		}
+	} else if (!strncasecmp(buf, "MODEM", 5) && len == 6) {
+		tuna_otg->usb_manual_mode = TUNA_MANUAL_USB_MODEM;
+
+		/* If we are transitioning from AP USB to CP USB then notify the
+		 * USB stack that is has been detached.
+		 */
+		if (tuna_otg->current_device == FSA9480_DETECT_USB &&
+				(old_mode == TUNA_MANUAL_USB_AP ||
+				old_mode == TUNA_MANUAL_USB_NONE)) {
+			tuna_ap_usb_detach(tuna_otg);
+			tuna_cp_usb_attach(tuna_otg);
+		}
+	} else if (!strncasecmp(buf, "NONE", 5) && len == 5) {
+		tuna_otg->usb_manual_mode = TUNA_MANUAL_USB_NONE;
+
+		/* If we are transitioning from CP USB to AP USB then notify the
+		 * USB stack that it is now attached.
+		 */
+		if (tuna_otg->current_device == FSA9480_DETECT_USB &&
+				old_mode == TUNA_MANUAL_USB_MODEM) {
+			tuna_cp_usb_detach(tuna_otg);
+			tuna_ap_usb_attach(tuna_otg);
+		}
 	}
 
-	/* IF_UART_SEL - GPIO 101 */
-	omap_mux_init_gpio(GPIO_IF_UART_SEL, OMAP_PIN_OUTPUT);
-	gpio_request(GPIO_IF_UART_SEL, "uart_sel");
-	gpio_direction_output(GPIO_IF_UART_SEL, 1);
+	mutex_unlock(&tuna_otg->lock);
 
-	gpio_export(GPIO_IF_UART_SEL, 1);
-	gpio_export_link(uartswitch_dev, "UART_SEL", GPIO_IF_UART_SEL);
+	return len;
+}
+
+static ssize_t tuna_otg_uart_switch_show(struct device *dev,
+					 struct device_attribute *attr,
+					 char *buf)
+{
+	struct tuna_otg *tuna_otg = dev_get_drvdata(dev);
+	const char* mode;
+
+	switch (tuna_otg->uart_manual_mode) {
+	case TUNA_MANUAL_UART_AP:
+		mode = "PDA";
+		break;
+	case TUNA_MANUAL_UART_MODEM:
+		mode = "MODEM";
+		break;
+	case TUNA_MANUAL_UART_LTE:
+		mode = "LTEMODEM";
+		break;
+	default:
+		mode = "NONE";
+	};
+
+	return sprintf(buf, "%s\n", mode);
+}
+
+static ssize_t tuna_otg_uart_switch_store(struct device *dev,
+					  struct device_attribute *attr,
+					  const char *buf, size_t size)
+{
+	struct tuna_otg *tuna_otg = dev_get_drvdata(dev);
+	size_t len = strlen(buf);
+
+	mutex_lock(&tuna_otg->lock);
+
+	if (!strncasecmp(buf, "PDA", 3) && len == 4) {
+		tuna_otg->uart_manual_mode = TUNA_MANUAL_UART_AP;
+
+		if (tuna_otg->current_device == FSA9480_DETECT_JIG)
+			tuna_ap_uart_actions(tuna_otg);
+	} else if (!strncasecmp(buf, "MODEM", 5) && len == 6) {
+		tuna_otg->uart_manual_mode = TUNA_MANUAL_UART_MODEM;
+
+		if (tuna_otg->current_device == FSA9480_DETECT_JIG)
+			tuna_cp_uart_actions(tuna_otg);
+	} else if (!strncasecmp(buf, "LTEMODEM", 8) && len == 9 &&
+			omap4_tuna_get_type() == TUNA_TYPE_TORO) {
+		tuna_otg->uart_manual_mode = TUNA_MANUAL_UART_LTE;
+
+		if (tuna_otg->current_device == FSA9480_DETECT_JIG)
+			tuna_lte_uart_actions(tuna_otg);
+	} else if (!strncasecmp(buf, "NONE", 5) && len == 5) {
+		tuna_otg->uart_manual_mode = TUNA_MANUAL_UART_NONE;
+
+		if (tuna_otg->current_device == FSA9480_DETECT_JIG)
+			tuna_ap_uart_actions(tuna_otg);
+	}
+
+	mutex_unlock(&tuna_otg->lock);
+
+	return len;
 }
 
 #define OMAP_HDMI_HPD_ADDR	0x4A100098
@@ -470,9 +693,20 @@ int __init omap4_tuna_connector_init(void)
 		omap_mux_init_gpio(GPIO_USB_ID_SEL, OMAP_PIN_OUTPUT);
 	}
 
+	if (omap4_tuna_get_type() == TUNA_TYPE_MAGURO) {
+		gpio_request(GPIO_CP_USB_ON, "cp_usb_on");
+		omap_mux_init_gpio(GPIO_CP_USB_ON, OMAP_PIN_OUTPUT);
+		gpio_direction_output(GPIO_CP_USB_ON, 0);
+	}
+
+	omap_mux_init_gpio(GPIO_IF_UART_SEL, OMAP_PIN_OUTPUT);
+	gpio_request(GPIO_IF_UART_SEL, "uart_sel");
+
 	omap_mux_init_gpio(GPIO_JACK_INT_N,
 			   OMAP_PIN_INPUT_PULLUP |
 			   OMAP_PIN_OFF_INPUT_PULLUP);
+
+	mutex_init(&tuna_otg->lock);
 
 	device_initialize(&tuna_otg->dev);
 	dev_set_name(&tuna_otg->dev, "%s", "tuna_otg");
@@ -482,6 +716,8 @@ int __init omap4_tuna_connector_init(void)
 		       dev_name(&tuna_otg->dev), ret);
 		return ret;
 	}
+
+	dev_set_drvdata(&tuna_otg->dev, tuna_otg);
 
 	tuna_otg->otg.dev		= &tuna_otg->dev;
 	tuna_otg->otg.label		= "tuna_otg_xceiv";
@@ -504,7 +740,10 @@ int __init omap4_tuna_connector_init(void)
 	i2c_register_board_info(4, tuna_connector_i2c4_boardinfo,
 				ARRAY_SIZE(tuna_connector_i2c4_boardinfo));
 
-	omap4_tuna_uart_switch_init();
+	ret = sysfs_create_group(&tuna_otg->dev.kobj, &manual_mode_group);
+	if (ret)
+		pr_err("tuna_otg: Unable to create manual mode sysfs group"
+			"(%d)\n", ret);
 
 	gpio_request(GPIO_HDMI_EN, NULL);
 	omap_mux_init_gpio(GPIO_HDMI_EN, OMAP_PIN_OUTPUT);
