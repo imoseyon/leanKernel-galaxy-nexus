@@ -42,3 +42,4 @@ tf_driver-objs += bridge_pub2sec.o
 tf_driver-objs += tf_teec.o
 
 obj-$(CONFIG_SECURITY_MIDDLEWARE_COMPONENT) += tf_driver.o
+obj-$(CONFIG_SECURITY_MIDDLEWARE_COMPONENT) += rproc_drm.o
