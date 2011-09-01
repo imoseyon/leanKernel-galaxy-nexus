@@ -279,7 +279,6 @@ static int tuna_wifi_get_mac_addr(unsigned char *buf)
 	return 0;
 }
 
-#if 0
 /* Customized Locale table : OPTIONAL feature */
 #define WLC_CNTRY_BUF_SZ	4
 typedef struct cntry_locales_custom {
@@ -290,17 +289,48 @@ typedef struct cntry_locales_custom {
 
 static cntry_locales_custom_t tuna_wifi_translate_custom_table[] = {
 /* Table should be filled out based on custom platform regulatory requirement */
+	{"",   "XY", 4},  /* universal */
 	{"US", "US", 69}, /* input ISO "US" to : US regrev 69 */
 	{"CA", "US", 69}, /* input ISO "CA" to : US regrev 69 */
-	{"EU", "EU",  5}, /* input ISO "EU" to : EU regrev 05 */
-	{"FR", "EU",  5},
-	{"DE", "EU",  5},
-	{"GB", "EU",  5}, /* input ISO "UK" to : EU regrev 05 */
-	{"KR", "XY",  3},
-	{"AU", "XY",  3},
-	{"CN", "XY",  3}, /* input ISO "CN" to : XY regrev 03 */
-	{"TW", "XY",  3},
-	{"AR", "XY",  3},
+	{"EU", "EU", 5},  /* European union countries */
+	{"AT", "EU", 5},
+	{"BE", "EU", 5},
+	{"BG", "EU", 5},
+	{"CY", "EU", 5},
+	{"CZ", "EU", 5},
+	{"DK", "EU", 5},
+	{"EE", "EU", 5},
+	{"FI", "EU", 5},
+	{"FR", "EU", 5},
+	{"DE", "EU", 5},
+	{"GR", "EU", 5},
+	{"HU", "EU", 5},
+	{"IE", "EU", 5},
+	{"IT", "EU", 5},
+	{"LV", "EU", 5},
+	{"LI", "EU", 5},
+	{"LT", "EU", 5},
+	{"LU", "EU", 5},
+	{"MT", "EU", 5},
+	{"NL", "EU", 5},
+	{"PL", "EU", 5},
+	{"PT", "EU", 5},
+	{"RO", "EU", 5},
+	{"SK", "EU", 5},
+	{"SI", "EU", 5},
+	{"ES", "EU", 5},
+	{"SE", "EU", 5},
+	{"GB", "EU", 5},  /* input ISO "GB" to : EU regrev 05 */
+	{"IL", "IL", 0},
+	{"CH", "CH", 0},
+	{"TR", "TR", 0},
+	{"NO", "NO", 0},
+	{"KR", "XY", 3},
+	{"AU", "XY", 3},
+	{"CN", "XY", 3},  /* input ISO "CN" to : XY regrev 03 */
+	{"TW", "XY", 3},
+	{"AR", "XY", 3},
+	{"MX", "XY", 3}
 };
 
 static void *tuna_wifi_get_country_code(char *ccode)
@@ -314,9 +344,8 @@ static void *tuna_wifi_get_country_code(char *ccode)
 	for (i = 0; i < size; i++)
 		if (strcmp(ccode, tuna_wifi_translate_custom_table[i].iso_abbrev) == 0)
 			return &tuna_wifi_translate_custom_table[i];
-	return NULL;
+	return &tuna_wifi_translate_custom_table[0];
 }
-#endif
 
 static struct wifi_platform_data tuna_wifi_control = {
 	.set_power      = tuna_wifi_power,
@@ -324,7 +353,7 @@ static struct wifi_platform_data tuna_wifi_control = {
 	.set_carddetect = tuna_wifi_set_carddetect,
 	.mem_prealloc	= tuna_wifi_mem_prealloc,
 	.get_mac_addr	= tuna_wifi_get_mac_addr,
-	.get_country_code = NULL, /* tuna_wifi_get_country_code, */
+	.get_country_code = tuna_wifi_get_country_code,
 };
 
 static struct platform_device tuna_wifi_device = {
