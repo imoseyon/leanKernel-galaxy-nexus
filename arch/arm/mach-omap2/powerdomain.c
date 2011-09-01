@@ -1198,10 +1198,6 @@ int pwrdm_wakeuplat_update_pwrst(struct powerdomain *pwrdm)
 		ret = -ERANGE;
 	}
 
-	/* OSWR is not supported, set CSWR instead. TODO: add OSWR support */
-	if (new_state == PWRDM_FUNC_PWRST_OSWR)
-		new_state = PWRDM_FUNC_PWRST_CSWR;
-
 	if (pwrdm_read_next_pwrst(pwrdm) != new_state) {
 		if (cpu_is_omap44xx() || cpu_is_omap34xx())
 			omap_set_pwrdm_state(pwrdm, new_state);
