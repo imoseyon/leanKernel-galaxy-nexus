@@ -201,8 +201,14 @@ abort_device_off:
 	if (omap4_device_prev_state_off()) {
 		omap_dma_global_context_restore();
 		omap_gpmc_restore_context();
-		omap2_gpio_resume_after_idle();
 	}
+
+	/*
+	 * GPIO: since we have put_synced clks, we need to resume
+	 * even if OFF was not really achieved
+	 */
+	if (omap4_device_next_state_off())
+		omap2_gpio_resume_after_idle();
 
 	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
 		omap_vc_set_auto_trans(mpu_voltdm,
