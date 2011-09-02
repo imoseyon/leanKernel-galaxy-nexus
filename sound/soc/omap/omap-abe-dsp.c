@@ -140,7 +140,6 @@ struct abe_data {
 	int opp_req_count;
 
 	u16 router[16];
-	int loss_count;
 
 	struct snd_pcm_substream *ping_pong_substream;
 	int first_irq;
@@ -2007,8 +2006,6 @@ static int aess_set_runtime_opp_level(struct abe_data *abe)
 
 static int aess_save_context(struct abe_data *abe)
 {
-	struct omap4_abe_dsp_pdata *pdata = abe->abe_pdata;
-
 	/* TODO: Find a better way to save/retore gains after OFF mode */
 
 	abe_mute_gain(MIXSDT, MIX_SDT_INPUT_UP_MIXER);
@@ -2040,16 +2037,13 @@ static int aess_save_context(struct abe_data *abe)
 	abe_mute_gain(GAINS_AMIC, GAIN_LEFT_OFFSET);
 	abe_mute_gain(GAINS_AMIC, GAIN_RIGHT_OFFSET);
 
-	if (pdata->get_context_loss_count)
-	        abe->loss_count = pdata->get_context_loss_count(abe->dev);
-
 	return 0;
 }
 
 static int aess_restore_context(struct abe_data *abe)
 {
 	struct omap4_abe_dsp_pdata *pdata = abe->abe_pdata;
-	int i, loss_count = 0, ret;
+	int i, ret;
 
 	if (pdata && pdata->device_scale) {
 		ret = pdata->device_scale(the_abe->dev, the_abe->dev,
@@ -2060,10 +2054,7 @@ static int aess_restore_context(struct abe_data *abe)
 		}
 	}
 
-	if (pdata->get_context_loss_count)
-		loss_count = pdata->get_context_loss_count(abe->dev);
-
-	if  (loss_count != the_abe->loss_count)
+	if (pdata->was_context_lost && pdata->was_context_lost(abe->dev))
 		abe_reload_fw(abe->firmware);
 
 	/* TODO: Find a better way to save/retore gains after dor OFF mode */
@@ -2344,7 +2335,6 @@ static int abe_add_widgets(struct snd_soc_platform *platform)
 static int abe_suspend(struct snd_soc_dai *dai)
 {
 	struct abe_data *abe = the_abe;
-	struct omap4_abe_dsp_pdata *pdata = abe->abe_pdata;
 	int ret = 0;
 
 	dev_dbg(dai->dev, "%s: %s active %d\n",
@@ -2386,9 +2376,6 @@ static int abe_suspend(struct snd_soc_dai *dai)
 		goto out;
 	}
 
-	if (pdata->get_context_loss_count)
-	        abe->loss_count = pdata->get_context_loss_count(abe->dev);
-
 out:
 	pm_runtime_put_sync(abe->dev);
 	return ret;
@@ -2398,7 +2385,7 @@ static int abe_resume(struct snd_soc_dai *dai)
 {
 	struct abe_data *abe = the_abe;
 	struct omap4_abe_dsp_pdata *pdata = abe->abe_pdata;
-	int i, loss_count = 0, ret = 0;
+	int i, ret = 0;
 
 	dev_dbg(dai->dev, "%s: %s active %d\n",
 		__func__, dai->name, dai->active);
@@ -2406,8 +2393,9 @@ static int abe_resume(struct snd_soc_dai *dai)
 	if (!dai->active)
 		return 0;
 
-	if (pdata->get_context_loss_count)
-		loss_count = pdata->get_context_loss_count(abe->dev);
+	/* context retained, no need to restore */
+	if (pdata->was_context_lost && !pdata->was_context_lost(abe->dev))
+		return 0;
 
 	pm_runtime_get_sync(abe->dev);
 
@@ -2420,8 +2408,7 @@ static int abe_resume(struct snd_soc_dai *dai)
 		}
 	}
 
-	if (loss_count != abe->loss_count)
-		abe_reload_fw(abe->firmware);
+	abe_reload_fw(abe->firmware);
 
 	switch (dai->id) {
 	case OMAP_ABE_DAI_PDM_UL:
