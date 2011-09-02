@@ -801,7 +801,6 @@ static int vnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	ret = iod->link->send(iod->link, iod, skb_new);
 	if (ret < 0) {
-		netif_stop_queue(ndev);
 		dev_kfree_skb_any(skb);
 		return NETDEV_TX_BUSY;
 	}
