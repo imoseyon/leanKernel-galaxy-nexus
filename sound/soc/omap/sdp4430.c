@@ -209,7 +209,7 @@ static int sdp4430_mcbsp_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	int ret = 0;
+	int ret = 0, channels = 0;
 	unsigned int be_id, fmt;
 
 
@@ -242,10 +242,28 @@ static int sdp4430_mcbsp_hw_params(struct snd_pcm_substream *substream,
 	 */
 	/* Set McBSP clock to external */
 	ret = snd_soc_dai_set_sysclk(cpu_dai, OMAP_MCBSP_SYSCLK_CLKS_FCLK,
-				     64 * params_rate(params),
+				     32 * 96 * params_rate(params),
 				     SND_SOC_CLOCK_IN);
 	if (ret < 0)
 		printk(KERN_ERR "can't set cpu system clock\n");
+
+	ret = snd_soc_dai_set_clkdiv(cpu_dai, 0, 96);
+	if (ret < 0)
+		printk(KERN_ERR "can't set McBSP cpu DAI clkdiv\n");
+
+	if (params != NULL) {
+	/*
+	 * Configure McBSP internal buffer threshold
+	 * for playback/record
+	 */
+		channels = params_channels(params);
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+			omap_mcbsp_set_rx_threshold(
+				cpu_dai->id, channels);
+		else
+			omap_mcbsp_set_tx_threshold(
+				cpu_dai->id, channels);
+	}
 
 	return ret;
 }
@@ -264,7 +282,7 @@ static int mcbsp_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	if (be_id == OMAP_ABE_DAI_MM_FM)
 		channels->min = 2;
 	else if (be_id == OMAP_ABE_DAI_BT_VX)
-		channels->min = 1;
+		channels->min = 2;
 	snd_mask_set(&params->masks[SNDRV_PCM_HW_PARAM_FORMAT -
 	                            SNDRV_PCM_HW_PARAM_FIRST_MASK],
 	                            SNDRV_PCM_FORMAT_S16_LE);
