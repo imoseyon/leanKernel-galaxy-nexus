@@ -54,6 +54,10 @@
 extern void omap_thermal_throttle(void);
 extern void omap_thermal_unthrottle(void);
 
+static void throttle_delayed_work_fn(struct work_struct *work);
+
+#define THROTTLE_DELAY_MS	1000
+
 #define TSHUT_THRESHOLD_TSHUT_HOT	122000	/* 122 deg C */
 #define TSHUT_THRESHOLD_TSHUT_COLD	100000	/* 100 deg C */
 #define BGAP_THRESHOLD_T_HOT		83000	/* 83 deg C */
@@ -87,6 +91,7 @@ struct omap_temp_sensor {
 	u32 current_temp;
 	u32 save_ctx;
 	u8 clk_on;
+	struct delayed_work throttle_work;
 };
 
 #ifdef CONFIG_PM
@@ -370,6 +375,32 @@ out:
 	return ret;
 }
 
+/*
+ * Check if the die sensor is cooling down. If it's higher than
+ * t_hot since the last throttle then throttle it again.
+ * OMAP junction temperature could stay for a long time in an
+ * unacceptable temperature range. The idea here is to check after
+ * t_hot->throttle the system really came below t_hot else re-throttle
+ * and keep doing till it's under t_hot temp range.
+ */
+static void throttle_delayed_work_fn(struct work_struct *work)
+{
+	u32 curr;
+	struct omap_temp_sensor *temp_sensor =
+				container_of(work, struct omap_temp_sensor,
+					     throttle_work.work);
+	curr = omap_read_current_temp(temp_sensor);
+
+	if (curr >= BGAP_THRESHOLD_T_HOT || curr < 0) {
+		omap_thermal_throttle();
+		schedule_delayed_work(&temp_sensor->throttle_work,
+			msecs_to_jiffies(THROTTLE_DELAY_MS));
+	} else {
+		schedule_delayed_work(&temp_sensor->throttle_work,
+			msecs_to_jiffies(THROTTLE_DELAY_MS));
+	}
+}
+
 static irqreturn_t omap_tshut_irq_handler(int irq, void *data)
 {
 	struct omap_temp_sensor *temp_sensor = (struct omap_temp_sensor *)data;
@@ -400,9 +431,12 @@ static irqreturn_t omap_talert_irq_handler(int irq, void *data)
 	temp_offset = omap_temp_sensor_readl(temp_sensor, BGAP_CTRL_OFFSET);
 	if (t_hot) {
 		omap_thermal_throttle();
+		schedule_delayed_work(&temp_sensor->throttle_work,
+			msecs_to_jiffies(THROTTLE_DELAY_MS));
 		temp_offset &= ~(OMAP4_MASK_HOT_MASK);
 		temp_offset |= OMAP4_MASK_COLD_MASK;
 	} else if (t_cold) {
+		cancel_delayed_work_sync(&temp_sensor->throttle_work);
 		omap_thermal_unthrottle();
 		temp_offset &= ~(OMAP4_MASK_COLD_MASK);
 		temp_offset |= OMAP4_MASK_HOT_MASK;
@@ -487,6 +521,10 @@ static int __devinit omap_temp_sensor_probe(struct platform_device *pdev)
 		goto clk_get_err;
 	}
 
+	/* Init delayed work for throttle decision */
+	INIT_DELAYED_WORK(&temp_sensor->throttle_work,
+			  throttle_delayed_work_fn);
+
 	ret = omap_temp_sensor_enable(temp_sensor);
 	if (ret) {
 		dev_err(dev, "%s:Cannot enable temp sensor\n", __func__);
@@ -542,10 +580,12 @@ static int __devinit omap_temp_sensor_probe(struct platform_device *pdev)
 	dev_info(dev, "%s probed", pdata->name);
 
 	temp_sensor_pm = temp_sensor;
+
 	return 0;
 
 sysfs_create_err:
 	free_irq(temp_sensor->tshut_irq, temp_sensor);
+	cancel_delayed_work_sync(&temp_sensor->throttle_work);
 tshut_irq_req_err:
 	free_irq(temp_sensor->irq, temp_sensor);
 req_irq_err:
@@ -570,6 +610,7 @@ static int __devexit omap_temp_sensor_remove(struct platform_device *pdev)
 					struct omap_temp_sensor, pdev);
 
 	sysfs_remove_group(&pdev->dev.kobj, &omap_temp_sensor_group);
+	cancel_delayed_work_sync(&temp_sensor->throttle_work);
 	omap_temp_sensor_disable(temp_sensor);
 	clk_put(temp_sensor->clock);
 	platform_set_drvdata(pdev, NULL);
