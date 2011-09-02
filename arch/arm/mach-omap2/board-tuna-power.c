@@ -125,6 +125,29 @@ void __init omap4_tuna_power_init(void)
 		omap_tps6236x_update("mpu", CHIP_IS_OMAP446X, CHIP_IS_OMAP443X);
 	}
 
+	/* Update oscillator information */
+	if (omap4_tuna_get_revision() <= 0x3) {
+		/*
+		 * until sample 4 (Toro and Maguro), we used KC2520B38:
+		 * ST = 10ms
+		 * Output Disable time = 100ns
+		 * Output enable time = 5ms
+		 * tstart = 10ms + 5ms = 15ms.
+		 * tshut = 1us (rounded)
+		 */
+		omap_pm_set_osc_lp_time(15000, 1);
+	} else {
+		/*
+		 * sample 5 onwards (Toro and Maguro), we use SQ200384:
+		 * ST = 10ms
+		 * Output Disable time = 100ns
+		 * Output enable time = 10ms
+		 * tstart = 10ms + 10ms = 20ms.
+		 * tshut = 1us (rounded)
+		 */
+		omap_pm_set_osc_lp_time(20000, 1);
+	}
+
 	omap_mux_init_gpio(charger_gpios[0].gpio, OMAP_PIN_INPUT);
 	omap_mux_init_gpio(charger_gpios[1].gpio, OMAP_PIN_INPUT);
 	omap_mux_init_gpio(charger_gpios[2].gpio, OMAP_PIN_OUTPUT);
