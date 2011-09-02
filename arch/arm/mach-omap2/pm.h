@@ -234,10 +234,24 @@ static inline bool omap_pm_is_ready(void)
 {
 	return omap_pm_is_ready_status;
 }
+extern int omap_pm_get_osc_lp_time(u32 *tstart, u32 *tshut);
+extern int omap_pm_get_pmic_lp_time(u32 *tstart, u32 *tshut);
+extern void omap_pm_set_osc_lp_time(u32 tstart, u32 tshut);
+extern void omap_pm_set_pmic_lp_time(u32 tstart, u32 tshut);
 #else
 static inline bool omap_pm_is_ready(void)
 {
 	return false;
 }
+static inline int omap_pm_get_osc_lp_time(u32 *tstart, u32 *tshut)
+{
+	return -EINVAL;
+}
+static inline int omap_pm_get_pmic_lp_time(u32 *tstart, u32 *tshut)
+{
+	return -EINVAL;
+}
+static inline void omap_pm_set_osc_lp_time(u32 tstart, u32 tshut) { }
+static inline void omap_pm_set_pmic_lp_time(u32 tstart, u32 tshut) { }
 #endif
 #endif
