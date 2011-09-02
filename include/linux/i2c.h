@@ -208,6 +208,7 @@ struct i2c_client {
 	struct i2c_driver *driver;	/* and our access routines	*/
 	struct device dev;		/* the device structure		*/
 	int irq;			/* irq issued by device		*/
+	bool ext_master;		/* determine if the dev has a master outside mpu */
 	struct list_head detected;
 };
 #define to_i2c_client(d) container_of(d, struct i2c_client, dev)
@@ -239,6 +240,7 @@ static inline void i2c_set_clientdata(struct i2c_client *dev, void *data)
  * @archdata: copied into i2c_client.dev.archdata
  * @of_node: pointer to OpenFirmware device node
  * @irq: stored in i2c_client.irq
+ * @ext_master: determine if the dev has a master outside mpu
  *
  * I2C doesn't actually support hardware probing, although controllers and
  * devices may be able to use I2C_SMBUS_QUICK to tell whether or not there's
@@ -259,6 +261,7 @@ struct i2c_board_info {
 	struct dev_archdata	*archdata;
 	struct device_node *of_node;
 	int		irq;
+	bool		ext_master;
 };
 
 /**
@@ -370,6 +373,9 @@ struct i2c_adapter {
 
 	struct mutex userspace_clients_lock;
 	struct list_head userspace_clients;
+
+	struct mutex ext_clients_lock;	/* Lock for external clients list */
+	struct list_head ext_clients;	/* Clients with master from external proc */
 };
 #define to_i2c_adapter(d) container_of(d, struct i2c_adapter, dev)
 
@@ -429,6 +435,7 @@ void i2c_unlock_adapter(struct i2c_adapter *);
 #if defined(CONFIG_I2C) || defined(CONFIG_I2C_MODULE)
 extern int i2c_add_adapter(struct i2c_adapter *);
 extern int i2c_del_adapter(struct i2c_adapter *);
+extern void i2c_detect_ext_master(struct i2c_adapter *);
 extern int i2c_add_numbered_adapter(struct i2c_adapter *);
 
 extern int i2c_register_driver(struct module *, struct i2c_driver *);

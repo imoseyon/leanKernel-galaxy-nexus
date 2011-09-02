@@ -1117,6 +1117,8 @@ omap_i2c_probe(struct platform_device *pdev)
 		goto err_free_irq;
 	}
 
+	i2c_detect_ext_master(adap);
+
 	return 0;
 
 err_free_irq:
