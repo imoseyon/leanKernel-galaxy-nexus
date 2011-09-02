@@ -2297,47 +2297,6 @@ static IMG_BOOL CPUVAddrToPFN(struct vm_area_struct *psVMArea, IMG_UINT32 ulCPUV
 #endif
 }
 
-#if defined(SUPPORT_OMAP_TILER)
-static IMG_BOOL CPUAddrToTilerPhy(IMG_UINT32 vma, IMG_UINT32 *phyAddr)
-{
-    IMG_UINT32 tmpPhysAddr = 0;
-    pgd_t *pgd = NULL;
-    pmd_t *pmd = NULL;
-    pte_t *ptep = NULL, pte = 0x0;
-    IMG_BOOL bRet = IMG_FALSE;
-
-    pgd = pgd_offset(current->mm, vma);
-    if (!(pgd_none(*pgd) || pgd_bad(*pgd)))
-    {
-        pmd = pmd_offset(pgd, vma);
-        if (!(pmd_none(*pmd) || pmd_bad(*pmd)))
-        {
-            ptep = pte_offset_map(pmd, vma);
-            if (ptep)
-            {
-                pte = *ptep;
-                if (pte_present(pte))
-                {
-                    tmpPhysAddr = (pte & PAGE_MASK) |
-                        (~PAGE_MASK & vma);
-                    bRet = IMG_TRUE;
-                }
-            }
-        }
-    }
-    /* If the physAddr is not in the TILER physical range
-     * then we don't proceed. */
-    if ((tmpPhysAddr < 0x60000000) && (tmpPhysAddr > 0x7fffffff))
-    {
-        PVR_DPF((PVR_DBG_ERROR, "CPUAddrToTilerPhy: Not in tiler range"));
-        tmpPhysAddr = 0;
-        bRet = IMG_FALSE;
-    }
-    *phyAddr = tmpPhysAddr;
-    return bRet;
-}
-#endif /* SUPPORT_OMAP_TILER */
-
 PVRSRV_ERROR OSReleasePhysPageAddr(IMG_HANDLE hOSWrapMem)
 {
     sWrapMemInfo *psInfo = (sWrapMemInfo *)hOSWrapMem;
@@ -2412,6 +2371,47 @@ PVRSRV_ERROR OSReleasePhysPageAddr(IMG_HANDLE hOSWrapMem)
     return PVRSRV_OK;
 }
 
+#if defined(CONFIG_TI_TILER)
+
+static IMG_UINT32 CPUAddrToTilerPhy(IMG_UINT32 uiAddr)
+{
+	IMG_UINT32 ui32PhysAddr = 0;
+	pte_t *ptep, pte;
+	pgd_t *pgd;
+	pmd_t *pmd;
+
+	pgd = pgd_offset(current->mm, uiAddr);
+	if (pgd_none(*pgd) || pgd_bad(*pgd))
+		goto err_out;
+
+	pmd = pmd_offset(pgd, uiAddr);
+	if (pmd_none(*pmd) || pmd_bad(*pmd))
+		goto err_out;
+
+	ptep = pte_offset_map(pmd, uiAddr);
+	if (!ptep)
+		goto err_out;
+
+	pte = *ptep;
+	if (!pte_present(pte))
+		goto err_out;
+
+	ui32PhysAddr = (pte & PAGE_MASK) | (~PAGE_MASK & uiAddr);
+
+	
+	if (ui32PhysAddr < 0x60000000 && ui32PhysAddr > 0x7fffffff)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "CPUAddrToTilerPhy: Not in tiler range"));
+		ui32PhysAddr = 0;
+		goto err_out;
+	}
+
+err_out:
+	return ui32PhysAddr;
+}
+
+#endif 
+
 PVRSRV_ERROR OSAcquirePhysPageAddr(IMG_VOID *pvCPUVAddr, 
                                     IMG_UINT32 ui32Bytes, 
                                     IMG_SYS_PHYADDR *psSysPAddr,
@@ -2429,7 +2429,6 @@ PVRSRV_ERROR OSAcquirePhysPageAddr(IMG_VOID *pvCPUVAddr,
     sWrapMemInfo *psInfo = NULL;
     IMG_BOOL bHavePageStructs = IMG_FALSE;
     IMG_BOOL bHaveNoPageStructs = IMG_FALSE;
-    IMG_BOOL bPFNMismatch = IMG_FALSE;
     IMG_BOOL bMMapSemHeld = IMG_FALSE;
     PVRSRV_ERROR eError = PVRSRV_ERROR_OUT_OF_MEMORY;
 
@@ -2602,31 +2601,20 @@ PVRSRV_ERROR OSAcquirePhysPageAddr(IMG_VOID *pvCPUVAddr,
 	}
 	if (psInfo->ppsPages[i] == NULL)
 	{
-#if defined(SUPPORT_OMAP_TILER)
-            IMG_UINT32 tilerAddr;
-            /* This could be tiler memory.*/
-            if (CPUAddrToTilerPhy(ulAddr, &tilerAddr))
-            {
-                bHavePageStructs = IMG_TRUE;
-                psInfo->iNumPagesMapped++;
-                psInfo->psPhysAddr[i].uiAddr = tilerAddr;
-                psSysPAddr[i].uiAddr = tilerAddr;
-                continue;
-            }
-#endif /* SUPPORT_OMAP_TILER */
+#if defined(CONFIG_TI_TILER)
+		
+		IMG_UINT32 ui32TilerAddr = CPUAddrToTilerPhy(ulAddr);
+		if (ui32TilerAddr)
+		{
+			bHavePageStructs = IMG_TRUE;
+			psInfo->iNumPagesMapped++;
+			psInfo->psPhysAddr[i].uiAddr = ui32TilerAddr;
+			psSysPAddr[i].uiAddr = ui32TilerAddr;
+			continue;
+		}
+#endif 
+
 	    bHaveNoPageStructs = IMG_TRUE;
-
-#if defined(VM_PFNMAP)
-	    if ((psVMArea->vm_flags & VM_PFNMAP) != 0)
-	    {
-	        IMG_UINT32 ulPFNRaw = ((ulAddr - psVMArea->vm_start) >> PAGE_SHIFT) + psVMArea->vm_pgoff;
-
-	        if (ulPFNRaw != ulPFN)
-	        {
-			bPFNMismatch = IMG_TRUE;
-	        }
-	    }
-#endif
 	}
 	else
 	{
@@ -2680,13 +2668,6 @@ PVRSRV_ERROR OSAcquirePhysPageAddr(IMG_VOID *pvCPUVAddr,
 	goto error;
     }
 
-    if (bPFNMismatch)
-    {
-        PVR_DPF((PVR_DBG_ERROR,
-            "OSAcquirePhysPageAddr: PFN calculation mismatch for VM_PFNMAP region"));
-	goto error;
-    }
-
 exit:
     PVR_ASSERT(bMMapSemHeld);
     up_read(&current->mm->mmap_sem);
@@ -2696,7 +2677,7 @@ exit:
 
     if (bHaveNoPageStructs)
     {
-        PVR_DPF((PVR_DBG_WARNING,
+        PVR_DPF((PVR_DBG_MESSAGE,
             "OSAcquirePhysPageAddr: Region contains pages which can't be locked down (no page structures)"));
     }
 

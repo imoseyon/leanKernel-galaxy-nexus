@@ -58,10 +58,7 @@ PVRSRVExportFDToIONHandle(int fd, struct ion_client **client)
 
 	psFile = fget(fd);
 	if(!psFile)
-	{
-		PVR_DPF((PVR_DBG_MESSAGE, "%s: Invalid fd=%d specified", __func__, fd));
 		goto err_unlock;
-	}
 
 	psPrivateData = psFile->private_data;
 	if(!psPrivateData)

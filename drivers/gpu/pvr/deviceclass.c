@@ -565,7 +565,7 @@ static PVRSRV_ERROR CloseDCDeviceCallBack(IMG_PVOID  pvParam,
 
 	if(psDCInfo->sSystemBuffer.sDeviceClassBuffer.ui32MemMapRefCount != 0)
 	{
-		PVR_DPF((PVR_DBG_ERROR,"CloseDCDeviceCallBack: system buffer (0x%p) still mapped (refcount = %d)",
+		PVR_DPF((PVR_DBG_MESSAGE,"CloseDCDeviceCallBack: system buffer (0x%p) still mapped (refcount = %d)",
 				&psDCInfo->sSystemBuffer.sDeviceClassBuffer,
 				psDCInfo->sSystemBuffer.sDeviceClassBuffer.ui32MemMapRefCount));
 #if 0
