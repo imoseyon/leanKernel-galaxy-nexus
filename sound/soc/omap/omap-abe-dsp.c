@@ -2459,6 +2459,8 @@ static int abe_resume(struct snd_soc_dai *dai)
 	for (i = 0; i < abe->hdr.num_equ; i++)
 		abe_dsp_set_equalizer(i, abe->equ_profile[i]);
 
+	for (i = 0; i < ABE_NUM_MONO_MIXERS; i++)
+		abe_dsp_set_mono_mixer(MIX_DL1_MONO + i, abe->mono_mix[i]);
 out:
 	pm_runtime_put_sync(abe->dev);
 	return ret;
