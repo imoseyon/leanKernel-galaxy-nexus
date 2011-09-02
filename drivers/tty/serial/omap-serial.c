@@ -518,9 +518,10 @@ static void serial_omap_set_mctrl(struct uart_port *port, unsigned int mctrl)
 	if (mctrl & TIOCM_LOOP)
 		mcr |= UART_MCR_LOOP;
 
-	mcr |= up->mcr;
+	up->mcr = serial_in(up, UART_MCR);
+	up->mcr |= mcr;
 	serial_omap_port_enable(up);
-	serial_out(up, UART_MCR, mcr);
+	serial_out(up, UART_MCR, up->mcr);
 	serial_omap_port_disable(up);
 }
 
@@ -565,6 +566,7 @@ static int serial_omap_startup(struct uart_port *port)
 	serial_omap_clear_fifos(up);
 	/* For Hardware flow control */
 	serial_out(up, UART_MCR, UART_MCR_RTS);
+	up->mcr = serial_in(up, UART_MCR);
 
 	/*
 	 * Clear the interrupt registers.
@@ -911,7 +913,8 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 		serial_out(up, UART_TI752_TCR, OMAP_UART_TCR_TRIG);
 		serial_out(up, UART_EFR, efr); /* Enable AUTORTS and AUTOCTS */
 		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
-		serial_out(up, UART_MCR, up->mcr | UART_MCR_RTS);
+		up->mcr |= UART_MCR_RTS;
+		serial_out(up, UART_MCR, up->mcr);
 		serial_out(up, UART_LCR, cval);
 	}
 
