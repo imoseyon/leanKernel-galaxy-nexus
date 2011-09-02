@@ -153,8 +153,7 @@ static void max17040_get_soc(struct i2c_client *client)
 
 	max17040_read_reg(client, MAX17040_SOC_MSB, &regval);
 
-	/* convert msb.lsb to Q8.8 */
-	val = TO_FIXED(regval >> 8, regval & 0xff);
+	val = regval;
 	if (val <= fmin_cap) {
 		chip->soc = 0;
 		return;
