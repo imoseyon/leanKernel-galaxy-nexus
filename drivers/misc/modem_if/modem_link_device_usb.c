@@ -46,8 +46,35 @@ static int usb_attach_io_dev(struct link_device *ld,
 static int usb_init_communication(struct link_device *ld,
 			struct io_device *iod)
 {
+	switch (iod->format) {
+	case IPC_BOOT:
+		ld->com_state = COM_BOOT;
+		break;
+
+	case IPC_RAMDUMP:
+		ld->com_state = COM_CRASH;
+		break;
+
+	case IPC_FMT:
+	case IPC_RFS:
+	case IPC_RAW:
+	default:
+		ld->com_state = COM_ONLINE;
+		break;
+	}
+
+	pr_debug("%s: iod = %s, com_state = %d\n", __func__, iod->name,
+				ld->com_state);
 	return 0;
 }
+
+static void usb_terminate_communication(
+			struct link_device *ld, struct io_device *iod)
+{
+	pr_debug("%s: iod = %s, com_state = %d\n", __func__, iod->name,
+				ld->com_state);
+}
+
 
 static int usb_rx_submit(struct usb_link_device *usb_ld,
 					struct if_usb_devdata *pipe_data,
@@ -106,8 +133,11 @@ static void usb_rx_complete(struct urb *urb)
 			/* when we use fmt device only, at boot and ipc exchange
 				it can be reduced to 1 device */
 			if (iod_format == IPC_FMT &&
-				unlikely(iod->mc->phone_state == STATE_BOOTING))
+				usb_ld->ld.com_state == COM_BOOT)
 				iod_format = IPC_BOOT;
+			if (iod_format == IPC_FMT &&
+				usb_ld->ld.com_state == COM_CRASH)
+				iod_format = IPC_RAMDUMP;
 
 			if (iod->format == iod_format) {
 				ret = iod->recv(iod,
@@ -152,6 +182,7 @@ static int usb_send(struct link_device *ld, struct io_device *iod,
 	case IPC_FMT:
 	case IPC_RFS:
 	case IPC_BOOT:
+	case IPC_RAMDUMP:
 	default:
 		txq = &ld->sk_fmt_tx_q;
 		break;
@@ -273,6 +304,7 @@ static void usb_tx_work(struct work_struct *work)
 			iod = *((struct io_device **)skb->cb);
 			switch (iod->format) {
 			case IPC_BOOT:
+			case IPC_RAMDUMP:
 			case IPC_FMT:
 				/* boot device uses same intf with fmt*/
 				pipe_data = &usb_ld->devdata[IF_USB_FMT_EP];
@@ -577,6 +609,7 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 	/* temporary call reset_resume */
 	atomic_set(&usb_ld->suspend_count, 1);
 	if_usb_reset_resume(data_intf);
+	atomic_set(&usb_ld->suspend_count, 0);
 
 	SET_HOST_ACTIVE(usb_ld->pdata, 1);
 
@@ -639,8 +672,7 @@ static irqreturn_t usb_resume_irq(int irq, void *data)
 		if (dev->power.is_prepared || dev->power.is_suspended) {
 			pm_runtime_get_noresume(dev);
 			ret = 0;
-		}
-		else {
+		} else {
 			ret = pm_runtime_get_sync(dev);
 		}
 		device_unlock(dev);
@@ -729,6 +761,7 @@ struct link_device *usb_create_link_device(void *data)
 	ld->name = "usb";
 	ld->attach = usb_attach_io_dev;
 	ld->init_comm = usb_init_communication;
+	ld->terminate_comm = usb_terminate_communication;
 	ld->send = usb_send;
 	ld->com_state = COM_NONE;
 

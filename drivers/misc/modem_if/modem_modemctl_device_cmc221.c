@@ -72,9 +72,18 @@ static int cmc221_reset(struct modem_ctl *mc)
 	if (!mc->gpio_cp_reset)
 		return -ENXIO;
 
-	gpio_set_value(mc->gpio_cp_reset, 0);
-	msleep(100);
-	gpio_set_value(mc->gpio_cp_reset, 1);
+	if (mc->phone_state != STATE_CRASH_EXIT) {
+		if (cmc221_off(mc))
+			return -ENXIO;
+		msleep(100);
+		if (cmc221_on(mc))
+			return -ENXIO;
+	} else {
+		gpio_set_value(mc->gpio_cp_reset, 0);
+		msleep(100);
+		gpio_set_value(mc->gpio_cp_reset, 1);
+		msleep(300);
+	}
 
 	mc->phone_state = STATE_BOOTING;
 
@@ -116,37 +125,35 @@ static void mc_work(struct work_struct *work_arg)
 		dwork.work);
 
 	int phone_active;
-	char *envs[2] = { NULL, NULL };
 
 	phone_active = cmc221_get_active(mc);
 	if (phone_active < 0) {
 		pr_err("[MODEM_CTRL] gpio not initialized\n");
 		return;
 	}
-	if (phone_active && (mc->phone_state == STATE_BOOTING))
-		mc->phone_state = STATE_ONLINE;
-	else if (!phone_active && (mc->phone_state == STATE_ONLINE)) {
-		mc->phone_state = STATE_CRASH_EXIT;/* DUMP START */
-		envs[0] = "MAILBOX=dump_start";
-		pr_err("[MODEM_CTRL][%s]%d, lte crash!dump start !!!\n",
+
+	if (phone_active && (mc->phone_state == STATE_BOOTING)) {
+		if (mc->cpcrash_flag) {
+			pr_info("[MODEM_CTRL][%s]%d, LTE DUMP END !!!\n",
+					__func__, __LINE__);
+			mc->cpcrash_flag = 0;
+		} else {
+			mc->phone_state = STATE_ONLINE;
+		}
+	} else if (!phone_active && (mc->phone_state == STATE_ONLINE)) {
+		pr_info("[MODEM_CTRL][%s]%d, LTE CRASHED!!! LTE DUMP START !!!\n",
 				__func__, __LINE__);
+		mc->phone_state = STATE_CRASH_EXIT;
+		gpio_set_value(mc->gpio_host_active, 0);
 		mc->cpcrash_flag = 1;
-	} else if (phone_active && (mc->phone_state == STATE_CRASH_EXIT)) {
-		mc->phone_state = STATE_CRASH_RESET;/* DUMP END */
-		envs[0] = "MAILBOX=dump_end";
-		pr_err("[MODEM_CTRL][%s]%d, lte crash!dump end !!!\n",
-				__func__, __LINE__);
+
+		if (mc->iod && mc->iod->modem_state_changed)
+			mc->iod->modem_state_changed(mc->iod, mc->phone_state);
 	} else {
 		mc->phone_state = STATE_OFFLINE;
 		pr_err("[MODEM_CTRL][%s]%d, phone_status changed to invalid!!!\n",
 				__func__, __LINE__);
 	}
-	msleep(300);
-
-
-	/*kobject_uevent_env(&mc->dev->kobj, KOBJ_OFFLINE, envs);*/
-	kobject_uevent(&mc->dev->kobj, KOBJ_OFFLINE);
-
 }
 
 
@@ -154,10 +161,7 @@ static irqreturn_t phone_active_irq_handler(int irq, void *_mc)
 {
 	struct modem_ctl *mc = (struct modem_ctl *)_mc;
 
-	if (!work_pending(&mc->work))
-		schedule_delayed_work(&mc->dwork, 20); /*1s*/
-
-	disable_irq_nosync(mc->irq_phone_active);
+	schedule_delayed_work(&mc->dwork, 0);
 
 	return IRQ_HANDLED;
 }
