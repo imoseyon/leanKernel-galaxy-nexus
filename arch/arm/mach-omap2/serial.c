@@ -414,8 +414,7 @@ void __init omap_serial_init_port(struct omap_board_data *bdata,
 		return;
 	}
 
-	/* Enable the MDR1 errata for OMAP3 */
-	if (cpu_is_omap34xx())
+	if (cpu_is_omap34xx() || cpu_is_omap44xx())
 		pdata->errata |= UART_ERRATA_i202_MDR1_ACCESS;
 
 	omap_uart_idle_init(pdata, bdata->id);
