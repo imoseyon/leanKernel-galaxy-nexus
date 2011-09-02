@@ -328,6 +328,8 @@ static void omap_init_mcpdm(void)
 		return;
 	}
 
+	pdata->was_context_lost = omap_pm_was_context_lost;
+
 	od = omap_device_build(dev_name, -1, oh, pdata,
 				sizeof(struct omap_mcpdm_platform_data),
 				omap_mcpdm_latency,
