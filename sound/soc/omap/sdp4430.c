@@ -671,6 +671,7 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 		.codec_dai_name = "dit-hifi",	/* dummy s/pdif transciever
 						 * driver */
 		.platform_name = "omap-pcm-audio",
+		.ignore_suspend = 1,
 		.no_codec = 1,
 	},
 
