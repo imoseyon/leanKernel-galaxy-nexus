@@ -342,8 +342,16 @@ static __initdata struct omap_pmic_map omap_twl_map[] = {
 	{ .name = NULL, .pmic_data = NULL},
 };
 
+/* As per SWCS045 */
+static __initdata struct omap_pmic_description twl6030_pmic_desc = {
+	.pmic_lp_tshut = 500,	/* T-OFF */
+	.pmic_lp_tstart = 500,	/* T-ON */
+};
+
 int __init omap_twl_init(void)
 {
+	struct omap_pmic_description *desc = NULL;
+
 	/* Reuse OMAP3430 values */
 	if (cpu_is_omap3630()) {
 		omap3_mpu_pmic.vp_vddmin = OMAP3630_VP1_VLIMITTO_VDDMIN;
@@ -351,8 +359,10 @@ int __init omap_twl_init(void)
 		omap3_core_pmic.vp_vddmin = OMAP3630_VP2_VLIMITTO_VDDMIN;
 		omap3_core_pmic.vp_vddmax = OMAP3630_VP2_VLIMITTO_VDDMAX;
 	}
+	if (cpu_is_omap44xx())
+		desc = &twl6030_pmic_desc;
 
-	return omap_pmic_register_data(omap_twl_map);
+	return omap_pmic_register_data(omap_twl_map, desc);
 }
 
 /**

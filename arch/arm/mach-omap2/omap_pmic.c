@@ -29,8 +29,10 @@ void __init omap_pmic_data_init(void)
 /**
  * omap_pmic_register_data() - Register the PMIC information to OMAP mapping
  * @omap_pmic_maps:	array ending with a empty element representing the maps
+ * @desc:		description for this PMIC.
  */
-int __init omap_pmic_register_data(struct omap_pmic_map *omap_pmic_maps)
+int __init omap_pmic_register_data(struct omap_pmic_map *omap_pmic_maps,
+				   struct omap_pmic_description *desc)
 {
 	struct voltagedomain *voltdm;
 	struct omap_pmic_map *map;
@@ -44,6 +46,11 @@ int __init omap_pmic_register_data(struct omap_pmic_map *omap_pmic_maps)
 	while (map->name) {
 		if (!omap_chip_is(map->omap_chip))
 			goto next;
+
+		/* The base PMIC is the one controlling core voltdm */
+		if (desc && !strcmp(map->name, "core"))
+			omap_pm_set_pmic_lp_time(desc->pmic_lp_tstart,
+						 desc->pmic_lp_tshut);
 
 		voltdm = voltdm_lookup(map->name);
 		if (IS_ERR_OR_NULL(voltdm)) {
