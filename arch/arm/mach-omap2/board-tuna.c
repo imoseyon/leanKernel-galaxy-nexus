@@ -746,6 +746,14 @@ static struct i2c_board_info __initdata tuna_i2c1_boardinfo[] = {
 	},
 };
 
+static struct i2c_board_info __initdata tuna_i2c2_boardinfo[] = {
+	{
+		I2C_BOARD_INFO("ducati", 0x20),
+		.irq = OMAP44XX_IRQ_I2C2,
+		.ext_master = true,
+	},
+};
+
 static struct i2c_board_info __initdata tuna_i2c4_boardinfo[] = {
 	{
 		I2C_BOARD_INFO("an30259a", 0x30),
@@ -771,7 +779,8 @@ static int __init tuna_i2c_init(void)
 	 */
 	omap_register_i2c_bus(1, 400, tuna_i2c1_boardinfo,
 			      ARRAY_SIZE(tuna_i2c1_boardinfo));
-	omap_register_i2c_bus(2, 400, NULL, 0);
+	omap_register_i2c_bus(2, 400, tuna_i2c2_boardinfo,
+                              ARRAY_SIZE(tuna_i2c2_boardinfo));
 	omap_register_i2c_bus(3, 400, NULL, 0);
 	omap_register_i2c_bus(4, 400, NULL, 0);
 
