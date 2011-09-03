@@ -212,15 +212,15 @@ static void unmute_be(struct snd_soc_pcm_runtime *be,
 	if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		switch (be->dai_link->be_id) {
 		case OMAP_ABE_DAI_PDM_DL1:
-			abe_write_gain(GAINS_DL1, GAIN_0dB, RAMP_5MS,
+			abe_write_gain(GAINS_DL1, GAIN_M7dB, RAMP_5MS,
 				GAIN_LEFT_OFFSET);
-			abe_write_gain(GAINS_DL1, GAIN_0dB, RAMP_5MS,
+			abe_write_gain(GAINS_DL1, GAIN_M7dB, RAMP_5MS,
 				GAIN_RIGHT_OFFSET);
 			break;
 		case OMAP_ABE_DAI_PDM_DL2:
-			abe_write_gain(GAINS_DL2, GAIN_0dB, RAMP_5MS,
+			abe_write_gain(GAINS_DL2, GAIN_M7dB, RAMP_5MS,
 				GAIN_LEFT_OFFSET);
-			abe_write_gain(GAINS_DL2, GAIN_0dB, RAMP_5MS,
+			abe_write_gain(GAINS_DL2, GAIN_M7dB, RAMP_5MS,
 				GAIN_RIGHT_OFFSET);
 			break;
 		case OMAP_ABE_DAI_PDM_VIB:
