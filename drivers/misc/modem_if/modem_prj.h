@@ -41,6 +41,7 @@
 
 #define IOCTL_MODEM_NET_SUSPEND	_IO('o', 0x30)
 #define IOCTL_MODEM_NET_RESUME	_IO('o', 0x31)
+#define IOCTL_MODEM_FORCE_CRASH_EXIT _IO('o', 0x34)
 
 /* modem status */
 #define MODEM_OFF	0
@@ -184,6 +185,7 @@ struct modemctl_ops {
 	int (*modem_reset) (struct modem_ctl *);
 	int (*modem_boot_on) (struct modem_ctl *);
 	int (*modem_boot_off) (struct modem_ctl *);
+	int (*modem_force_crash_exit) (struct modem_ctl *);
 };
 
 struct modem_ctl {

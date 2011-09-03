@@ -628,6 +628,10 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long _arg)
 		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_RESET\n");
 		return iod->mc->ops.modem_reset(iod->mc);
 
+	case IOCTL_MODEM_FORCE_CRASH_EXIT:
+		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_FORCE_CRASH_EXIT\n");
+		return iod->mc->ops.modem_force_crash_exit(iod->mc);
+
 	case IOCTL_MODEM_BOOT_ON:
 		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_BOOT_ON\n");
 		return iod->mc->ops.modem_boot_on(iod->mc);

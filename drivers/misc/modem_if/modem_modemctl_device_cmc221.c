@@ -64,6 +64,19 @@ static int cmc221_off(struct modem_ctl *mc)
 	return 0;
 }
 
+static int cmc221_force_crash_exit(struct modem_ctl *mc)
+{
+	pr_info("[MODEM_IF] %s()\n", __func__);
+
+	mc->phone_state = STATE_CRASH_EXIT;/* DUMP START */
+	gpio_set_value(mc->gpio_host_active, 0);
+	mc->cpcrash_flag = 1;
+
+	if (mc->iod && mc->iod->modem_state_changed)
+		mc->iod->modem_state_changed(mc->iod, mc->phone_state);
+
+	return 0;
+}
 
 static int cmc221_reset(struct modem_ctl *mc)
 {
@@ -173,6 +186,7 @@ static void cmc221_get_ops(struct modem_ctl *mc)
 	mc->ops.modem_reset = cmc221_reset;
 	mc->ops.modem_boot_on = cmc221_boot_on;
 	mc->ops.modem_boot_off = cmc221_boot_off;
+	mc->ops.modem_force_crash_exit = cmc221_force_crash_exit;
 }
 
 int cmc221_init_modemctl_device(struct modem_ctl *mc,
