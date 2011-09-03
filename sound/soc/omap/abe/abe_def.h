@@ -233,6 +233,7 @@
 /* default gain = 1 */
 #define GAIN_0dB  0L
 #define GAIN_M6dB -600L
+#define GAIN_M7dB -700L
 #define GAIN_M12dB -1200L
 #define GAIN_M18dB -1800L
 #define GAIN_M24dB -2400L
