@@ -90,8 +90,9 @@ static int melfas_mux_fw_flash(bool to_gpios)
 	/* TOUCH_EN is always an output */
 	if (to_gpios) {
 		gpio_direction_output(GPIO_TOUCH_IRQ, 0);
-		omap_mux_set_gpio(OMAP_PIN_INPUT | OMAP_MUX_MODE3,
-				  GPIO_TOUCH_IRQ);
+		omap_mux_set_gpio(
+			OMAP_PIN_INPUT | OMAP_WAKEUP_EN | OMAP_MUX_MODE3,
+			GPIO_TOUCH_IRQ);
 
 		gpio_direction_output(GPIO_TOUCH_SCL, 0);
 		omap_mux_set_gpio(OMAP_PIN_INPUT | OMAP_MUX_MODE3,
@@ -103,8 +104,9 @@ static int melfas_mux_fw_flash(bool to_gpios)
 	} else {
 		gpio_direction_output(GPIO_TOUCH_IRQ, 1);
 		gpio_direction_input(GPIO_TOUCH_IRQ);
-		omap_mux_set_gpio(OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE3,
-				  GPIO_TOUCH_IRQ);
+		omap_mux_set_gpio(
+			OMAP_PIN_INPUT_PULLUP | OMAP_WAKEUP_EN | OMAP_MUX_MODE3,
+			GPIO_TOUCH_IRQ);
 
 		gpio_direction_output(GPIO_TOUCH_SCL, 1);
 		gpio_direction_input(GPIO_TOUCH_SCL);
@@ -143,7 +145,8 @@ void __init omap4_tuna_input_init(void)
 {
 	gpio_request(GPIO_TOUCH_IRQ, "tsp_int_n");
 	gpio_direction_input(GPIO_TOUCH_IRQ);
-	omap_mux_init_gpio(GPIO_TOUCH_IRQ, OMAP_PIN_INPUT_PULLUP);
+	omap_mux_init_gpio(GPIO_TOUCH_IRQ,
+			   OMAP_PIN_INPUT_PULLUP | OMAP_WAKEUP_EN);
 
 	gpio_request(GPIO_TOUCH_EN, "tsp_en");
 	gpio_direction_output(GPIO_TOUCH_EN, 1);
