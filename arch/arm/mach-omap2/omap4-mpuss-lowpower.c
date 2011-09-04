@@ -105,6 +105,9 @@ static void __iomem *sar_base;
 
 static DEFINE_PER_CPU(struct omap4_cpu_pm_info, omap4_pm_info);
 
+#define PPI_CONTEXT_SIZE 11
+static DEFINE_PER_CPU(u32[PPI_CONTEXT_SIZE], gic_ppi_context);
+
 /* Helper functions */
 static inline void sar_writel(u32 val, u32 offset, u8 idx)
 {
@@ -199,6 +202,48 @@ static void scu_pwrst_prepare(unsigned int cpu_id, unsigned int cpu_state)
 	}
 
 	__raw_writel(scu_pwr_st, pm_info->scu_sar_addr);
+}
+
+static void gic_save_ppi(void)
+{
+	void __iomem *gic_dist_base = omap4_get_gic_dist_base();
+	u32 *context = __get_cpu_var(gic_ppi_context);
+	int i = 0;
+
+	context[i++] = readl_relaxed(gic_dist_base + GIC_DIST_PRI);
+	context[i++] = readl_relaxed(gic_dist_base + GIC_DIST_PRI + 0x4);
+	context[i++] = readl_relaxed(gic_dist_base + GIC_DIST_PRI + 0x8);
+	context[i++] = readl_relaxed(gic_dist_base + GIC_DIST_PRI + 0xc);
+	context[i++] = readl_relaxed(gic_dist_base + GIC_DIST_PRI + 0x10);
+	context[i++] = readl_relaxed(gic_dist_base + GIC_DIST_PRI + 0x14);
+	context[i++] = readl_relaxed(gic_dist_base + GIC_DIST_PRI + 0x18);
+	context[i++] = readl_relaxed(gic_dist_base + GIC_DIST_PRI + 0x1c);
+	context[i++] = readl_relaxed(gic_dist_base + GIC_DIST_CONFIG);
+	context[i++] = readl_relaxed(gic_dist_base + GIC_DIST_CONFIG + 0x4);
+	context[i++] = readl_relaxed(gic_dist_base + GIC_DIST_ENABLE_SET);
+
+	BUG_ON(i != PPI_CONTEXT_SIZE);
+}
+
+static void gic_restore_ppi(void)
+{
+	void __iomem *gic_dist_base = omap4_get_gic_dist_base();
+	u32 *context = __get_cpu_var(gic_ppi_context);
+	int i = 0;
+
+	writel_relaxed(context[i++], gic_dist_base + GIC_DIST_PRI);
+	writel_relaxed(context[i++], gic_dist_base + GIC_DIST_PRI + 0x4);
+	writel_relaxed(context[i++], gic_dist_base + GIC_DIST_PRI + 0x8);
+	writel_relaxed(context[i++], gic_dist_base + GIC_DIST_PRI + 0xc);
+	writel_relaxed(context[i++], gic_dist_base + GIC_DIST_PRI + 0x10);
+	writel_relaxed(context[i++], gic_dist_base + GIC_DIST_PRI + 0x14);
+	writel_relaxed(context[i++], gic_dist_base + GIC_DIST_PRI + 0x18);
+	writel_relaxed(context[i++], gic_dist_base + GIC_DIST_PRI + 0x1c);
+	writel_relaxed(context[i++], gic_dist_base + GIC_DIST_CONFIG);
+	writel_relaxed(context[i++], gic_dist_base + GIC_DIST_CONFIG + 0x4);
+	writel_relaxed(context[i++], gic_dist_base + GIC_DIST_ENABLE_SET);
+
+	BUG_ON(i != PPI_CONTEXT_SIZE);
 }
 
 /*
@@ -516,6 +561,9 @@ int omap4_enter_lowpower(unsigned int cpu, unsigned int power_state)
 	}
 
 cpu_prepare:
+	if (cpu)
+		gic_save_ppi();
+
 	clear_cpu_prev_pwrst(cpu);
 	cpu_clear_prev_logic_pwrst(cpu);
 	set_cpu_next_pwrst(cpu, power_state);
@@ -536,6 +584,9 @@ cpu_prepare:
 	 */
 	wakeup_cpu = hard_smp_processor_id();
 	set_cpu_next_pwrst(wakeup_cpu, PWRDM_POWER_ON);
+
+	if (cpu)
+		gic_restore_ppi();
 
 	/*
 	 * If !master cpu return to hotplug-path.
