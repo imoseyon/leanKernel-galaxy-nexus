@@ -25,6 +25,7 @@
 #include <plat/omap_device.h>
 
 #include "omap-pm-helper.h"
+#include "../mach-omap2/prm44xx.h"
 
 bool off_mode_enabled;
 
@@ -195,6 +196,40 @@ void omap_pm_disable_off_mode(void)
 
 bool omap_pm_was_context_lost(struct device *dev)
 {
+	struct platform_device *pdev;
+	struct omap_device *od;
+	struct omap_hwmod *oh;
+
+	if (!dev)
+		goto save_ctx;
+
+	pdev = container_of(dev, struct platform_device, dev);
+	od = container_of(pdev, struct omap_device, pdev);
+	oh = od->hwmods[0];
+
+	if (!oh || !cpu_is_omap44xx())
+		goto save_ctx;
+
+	if (oh->prcm.omap4.context_reg) {
+		u32 context_reg_val = 0;
+
+		/*Read what context was lost.*/
+		context_reg_val = __raw_readl(oh->prcm.omap4.context_reg);
+
+		/*clear context lost bits after read*/
+		__raw_writel(context_reg_val, oh->prcm.omap4.context_reg);
+
+		/* ABE special case, only report ctx lost when we loose
+		 * mem, otherwise, constant firmware reload causes problems.
+		 */
+		if (oh->prcm.omap4.context_reg == OMAP4430_RM_ABE_AESS_CONTEXT)
+			context_reg_val &= (1 << 8);
+
+		return (context_reg_val != 0);
+	}
+
+save_ctx:
+	/* by default return true so that driver will restore context*/
 	return true;
 }
 
