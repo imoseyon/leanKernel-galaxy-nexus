@@ -885,7 +885,7 @@ struct snd_soc_dsp_runtime {
 	struct list_head fe_clients;
 	int users;
 	struct snd_pcm_runtime *runtime;
-	struct snd_pcm_hw_params params;
+	struct snd_pcm_hw_params hw_params;
 	int runtime_update;
 	enum snd_soc_dsp_state state;
 };

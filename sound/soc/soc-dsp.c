@@ -591,13 +591,13 @@ static int soc_dsp_be_dai_hw_params(struct snd_soc_pcm_runtime *fe, int stream)
 			dsp_params->fe->dai_link->name);
 
 		/* copy params for each dsp_params */
-		memcpy(&dsp_params->params, &fe->dsp[stream].params,
+		memcpy(&dsp_params->hw_params, &fe->dsp[stream].hw_params,
 				sizeof(struct snd_pcm_hw_params));
 
 		/* perform any hw_params fixups */
 		if (be->dai_link->be_hw_params_fixup) {
 			ret = be->dai_link->be_hw_params_fixup(be,
-					&dsp_params->params);
+					&dsp_params->hw_params);
 			if (ret < 0) {
 				dev_err(&be->dev,
 					"dsp: hw_params BE fixup failed %d\n",
@@ -606,7 +606,7 @@ static int soc_dsp_be_dai_hw_params(struct snd_soc_pcm_runtime *fe, int stream)
 			}
 		}
 
-		ret = soc_pcm_hw_params(be_substream, &dsp_params->params);
+		ret = soc_pcm_hw_params(be_substream, &dsp_params->hw_params);
 		if (ret < 0) {
 			dev_err(&dsp_params->be->dev, "dsp: hw_params BE failed %d\n", ret);
 			return ret;
@@ -628,7 +628,7 @@ int soc_dsp_fe_dai_hw_params(struct snd_pcm_substream *substream,
 	runtime_update = fe->dsp[stream].runtime_update;
 	fe->dsp[stream].runtime_update = SND_SOC_DSP_UPDATE_FE;
 
-	memcpy(&fe->dsp[substream->stream].params, params,
+	memcpy(&fe->dsp[substream->stream].hw_params, params,
 			sizeof(struct snd_pcm_hw_params));
 	ret = soc_dsp_be_dai_hw_params(fe, substream->stream);
 	if (ret < 0)
