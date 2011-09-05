@@ -716,7 +716,7 @@ static void lte_modem_cfg_gpio(void)
 
 	if (gpio_host_active) {
 		gpio_request(gpio_host_active, "LTE_HOST_ACTIVE");
-		gpio_direction_output(gpio_host_active, 0);
+		gpio_direction_output(gpio_host_active, 1);
 	}
 #endif
 }
