@@ -39,7 +39,7 @@
 #include <plat/sram.h>
 #include <plat/clock.h>
 #include <mach/tiler.h>
-
+#include <plat/omap-pm.h>
 #include <video/omapdss.h>
 
 #include "dss.h"
@@ -303,6 +303,7 @@ static void dispc_save_context(void)
 
 static void dispc_restore_context(void)
 {
+	struct device *dev = &dispc.pdev->dev;
 	int i, o, ctx;
 
 	DSSDBG("dispc_restore_context\n");
@@ -312,7 +313,7 @@ static void dispc_restore_context(void)
 
 	ctx = dispc_get_ctx_loss_count();
 
-	if (ctx >= 0 && ctx == dispc.ctx_loss_cnt)
+	if (!omap_pm_was_context_lost(dev))
 		return;
 
 	DSSDBG("ctx_loss_count: saved %d, current %d\n",

@@ -1608,7 +1608,6 @@ static int omap_serial_runtime_suspend(struct device *dev)
 
 	if (up->rts_mux_driver_control)
 		omap_rts_mux_write(MUX_PULL_UP, up->port.line);
-	up->context_loss_cnt = omap_pm_get_dev_context_loss_count(dev);
 	if (device_may_wakeup(dev))
 		up->enable_wakeup(up->pdev, true);
 	else
@@ -1623,13 +1622,7 @@ static int omap_serial_runtime_resume(struct device *dev)
 	struct omap_device *od;
 
 	if (up) {
-		int loss_cnt = omap_pm_get_dev_context_loss_count(dev);
-
-		/* We don't expect error in this function
-		 * Just in case its an error:
-		 * treat it as force-context-restore */
-		if (WARN_ON(loss_cnt < 0) ||
-				(up->context_loss_cnt != loss_cnt))
+		if (omap_pm_was_context_lost(dev))
 			omap_uart_restore_context(up);
 
 		if (up->use_dma) {

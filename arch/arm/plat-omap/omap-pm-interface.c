@@ -19,7 +19,7 @@
 #include <linux/cpufreq.h>
 #include <linux/device.h>
 #include <linux/platform_device.h>
-
+#include <linux/io.h>
 /* Interface documentation is in mach/omap-pm.h */
 #include <plat/omap-pm.h>
 #include <plat/omap_device.h>
@@ -193,32 +193,9 @@ void omap_pm_disable_off_mode(void)
 	off_mode_enabled = false;
 }
 
-/*
- * Device context loss tracking
- * WARNING: at this point we dont have a reliable context loss reporting
- * mechanism. Instead, we ensure that we report context loss always.
- */
-int omap_pm_get_dev_context_loss_count(struct device *dev)
+bool omap_pm_was_context_lost(struct device *dev)
 {
-	static u32 count = 1;
-
-	if (!dev) {
-		WARN_ON(1);
-		return -EINVAL;
-	};
-
-	count++;
-
-	/*
-	 * Context loss count has to be a non-negative value.
-	 * Clear the sign bit to get a value range from 0 to
-	 * INT_MAX. Roll over to 1
-	 */
-	count = (count & ~INT_MAX) ? 1 : count;
-
-	pr_debug("OMAP PM: returning context loss count for dev %s count %ul\n",
-		 dev_name(dev), count);
-	return count;
+	return true;
 }
 
 /* Should be called before clk framework init */

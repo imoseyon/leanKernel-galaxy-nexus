@@ -32,6 +32,7 @@
 #include <plat/clock.h>
 #include <plat/dma.h>
 #include <plat/omap_device.h>
+#include <plat/omap-pm.h>
 
 #include "prm2xxx_3xxx.h"
 #include "pm.h"

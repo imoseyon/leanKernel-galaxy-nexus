@@ -40,6 +40,7 @@
 #include <linux/types.h>
 
 #include <plat/common.h>
+#include <plat/omap-pm.h>
 #include <plat/omap_device.h>
 #include <plat/temperature_sensor.h>
 #include <plat/omap-pm.h>
@@ -85,6 +86,7 @@ struct omap_temp_sensor {
 	u8 clk_on;
 	unsigned long clk_rate;
 	u32 current_temp;
+	u32 save_ctx;
 };
 
 #ifdef CONFIG_PM
@@ -464,6 +466,7 @@ static int __devinit omap_temp_sensor_probe(struct platform_device *pdev)
 	temp_sensor->phy_base = pdata->offset;
 	temp_sensor->pdev = pdev;
 	temp_sensor->dev = dev;
+	temp_sensor->save_ctx = 0;
 
 	pm_runtime_enable(dev);
 	pm_runtime_irq_safe(dev);
@@ -647,34 +650,26 @@ omap_temp_sensor_suspend NULL
 omap_temp_sensor_resume NULL
 
 #endif /* CONFIG_PM */
-
 static int omap_temp_sensor_runtime_suspend(struct device *dev)
 {
 	struct omap_temp_sensor *temp_sensor =
 			platform_get_drvdata(to_platform_device(dev));
 
 	omap_temp_sensor_save_ctxt(temp_sensor);
-
+	temp_sensor->save_ctx = 1;
 	return 0;
 }
 
 static int omap_temp_sensor_runtime_resume(struct device *dev)
 {
-	static int context_loss_count;
-	int temp;
 	struct omap_temp_sensor *temp_sensor =
 			platform_get_drvdata(to_platform_device(dev));
-
-	temp = omap_pm_get_dev_context_loss_count(dev);
-
-	/* consider error return from context loss as:
-	 * force context restore with a WARN_ON() */
-	if (WARN_ON(temp < 0) ||
-			(temp != context_loss_count && context_loss_count != 0))
+	if (temp_sensor->save_ctx)
+		return 0;
+	if (omap_pm_was_context_lost(dev)) {
 		omap_temp_sensor_restore_ctxt(temp_sensor);
-
-	context_loss_count = temp;
-
+		temp_sensor->save_ctx = 0;
+	}
 	return 0;
 }
 
