@@ -920,6 +920,7 @@ struct snd_soc_pcm_runtime  {
 
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *debugfs_dsp_root;
+	struct dentry *debugfs_dsp_state;
 #endif
 };
 
