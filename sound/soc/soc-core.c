@@ -2081,6 +2081,7 @@ static void snd_soc_instantiate_card(struct snd_soc_card *card)
 	card->dapm.bias_level = SND_SOC_BIAS_OFF;
 	card->dapm.dev = card->dev;
 	card->dapm.card = card;
+	card->dapm.stream_event = card->stream_event;
 	list_add(&card->dapm.list, &card->dapm_list);
 
 #ifdef CONFIG_DEBUG_FS

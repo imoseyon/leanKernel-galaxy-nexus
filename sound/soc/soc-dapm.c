@@ -2913,6 +2913,7 @@ int snd_soc_dapm_stream_event(struct snd_soc_pcm_runtime *rtd,
 
 	soc_dapm_platform_stream_event(rtd->platform, stream, event);
 	soc_dapm_codec_stream_event(rtd->codec, stream, event);
+	soc_dapm_stream_event(&rtd->card->dapm, stream, event);
 
 	mutex_unlock(&rtd->card->dapm_mutex);
 	return 0;
