@@ -3023,6 +3023,27 @@ int snd_soc_dapm_get_pin_status(struct snd_soc_dapm_context *dapm,
 EXPORT_SYMBOL_GPL(snd_soc_dapm_get_pin_status);
 
 /**
+ * snd_soc_dapm_get_pin_power - get audio pin power state
+ * @dapm: DAPM context
+ * @pin: audio signal pin endpoint (or start point)
+ *
+ * Get audio pin power state - powered or not-powered.
+ *
+ * Returns 1 if powered, otherwise 0.
+ */
+int snd_soc_dapm_get_pin_power(struct snd_soc_dapm_context *dapm,
+				const char *pin)
+{
+	struct snd_soc_dapm_widget *w = dapm_find_widget(dapm, pin, true);
+
+	if (w)
+		return w->power;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(snd_soc_dapm_get_pin_power);
+
+/**
  * snd_soc_dapm_ignore_suspend - ignore suspend status for DAPM endpoint
  * @dapm: DAPM context
  * @pin: audio signal pin endpoint (or start point)
