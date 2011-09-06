@@ -415,12 +415,14 @@ int hsi_do_cawake_process(struct hsi_port *pport)
 	/* Deal with init condition */
 	if (unlikely(pport->cawake_status < 0))
 		pport->cawake_status = !cawake_status;
-	dev_dbg(hsi_ctrl->dev,
-		"Interrupts are not enabled but CAWAKE has come\n: 0x%0x.\n",
-		omap_readl(0x4A05880c));
-	dev_dbg(hsi_ctrl->dev,
-		"Interrupts are not enabled but CAWAKE has come\n: 0x%0x.\n",
-		omap_readl(0x4A058804));
+	dev_dbg(hsi_ctrl->dev, "%s: Interrupts are not enabled but CAWAKE came."
+		"hsi: port[%d] irq[%d] irq_en=0x%08x dma_irq_en=0x%08x\n",
+		__func__, pport->port_number, pport->n_irq,
+		hsi_inl(pport->hsi_controller->base,
+			HSI_SYS_MPU_ENABLE_REG(pport->port_number,
+					pport->n_irq)),
+		hsi_inl(pport->hsi_controller->base,
+			HSI_SYS_GDD_MPU_IRQ_ENABLE_REG));
 
 	/* Check CAWAKE line status */
 	if (cawake_status) {
