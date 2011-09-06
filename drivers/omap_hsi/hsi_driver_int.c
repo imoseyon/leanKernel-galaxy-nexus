@@ -375,13 +375,6 @@ static void hsi_do_channel_rx(struct hsi_channel *ch)
 								buff_offset);
 		}
 	}
-#if 0
-	if (omap_readl(0x4A05A810))
-		dev_err(hsi_ctrl->dev,
-			"RX BUF state is full. "
-			"Warning disabling interrupt %0x\n",
-			omap_readl(0x4A05A810));
-#endif
 	hsi_driver_disable_read_interrupt(ch);
 	hsi_reset_ch_read(ch);
 
@@ -396,13 +389,6 @@ done:
 
 	if (data_read) {
 		spin_unlock(&hsi_ctrl->lock);
-#if 0
-		dev_warn(hsi_ctrl->dev, "Read callback %d.\n", n_ch);
-		if (n_ch == 0)
-			dev_warn(hsi_ctrl->dev,
-				"Read callback %d \t DATA 0x%0x  .\n",
-				n_ch, data);
-#endif
 		(*ch->read_done) (ch->dev, 1);
 		spin_lock(&hsi_ctrl->lock);
 	}
@@ -641,16 +627,6 @@ static void do_hsi_tasklet(unsigned long hsi_port)
 
 	dev_dbg(hsi_ctrl->dev, "Int Tasklet : clock_enabled=%d\n",
 		hsi_ctrl->clock_enabled);
-#if 0
-	if (pport->cawake_off_event == true)
-		dev_info(hsi_ctrl->dev,
-			"Tasklet called from OFF/RET MODE THRU PAD CPU ID %d\n",
-			smp_processor_id());
-	else
-		dev_info(hsi_ctrl->dev,
-			"Tasklet called from ACTIVE MODE CPU ID %d\n",
-			smp_processor_id());
-#endif
 	spin_lock(&hsi_ctrl->lock);
 	hsi_clocks_enable(hsi_ctrl->dev, __func__);
 	pport->in_int_tasklet = true;
@@ -667,19 +643,7 @@ static void do_hsi_tasklet(unsigned long hsi_port)
 static irqreturn_t hsi_mpu_handler(int irq, void *p)
 {
 	struct hsi_port *pport = p;
-#if 0
-	printk(KERN_INFO "Tasklet called from MPU HANDLER CPU ID %d "
-		"\t STS 0x%0x \t ENB 0x%0x\n", smp_processor_id(),
-		omap_readl(0x4A058808), omap_readl(0x4A05880C));
-#endif
 	if (shceduled_already_flag == 0) {
-#if 0
-		tasklet_hi_schedule(&pport->hsi_tasklet);
-		if (TASKLET_STATE_SCHED == pport->hsi_tasklet.state) {
-			printk(KERN_INFO "MPU TASKLET ALREADY SCHEDULED RETURNING\n");
-			return IRQ_HANDLED;
-		}
-#endif
 		shceduled_already_flag = 1;
 		tasklet_hi_schedule(&pport->hsi_tasklet);
 		/*
