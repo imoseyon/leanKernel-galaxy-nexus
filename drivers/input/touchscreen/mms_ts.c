@@ -298,7 +298,9 @@ static u32 isp_recv_bits(struct mms_ts_info *info, int cnt)
 static void isp_enter_mode(struct mms_ts_info *info, u32 mode)
 {
 	int cnt;
+	unsigned long flags;
 
+	local_irq_save(flags);
 	gpio_direction_output(info->pdata->gpio_resetb, 0);
 	gpio_direction_output(info->pdata->gpio_scl, 0);
 	gpio_direction_output(info->pdata->gpio_sda, 1);
@@ -311,17 +313,21 @@ static void isp_enter_mode(struct mms_ts_info *info, u32 mode)
 	}
 
 	gpio_set_value(info->pdata->gpio_resetb, 0);
+	local_irq_restore(flags);
 }
 
 static void isp_exit_mode(struct mms_ts_info *info)
 {
 	int i;
+	unsigned long flags;
 
+	local_irq_save(flags);
 	gpio_direction_output(info->pdata->gpio_resetb, 0);
 	udelay(3);
 
 	for (i = 0; i < 10; i++)
 		isp_toggle_clk(info, 1, 0, 3);
+	local_irq_restore(flags);
 }
 
 static void flash_set_address(struct mms_ts_info *info, u16 addr)
@@ -359,7 +365,9 @@ static u32 flash_readl(struct mms_ts_info *info, u16 addr)
 {
 	int i;
 	u32 val;
+	unsigned long flags;
 
+	local_irq_save(flags);
 	isp_enter_mode(info, ISP_MODE_FLASH_READ);
 	flash_set_address(info, addr);
 
@@ -373,12 +381,16 @@ static u32 flash_readl(struct mms_ts_info *info, u16 addr)
 
 	val = isp_recv_bits(info, 32);
 	isp_exit_mode(info);
+	local_irq_restore(flags);
 
 	return val;
 }
 
 static void flash_writel(struct mms_ts_info *info, u16 addr, u32 val)
 {
+	unsigned long flags;
+
+	local_irq_save(flags);
 	isp_enter_mode(info, ISP_MODE_FLASH_WRITE);
 	flash_set_address(info, addr);
 	isp_send_bits(info, val, 32);
@@ -398,6 +410,7 @@ static void flash_writel(struct mms_ts_info *info, u16 addr, u32 val)
 
 	gpio_direction_output(info->pdata->gpio_sda, 0);
 	isp_exit_mode(info);
+	local_irq_restore(flags);
 	usleep_range(300, 400);
 }
 
