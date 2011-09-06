@@ -246,6 +246,8 @@ static inline int omap_tps6236x_update(char *name, u32 old_chip_id,
 }
 #endif
 
+extern int omap4_ldo_trim_configure(void);
+
 #ifdef CONFIG_PM
 extern bool omap_pm_is_ready_status;
 /**

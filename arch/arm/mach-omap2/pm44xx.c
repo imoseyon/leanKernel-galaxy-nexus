@@ -202,6 +202,8 @@ abort_device_off:
 	if (omap4_device_prev_state_off()) {
 		omap_dma_global_context_restore();
 		omap_gpmc_restore_context();
+		/* Reconfigure the trim settings as well */
+		omap4_ldo_trim_configure();
 	}
 
 	/*
