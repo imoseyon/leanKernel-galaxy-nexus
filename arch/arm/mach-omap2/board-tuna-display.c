@@ -407,7 +407,7 @@ static struct omap_dss_device tuna_oled_device = {
 		},
 		.dsi		= {
 			.regn		= 19,	/* DSI_PLL_REGN */
-			.regm		= 240,	/* DSI_PLL_REGM */
+			.regm		= 236,	/* DSI_PLL_REGM */
 
 			.regm_dispc	= 6,	/* PLL_CLK1 (M4) */
 			.regm_dsi	= 6,	/* PLL_CLK2 (M5) */
