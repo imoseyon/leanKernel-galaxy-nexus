@@ -172,6 +172,7 @@ int omap4_prcm_freq_update(void)
 /* Use a very high retry count - we should not hit this condition */
 #define MAX_DPLL_WAIT_TRIES	1000000
 
+#define OMAP_1_2GHz	1200000000
 #define OMAP_1GHz	1000000000
 #define OMAP_920MHz	920000000
 #define OMAP_748MHz	748000000
@@ -290,7 +291,7 @@ int omap4460_mpu_dpll_set_rate(struct clk *clk, unsigned long rate)
 	 * And needs to be kept disabled for < 1 Ghz.
 	 */
 	dpll_rate = omap2_get_dpll_rate(clk->parent);
-	if (rate < OMAP_1GHz) {
+	if (rate <= OMAP_1_2GHz) {
 		/* If DCC is enabled, disable it */
 		v = __raw_readl(dd->mult_div1_reg);
 		if (v & OMAP4460_DCC_EN_MASK) {
