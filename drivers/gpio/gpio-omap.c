@@ -27,6 +27,7 @@
 #include <mach/irqs.h>
 #include <mach/gpio.h>
 #include <asm/mach/irq.h>
+#include <plat/omap-pm.h>
 
 static LIST_HEAD(omap_gpio_list);
 
@@ -74,12 +75,9 @@ struct gpio_bank {
 	bool saved_context;
 	int stride;
 	u32 width;
-	u32 ctx_loss_count;
 	u16 id;
 
 	void (*set_dataout)(struct gpio_bank *bank, int gpio, int enable);
-	int (*get_context_loss_count)(struct device *dev);
-
 	struct omap_gpio_reg_offs *regs;
 };
 
@@ -1139,7 +1137,6 @@ static int __devinit omap_gpio_probe(struct platform_device *pdev)
 	bank->non_wakeup_gpios = pdata->non_wakeup_gpios;
 	bank->loses_context = pdata->loses_context;
 	bank->regs = pdata->regs;
-	bank->get_context_loss_count = pdata->get_context_loss_count;
 	bank->saved_context = 0;
 	if (bank->regs->set_dataout && bank->regs->clr_dataout)
 		bank->set_dataout = _set_gpio_dataout_reg;
@@ -1285,8 +1282,6 @@ static int omap_gpio_pm_runtime_suspend(struct device *dev)
 	__raw_writel(l2, bank->base + bank->regs->risingdetect);
 
 save_gpio_ctx:
-	if (bank->get_context_loss_count)
-		bank->ctx_loss_count = bank->get_context_loss_count(bank->dev);
 	omap_gpio_save_context(bank);
 	for (j = 0; j < hweight_long(bank->dbck_enable_mask); j++)
 		clk_disable(bank->dbck);
@@ -1300,19 +1295,14 @@ static int omap_gpio_pm_runtime_resume(struct device *dev)
 #ifdef CONFIG_ARCH_OMAP2PLUS
 	struct platform_device *pdev = to_platform_device(dev);
 	struct gpio_bank *bank = platform_get_drvdata(pdev);
-	u32 ctx_lost_cnt_after;
 	u32 l = 0, gen, gen0, gen1;
 	int j;
 
 	for (j = 0; j < hweight_long(bank->dbck_enable_mask); j++)
 		clk_enable(bank->dbck);
 
-	if (bank->get_context_loss_count) {
-		ctx_lost_cnt_after =
-			bank->get_context_loss_count(bank->dev);
-		if (ctx_lost_cnt_after != bank->ctx_loss_count)
-			omap_gpio_restore_context(bank);
-	}
+	if (omap_pm_was_context_lost(dev))
+		omap_gpio_restore_context(bank);
 
 	if (!(bank->enabled_non_wakeup_gpios))
 		return 0;

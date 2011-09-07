@@ -14,6 +14,7 @@
 #include <linux/cpu.h>
 
 #include "control.h"
+#include "pm.h"
 
 /**
  * omap4_ldo_trim_configure() - Handle device trim variance
@@ -22,7 +23,7 @@
  * efused in. These need some software support to allow the device to
  * function normally. Handle these silicon quirks here.
  */
-static int __init omap4_ldo_trim_configure(void)
+int omap4_ldo_trim_configure(void)
 {
 	u32 is_trimmed = 0;
 	u32 val;

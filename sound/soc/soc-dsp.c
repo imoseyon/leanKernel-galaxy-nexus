@@ -591,13 +591,13 @@ static int soc_dsp_be_dai_hw_params(struct snd_soc_pcm_runtime *fe, int stream)
 			dsp_params->fe->dai_link->name);
 
 		/* copy params for each dsp_params */
-		memcpy(&dsp_params->params, &fe->dsp[stream].params,
+		memcpy(&dsp_params->hw_params, &fe->dsp[stream].hw_params,
 				sizeof(struct snd_pcm_hw_params));
 
 		/* perform any hw_params fixups */
 		if (be->dai_link->be_hw_params_fixup) {
 			ret = be->dai_link->be_hw_params_fixup(be,
-					&dsp_params->params);
+					&dsp_params->hw_params);
 			if (ret < 0) {
 				dev_err(&be->dev,
 					"dsp: hw_params BE fixup failed %d\n",
@@ -606,7 +606,7 @@ static int soc_dsp_be_dai_hw_params(struct snd_soc_pcm_runtime *fe, int stream)
 			}
 		}
 
-		ret = soc_pcm_hw_params(be_substream, &dsp_params->params);
+		ret = soc_pcm_hw_params(be_substream, &dsp_params->hw_params);
 		if (ret < 0) {
 			dev_err(&dsp_params->be->dev, "dsp: hw_params BE failed %d\n", ret);
 			return ret;
@@ -628,7 +628,7 @@ int soc_dsp_fe_dai_hw_params(struct snd_pcm_substream *substream,
 	runtime_update = fe->dsp[stream].runtime_update;
 	fe->dsp[stream].runtime_update = SND_SOC_DSP_UPDATE_FE;
 
-	memcpy(&fe->dsp[substream->stream].params, params,
+	memcpy(&fe->dsp[substream->stream].hw_params, params,
 			sizeof(struct snd_pcm_hw_params));
 	ret = soc_dsp_be_dai_hw_params(fe, substream->stream);
 	if (ret < 0)
@@ -1538,6 +1538,125 @@ int soc_dsp_fe_dai_close(struct snd_pcm_substream *fe_substream)
 }
 
 #ifdef CONFIG_DEBUG_FS
+static char *dsp_state_string(enum snd_soc_dsp_state state)
+{
+	switch (state) {
+	case SND_SOC_DSP_STATE_NEW:
+		return "new";
+	case SND_SOC_DSP_STATE_OPEN:
+		return "open";
+	case SND_SOC_DSP_STATE_HW_PARAMS:
+		return "hw_params";
+	case SND_SOC_DSP_STATE_PREPARE:
+		return "prepare";
+	case SND_SOC_DSP_STATE_START:
+		return "start";
+	case SND_SOC_DSP_STATE_STOP:
+		return "stop";
+	case SND_SOC_DSP_STATE_HW_FREE:
+		return "hw_free";
+	case SND_SOC_DSP_STATE_CLOSE:
+		return "close";
+	}
+
+	return "unknown";
+}
+
+static int soc_dsp_state_open_file(struct inode *inode, struct file *file)
+{
+	file->private_data = inode->i_private;
+	return 0;
+}
+
+static ssize_t soc_dsp_show_state(struct snd_soc_pcm_runtime *fe,
+				int stream, char *buf, size_t size)
+{
+	struct snd_pcm_hw_params *params = &fe->dsp[stream].hw_params;
+	struct snd_soc_dsp_params *dsp_params;
+	ssize_t offset = 0;
+
+	/* FE state */
+	offset += snprintf(buf + offset, size - offset,
+			"[%s - %s]\n", fe->dai_link->name,
+			stream ? "Capture" : "Playback");
+
+	offset += snprintf(buf + offset, size - offset, "State: %s\n",
+	                dsp_state_string(fe->dsp[stream].state));
+
+	if ((fe->dsp[stream].state >= SND_SOC_DSP_STATE_HW_PARAMS) &&
+	    (fe->dsp[stream].state <= SND_SOC_DSP_STATE_STOP))
+		offset += snprintf(buf + offset, size - offset,
+				"Hardware Params: "
+				"Format = %s, Channels = %d, Rate = %d\n",
+				snd_pcm_format_name(params_format(params)),
+				params_channels(params),
+				params_rate(params));
+
+	/* BEs state */
+	offset += snprintf(buf + offset, size - offset, "Backends:\n");
+
+	if (list_empty(&fe->dsp[stream].be_clients)) {
+		offset += snprintf(buf + offset, size - offset,
+				" No active DSP links\n");
+		goto out;
+	}
+
+	list_for_each_entry(dsp_params, &fe->dsp[stream].be_clients, list_be) {
+		struct snd_soc_pcm_runtime *be = dsp_params->be;
+
+		offset += snprintf(buf + offset, size - offset,
+				"- %s\n", be->dai_link->name);
+
+		offset += snprintf(buf + offset, size - offset,
+				"   State: %s\n",
+				dsp_state_string(fe->dsp[stream].state));
+
+		if ((be->dsp[stream].state >= SND_SOC_DSP_STATE_HW_PARAMS) &&
+		    (be->dsp[stream].state <= SND_SOC_DSP_STATE_STOP))
+			offset += snprintf(buf + offset, size - offset,
+				"   Hardware Params: "
+				"Format = %s, Channels = %d, Rate = %d\n",
+				snd_pcm_format_name(params_format(params)),
+				params_channels(params),
+				params_rate(params));
+	}
+
+out:
+	return offset;
+}
+
+static ssize_t soc_dsp_state_read_file(struct file *file, char __user *user_buf,
+				size_t count, loff_t *ppos)
+{
+	struct snd_soc_pcm_runtime *fe = file->private_data;
+	ssize_t out_count = PAGE_SIZE, offset = 0, ret = 0;
+	char *buf;
+
+	buf = kmalloc(out_count, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	if (fe->cpu_dai->driver->playback.channels_min)
+		offset += soc_dsp_show_state(fe, SNDRV_PCM_STREAM_PLAYBACK,
+					buf + offset, out_count - offset);
+
+	if (fe->cpu_dai->driver->capture.channels_min)
+		offset += soc_dsp_show_state(fe, SNDRV_PCM_STREAM_CAPTURE,
+					buf + offset, out_count - offset);
+
+        ret = simple_read_from_buffer(user_buf, count, ppos, buf, offset);
+
+        kfree(buf);
+
+        return ret;
+}
+
+static const struct file_operations soc_dsp_state_fops = {
+	.open = soc_dsp_state_open_file,
+	.read = soc_dsp_state_read_file,
+	.llseek = default_llseek,
+};
+
 int soc_dsp_debugfs_add(struct snd_soc_pcm_runtime *rtd)
 {
 	rtd->debugfs_dsp_root = debugfs_create_dir(rtd->dai_link->name,
@@ -1548,6 +1667,10 @@ int soc_dsp_debugfs_add(struct snd_soc_pcm_runtime *rtd)
 			 rtd->dai_link->name);
 		return -EINVAL;
 	}
+
+	rtd->debugfs_dsp_state = debugfs_create_file("state", 0644,
+						rtd->debugfs_dsp_root,
+						rtd, &soc_dsp_state_fops);
 
 	return 0;
 }

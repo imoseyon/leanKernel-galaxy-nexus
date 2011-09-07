@@ -46,6 +46,7 @@
 #include "cm44xx.h"
 #include "cm-regbits-44xx.h"
 #include "cminst44xx.h"
+#include "scrm44xx.h"
 #include "prcm-debug.h"
 
 #include "smartreflex.h"
@@ -201,8 +202,16 @@ abort_device_off:
 	if (omap4_device_prev_state_off()) {
 		omap_dma_global_context_restore();
 		omap_gpmc_restore_context();
-		omap2_gpio_resume_after_idle();
+		/* Reconfigure the trim settings as well */
+		omap4_ldo_trim_configure();
 	}
+
+	/*
+	 * GPIO: since we have put_synced clks, we need to resume
+	 * even if OFF was not really achieved
+	 */
+	if (omap4_device_next_state_off())
+		omap2_gpio_resume_after_idle();
 
 	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
 		omap_vc_set_auto_trans(mpu_voltdm,
@@ -626,8 +635,36 @@ static int __init pwrdms_setup(struct powerdomain *pwrdm, void *unused)
 	return omap_set_pwrdm_state(pwrst->pwrdm, pwrst->next_state);
 }
 
+static u32 __init _usec_to_val_scrm(unsigned long rate, u32 usec,
+				    u32 shift, u32 mask)
+{
+	u32 val;
+
+	/* limit to max value */
+	val = ((mask >> shift) * 1000000) / rate;
+	if (usec > val)
+		usec = val;
+
+	/* convert the time in usec to cycles */
+	val = DIV_ROUND_UP(rate * usec, 1000000);
+	return (val << shift) & mask;
+
+}
+
 static void __init prcm_setup_regs(void)
 {
+	struct clk *clk32k = clk_get(NULL, "sys_32k_ck");
+	unsigned long rate32k = 0;
+	u32 val, tshut, tstart;
+
+	if (clk32k) {
+		rate32k = clk_get_rate(clk32k);
+		clk_put(clk32k);
+	} else {
+		pr_err("%s: no 32k clk!!!\n", __func__);
+		dump_stack();
+	}
+
 	/* Enable IO_ST interrupt */
 	omap4_prminst_rmw_inst_reg_bits(OMAP4430_IO_ST_MASK, OMAP4430_IO_ST_MASK,
 		OMAP4430_PRM_PARTITION, OMAP4430_PRM_OCP_SOCKET_INST, OMAP4_PRM_IRQENABLE_MPU_OFFSET);
@@ -653,6 +690,18 @@ static void __init prcm_setup_regs(void)
 	/* Toggle CLKREQ in RET and OFF states */
 	omap4_prminst_write_inst_reg(0x2, OMAP4430_PRM_PARTITION,
 		OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_CLKREQCTRL_OFFSET);
+
+	/* Setup max clksetup time for oscillator */
+	if (rate32k) {
+		omap_pm_get_osc_lp_time(&tstart, &tshut);
+		val = _usec_to_val_scrm(rate32k, tstart, OMAP4_SETUPTIME_SHIFT,
+				OMAP4_SETUPTIME_MASK);
+		val |= _usec_to_val_scrm(rate32k, tshut, OMAP4_DOWNTIME_SHIFT,
+				OMAP4_DOWNTIME_MASK);
+		omap4_prminst_write_inst_reg(val, OMAP4430_SCRM_PARTITION, 0x0,
+				OMAP4_SCRM_CLKSETUPTIME_OFFSET);
+	}
+
 	/*
 	 * De-assert PWRREQ signal in Device OFF state
 	 *	0x3: PWRREQ is de-asserted if all voltage domain are in
@@ -662,6 +711,18 @@ static void __init prcm_setup_regs(void)
 	 */
 	omap4_prminst_write_inst_reg(0x3, OMAP4430_PRM_PARTITION,
 		OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_PWRREQCTRL_OFFSET);
+
+	/* Setup max PMIC startup time */
+	if (rate32k) {
+		omap_pm_get_pmic_lp_time(&tstart, &tshut);
+		val = _usec_to_val_scrm(rate32k, tstart, OMAP4_WAKEUPTIME_SHIFT,
+				OMAP4_WAKEUPTIME_MASK);
+		val |= _usec_to_val_scrm(rate32k, tshut, OMAP4_SLEEPTIME_SHIFT,
+				OMAP4_SLEEPTIME_MASK);
+		omap4_prminst_write_inst_reg(val, OMAP4430_SCRM_PARTITION, 0x0,
+				OMAP4_SCRM_PMICSETUPTIME_OFFSET);
+	}
+
 }
 static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 {

@@ -94,16 +94,6 @@ static int omap2_dm_timer_set_src(struct platform_device *pdev, int source)
 	return ret;
 }
 
-#ifdef CONFIG_PM
-static int omap_timer_get_context_loss(struct device *dev)
-{
-	return omap_pm_get_dev_context_loss_count(dev);
-}
-
-#else
-#define omap_gpio_get_context_loss NULL
-#endif
-
 struct omap_device_pm_latency omap2_dmtimer_latency[] = {
 	{
 		.deactivate_func = omap_device_idle_hwmods,
@@ -169,7 +159,6 @@ static int __init omap_timer_init(struct omap_hwmod *oh, void *unused)
 		return -EINVAL;
 	}
 	pdata->loses_context = pwrdm_can_ever_lose_context(pwrdm);
-	pdata->get_context_loss_count = omap_timer_get_context_loss;
 
 	od = omap_device_build(name, id, oh, pdata, sizeof(*pdata),
 			omap2_dmtimer_latency,

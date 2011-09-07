@@ -170,10 +170,34 @@ struct omap_pmic_map {
 	int			(*special_action)(struct voltagedomain *);
 };
 
+/**
+ * struct omap_pmic_description - Describe low power behavior of the PMIC
+ * @pmic_lp_tshut:		Time rounded up to uSec for the PMIC to
+ *				go to low power after the LDOs are pulled to
+ *				appropriate state. Note: this is not the same as
+ *				voltage rampdown time, instead, consider the
+ *				PMIC to have switched it's LDOs down, this is
+ *				time taken to reach it's lowest power state(say
+ *				sleep/OFF).
+ * @pmic_lp_tstart:		Time rounded up to uSec for the PMIC to
+ *				provide be ready for operation from low power
+ *				state. Note: this is not the same as voltage
+ *				rampup time, instead, consider the PMIC to be
+ *				in lowest power state(say OFF), this is the time
+ *				required for it to become ready for it's DCDCs
+ *				or LDOs to start operation.
+ */
+struct omap_pmic_description {
+	u32 pmic_lp_tshut;
+	u32 pmic_lp_tstart;
+};
+
 #ifdef CONFIG_PM
-extern int omap_pmic_register_data(struct omap_pmic_map *map);
+extern int omap_pmic_register_data(struct omap_pmic_map *map,
+				   struct omap_pmic_description *desc);
 #else
-static inline int omap_pmic_register_data(struct omap_pmic_map *map)
+static inline int omap_pmic_register_data(struct omap_pmic_map *map,
+				   struct omap_pmic_description *desc)
 {
 	return -EINVAL;
 }
@@ -222,6 +246,8 @@ static inline int omap_tps6236x_update(char *name, u32 old_chip_id,
 }
 #endif
 
+extern int omap4_ldo_trim_configure(void);
+
 #ifdef CONFIG_PM
 extern bool omap_pm_is_ready_status;
 /**
@@ -234,10 +260,24 @@ static inline bool omap_pm_is_ready(void)
 {
 	return omap_pm_is_ready_status;
 }
+extern int omap_pm_get_osc_lp_time(u32 *tstart, u32 *tshut);
+extern int omap_pm_get_pmic_lp_time(u32 *tstart, u32 *tshut);
+extern void omap_pm_set_osc_lp_time(u32 tstart, u32 tshut);
+extern void omap_pm_set_pmic_lp_time(u32 tstart, u32 tshut);
 #else
 static inline bool omap_pm_is_ready(void)
 {
 	return false;
 }
+static inline int omap_pm_get_osc_lp_time(u32 *tstart, u32 *tshut)
+{
+	return -EINVAL;
+}
+static inline int omap_pm_get_pmic_lp_time(u32 *tstart, u32 *tshut)
+{
+	return -EINVAL;
+}
+static inline void omap_pm_set_osc_lp_time(u32 tstart, u32 tshut) { }
+static inline void omap_pm_set_pmic_lp_time(u32 tstart, u32 tshut) { }
 #endif
 #endif

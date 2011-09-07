@@ -24,6 +24,52 @@
 #include "clockdomain.h"
 #include "pm.h"
 
+/**
+ * struct omap2_pm_lp_description - Describe low power behavior of the system
+ * @oscillator_startup_time:	Time rounded up to uSec for the oscillator to
+ *				provide a stable clock from power on.
+ * @oscillator_shutdown_time:	Time rounded up to uSec for oscillator to safely
+ *				switch off.
+ * @pmic_startup_time:		Time rounded up to uSec for the PMIC to
+ *				provide be ready for operation from low power
+ *				state. Note: this is not the same as voltage
+ *				rampup time, instead, consider the PMIC to be
+ *				in lowest power state(say OFF), this is the time
+ *				required for it to become ready for it's DCDCs
+ *				or LDOs to start operation.
+ * @pmic_shutdown_time:		Time rounded up to uSec for the PMIC to
+ *				go to low power after the LDOs are pulled to
+ *				appropriate state. Note: this is not the same as
+ *				voltage rampdown time, instead, consider the
+ *				PMIC to have switched it's LDOs down, this is
+ *				time taken to reach it's lowest power state(say
+ *				sleep/OFF).
+ *
+ * With complex systems like OMAP, we need a generic description of system
+ * behavior beyond the normal description of device/peripheral operation
+ * which in conjunction with other parameters describe and control the low
+ * power operation of the device. This information tends to be specific
+ * to every board.
+ */
+struct omap2_pm_lp_description {
+	u32 oscillator_startup_time;
+	u32 oscillator_shutdown_time;
+	u32 pmic_startup_time;
+	u32 pmic_shutdown_time;
+};
+
+/*
+ * Setup time to be the max... we want to err towards the worst
+ * as default. rest of the system can populate these with more
+ * optimal values
+ */
+static struct omap2_pm_lp_description _pm_lp_desc = {
+	.oscillator_startup_time = ULONG_MAX,
+	.oscillator_shutdown_time = ULONG_MAX,
+	.pmic_startup_time = ULONG_MAX,
+	.pmic_shutdown_time = ULONG_MAX,
+};
+
 static struct omap_device_pm_latency *pm_lats;
 
 static struct device *mpu_dev;
@@ -68,6 +114,82 @@ struct device *omap4_get_fdif_device(void)
 	return fdif_dev;
 }
 EXPORT_SYMBOL(omap4_get_fdif_device);
+
+/**
+ * omap_pm_get_pmic_lp_time() - retrieve the oscillator time
+ * @tstart:	pointer to startup time in uSec
+ * @tshut:	pointer to shutdown time in uSec
+ *
+ * if the pointers are invalid, returns error, else
+ * populates the tstart and tshut values with the currently
+ * stored values.
+ */
+int omap_pm_get_osc_lp_time(u32 *tstart, u32 *tshut)
+{
+	if (!tstart || !tshut)
+		return -EINVAL;
+
+	*tstart = _pm_lp_desc.oscillator_startup_time;
+	*tshut = _pm_lp_desc.oscillator_shutdown_time;
+
+	return 0;
+}
+
+/**
+ * omap_pm_get_pmic_lp_time() - retrieve the PMIC time
+ * @tstart:	pointer to startup time in uSec
+ * @tshut:	pointer to shutdown time in uSec
+ *
+ * if the pointers are invalid, returns error, else
+ * populates the tstart and tshut values with the currently
+ * stored values.
+ */
+int omap_pm_get_pmic_lp_time(u32 *tstart, u32 *tshut)
+{
+	if (!tstart || !tshut)
+		return -EINVAL;
+
+	*tstart = _pm_lp_desc.pmic_startup_time;
+	*tshut = _pm_lp_desc.pmic_shutdown_time;
+
+	return 0;
+}
+
+/**
+ * omap_pm_set_osc_lp_time() - setup the system oscillator time
+ * @tstart:	startup time rounded up to uSec
+ * @tshut:	shutdown time rounded up to uSec
+ *
+ * All boards do need an oscillator for the device to function.
+ * The startup and stop time of these oscillators vary. Populate
+ * from the board file to optimize the timing.
+ * This function is meant to be used at boot-time configuration.
+ *
+ * NOTE: This API is intended to be invoked from board file
+ */
+void __init omap_pm_set_osc_lp_time(u32 tstart, u32 tshut)
+{
+	_pm_lp_desc.oscillator_startup_time = tstart;
+	_pm_lp_desc.oscillator_shutdown_time = tshut;
+}
+
+/**
+ * omap_pm_set_pmic_lp_time() - setup the pmic low power time
+ * @tstart:	startup time rounded up to uSec
+ * @tshut:	shutdown time rounded up to uSec
+ *
+ * Store the time for PMIC to enter to lowest state supported.
+ * in the case of multiple PMIC on a platform, choose the one
+ * that ends the sequence for LP state such as OFF and starts
+ * the sequence such as wakeup from OFF - e.g. a PMIC that
+ * controls core-domain.
+ * This function is meant to be used at boot-time configuration.
+ */
+void __init omap_pm_set_pmic_lp_time(u32 tstart, u32 tshut)
+{
+	_pm_lp_desc.pmic_startup_time = tstart;
+	_pm_lp_desc.pmic_shutdown_time = tshut;
+}
 
 /* static int _init_omap_device(struct omap_hwmod *oh, void *user) */
 static int _init_omap_device(char *name, struct device **new_dev)

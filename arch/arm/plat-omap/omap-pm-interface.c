@@ -19,12 +19,13 @@
 #include <linux/cpufreq.h>
 #include <linux/device.h>
 #include <linux/platform_device.h>
-
+#include <linux/io.h>
 /* Interface documentation is in mach/omap-pm.h */
 #include <plat/omap-pm.h>
 #include <plat/omap_device.h>
 
 #include "omap-pm-helper.h"
+#include "../mach-omap2/prm44xx.h"
 
 bool off_mode_enabled;
 
@@ -193,32 +194,43 @@ void omap_pm_disable_off_mode(void)
 	off_mode_enabled = false;
 }
 
-/*
- * Device context loss tracking
- * WARNING: at this point we dont have a reliable context loss reporting
- * mechanism. Instead, we ensure that we report context loss always.
- */
-int omap_pm_get_dev_context_loss_count(struct device *dev)
+bool omap_pm_was_context_lost(struct device *dev)
 {
-	static u32 count = 1;
+	struct platform_device *pdev;
+	struct omap_device *od;
+	struct omap_hwmod *oh;
 
-	if (!dev) {
-		WARN_ON(1);
-		return -EINVAL;
-	};
+	if (!dev)
+		goto save_ctx;
 
-	count++;
+	pdev = container_of(dev, struct platform_device, dev);
+	od = container_of(pdev, struct omap_device, pdev);
+	oh = od->hwmods[0];
 
-	/*
-	 * Context loss count has to be a non-negative value.
-	 * Clear the sign bit to get a value range from 0 to
-	 * INT_MAX. Roll over to 1
-	 */
-	count = (count & ~INT_MAX) ? 1 : count;
+	if (!oh || !cpu_is_omap44xx())
+		goto save_ctx;
 
-	pr_debug("OMAP PM: returning context loss count for dev %s count %ul\n",
-		 dev_name(dev), count);
-	return count;
+	if (oh->prcm.omap4.context_reg) {
+		u32 context_reg_val = 0;
+
+		/*Read what context was lost.*/
+		context_reg_val = __raw_readl(oh->prcm.omap4.context_reg);
+
+		/*clear context lost bits after read*/
+		__raw_writel(context_reg_val, oh->prcm.omap4.context_reg);
+
+		/* ABE special case, only report ctx lost when we loose
+		 * mem, otherwise, constant firmware reload causes problems.
+		 */
+		if (oh->prcm.omap4.context_reg == OMAP4430_RM_ABE_AESS_CONTEXT)
+			context_reg_val &= (1 << 8);
+
+		return (context_reg_val != 0);
+	}
+
+save_ctx:
+	/* by default return true so that driver will restore context*/
+	return true;
 }
 
 /* Should be called before clk framework init */

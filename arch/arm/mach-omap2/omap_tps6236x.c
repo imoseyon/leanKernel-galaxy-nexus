@@ -204,6 +204,11 @@ static struct omap_voltdm_pmic omap4_mpu_pmic = {
 	.uv_to_vsel		= tps6236x_uv_to_vsel,
 };
 
+/* As per SLVSAU9 */
+static __initdata struct omap_pmic_description tps_pmic_desc = {
+	.pmic_lp_tshut = 1,	/* T-OFF 1ns rounded */
+	.pmic_lp_tstart = 1000,	/* T-start */
+};
 /**
  * _twl_i2c_rmw_u8() - Tiny helper function to do a read modify write for twl
  * @mod_no:	module number
@@ -371,7 +376,7 @@ int __init omap_tps6236x_init(void)
 		map++;
 	}
 
-	return omap_pmic_register_data(omap_tps_map);
+	return omap_pmic_register_data(omap_tps_map, &tps_pmic_desc);
 }
 
 /**
