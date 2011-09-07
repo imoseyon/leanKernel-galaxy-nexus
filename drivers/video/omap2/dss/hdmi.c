@@ -59,12 +59,11 @@
 
 #define OMAP_HDMI_TIMINGS_NB			34
 
-#define GPIO_HDMI_HPD		63
-
 static struct {
 	struct mutex lock;
 	struct omap_display_platform_data *pdata;
 	struct platform_device *pdev;
+	struct omap_dss_device *dssdev;
 	struct hdmi_ip_data hdmi_data;
 	int code;
 	int mode;
@@ -444,8 +443,12 @@ void hdmi_get_monspecs(struct fb_monspecs *specs)
 
 	/* filter out resolutions we don't support */
 	for (i = j = 0; i < specs->modedb_len; i++) {
-		if (hdmi_set_timings(&specs->modedb[i], true))
-			specs->modedb[j++] = specs->modedb[i];
+		if (hdmi_set_timings(&specs->modedb[i], true)) {
+			u32 max_pclk = hdmi.dssdev->clocks.hdmi.max_pixclk_khz;
+			if (!max_pclk ||
+			    max_pclk >= PICOS2KHZ(specs->modedb[i].pixclock))
+				specs->modedb[j++] = specs->modedb[i];
+		}
 	}
 	specs->modedb_len = j;
 }
@@ -653,7 +656,7 @@ int omapdss_hdmi_get_deepcolor(void)
 
 int hdmi_get_current_hpd()
 {
-	return gpio_get_value(GPIO_HDMI_HPD);
+	return gpio_get_value(hdmi.dssdev->hpd_gpio);
 }
 
 static irqreturn_t hpd_irq_handler(int irq, void *ptr)
@@ -832,12 +835,24 @@ static void hdmi_put_clocks(void)
 static int omapdss_hdmihw_probe(struct platform_device *pdev)
 {
 	struct resource *hdmi_mem;
+	struct omap_dss_board_info *board_data;
 	int r;
 
 	hdmi.pdata = pdev->dev.platform_data;
 	hdmi.pdev = pdev;
 
 	mutex_init(&hdmi.lock);
+
+	/* save reference to HDMI device */
+	board_data = hdmi.pdata->board_data;
+	for (r = 0; r < board_data->num_devices; r++) {
+		if (board_data->devices[r]->type == OMAP_DISPLAY_TYPE_HDMI)
+			hdmi.dssdev = board_data->devices[r];
+	}
+	if (!hdmi.dssdev) {
+		DSSERR("can't get HDMI device\n");
+		return -EINVAL;
+	}
 
 	hdmi_mem = platform_get_resource(hdmi.pdev, IORESOURCE_MEM, 0);
 	if (!hdmi_mem) {
@@ -861,12 +876,12 @@ static int omapdss_hdmihw_probe(struct platform_device *pdev)
 
 	pm_runtime_enable(&pdev->dev);
 
-	r = request_irq(gpio_to_irq(GPIO_HDMI_HPD), hpd_irq_handler,
+	r = request_irq(gpio_to_irq(hdmi.dssdev->hpd_gpio), hpd_irq_handler,
 			IRQF_DISABLED | IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
 			"hpd", NULL);
 	if (r < 0) {
 		pr_err("hdmi: request_irq %d failed\n",
-			gpio_to_irq(GPIO_HDMI_HPD));
+			gpio_to_irq(hdmi.dssdev->hpd_gpio));
 		return -EINVAL;
 	}
 
@@ -883,6 +898,10 @@ static int omapdss_hdmihw_probe(struct platform_device *pdev)
 static int omapdss_hdmihw_remove(struct platform_device *pdev)
 {
 	hdmi_panel_exit();
+
+	if (hdmi.dssdev)
+		free_irq(gpio_to_irq(hdmi.dssdev->hpd_gpio), hpd_irq_handler);
+	hdmi.dssdev = NULL;
 
 	pm_runtime_disable(&pdev->dev);
 

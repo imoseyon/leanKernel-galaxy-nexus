@@ -537,6 +537,8 @@ struct omap_dss_device {
 		struct {
 			u16 regn;
 			u16 regm2;
+
+			u32 max_pixclk_khz;
 		} hdmi;
 	} clocks;
 
@@ -557,6 +559,7 @@ struct omap_dss_device {
 	} ctrl;
 
 	int reset_gpio;
+	int hpd_gpio;
 
 	int max_backlight_level;
 
