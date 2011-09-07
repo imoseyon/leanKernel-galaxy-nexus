@@ -369,11 +369,15 @@ struct omap_hwmod_omap2_prcm {
  * struct omap_hwmod_omap4_prcm - OMAP4-specific PRCM data
  * @clkctrl_reg: PRCM address of the clock control register
  * @rstctrl_reg: address of the XXX_RSTCTRL register located in the PRM
+ * @context_reg: addres of the context register
+ * @ctx_restore_trig : indicates if RFF or DFF or both lost
+ *                     should trigger ctx restore.
  * @submodule_wkdep_bit: bit shift of the WKDEP range
  */
 struct omap_hwmod_omap4_prcm {
 	void __iomem	*clkctrl_reg;
 	void __iomem	*rstctrl_reg;
+	void __iomem    *context_reg;
 	u8		submodule_wkdep_bit;
 };
 

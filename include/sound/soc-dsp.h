@@ -50,7 +50,7 @@ struct snd_soc_dsp_params {
 	enum snd_soc_dsp_link_state state;
 	struct list_head list_be;
 	struct list_head list_fe;
-	struct snd_pcm_hw_params params;
+	struct snd_pcm_hw_params hw_params;
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *debugfs_state;
 #endif

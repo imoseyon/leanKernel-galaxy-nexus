@@ -45,6 +45,7 @@
 
 #include <plat/dmtimer.h>
 #include <plat/common.h>
+#include <plat/omap-pm.h>
 
 /* register offsets */
 #define _OMAP_TIMER_ID_OFFSET		0x00
@@ -575,9 +576,7 @@ int omap_dm_timer_start(struct omap_dm_timer *timer)
 		u32 ctx_loss_cnt_after;
 
 		__timer_enable(timer);
-		ctx_loss_cnt_after =
-			timer->get_context_loss_count(&timer->pdev->dev);
-		if ((ctx_loss_cnt_after != timer->ctx_loss_count) &&
+		if (omap_pm_was_context_lost(&timer->pdev->dev) &&
 			timer->context_saved) {
 			omap_timer_restore_context(timer);
 			timer->context_saved = false;
@@ -630,9 +629,6 @@ int omap_dm_timer_stop(struct omap_dm_timer *timer)
 			OMAP_TIMER_INT_OVERFLOW);
 
 	if (timer->loses_context) {
-		if (timer->get_context_loss_count)
-			timer->ctx_loss_count =
-			timer->get_context_loss_count(&timer->pdev->dev);
 		omap_timer_save_context(timer);
 		timer->context_saved = true;
 		__timer_disable(timer);
@@ -988,7 +984,6 @@ static int __devinit omap_dm_timer_probe(struct platform_device *pdev)
 	timer->is_early_init = pdata->is_early_init;
 	timer->needs_manual_reset = pdata->needs_manual_reset;
 	timer->loses_context = pdata->loses_context;
-	timer->get_context_loss_count = pdata->get_context_loss_count;
 
 	spin_lock_init(&timer->lock);
 	 /* Skip pm_runtime_enable during early boot and for OMAP1 */

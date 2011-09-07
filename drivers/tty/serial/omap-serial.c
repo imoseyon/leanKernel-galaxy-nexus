@@ -518,9 +518,10 @@ static void serial_omap_set_mctrl(struct uart_port *port, unsigned int mctrl)
 	if (mctrl & TIOCM_LOOP)
 		mcr |= UART_MCR_LOOP;
 
-	mcr |= up->mcr;
+	up->mcr = serial_in(up, UART_MCR);
+	up->mcr |= mcr;
 	serial_omap_port_enable(up);
-	serial_out(up, UART_MCR, mcr);
+	serial_out(up, UART_MCR, up->mcr);
 	serial_omap_port_disable(up);
 }
 
@@ -565,6 +566,7 @@ static int serial_omap_startup(struct uart_port *port)
 	serial_omap_clear_fifos(up);
 	/* For Hardware flow control */
 	serial_out(up, UART_MCR, UART_MCR_RTS);
+	up->mcr = serial_in(up, UART_MCR);
 
 	/*
 	 * Clear the interrupt registers.
@@ -668,8 +670,6 @@ static inline void
 serial_omap_configure_xonxoff
 		(struct uart_omap_port *up, struct ktermios *termios)
 {
-	unsigned char efr = 0;
-
 	up->lcr = serial_in(up, UART_LCR);
 	serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B);
 	up->efr = serial_in(up, UART_EFR);
@@ -679,8 +679,7 @@ serial_omap_configure_xonxoff
 	serial_out(up, UART_XOFF1, termios->c_cc[VSTOP]);
 
 	/* clear SW control mode bits */
-	efr = up->efr;
-	efr &= OMAP_UART_SW_CLR;
+	up->efr &= OMAP_UART_SW_CLR;
 
 	/*
 	 * IXON Flag:
@@ -688,7 +687,7 @@ serial_omap_configure_xonxoff
 	 * Transmit XON1, XOFF1
 	 */
 	if (termios->c_iflag & IXON)
-		efr |= OMAP_UART_SW_TX;
+		up->efr |= OMAP_UART_SW_TX;
 
 	/*
 	 * IXOFF Flag:
@@ -696,7 +695,7 @@ serial_omap_configure_xonxoff
 	 * Receiver compares XON1, XOFF1.
 	 */
 	if (termios->c_iflag & IXOFF)
-		efr |= OMAP_UART_SW_RX;
+		up->efr |= OMAP_UART_SW_RX;
 
 	serial_out(up, UART_EFR, up->efr | UART_EFR_ECB);
 	serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
@@ -719,7 +718,7 @@ serial_omap_configure_xonxoff
 	 * load the new software flow control mode IXON or IXOFF
 	 * and restore the UARTi.EFR_REG[4] ENHANCED_EN value.
 	 */
-	serial_out(up, UART_EFR, efr | UART_EFR_SCD);
+	serial_out(up, UART_EFR, up->efr | UART_EFR_SCD);
 	serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
 
 	serial_out(up, UART_MCR, up->mcr & ~UART_MCR_TCRTLR);
@@ -914,7 +913,8 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 		serial_out(up, UART_TI752_TCR, OMAP_UART_TCR_TRIG);
 		serial_out(up, UART_EFR, efr); /* Enable AUTORTS and AUTOCTS */
 		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
-		serial_out(up, UART_MCR, up->mcr | UART_MCR_RTS);
+		up->mcr |= UART_MCR_RTS;
+		serial_out(up, UART_MCR, up->mcr);
 		serial_out(up, UART_LCR, cval);
 	}
 
@@ -1570,27 +1570,24 @@ static void omap_uart_mdr1_errataset(struct uart_omap_port *up, u8 mdr1)
 
 static void omap_uart_restore_context(struct uart_omap_port *up)
 {
-	u16 efr = 0;
-
 	if (up->errata & UART_ERRATA_i202_MDR1_ACCESS)
 		omap_uart_mdr1_errataset(up, UART_OMAP_MDR1_DISABLE);
 	else
 		serial_out(up, UART_OMAP_MDR1, UART_OMAP_MDR1_DISABLE);
-	serial_out(up, UART_LCR, 0xBF); /* Config B mode */
-	efr = serial_in(up, UART_EFR);
+	serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B); /* Config B mode */
 	serial_out(up, UART_EFR, UART_EFR_ECB);
 	serial_out(up, UART_LCR, 0x0); /* Operational mode */
 	serial_out(up, UART_IER, 0x0);
-	serial_out(up, UART_LCR, 0xBF); /* Config B mode */
+	serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B); /* Config B mode */
 	serial_out(up, UART_DLL, up->dll);
 	serial_out(up, UART_DLM, up->dlh);
 	serial_out(up, UART_LCR, 0x0); /* Operational mode */
 	serial_out(up, UART_IER, up->ier);
 	serial_out(up, UART_FCR, up->fcr);
-	serial_out(up, UART_LCR, 0x80);
+	serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
 	serial_out(up, UART_MCR, up->mcr);
-	serial_out(up, UART_LCR, 0xBF); /* Config B mode */
-	serial_out(up, UART_EFR, efr);
+	serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B); /* Config B mode */
+	serial_out(up, UART_EFR, up->efr);
 	serial_out(up, UART_LCR, up->lcr);
 	/* Enable module level wake up */
 	serial_out(up, UART_OMAP_WER, up->wer);
@@ -1621,7 +1618,6 @@ static int omap_serial_runtime_suspend(struct device *dev)
 
 	if (up->rts_mux_driver_control)
 		omap_rts_mux_write(MUX_PULL_UP, up->port.line);
-	up->context_loss_cnt = omap_pm_get_dev_context_loss_count(dev);
 	if (device_may_wakeup(dev))
 		up->enable_wakeup(up->pdev, true);
 	else
@@ -1636,13 +1632,7 @@ static int omap_serial_runtime_resume(struct device *dev)
 	struct omap_device *od;
 
 	if (up) {
-		int loss_cnt = omap_pm_get_dev_context_loss_count(dev);
-
-		/* We don't expect error in this function
-		 * Just in case its an error:
-		 * treat it as force-context-restore */
-		if (WARN_ON(loss_cnt < 0) ||
-				(up->context_loss_cnt != loss_cnt))
+		if (omap_pm_was_context_lost(dev))
 			omap_uart_restore_context(up);
 
 		if (up->use_dma) {

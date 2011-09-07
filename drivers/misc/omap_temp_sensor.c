@@ -40,6 +40,7 @@
 #include <linux/types.h>
 
 #include <plat/common.h>
+#include <plat/omap-pm.h>
 #include <plat/omap_device.h>
 #include <plat/temperature_sensor.h>
 #include <plat/omap-pm.h>
@@ -74,7 +75,7 @@ extern void omap_thermal_unthrottle(void);
  * @clk_rate - Holds current clock rate
  */
 struct omap_temp_sensor {
-	struct platform_device *pdev;
+	struct platform_device pdev;
 	struct device *dev;
 	struct clk *clock;
 	struct spinlock lock;
@@ -82,9 +83,10 @@ struct omap_temp_sensor {
 	unsigned int tshut_irq;
 	unsigned long phy_base;
 	int is_efuse_valid;
-	u8 clk_on;
 	unsigned long clk_rate;
 	u32 current_temp;
+	u32 save_ctx;
+	u8 clk_on;
 };
 
 #ifdef CONFIG_PM
@@ -258,8 +260,8 @@ static ssize_t omap_temp_show_current(struct device *dev,
 				struct device_attribute *devattr,
 				char *buf)
 {
-	struct platform_device *pdev = to_platform_device(dev);
-	struct omap_temp_sensor *temp_sensor = platform_get_drvdata(pdev);
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct omap_temp_sensor *temp_sensor = container_of(pdev, struct omap_temp_sensor, pdev);
 
 	return sprintf(buf, "%d\n", omap_read_current_temp(temp_sensor));
 }
@@ -302,7 +304,7 @@ static int omap_temp_sensor_enable(struct omap_temp_sensor *temp_sensor)
 		goto out;
 	}
 
-	ret = pm_runtime_get_sync(&temp_sensor->pdev->dev);
+	ret = pm_runtime_get_sync(&temp_sensor->pdev.dev);
 	if (ret) {
 		pr_err("%s:get sync failed\n", __func__);
 		ret = -EINVAL;
@@ -355,7 +357,7 @@ static int omap_temp_sensor_disable(struct omap_temp_sensor *temp_sensor)
 		temp = omap_temp_sensor_readl(temp_sensor,
 						BGAP_STATUS_OFFSET);
 	/* Gate the clock */
-	ret = pm_runtime_put_sync_suspend(&temp_sensor->pdev->dev);
+	ret = pm_runtime_put_sync_suspend(&temp_sensor->pdev.dev);
 	if (ret) {
 		pr_err("%s:put sync failed\n", __func__);
 		ret = -EINVAL;
@@ -462,8 +464,9 @@ static int __devinit omap_temp_sensor_probe(struct platform_device *pdev)
 	}
 
 	temp_sensor->phy_base = pdata->offset;
-	temp_sensor->pdev = pdev;
+	temp_sensor->pdev = *pdev;
 	temp_sensor->dev = dev;
+	temp_sensor->save_ctx = 0;
 
 	pm_runtime_enable(dev);
 	pm_runtime_irq_safe(dev);
@@ -476,7 +479,7 @@ static int __devinit omap_temp_sensor_probe(struct platform_device *pdev)
 			OMAP4_CTRL_MODULE_CORE_STD_FUSE_OPP_BGAP))
 		temp_sensor->is_efuse_valid = 1;
 
-	temp_sensor->clock = clk_get(&temp_sensor->pdev->dev, "fck");
+	temp_sensor->clock = clk_get(&temp_sensor->pdev.dev, "fck");
 	if (IS_ERR(temp_sensor->clock)) {
 		ret = PTR_ERR(temp_sensor->clock);
 		pr_err("%s:Unable to get fclk: %d\n", __func__, ret);
@@ -563,7 +566,8 @@ plat_res_err:
 
 static int __devexit omap_temp_sensor_remove(struct platform_device *pdev)
 {
-	struct omap_temp_sensor *temp_sensor = platform_get_drvdata(pdev);
+	struct omap_temp_sensor *temp_sensor = container_of(pdev,
+					struct omap_temp_sensor, pdev);
 
 	sysfs_remove_group(&pdev->dev.kobj, &omap_temp_sensor_group);
 	omap_temp_sensor_disable(temp_sensor);
@@ -615,7 +619,8 @@ static void omap_temp_sensor_restore_ctxt(struct omap_temp_sensor *temp_sensor)
 static int omap_temp_sensor_suspend(struct platform_device *pdev,
 				    pm_message_t state)
 {
-	struct omap_temp_sensor *temp_sensor = platform_get_drvdata(pdev);
+	struct omap_temp_sensor *temp_sensor = container_of(pdev,
+					struct omap_temp_sensor, pdev);
 
 	omap_temp_sensor_disable(temp_sensor);
 
@@ -624,8 +629,8 @@ static int omap_temp_sensor_suspend(struct platform_device *pdev,
 
 static int omap_temp_sensor_resume(struct platform_device *pdev)
 {
-	struct omap_temp_sensor *temp_sensor = platform_get_drvdata(pdev);
-
+	struct omap_temp_sensor *temp_sensor = container_of(pdev,
+					struct omap_temp_sensor, pdev);
 	omap_temp_sensor_enable(temp_sensor);
 
 	return 0;
@@ -647,34 +652,27 @@ omap_temp_sensor_suspend NULL
 omap_temp_sensor_resume NULL
 
 #endif /* CONFIG_PM */
-
 static int omap_temp_sensor_runtime_suspend(struct device *dev)
 {
-	struct omap_temp_sensor *temp_sensor =
-			platform_get_drvdata(to_platform_device(dev));
-
+	struct platform_device *pdev = to_platform_device(dev);
+	struct omap_temp_sensor *temp_sensor = container_of(pdev,
+					struct omap_temp_sensor, pdev);
 	omap_temp_sensor_save_ctxt(temp_sensor);
-
+	temp_sensor->save_ctx = 1;
 	return 0;
 }
 
 static int omap_temp_sensor_runtime_resume(struct device *dev)
 {
-	static int context_loss_count;
-	int temp;
-	struct omap_temp_sensor *temp_sensor =
-			platform_get_drvdata(to_platform_device(dev));
-
-	temp = omap_pm_get_dev_context_loss_count(dev);
-
-	/* consider error return from context loss as:
-	 * force context restore with a WARN_ON() */
-	if (WARN_ON(temp < 0) ||
-			(temp != context_loss_count && context_loss_count != 0))
+	struct platform_device *pdev = to_platform_device(dev);
+	struct omap_temp_sensor *temp_sensor = container_of(pdev,
+					struct omap_temp_sensor, pdev);
+	if (temp_sensor->save_ctx)
+		return 0;
+	if (omap_pm_was_context_lost(dev)) {
 		omap_temp_sensor_restore_ctxt(temp_sensor);
-
-	context_loss_count = temp;
-
+		temp_sensor->save_ctx = 0;
+	}
 	return 0;
 }
 

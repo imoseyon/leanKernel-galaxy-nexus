@@ -2214,6 +2214,7 @@ static void musb_save_context(struct musb *musb)
 	musb->context.devctl = musb_readb(musb_base, MUSB_DEVCTL);
 
 	for (i = 0; i < musb->config->num_eps; ++i) {
+		musb_writeb(musb_base, MUSB_INDEX, i);
 		epio = musb->endpoints[i].regs;
 		musb->context.index_regs[i].txmaxp =
 			musb_readw(epio, MUSB_TXMAXP);
@@ -2280,6 +2281,7 @@ static void musb_restore_context(struct musb *musb)
 	musb_writeb(musb_base, MUSB_DEVCTL, musb->context.devctl);
 
 	for (i = 0; i < musb->config->num_eps; ++i) {
+		musb_writeb(musb_base, MUSB_INDEX, i);
 		epio = musb->endpoints[i].regs;
 		musb_writew(epio, MUSB_TXMAXP,
 			musb->context.index_regs[i].txmaxp);

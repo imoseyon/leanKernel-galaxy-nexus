@@ -1582,10 +1582,12 @@ static int __init _register(struct omap_hwmod *oh)
 	 */
 	if (!strcmp(oh->name, MPU_INITIATOR_NAME))
 		mpu_oh = oh;
-	else if (!strcmp(oh->name, "emif1"))
-		emif_clear_irq(0);
-	else if (!strcmp(oh->name, "emif2"))
-		emif_clear_irq(1);
+	else if (cpu_is_omap44xx()) {
+		if (!strcmp(oh->name, "emif1"))
+			emif_clear_irq(0);
+		else if (!strcmp(oh->name, "emif2"))
+			emif_clear_irq(1);
+	}
 
 	return 0;
 }
