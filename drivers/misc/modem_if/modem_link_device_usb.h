@@ -37,6 +37,8 @@
 #define AUTOSUSPEND_DELAY_MS		500
 #define HOST_WAKEUP_TIMEOUT_MS		2000
 
+#define MAX_RETRY	3
+
 #define RX_BUFSIZE_RFS			(256 * 1024)
 #define RX_BUFSIZE_RAW			(16 * 1024)
 

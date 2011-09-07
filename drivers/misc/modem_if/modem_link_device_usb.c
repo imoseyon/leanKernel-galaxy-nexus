@@ -229,7 +229,7 @@ static void usb_tx_complete(struct urb *urb)
 static int usb_tx_urb_with_skb(struct usb_link_device *usb_ld,
 		struct sk_buff *skb, struct if_usb_devdata *pipe_data)
 {
-	int ret;
+	int ret, cnt = 0;
 	struct urb *urb;
 	struct usb_device *usbdev = usb_ld->usbdev;
 	unsigned long flags;
@@ -243,13 +243,20 @@ static int usb_tx_urb_with_skb(struct usb_link_device *usb_ld,
 		usb_ld->resume_status = AP_INITIATED_RESUME;
 		SET_SLAVE_WAKEUP(usb_ld->pdata, 1);
 
-		if (!wait_event_interruptible_timeout(usb_ld->l2_wait,
-			(usbdev->dev.power.runtime_status == RPM_ACTIVE),
-			HOST_WAKEUP_TIMEOUT_MS)) {
-			pr_err("host wakeup timeout\n");
+		while (!wait_event_interruptible_timeout(usb_ld->l2_wait,
+					(usbdev->dev.power.runtime_status == RPM_ACTIVE),
+					HOST_WAKEUP_TIMEOUT_MS)) {
+			if (cnt == MAX_RETRY) {
+				pr_err("host wakeup timeout !!\n");
+				SET_SLAVE_WAKEUP(usb_ld->pdata, 0);
+				pm_runtime_put_autosuspend(&usbdev->dev);
+				return -1;
+			}
+			pr_err("host wakeup timeout ! retry..\n");
 			SET_SLAVE_WAKEUP(usb_ld->pdata, 0);
-			pm_runtime_put_autosuspend(&usbdev->dev);
-			return -1;
+			udelay(100);
+			SET_SLAVE_WAKEUP(usb_ld->pdata, 1);
+			cnt++;
 		}
 		pr_debug("wait_q done (runtime_status=%d)\n",
 				usbdev->dev.power.runtime_status);
