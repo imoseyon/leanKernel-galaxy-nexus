@@ -172,6 +172,7 @@ int omap4_prcm_freq_update(void)
 /* Use a very high retry count - we should not hit this condition */
 #define MAX_DPLL_WAIT_TRIES	1000000
 
+#define OMAP_1_2GHz	1200000000
 #define OMAP_1GHz	1000000000
 #define OMAP_920MHz	920000000
 #define OMAP_748MHz	748000000
@@ -237,58 +238,9 @@ const struct clkops clkops_omap4_dpllmx_ops = {
 	.deny_idle	= omap4_dpllmx_deny_gatectrl,
 };
 
-int omap4460_mpu_dpll_set_rate(struct clk *clk, unsigned long rate)
+static void omap4460_mpu_dpll_update_children(unsigned long rate)
 {
-	struct dpll_data *dd;
 	u32 v;
-	unsigned long dpll_rate;
-
-	if (!clk || !rate || !clk->parent)
-		return -EINVAL;
-
-	dd = clk->parent->dpll_data;
-
-	if (!dd)
-		return -EINVAL;
-
-	if (!clk->parent->set_rate)
-		return -EINVAL;
-
-	/*
-	 * On OMAP4460, to obtain MPU DPLL frequency higher
-	 * than 1GHz, DCC (Duty Cycle Correction) needs to
-	 * be enabled.
-	 * And needs to be kept disabled for < 1 Ghz.
-	 */
-	dpll_rate = omap2_get_dpll_rate(clk->parent);
-	v = __raw_readl(dd->mult_div1_reg);
-	if (rate < OMAP_1GHz) {
-		if (rate == dpll_rate)
-			return 0;
-		/* If DCC is enabled, disable it */
-		if (v & OMAP4460_DCC_EN_MASK) {
-			v &= ~OMAP4460_DCC_EN_MASK;
-			__raw_writel(v, dd->mult_div1_reg);
-		}
-		clk->parent->set_rate(clk->parent, rate);
-	} else {
-		if (rate == dpll_rate/2)
-			return 0;
-		v &= ~OMAP4460_DCC_COUNT_MAX_MASK;
-		v |= (5 << OMAP4460_DCC_COUNT_MAX_SHIFT);
-		v |= OMAP4460_DCC_EN_MASK;
-		__raw_writel(v, dd->mult_div1_reg);
-		/*
-		 * On 4460, the MPU clk for frequencies higher than 1Ghz
-		 * is sourced from CLKOUTX2_M3, instead of CLKOUT_M2, while
-		 * value of M3 is fixed to 1. Hence for frequencies higher
-		 * than 1 Ghz, lock the DPLL at half the rate so the
-		 * CLKOUTX2_M3 then matches the requested rate.
-		 */
-		clk->parent->set_rate(clk->parent, rate/2);
-	}
-
-	clk->rate = rate;
 
 	/*
 	 * The interconnect frequency to EMIF should
@@ -310,6 +262,69 @@ int omap4460_mpu_dpll_set_rate(struct clk *clk, unsigned long rate)
 	else
 		v &= ~OMAP4460_CLKSEL_ABE_DIV_MODE_MASK;
 	__raw_writel(v, OMAP4430_CM_MPU_MPU_CLKCTRL);
+}
+
+int omap4460_mpu_dpll_set_rate(struct clk *clk, unsigned long rate)
+{
+	struct dpll_data *dd;
+	u32 v;
+	unsigned long dpll_rate;
+
+	if (!clk || !rate || !clk->parent)
+		return -EINVAL;
+
+	dd = clk->parent->dpll_data;
+
+	if (!dd)
+		return -EINVAL;
+
+	if (!clk->parent->set_rate)
+		return -EINVAL;
+
+	if (rate > clk->rate)
+		omap4460_mpu_dpll_update_children(rate);
+
+	/*
+	 * On OMAP4460, to obtain MPU DPLL frequency higher
+	 * than 1GHz, DCC (Duty Cycle Correction) needs to
+	 * be enabled.
+	 * And needs to be kept disabled for < 1 Ghz.
+	 */
+	dpll_rate = omap2_get_dpll_rate(clk->parent);
+	if (rate <= OMAP_1_2GHz) {
+		/* If DCC is enabled, disable it */
+		v = __raw_readl(dd->mult_div1_reg);
+		if (v & OMAP4460_DCC_EN_MASK) {
+			v &= ~OMAP4460_DCC_EN_MASK;
+			__raw_writel(v, dd->mult_div1_reg);
+		}
+
+		if (rate != dpll_rate)
+			clk->parent->set_rate(clk->parent, rate);
+	} else {
+		/*
+		 * On 4460, the MPU clk for frequencies higher than 1Ghz
+		 * is sourced from CLKOUTX2_M3, instead of CLKOUT_M2, while
+		 * value of M3 is fixed to 1. Hence for frequencies higher
+		 * than 1 Ghz, lock the DPLL at half the rate so the
+		 * CLKOUTX2_M3 then matches the requested rate.
+		 */
+		if (rate != dpll_rate * 2)
+			clk->parent->set_rate(clk->parent, rate / 2);
+
+		v = __raw_readl(dd->mult_div1_reg);
+		v &= ~OMAP4460_DCC_COUNT_MAX_MASK;
+		v |= (5 << OMAP4460_DCC_COUNT_MAX_SHIFT);
+		__raw_writel(v, dd->mult_div1_reg);
+
+		v |= OMAP4460_DCC_EN_MASK;
+		__raw_writel(v, dd->mult_div1_reg);
+	}
+
+	if (rate < clk->rate)
+		omap4460_mpu_dpll_update_children(rate);
+
+	clk->rate = rate;
 
 	return 0;
 }

@@ -325,6 +325,13 @@ wake_cpu1:
 		if (!cpu_is_omap443x())
 			while (gic_dist_disabled())
 				cpu_relax();
+
+		/*
+		 * cpu1 mucks with page tables while it is starting,
+		 * prevent cpu0 executing any processes until cpu1 is up
+		 */
+		while (omap4_idle_requested_cx[1])
+			cpu_relax();
 	}
 
 out:
