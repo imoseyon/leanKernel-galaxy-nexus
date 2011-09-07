@@ -573,8 +573,6 @@ int omap_dm_timer_start(struct omap_dm_timer *timer)
 
 	spin_lock_irqsave(&timer->lock, flags);
 	if (timer->loses_context) {
-		u32 ctx_loss_cnt_after;
-
 		__timer_enable(timer);
 		if (omap_pm_was_context_lost(&timer->pdev->dev) &&
 			timer->context_saved) {
@@ -705,12 +703,8 @@ int omap_dm_timer_set_load_start(struct omap_dm_timer *timer, int autoreload,
 
 	spin_lock_irqsave(&timer->lock, flags);
 	if (timer->loses_context) {
-		u32 ctx_loss_cnt_after;
-
 		__timer_enable(timer);
-		ctx_loss_cnt_after =
-			timer->get_context_loss_count(&timer->pdev->dev);
-		if ((ctx_loss_cnt_after != timer->ctx_loss_count) &&
+		if (omap_pm_was_context_lost(&timer->pdev->dev) &&
 			timer->context_saved) {
 			omap_timer_restore_context(timer);
 			timer->context_saved = false;
