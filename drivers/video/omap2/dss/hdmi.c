@@ -459,9 +459,11 @@ u8 *hdmi_read_edid(struct omap_video_timings *dp)
 {
 	int ret = 0, i;
 
+	if (hdmi.edid_set)
+		return hdmi.edid;
+
 	memset(hdmi.edid, 0, HDMI_EDID_MAX_LENGTH);
 
-	hdmi.edid_set = false;
 	ret = read_ti_4xxx_edid(&hdmi.hdmi_data, hdmi.edid,
 						HDMI_EDID_MAX_LENGTH);
 
@@ -632,7 +634,6 @@ static void hdmi_power_off(struct omap_dss_device *dssdev)
 	hdmi_ti_4xxx_set_pll_pwr(&hdmi.hdmi_data, HDMI_PLLPWRCMD_ALLOFF);
 	hdmi_runtime_put();
 	hdmi.deep_color = HDMI_DEEP_COLOR_24BIT;
-	hdmi.edid_set = false;
 }
 
 void omapdss_hdmi_set_deepcolor(int val)
@@ -681,14 +682,13 @@ int omapdss_hdmi_display_set_mode(struct omap_dss_device *dssdev,
 				  struct fb_videomode *vm)
 {
 	int r1, r2;
-	hdmi.custom_set = 1;
 	/* turn the hdmi off and on to get new timings to use */
 	omapdss_hdmi_display_disable(dssdev);
 	r1 = hdmi_set_timings(vm, false) ? 0 : -EINVAL;
+	hdmi.custom_set = 1;
 	hdmi.code = hdmi.cfg.cm.code;
 	hdmi.mode = hdmi.cfg.cm.mode;
 	r2 = omapdss_hdmi_display_enable(dssdev);
-	hdmi.custom_set = 0;
 	return r1 ? : r2;
 }
 
@@ -771,6 +771,13 @@ void omapdss_hdmi_display_disable(struct omap_dss_device *dssdev)
 	mutex_lock(&hdmi.lock);
 
 	hdmi_power_off(dssdev);
+
+	if (dssdev->state != OMAP_DSS_DISPLAY_SUSPENDED) {
+		/* clear EDID and mode on disable only */
+		hdmi.edid_set = false;
+		hdmi.custom_set = 0;
+		pr_info("hdmi: clearing EDID info\n");
+	}
 
 	regulator_disable(hdmi.hdmi_reg);
 

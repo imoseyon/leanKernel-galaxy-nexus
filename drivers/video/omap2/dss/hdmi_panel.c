@@ -139,6 +139,8 @@ static int hdmi_panel_suspend(struct omap_dss_device *dssdev)
 
 	dssdev->state = OMAP_DSS_DISPLAY_SUSPENDED;
 
+	hdmi_panel_hpd_handler(0);
+
 	omapdss_hdmi_display_disable(dssdev);
 err:
 	mutex_unlock(&hdmi.hdmi_lock);
@@ -194,13 +196,24 @@ static void hdmi_hotplug_detect_worker(struct work_struct *work)
 	if (dssdev == NULL)
 		return;
 
+	mutex_lock(&hdmi.hdmi_lock);
 	if (state == HPD_STATE_OFF) {
 		switch_set_state(&hdmi.hpd_switch, 0);
-		dssdev->driver->disable(dssdev);
-		return;
+		if (dssdev->state == OMAP_DSS_DISPLAY_ACTIVE) {
+			mutex_unlock(&hdmi.hdmi_lock);
+			dssdev->driver->disable(dssdev);
+			mutex_lock(&hdmi.hdmi_lock);
+		}
+		goto done;
 	} else {
 		if (state == HPD_STATE_START) {
+			mutex_unlock(&hdmi.hdmi_lock);
 			dssdev->driver->enable(dssdev);
+			mutex_lock(&hdmi.hdmi_lock);
+		} else if (dssdev->state != OMAP_DSS_DISPLAY_ACTIVE ||
+			   hdmi.hpd_switch.state) {
+			/* powered down after enable - skip EDID read */
+			goto done;
 		} else if (hdmi_read_edid(&dssdev->panel.timings)) {
 			/* get monspecs from edid */
 			hdmi_get_monspecs(&dssdev->panel.monspecs);
@@ -208,14 +221,16 @@ static void hdmi_hotplug_detect_worker(struct work_struct *work)
 					dssdev->panel.monspecs.max_x,
 					dssdev->panel.monspecs.max_y);
 			switch_set_state(&hdmi.hpd_switch, 1);
-			return;
+			goto done;
 		} else if (state == HPD_STATE_EDID_TRYLAST){
 			pr_info("Failed to read EDID after %d times. Giving up.", state - HPD_STATE_START);
-			return;
+			goto done;
 		}
 		if (atomic_add_unless(&d->state, 1, HPD_STATE_OFF))
 			queue_delayed_work(my_workq, &d->dwork, msecs_to_jiffies(60));
 	}
+done:
+	mutex_unlock(&hdmi.hdmi_lock);
 }
 
 int hdmi_panel_hpd_handler(int hpd)
