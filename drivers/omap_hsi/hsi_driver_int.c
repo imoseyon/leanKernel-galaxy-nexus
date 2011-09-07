@@ -43,9 +43,11 @@ bool hsi_is_channel_busy(struct hsi_channel *ch)
 	if (ch->write_data.addr == NULL)
 		return false;
 
-	/* Note: we do not check if there is a read pending, because incoming */
-	/* data will trigger an interrupt (FIFO or DMA), and wake up the */
-	/* platform, so no need to keep the clocks ON. */
+	/*
+	 * Note: we do not check if there is a read pending, because incoming
+	 * data will trigger an interrupt (FIFO or DMA), and wake up the
+	 * platform, so no need to keep the clocks ON.
+	 */
 	return true;
 }
 
@@ -452,9 +454,10 @@ int hsi_do_cawake_process(struct hsi_port *pport)
 
 		/* Force HSI to ON_ACTIVE when CAWAKE is high */
 		hsi_set_pm_force_hsi_on(hsi_ctrl);
-		/* TODO: Use omap_pm_set_max_dev_wakeup_lat() to set latency */
-		/* constraint to prevent L3INIT to enter RET/OFF when CAWAKE */
-		/* is high */
+		/*
+		 * TODO: Use pm_qos() to set latency constraint to prevent
+		 * L3INIT to enter RET/OFF when CAWAKE is high.
+		 */
 
 		spin_unlock(&hsi_ctrl->lock);
 		hsi_port_event_handler(pport, HSI_EVENT_CAWAKE_UP, NULL);
@@ -482,9 +485,10 @@ int hsi_do_cawake_process(struct hsi_port *pport)
 
 		/* Allow HSI HW to enter IDLE when CAWAKE is low */
 		hsi_set_pm_default(hsi_ctrl);
-		/* TODO: Use omap_pm_set_max_dev_wakeup_lat() to release */
-		/* latency constraint to prevent L3INIT to enter RET/OFF when */
-		/* CAWAKE is low */
+		/*
+		 * TODO: Use pm_qos() to release latency constraint to allow
+		 * L3INIT to enter RET/OFF when CAWAKE is low
+		 */
 
 		spin_unlock(&hsi_ctrl->lock);
 		hsi_port_event_handler(pport, HSI_EVENT_CAWAKE_DOWN, NULL);
@@ -678,8 +682,10 @@ static irqreturn_t hsi_mpu_handler(int irq, void *p)
 #endif
 		shceduled_already_flag = 1;
 		tasklet_hi_schedule(&pport->hsi_tasklet);
-		/* Disable interrupt until Bottom Half has cleared the */
-		/* IRQ status register */
+		/*
+		 * Disable interrupt until Bottom Half has cleared the
+		 * IRQ status register
+		 */
 		disable_irq_nosync(pport->irq);
 	}
 	return IRQ_HANDLED;
