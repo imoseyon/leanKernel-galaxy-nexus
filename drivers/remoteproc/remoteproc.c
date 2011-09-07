@@ -48,12 +48,42 @@ static ssize_t rproc_format_trace_buf(char __user *userbuf, size_t count,
 				    loff_t *ppos, const void *src, int size)
 {
 	const char *buf = (const char *) src;
-	int i;
+	ssize_t num_copied = 0;
+	static int from_beg;
+	loff_t pos = *ppos;
+	int *w_idx;
+	int i, w_pos;
 
-	/* find the end of trace buffer - does not account for wrapping */
-	for (i = 0; i < size && buf[i]; i++);
+	/* Assume write_idx is the penultimate byte in the buffer trace*/
+	w_idx = (int *)(buf + (size - (sizeof(u32) * 2)));
+	size = size - (sizeof(u32) * 2);
+	w_pos = *w_idx;
 
-	return simple_read_from_buffer(userbuf, count, ppos, src, i);
+	if (from_beg)
+		goto print_beg;
+
+	if (pos == 0)
+		*ppos = w_pos;
+
+	for (i = w_pos; i < size && buf[i]; i++);
+
+	if (i > w_pos)
+		num_copied = simple_read_from_buffer(userbuf, count, ppos, src, i);
+		if (!num_copied) {
+			from_beg = 1;
+			*ppos = 0;
+		} else
+			return num_copied;
+print_beg:
+	for (i = 0; i < w_pos && buf[i]; i++);
+
+	if (i) {
+		num_copied = simple_read_from_buffer(userbuf, count, ppos, src, i);
+		if (!num_copied)
+			from_beg = 0;
+		return num_copied;
+	}
+	return 0;
 }
 
 static ssize_t rproc_name_read(struct file *filp, char __user *userbuf,
