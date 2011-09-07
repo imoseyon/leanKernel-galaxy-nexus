@@ -175,7 +175,7 @@ void __init omap4_tuna_sensors_init(void)
 	omap_mux_init_gpio(GPIO_ACC_INT, OMAP_PIN_INPUT);
 	omap_mux_init_gpio(GPIO_MAG_INT, OMAP_PIN_INPUT);
 	omap_mux_init_gpio(GPIO_PS_ON, OMAP_PIN_OUTPUT);
-	omap_mux_init_gpio(GPIO_PS_VOUT, OMAP_PIN_INPUT);
+	omap_mux_init_gpio(GPIO_PS_VOUT, OMAP_WAKEUP_EN | OMAP_PIN_INPUT);
 
 	gpio_request(GPIO_GYRO_INT, "GYRO_INT");
 	gpio_direction_input(GPIO_GYRO_INT);
