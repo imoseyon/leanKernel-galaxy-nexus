@@ -306,6 +306,10 @@ static long query_display(struct dsscomp_dev *cdev,
 	dis->state = dev->state;
 	dis->timings = dev->panel.timings;
 
+	/* for now LCD panels don't have width and height */
+	dis->width_in_mm = dev->panel.monspecs.max_x * 10;
+	dis->height_in_mm = dev->panel.monspecs.max_y * 10;
+
 	/* find all overlays available for/owned by this display */
 	for (i = 0; i < cdev->num_ovls && dis->enabled; i++) {
 		if (cdev->ovls[i]->manager == mgr)
@@ -334,6 +338,9 @@ static long query_display(struct dsscomp_dev *cdev,
 	}
 	dis->mgr.ix = dis->ix;
 
+	if (dis->modedb_len && dev->driver->get_modedb)
+		dis->modedb_len = dev->driver->get_modedb(dev,
+			(struct fb_videomode *) dis->modedb, dis->modedb_len);
 	return 0;
 }
 
@@ -342,6 +349,25 @@ static long check_ovl(struct dsscomp_dev *cdev,
 {
 	/* for now return all overlays as possible */
 	return (1 << cdev->num_ovls) - 1;
+}
+
+static long setup_display(struct dsscomp_dev *cdev,
+				struct dsscomp_setup_display_data *dis)
+{
+	struct omap_dss_device *dev;
+
+	/* get display */
+	if (dis->ix >= cdev->num_displays)
+		return -EINVAL;
+	dev = cdev->displays[dis->ix];
+	if (!dev)
+		return -EINVAL;
+
+	if (dev->driver->set_mode)
+		return dev->driver->set_mode(dev,
+					(struct fb_videomode *) &dis->mode);
+	else
+		return 0;
 }
 
 static void fill_cache(struct dsscomp_dev *cdev)
@@ -393,6 +419,7 @@ static long comp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		struct dsscomp_setup_dispc_data dispc;
 		struct dsscomp_display_info dis;
 		struct dsscomp_check_ovl_data chk;
+		struct dsscomp_setup_display_data sdis;
 	} u;
 
 	dsscomp_gralloc_init(cdev);
@@ -418,7 +445,8 @@ static long comp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	{
 		r = copy_from_user(&u.dis, ptr, sizeof(u.dis)) ? :
 		    query_display(cdev, &u.dis) ? :
-		    copy_to_user(ptr, &u.dis, sizeof(u.dis));
+		    copy_to_user(ptr, &u.dis, sizeof(u.dis) +
+				sizeof(*u.dis.modedb) * u.dis.modedb_len);
 		break;
 	}
 	case DSSCOMP_CHECK_OVL:
@@ -426,6 +454,11 @@ static long comp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		r = copy_from_user(&u.chk, ptr, sizeof(u.chk)) ? :
 		    check_ovl(cdev, &u.chk);
 		break;
+	}
+	case DSSCOMP_SETUP_DISPLAY:
+	{
+		r = copy_from_user(&u.sdis, ptr, sizeof(u.sdis)) ? :
+		    setup_display(cdev, &u.sdis);
 	}
 	default:
 		r = -EINVAL;

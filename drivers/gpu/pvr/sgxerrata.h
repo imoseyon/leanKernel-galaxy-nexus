@@ -500,6 +500,7 @@
 		#if defined(SUPPORT_SGX_LOW_LATENCY_SCHEDULING) && defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_33657
 		#endif
+		#define FIX_HW_BRN_33809
 		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 103
@@ -513,6 +514,7 @@
 		#if defined(SUPPORT_SGX_LOW_LATENCY_SCHEDULING) && defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_33657
 		#endif
+		#define FIX_HW_BRN_33809
 		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 104
@@ -533,6 +535,7 @@
 		#if defined(SUPPORT_SGX_LOW_LATENCY_SCHEDULING) && defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_33657
 		#endif
+		#define FIX_HW_BRN_33809
 		#define FIX_HW_BRN_33920
 	#else	
 	#if SGX_CORE_REV == 105
@@ -543,6 +546,7 @@
 		#if defined(SUPPORT_SGX_LOW_LATENCY_SCHEDULING) && defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_33657
 		#endif
+		#define FIX_HW_BRN_33809
 		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 106
@@ -551,6 +555,7 @@
 		#if defined(SUPPORT_SGX_LOW_LATENCY_SCHEDULING) && defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_33657
 		#endif
+		#define FIX_HW_BRN_33809
 		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 110
@@ -562,6 +567,7 @@
 		#if defined(SUPPORT_SGX_LOW_LATENCY_SCHEDULING) && defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_33657
 		#endif
+		#define FIX_HW_BRN_33809
 		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 112
@@ -570,6 +576,7 @@
 		#if defined(SUPPORT_SGX_LOW_LATENCY_SCHEDULING) && defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_33657
 		#endif
+		#define FIX_HW_BRN_33809
 		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 114
@@ -580,6 +587,7 @@
 		#if defined(SUPPORT_SGX_LOW_LATENCY_SCHEDULING) && defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_33657
 		#endif
+		#define FIX_HW_BRN_33809
 	#else
 	#if SGX_CORE_REV == 115
  		#if defined(SGX_FEATURE_MP)
@@ -589,6 +597,7 @@
 		#if defined(SUPPORT_SGX_LOW_LATENCY_SCHEDULING) && defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_33657
 		#endif
+		#define FIX_HW_BRN_33809
 	#else
 	#if SGX_CORE_REV == 116
  		#if defined(SGX_FEATURE_MP)
