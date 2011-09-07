@@ -73,8 +73,7 @@ struct hdmi_cm {
 };
 
 struct hdmi_config {
-	struct hdmi_timings timings;
-	u16	interlace;
+	struct fb_videomode timings;
 	struct hdmi_cm cm;
 	enum hdmi_deep_color_mode	deep_color;
 };

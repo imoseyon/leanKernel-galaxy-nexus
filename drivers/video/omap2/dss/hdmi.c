@@ -37,6 +37,8 @@
 #include <video/omapdss.h>
 #include <video/hdmi_ti_4xxx_ip.h>
 #include <linux/gpio.h>
+#include <linux/fb.h>
+#include <linux/omapfb.h>
 #if defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI) || \
 	defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI_MODULE)
 #include <sound/soc.h>
@@ -73,6 +75,7 @@ static struct {
 	int mode;
 	u8 edid[HDMI_EDID_MAX_LENGTH];
 	u8 edid_set;
+
 	bool custom_set;
 	enum hdmi_deep_color_mode deep_color;
 	struct hdmi_config cfg;
@@ -98,76 +101,189 @@ static struct {
  * map it to corresponding CEA or VESA index.
  */
 
-static const struct hdmi_timings cea_vesa_timings[OMAP_HDMI_TIMINGS_NB] = {
-	{ {640, 480, 25200, 96, 16, 48, 2, 10, 33} , 0 , 0},
-	{ {1280, 720, 74250, 40, 440, 220, 5, 5, 20}, 1, 1},
-	{ {1280, 720, 74250, 40, 110, 220, 5, 5, 20}, 1, 1},
-	{ {720, 480, 27027, 62, 16, 60, 6, 9, 30}, 0, 0},
-	{ {2880, 576, 108000, 256, 48, 272, 5, 5, 39}, 0, 0},
-	{ {1440, 240, 27027, 124, 38, 114, 3, 4, 15}, 0, 0},
-	{ {1440, 288, 27000, 126, 24, 138, 3, 2, 19}, 0, 0},
-	{ {1920, 540, 74250, 44, 528, 148, 5, 2, 15}, 1, 1},
-	{ {1920, 540, 74250, 44, 88, 148, 5, 2, 15}, 1, 1},
-	{ {1920, 1080, 148500, 44, 88, 148, 5, 4, 36}, 1, 1},
-	{ {720, 576, 27000, 64, 12, 68, 5, 5, 39}, 0, 0},
-	{ {1440, 576, 54000, 128, 24, 136, 5, 5, 39}, 0, 0},
-	{ {1920, 1080, 148500, 44, 528, 148, 5, 4, 36}, 1, 1},
-	{ {2880, 480, 108108, 248, 64, 240, 6, 9, 30}, 0, 0},
-	{ {1920, 1080, 74250, 44, 638, 148, 5, 4, 36}, 1, 1},
-	/* VESA From Here */
-	{ {640, 480, 25175, 96, 16, 48, 2 , 11, 31}, 0, 0},
-	{ {800, 600, 40000, 128, 40, 88, 4 , 1, 23}, 1, 1},
-	{ {848, 480, 33750, 112, 16, 112, 8 , 6, 23}, 1, 1},
-	{ {1280, 768, 79500, 128, 64, 192, 7 , 3, 20}, 1, 0},
-	{ {1280, 800, 83500, 128, 72, 200, 6 , 3, 22}, 1, 0},
-	{ {1360, 768, 85500, 112, 64, 256, 6 , 3, 18}, 1, 1},
-	{ {1280, 960, 108000, 112, 96, 312, 3 , 1, 36}, 1, 1},
-	{ {1280, 1024, 108000, 112, 48, 248, 3 , 1, 38}, 1, 1},
-	{ {1024, 768, 65000, 136, 24, 160, 6, 3, 29}, 0, 0},
-	{ {1400, 1050, 121750, 144, 88, 232, 4, 3, 32}, 1, 0},
-	{ {1440, 900, 106500, 152, 80, 232, 6, 3, 25}, 1, 0},
-	{ {1680, 1050, 146250, 176 , 104, 280, 6, 3, 30}, 1, 0},
-	{ {1366, 768, 85500, 143, 70, 213, 3, 3, 24}, 1, 1},
-	{ {1920, 1080, 148500, 44, 148, 80, 5, 4, 36}, 1, 1},
-	{ {1280, 768, 68250, 32, 48, 80, 7, 3, 12}, 0, 1},
-	{ {1400, 1050, 101000, 32, 48, 80, 4, 3, 23}, 0, 1},
-	{ {1680, 1050, 119000, 32, 48, 80, 6, 3, 21}, 0, 1},
-	{ {1280, 800, 79500, 32, 48, 80, 6, 3, 14}, 0, 1},
-	{ {1280, 720, 74250, 40, 110, 220, 5, 5, 20}, 1, 1}
+struct fb_videomode cea_timings[] = {
+	/* 640x480 at 60.00 Hz */
+	[1] = { NULL, 60,
+		640, 480, 39682, 48, 16, 33, 10, 96, 2,
+		0, FB_VMODE_NONINTERLACED, },
+	/* 720x480 at 60.00 Hz */
+	[2] = { NULL, 60,
+		720, 480, 37000, 60, 16, 30, 9, 62, 6,
+		0, FB_VMODE_NONINTERLACED, },
+	/* 720x480 at 60.00 Hz */
+	[3] = { NULL, 60,
+		720, 480, 37000, 60, 16, 30, 9, 62, 6,
+		0, FB_VMODE_NONINTERLACED, },
+	/* 1280x720 at 60.00 Hz */
+	[4] = { NULL, 60,
+		1280, 720, 13468, 220, 110, 20, 5, 40, 5,
+		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+		FB_VMODE_NONINTERLACED, },
+	/* 1920x540 at 60.05 Hz */
+	[5] = { NULL, 60,
+		1920, 1080, 13468, 148, 88, 15, 2, 44, 5,
+		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+		FB_VMODE_INTERLACED, },
+	/* 1440x240 at 60.11 Hz */
+	[6] = { NULL, 60,
+		1440, 480, 37000, 114, 38, 15, 4, 124, 3,
+		0, FB_VMODE_INTERLACED, },
+	/* 1440x240 at 60.11 Hz */
+	[7] = { NULL, 60,
+		1440, 480, 37000, 114, 38, 15, 4, 124, 3,
+		0, FB_VMODE_INTERLACED, },
+	/* 1920x1080 at 60.00 Hz */
+	[16] = { NULL, 60,
+		1920, 1080, 6734, 148, 88, 36, 4, 44, 5,
+		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+		FB_VMODE_NONINTERLACED, },
+	/* 720x576 at 50.00 Hz */
+	[17] = { NULL, 50,
+		720, 576, 37037, 68, 12, 39, 5, 64, 5,
+		0, FB_VMODE_NONINTERLACED, },
+	/* 720x576 at 50.00 Hz */
+	[18] = { NULL, 50,
+		720, 576, 37037, 68, 12, 39, 5, 64, 5,
+		0, FB_VMODE_NONINTERLACED, },
+	/* 1280x720 at 50.00 Hz */
+	[19] = { NULL, 50,
+		1280, 720, 13468, 220, 440, 20, 5, 40, 5,
+		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+		FB_VMODE_NONINTERLACED, },
+	/* 1920x540 at 50.04 Hz */
+	[20] = { NULL, 50,
+		1920, 1080, 13468, 148, 528, 15, 2, 44, 5,
+		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+		FB_VMODE_INTERLACED, },
+	/* 1440x288 at 50.08 Hz */
+	[21] = { NULL, 50,
+		1440, 576, 37037, 138, 24, 19, 2, 126, 3,
+		0, FB_VMODE_INTERLACED, },
+	/* 1440x288 at 50.08 Hz */
+	[22] = { NULL, 50,
+		1440, 576, 37037, 138, 24, 19, 2, 126, 3,
+		0, FB_VMODE_INTERLACED, },
+	/* 1440x576 at 50.00 Hz */
+	[29] = { NULL, 50,
+		1440, 576, 18518, 136, 24, 39, 5, 128, 5,
+		0, FB_VMODE_NONINTERLACED, },
+	/* 1440x576 at 50.00 Hz */
+	[30] = { NULL, 50,
+		1440, 576, 18518, 136, 24, 39, 5, 128, 5,
+		0, FB_VMODE_NONINTERLACED, },
+	/* 1920x1080 at 50.00 Hz */
+	[31] = { NULL, 50,
+		1920, 1080, 6734, 148, 528, 36, 4, 44, 5,
+		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+		FB_VMODE_NONINTERLACED, },
+	/* 1920x1080 at 24.00 Hz */
+	[32] = { NULL, 24,
+		1920, 1080, 13468, 148, 638, 36, 4, 44, 5,
+		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+		FB_VMODE_NONINTERLACED, },
+	/* 2880x480 at 60.00 Hz */
+	[35] = { NULL, 60,
+		2880, 480, 9250, 240, 64, 30, 9, 248, 6,
+		0, FB_VMODE_NONINTERLACED, },
+	/* 2880x480 at 60.00 Hz */
+	[36] = { NULL, 60,
+		2880, 480, 9250, 240, 64, 30, 9, 248, 6,
+		0, FB_VMODE_NONINTERLACED, },
+	/* 2880x576 at 50.00 Hz */
+	[37] = { NULL, 50,
+		2880, 576, 9259, 272, 48, 39, 5, 256, 5,
+		0, FB_VMODE_NONINTERLACED, },
+	/* 2880x576 at 50.00 Hz */
+	[38] = { NULL, 50,
+		2880, 576, 9259, 272, 48, 39, 5, 256, 5,
+		0, FB_VMODE_NONINTERLACED, },
 };
-
-/*
- * This is a static mapping array which maps the timing values
- * with corresponding CEA / VESA code
- */
-static const int code_index[OMAP_HDMI_TIMINGS_NB] = {
-	1, 19, 4, 2, 37, 6, 21, 20, 5, 16, 17, 29, 31, 35, 32,
-	/* <--15 CEA 17--> vesa*/
-	4, 9, 0xE, 0x17, 0x1C, 0x27, 0x20, 0x23, 0x10, 0x2A,
-	0X2F, 0x3A, 0X51, 0X52, 0x16, 0x29, 0x39, 0x1B
+struct fb_videomode vesa_timings[] = {
+	/* 640x480 at 60.05 Hz */
+	[4] = { NULL, 60,
+		640, 480, 39721, 48, 16, 31, 11, 96, 2,
+		0, FB_VMODE_NONINTERLACED, },
+	/* 800x600 at 60.32 Hz */
+	[9] = { NULL, 60,
+		800, 600, 25000, 88, 40, 23, 1, 128, 4,
+		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+		FB_VMODE_NONINTERLACED, },
+	/* 848x480 at 60.00 Hz */
+	[14] = { NULL, 60,
+		848, 480, 29629, 112, 16, 23, 6, 112, 8,
+		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+		FB_VMODE_NONINTERLACED, },
+	/* 1024x768 at 60.00 Hz */
+	[16] = { NULL, 60,
+		1024, 768, 15384, 160, 24, 29, 3, 136, 6,
+		0, FB_VMODE_NONINTERLACED, },
+	/* 1280x768 at 59.99 Hz */
+	[22] = { NULL, 59,
+		1280, 768, 14652, 80, 48, 12, 3, 32, 7,
+		FB_SYNC_HOR_HIGH_ACT, FB_VMODE_NONINTERLACED, },
+	/* 1280x768 at 59.87 Hz */
+	[23] = { NULL, 59,
+		1280, 768, 12578, 192, 64, 20, 3, 128, 7,
+		FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED, },
+	/* 1280x800 at 67.08 Hz */
+	[27] = { NULL, 67,
+		1280, 800, 12578, 80, 48, 14, 3, 32, 6,
+		FB_SYNC_HOR_HIGH_ACT, FB_VMODE_NONINTERLACED, },
+	/* 1280x800 at 59.81 Hz */
+	[28] = { NULL, 59,
+		1280, 800, 11976, 200, 72, 22, 3, 128, 6,
+		FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED, },
+	/* 1280x960 at 60.00 Hz */
+	[32] = { NULL, 60,
+		1280, 960, 9259, 312, 96, 36, 1, 112, 3,
+		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+		FB_VMODE_NONINTERLACED, },
+	/* 1280x1024 at 60.02 Hz */
+	[35] = { NULL, 60,
+		1280, 1024, 9259, 248, 48, 38, 1, 112, 3,
+		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+		FB_VMODE_NONINTERLACED, },
+	/* 1360x768 at 60.02 Hz */
+	[39] = { NULL, 60,
+		1360, 768, 11695, 256, 64, 18, 3, 112, 6,
+		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+		FB_VMODE_NONINTERLACED, },
+	/* 1400x1050 at 59.95 Hz */
+	[41] = { NULL, 59,
+		1400, 1050, 9900, 80, 48, 23, 3, 32, 4,
+		FB_SYNC_HOR_HIGH_ACT, FB_VMODE_NONINTERLACED, },
+	/* 1400x1050 at 59.98 Hz */
+	[42] = { NULL, 59,
+		1400, 1050, 8213, 232, 88, 32, 3, 144, 4,
+		FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED, },
+	/* 1440x900 at 59.89 Hz */
+	[47] = { NULL, 59,
+		1440, 900, 9389, 232, 80, 25, 3, 152, 6,
+		FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED, },
+	/* 1680x1050 at 59.88 Hz */
+	[57] = { NULL, 59,
+		1680, 1050, 8403, 80, 48, 21, 3, 32, 6,
+		FB_SYNC_HOR_HIGH_ACT, FB_VMODE_NONINTERLACED, },
+	/* 1680x1050 at 59.95 Hz */
+	[58] = { NULL, 59,
+		1680, 1050, 6837, 280, 104, 30, 3, 176, 6,
+		FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED, },
+	/* 1366x768 at 59.79 Hz */
+	[81] = { NULL, 59,
+		1366, 768, 11695, 213, 70, 24, 3, 143, 3,
+		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+		FB_VMODE_NONINTERLACED, },
+	/* 1920x1080 at 60.22 Hz */
+	[82] = { NULL, 60,
+		1920, 1080, 6734, 80, 148, 36, 4, 44, 5,
+		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+		FB_VMODE_NONINTERLACED, },
+	/* 1280x720 at 60.00 Hz */
+	[84] = { NULL, 60,
+		1280, 720, 13468, 220, 110, 20, 5, 40, 5,
+		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+		FB_VMODE_NONINTERLACED, },
 };
-
-/*
- * This is reverse static mapping which maps the CEA / VESA code
- * to the corresponding timing values
- */
-static const int code_cea[39] = {
-	-1,  0,  3,  3,  2,  8,  5,  5, -1, -1,
-	-1, -1, -1, -1, -1, -1,  9, 10, 10,  1,
-	7,   6,  6, -1, -1, -1, -1, -1, -1, 11,
-	11, 12, 14, -1, -1, 13, 13,  4,  4
-};
-
-static const int code_vesa[85] = {
-	-1, -1, -1, -1, 15, -1, -1, -1, -1, 16,
-	-1, -1, -1, -1, 17, -1, 23, -1, -1, -1,
-	-1, -1, 29, 18, -1, -1, -1, 32, 19, -1,
-	-1, -1, 21, -1, -1, 22, -1, -1, -1, 20,
-	-1, 30, 24, -1, -1, -1, -1, 25, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, 31, 26, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-	-1, 27, 28, -1, 33};
 
 static const u8 edid_header[8] = {0x0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0};
 
@@ -232,187 +348,127 @@ int hdmi_init_display(struct omap_dss_device *dssdev)
 	return 0;
 }
 
-static void copy_hdmi_to_dss_timings(struct hdmi_video_timings hdmi_timings,
-			struct omap_video_timings *timings)
+static int relaxed_fb_mode_is_equal(const struct fb_videomode *mode1,
+				    const struct fb_videomode *mode2)
 {
-	timings->x_res = hdmi_timings.x_res;
-	timings->y_res = hdmi_timings.y_res;
-	timings->pixel_clock = hdmi_timings.pixel_clock;
-	timings->hbp = hdmi_timings.hbp;
-	timings->hfp = hdmi_timings.hfp;
-	timings->hsw = hdmi_timings.hsw;
-	timings->vbp = hdmi_timings.vbp;
-	timings->vfp = hdmi_timings.vfp;
-	timings->vsw = hdmi_timings.vsw;
+	return (mode1->xres         == mode2->xres &&
+		mode1->yres         == mode2->yres &&
+		mode1->pixclock     <= mode2->pixclock + 1 &&
+		mode1->pixclock     >= mode2->pixclock - 1 &&
+		mode1->hsync_len + mode1->left_margin + mode1->right_margin ==
+		mode2->hsync_len + mode2->left_margin + mode2->right_margin &&
+		mode1->vsync_len + mode1->upper_margin + mode1->lower_margin ==
+		mode2->vsync_len + mode2->upper_margin + mode2->lower_margin &&
+		(mode1->vmode & FB_VMODE_INTERLACED) ==
+		(mode2->vmode & FB_VMODE_INTERLACED));
 }
 
-static int get_timings_index(void)
+static int hdmi_set_timings(const struct fb_videomode *vm, bool check_only)
 {
-	int code;
-
-	if (hdmi.mode == 0)
-		code = code_vesa[hdmi.code];
-	else
-		code = code_cea[hdmi.code];
-
-	if (code == -1)	{
-		/* HDMI code 4 corresponds to 640 * 480 VGA */
-		hdmi.code = 4;
-		/* DVI mode 1 corresponds to HDMI 0 to DVI */
-		hdmi.mode = HDMI_DVI;
-
-		code = code_vesa[hdmi.code];
-	}
-	return code;
-}
-
-static struct hdmi_cm hdmi_get_code(struct omap_video_timings *timing)
-{
-	int i = 0, code = -1, temp_vsync = 0, temp_hsync = 0;
-	int timing_vsync = 0, timing_hsync = 0;
-	struct hdmi_video_timings temp;
-	struct hdmi_cm cm = {-1};
+	int i = 0;
 	DSSDBG("hdmi_get_code\n");
 
-	for (i = 0; i < OMAP_HDMI_TIMINGS_NB; i++) {
-		temp = cea_vesa_timings[i].timings;
-		if ((temp.pixel_clock == timing->pixel_clock) &&
-			(temp.x_res == timing->x_res) &&
-			(temp.y_res == timing->y_res)) {
+	if (!vm->xres || !vm->yres || !vm->pixclock)
+		goto fail;
 
-			temp_hsync = temp.hfp + temp.hsw + temp.hbp;
-			timing_hsync = timing->hfp + timing->hsw + timing->hbp;
-			temp_vsync = temp.vfp + temp.vsw + temp.vbp;
-			timing_vsync = timing->vfp + timing->vsw + timing->vbp;
-
-			DSSDBG("temp_hsync = %d , temp_vsync = %d"
-				"timing_hsync = %d, timing_vsync = %d\n",
-				temp_hsync, temp_hsync,
-				timing_hsync, timing_vsync);
-
-			if ((temp_hsync == timing_hsync) &&
-					(temp_vsync == timing_vsync)) {
-				code = i;
-				cm.code = code_index[i];
-				if (code < 14)
-					cm.mode = HDMI_HDMI;
-				else
-					cm.mode = HDMI_DVI;
-				DSSDBG("Hdmi_code = %d mode = %d\n",
-					 cm.code, cm.mode);
-				break;
-			 }
+	for (i = 0; i < ARRAY_SIZE(cea_timings); i++) {
+		if (relaxed_fb_mode_is_equal(cea_timings + i, vm)) {
+			if (check_only)
+				return 1;
+			hdmi.cfg.cm.code = i;
+			hdmi.cfg.cm.mode = HDMI_HDMI;
+			hdmi.cfg.timings = cea_timings[hdmi.cfg.cm.code];
+			goto done;
 		}
 	}
 
-	return cm;
+	for (i = 0; i < ARRAY_SIZE(vesa_timings); i++) {
+		if (relaxed_fb_mode_is_equal(vesa_timings + i, vm)) {
+			if (check_only)
+				return 1;
+			hdmi.cfg.cm.code = i;
+			hdmi.cfg.cm.mode = HDMI_DVI;
+			hdmi.cfg.timings = vesa_timings[hdmi.cfg.cm.code];
+			goto done;
+		}
+	}
+#if 0
+	for (i = 0; i < sizeof(cea_modes); i++) {
+		if (relaxed_fb_mode_is_equal(cea_modes + i, vm)) {
+			if (check_only)
+				return 1;
+			hdmi.cfg.cm.code = i;
+			hdmi.cfg.cm.mode = HDMI_HDMI;
+			hdmi.cfg.timings = cea_modes[hdmi.cfg.cm.code];
+			goto done;
+		}
+	}
+
+	for (i = 0; i < 34; i++) {
+		if (relaxed_fb_mode_is_equal(vesa_modes + i, vm)) {
+			if (check_only)
+				return 1;
+			hdmi.cfg.cm.code = i;
+			hdmi.cfg.cm.mode = HDMI_DVI;
+			hdmi.cfg.timings = vesa_modes[hdmi.cfg.cm.code];
+			goto done;
+		}
+	}
+#endif
+fail:
+	if (check_only)
+		return 0;
+	hdmi.cfg.cm.code = 1;
+	hdmi.cfg.cm.mode = HDMI_HDMI;
+	hdmi.cfg.timings = cea_timings[hdmi.cfg.cm.code];
+
+	i = -1;
+done:
+
+	DSSDBG("%s-%d\n", hdmi.cfg.cm.mode ? "CEA" : "VESA", hdmi.cfg.cm.code);
+	return i >= 0;
 }
 
-static void get_horz_vert_timing_info(int current_descriptor_addrs, u8 *edid ,
-		struct omap_video_timings *timings)
+void hdmi_get_monspecs(struct fb_monspecs *specs)
 {
-	/* X and Y resolution */
-	timings->x_res = (((edid[current_descriptor_addrs + 4] & 0xF0) << 4) |
-			 edid[current_descriptor_addrs + 2]);
-	timings->y_res = (((edid[current_descriptor_addrs + 7] & 0xF0) << 4) |
-			 edid[current_descriptor_addrs + 5]);
+	int i, j;
+	char *edid = (char *) hdmi.edid;
 
-	timings->pixel_clock = ((edid[current_descriptor_addrs + 1] << 8) |
-				edid[current_descriptor_addrs]);
+	memset(specs, 0x0, sizeof(*specs));
+	if (!hdmi.edid_set)
+		return;
 
-	timings->pixel_clock = 10 * timings->pixel_clock;
+	fb_edid_to_monspecs(edid, specs);
+	if (specs->modedb == NULL)
+		return;
 
-	/* HORIZONTAL FRONT PORCH */
-	timings->hfp = edid[current_descriptor_addrs + 8] |
-			((edid[current_descriptor_addrs + 11] & 0xc0) << 2);
-	/* HORIZONTAL SYNC WIDTH */
-	timings->hsw = edid[current_descriptor_addrs + 9] |
-			((edid[current_descriptor_addrs + 11] & 0x30) << 4);
-	/* HORIZONTAL BACK PORCH */
-	timings->hbp = (((edid[current_descriptor_addrs + 4] & 0x0F) << 8) |
-			edid[current_descriptor_addrs + 3]) -
-			(timings->hfp + timings->hsw);
-	/* VERTICAL FRONT PORCH */
-	timings->vfp = ((edid[current_descriptor_addrs + 10] & 0xF0) >> 4) |
-			((edid[current_descriptor_addrs + 11] & 0x0f) << 2);
-	/* VERTICAL SYNC WIDTH */
-	timings->vsw = (edid[current_descriptor_addrs + 10] & 0x0F) |
-			((edid[current_descriptor_addrs + 11] & 0x03) << 4);
-	/* VERTICAL BACK PORCH */
-	timings->vbp = (((edid[current_descriptor_addrs + 7] & 0x0F) << 8) |
-			edid[current_descriptor_addrs + 6]) -
-			(timings->vfp + timings->vsw);
-
-}
-
-/* Description : This function gets the resolution information from EDID */
-static void get_edid_timing_data(u8 *edid)
-{
-	u8 count;
-	u16 current_descriptor_addrs;
-	struct hdmi_cm cm;
-	struct omap_video_timings edid_timings;
-
-	/* search block 0, there are 4 DTDs arranged in priority order */
-	for (count = 0; count < EDID_SIZE_BLOCK0_TIMING_DESCRIPTOR; count++) {
-		current_descriptor_addrs =
-			EDID_DESCRIPTOR_BLOCK0_ADDRESS +
-			count * EDID_TIMING_DESCRIPTOR_SIZE;
-		get_horz_vert_timing_info(current_descriptor_addrs,
-				edid, &edid_timings);
-		cm = hdmi_get_code(&edid_timings);
-		DSSDBG("Block0[%d] value matches code = %d , mode = %d\n",
-			count, cm.code, cm.mode);
-		if (cm.code == -1) {
-			continue;
-		} else {
-			hdmi.code = cm.code;
-			hdmi.mode = cm.mode;
-			DSSDBG("code = %d , mode = %d\n",
-				hdmi.code, hdmi.mode);
-			return;
-		}
-	}
-	if (edid[0x7e] != 0x00) {
-		for (count = 0; count < EDID_SIZE_BLOCK1_TIMING_DESCRIPTOR;
-			count++) {
-			current_descriptor_addrs =
-			EDID_DESCRIPTOR_BLOCK1_ADDRESS +
-			count * EDID_TIMING_DESCRIPTOR_SIZE;
-			get_horz_vert_timing_info(current_descriptor_addrs,
-						edid, &edid_timings);
-			cm = hdmi_get_code(&edid_timings);
-			DSSDBG("Block1[%d] value matches code = %d, mode = %d",
-				count, cm.code, cm.mode);
-			if (cm.code == -1) {
-				continue;
-			} else {
-				hdmi.code = cm.code;
-				hdmi.mode = cm.mode;
-				DSSDBG("code = %d , mode = %d\n",
-					hdmi.code, hdmi.mode);
-				return;
-			}
-		}
+	for (i = 1; i <= edid[0x7e] && i * 128 < HDMI_EDID_MAX_LENGTH; i++) {
+		if (edid[i * 128] == 0x2)
+			fb_edid_add_monspecs(edid + i * 128, specs);
 	}
 
-	DSSINFO("no valid timing found , falling back to VGA\n");
-	hdmi.code = 4; /* setting default value of 640 480 VGA */
-	hdmi.mode = HDMI_DVI;
+	/* filter out resolutions we don't support */
+	for (i = j = 0; i < specs->modedb_len; i++) {
+		if (hdmi_set_timings(&specs->modedb[i], true))
+			specs->modedb[j++] = specs->modedb[i];
+	}
+	specs->modedb_len = j;
 }
 
 u8 *hdmi_read_edid(struct omap_video_timings *dp)
 {
-	int ret = 0, code, i;
+	int ret = 0, i;
+
+	if (hdmi.edid_set)
+		return hdmi.edid;
 
 	memset(hdmi.edid, 0, HDMI_EDID_MAX_LENGTH);
 
-	hdmi.edid_set = false;
 	ret = read_ti_4xxx_edid(&hdmi.hdmi_data, hdmi.edid,
 						HDMI_EDID_MAX_LENGTH);
 
 	for (i = 0; i < 256; i += 16)
-		pr_debug("edid[%03x] = %02x %02x %02x %02x %02x %02x %02x %02x "
+		pr_info("edid[%03x] = %02x %02x %02x %02x %02x %02x %02x %02x "
 			 "%02x %02x %02x %02x %02x %02x %02x %02x\n", i,
 			hdmi.edid[i], hdmi.edid[i + 1], hdmi.edid[i + 2],
 			hdmi.edid[i + 3], hdmi.edid[i + 4], hdmi.edid[i + 5],
@@ -421,44 +477,16 @@ u8 *hdmi_read_edid(struct omap_video_timings *dp)
 			hdmi.edid[i + 12], hdmi.edid[i + 13], hdmi.edid[i + 14],
 			hdmi.edid[i + 15]);
 
-	if (!ret) {
-		if (!memcmp(hdmi.edid, edid_header, sizeof(edid_header))) {
-			/* search for timings of default resolution */
-			get_edid_timing_data(hdmi.edid);
-			hdmi.edid_set = true;
-		}
-	} else {
+	if (ret) {
 		DSSWARN("failed to read E-EDID\n");
-		ret = -EINVAL;
+		return NULL;
 	}
 
-	if (!hdmi.edid_set) {
-		DSSINFO("fallback to VGA\n");
-		hdmi.code = 4; /* setting default value of 640 480 VGA */
-		hdmi.mode = HDMI_DVI;
-	}
+	if (memcmp(hdmi.edid, edid_header, sizeof(edid_header)))
+		return NULL;
 
-	code = get_timings_index();
-
-	copy_hdmi_to_dss_timings(cea_vesa_timings[code].timings, dp);
-
-	return ret ? NULL : hdmi.edid;
-}
-
-static void update_hdmi_timings(struct hdmi_config *cfg,
-		struct omap_video_timings *timings, int code)
-{
-	cfg->timings.timings.x_res = timings->x_res;
-	cfg->timings.timings.y_res = timings->y_res;
-	cfg->timings.timings.hbp = timings->hbp;
-	cfg->timings.timings.hfp = timings->hfp;
-	cfg->timings.timings.hsw = timings->hsw;
-	cfg->timings.timings.vbp = timings->vbp;
-	cfg->timings.timings.vfp = timings->vfp;
-	cfg->timings.timings.vsw = timings->vsw;
-	cfg->timings.timings.pixel_clock = timings->pixel_clock;
-	cfg->timings.vsync_pol = cea_vesa_timings[code].vsync_pol;
-	cfg->timings.hsync_pol = cea_vesa_timings[code].hsync_pol;
+	hdmi.edid_set = true;
+	return hdmi.edid;
 }
 
 static void hdmi_compute_pll(struct omap_dss_device *dssdev, int phy,
@@ -503,7 +531,7 @@ static void hdmi_compute_pll(struct omap_dss_device *dssdev, int phy,
 
 static int hdmi_power_on(struct omap_dss_device *dssdev)
 {
-	int r, code = 0;
+	int r;
 	struct hdmi_pll_info pll_data;
 	struct omap_video_timings *p;
 	unsigned long phy;
@@ -522,16 +550,10 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 		dssdev->panel.timings.x_res,
 		dssdev->panel.timings.y_res);
 
-	if (!hdmi.custom_set) {
-		DSSDBG("Read EDID as no EDID is not set on poweron\n");
+	if (!hdmi.custom_set)
+		hdmi_set_timings(&vesa_timings[4], false);
 
-		hdmi_read_edid(p);
-	}
-	code = get_timings_index();
-	copy_hdmi_to_dss_timings(cea_vesa_timings[code].timings,
-			&dssdev->panel.timings);
-
-	update_hdmi_timings(&hdmi.cfg, p, code);
+	omapfb_fb2dss_timings(&hdmi.cfg.timings, &dssdev->panel.timings);
 
 	phy = p->pixel_clock;
 
@@ -612,7 +634,6 @@ static void hdmi_power_off(struct omap_dss_device *dssdev)
 	hdmi_ti_4xxx_set_pll_pwr(&hdmi.hdmi_data, HDMI_PLLPWRCMD_ALLOFF);
 	hdmi_runtime_put();
 	hdmi.deep_color = HDMI_DEEP_COLOR_24BIT;
-	hdmi.edid_set = false;
 }
 
 void omapdss_hdmi_set_deepcolor(int val)
@@ -643,30 +664,46 @@ static irqreturn_t hpd_irq_handler(int irq, void *ptr)
 int omapdss_hdmi_display_check_timing(struct omap_dss_device *dssdev,
 					struct omap_video_timings *timings)
 {
-	struct hdmi_cm cm;
+	struct fb_videomode t;
 
-	cm = hdmi_get_code(timings);
-	if (cm.code == -1) {
-		DSSERR("Invalid timing entered\n");
-		return -EINVAL;
+	omapfb_dss2fb_timings(timings, &t);
+
+	/* also check interlaced timings */
+	if (!hdmi_set_timings(&t, true)) {
+		t.yres *= 2;
+		t.vmode |= FB_VMODE_INTERLACED;
 	}
-
+	if (!hdmi_set_timings(&t, true))
+		return -EINVAL;
 	return 0;
+}
 
+int omapdss_hdmi_display_set_mode(struct omap_dss_device *dssdev,
+				  struct fb_videomode *vm)
+{
+	int r1, r2;
+	/* turn the hdmi off and on to get new timings to use */
+	omapdss_hdmi_display_disable(dssdev);
+	r1 = hdmi_set_timings(vm, false) ? 0 : -EINVAL;
+	hdmi.custom_set = 1;
+	hdmi.code = hdmi.cfg.cm.code;
+	hdmi.mode = hdmi.cfg.cm.mode;
+	r2 = omapdss_hdmi_display_enable(dssdev);
+	return r1 ? : r2;
 }
 
 void omapdss_hdmi_display_set_timing(struct omap_dss_device *dssdev)
 {
-	struct hdmi_cm cm;
+	struct fb_videomode t;
 
-	hdmi.custom_set = 1;
-	cm = hdmi_get_code(&dssdev->panel.timings);
-	/* turn the hdmi off and on to get new timings to use */
-	omapdss_hdmi_display_disable(dssdev);
-	hdmi.code = cm.code;
-	hdmi.mode = cm.mode;
-	omapdss_hdmi_display_enable(dssdev);
-	hdmi.custom_set = 0;
+	omapfb_dss2fb_timings(&dssdev->panel.timings, &t);
+	/* also check interlaced timings */
+	if (!hdmi_set_timings(&t, true)) {
+		t.yres *= 2;
+		t.vmode |= FB_VMODE_INTERLACED;
+	}
+
+	omapdss_hdmi_display_set_mode(dssdev, &t);
 }
 
 int omapdss_hdmi_display_enable(struct omap_dss_device *dssdev)
@@ -734,6 +771,13 @@ void omapdss_hdmi_display_disable(struct omap_dss_device *dssdev)
 	mutex_lock(&hdmi.lock);
 
 	hdmi_power_off(dssdev);
+
+	if (dssdev->state != OMAP_DSS_DISPLAY_SUSPENDED) {
+		/* clear EDID and mode on disable only */
+		hdmi.edid_set = false;
+		hdmi.custom_set = 0;
+		pr_info("hdmi: clearing EDID info\n");
+	}
 
 	regulator_disable(hdmi.hdmi_reg);
 
