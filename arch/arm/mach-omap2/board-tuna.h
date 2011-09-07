@@ -21,6 +21,8 @@
 #define TUNA_TYPE_MAGURO	0x00
 #define TUNA_TYPE_MASK		0x10
 
+#define TUNA_GPIO_HDMI_HPD	63
+
 int omap4_tuna_get_revision(void);
 int omap4_tuna_get_type(void);
 bool omap4_tuna_final_gpios(void);

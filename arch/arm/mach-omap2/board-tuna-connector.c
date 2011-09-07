@@ -39,7 +39,6 @@
 
 #define GPIO_JACK_INT_N		4
 #define GPIO_CP_USB_ON		22
-#define GPIO_HDMI_HPD		63
 #define GPIO_MHL_SEL		96
 #define GPIO_AP_SEL		97
 #define GPIO_MUX3_SEL0		139
@@ -757,9 +756,9 @@ int __init omap4_tuna_connector_init(void)
 	omap_mux_init_gpio(GPIO_MHL_INT, OMAP_PIN_INPUT);
 	gpio_direction_input(GPIO_MHL_INT);
 
-	gpio_request(GPIO_HDMI_HPD, NULL);
-	omap_mux_init_gpio(GPIO_HDMI_HPD, OMAP_PIN_INPUT | OMAP_PULL_ENA);
-	gpio_direction_input(GPIO_HDMI_HPD);
+	gpio_request(TUNA_GPIO_HDMI_HPD, NULL);
+	omap_mux_init_gpio(TUNA_GPIO_HDMI_HPD, OMAP_PIN_INPUT | OMAP_PULL_ENA);
+	gpio_direction_input(TUNA_GPIO_HDMI_HPD);
 
 	i2c_register_board_info(5, tuna_i2c5_boardinfo,
 			ARRAY_SIZE(tuna_i2c5_boardinfo));
