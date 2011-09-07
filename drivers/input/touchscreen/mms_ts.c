@@ -53,8 +53,6 @@
 #define MMS_COMPAT_GROUP	0xF2
 #define MMS_FW_VERSION		0xF3
 
-#define REQUIRED_FW_VERSION	0x24
-
 enum {
 	ISP_MODE_FLASH_ERASE	= 0x59F3,
 	ISP_MODE_FLASH_WRITE	= 0x62CD,
@@ -95,6 +93,14 @@ struct mms_ts_info {
 	struct mutex			lock;
 	bool				enabled;
 };
+
+struct mms_fw_image {
+    __le32 hdr_len;
+    __le32 data_len;
+    __le32 fw_ver;
+    __le32 hdr_ver;
+    u8 data[0];
+} __attribute__ ((packed));
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void mms_ts_early_suspend(struct early_suspend *h);
@@ -623,18 +629,51 @@ static void mms_ts_fw_load(const struct firmware *fw, void *context)
 	int ret = 0;
 	int ver;
 	int retries = 3;
+	struct mms_fw_image *fw_img;
+
+	ver = get_fw_version(info);
+	if (ver < 0) {
+		ver = 0;
+		dev_err(&client->dev,
+			"can't read version, controller dead? forcing reflash");
+	}
 
 	if (!fw) {
-		dev_err(&client->dev, "could not find firmware file '%s'\n",
+		dev_info(&client->dev, "could not find firmware file '%s'\n",
 			info->fw_name);
-		goto out;
+		goto done;
+	}
+
+	fw_img = (struct mms_fw_image *)fw->data;
+	if (fw_img->hdr_len != sizeof(struct mms_fw_image) ||
+		   fw_img->data_len + fw_img->hdr_len != fw->size ||
+		   fw_img->hdr_ver != 0x1) {
+		dev_err(&client->dev,
+			"firmware image '%s' invalid, may continue\n",
+			info->fw_name);
+		goto err;
+	}
+
+	if (ver == fw_img->fw_ver && !mms_force_reflash) {
+		dev_info(&client->dev,
+			 "fw version 0x%02x already present\n", ver);
+		goto done;
+	}
+
+	dev_info(&client->dev, "need fw update (0x%02x != 0x%02x)\n",
+		 ver, fw_img->fw_ver);
+
+	if (!info->pdata || !info->pdata->mux_fw_flash) {
+		dev_err(&client->dev,
+			"fw cannot be updated, missing platform data\n");
+		goto err;
 	}
 
 	while (retries--) {
 		i2c_lock_adapter(adapter);
 		info->pdata->mux_fw_flash(true);
 
-		ret = fw_download(info, fw->data, fw->size);
+		ret = fw_download(info, fw_img->data, fw_img->data_len);
 
 		info->pdata->mux_fw_flash(false);
 		i2c_unlock_adapter(adapter);
@@ -642,23 +681,25 @@ static void mms_ts_fw_load(const struct firmware *fw, void *context)
 		if (ret < 0) {
 			dev_err(&client->dev,
 				"error updating firmware to version 0x%02x\n",
-				REQUIRED_FW_VERSION);
+				fw_img->fw_ver);
+			dev_err(&client->dev, "retrying flashing\n");
 			continue;
 		}
 
 		ver = get_fw_version(info);
-		if (ver == REQUIRED_FW_VERSION) {
+		if (ver == fw_img->fw_ver) {
 			dev_info(&client->dev,
 				 "fw update done. ver = 0x%02x\n", ver);
 			goto done;
 		} else {
 			dev_err(&client->dev,
-				"ERROR: fw update succeeded, but fw version is still wrong (%d != %d)\n",
-				ver, REQUIRED_FW_VERSION);
+				"ERROR: fw update succeeded, but fw version is still wrong (0x%x != 0x%x)\n",
+				ver, fw_img->fw_ver);
 		}
 		dev_err(&client->dev, "retrying flashing\n");
 	}
 
+err:
 	/* complete anyway, so open() doesn't get blocked */
 	complete_all(&info->init_done);
 	goto out;
@@ -673,31 +714,8 @@ static int __devinit mms_ts_config(struct mms_ts_info *info, bool nowait)
 {
 	struct i2c_client *client = info->client;
 	int ret = 0;
-	int ver;
 
 	mms_pwr_on_reset(info);
-
-	ver = get_fw_version(info);
-	if (ver < 0) {
-		ver = 0;
-		dev_err(&client->dev,
-			 "can't read version, controller dead?! forcing reflash");
-	} else if (ver == REQUIRED_FW_VERSION && !mms_force_reflash) {
-		dev_info(&client->dev,
-			 "fw version 0x%02x already present\n", ver);
-		ret = mms_ts_finish_config(info);
-		goto out;
-	}
-
-	dev_info(&client->dev, "need fw update (0x%02x != 0x%02x)\n",
-		 ver, REQUIRED_FW_VERSION);
-
-	if (!info->pdata || !info->pdata->mux_fw_flash) {
-		dev_err(&client->dev,
-			"fw cannot be updated, missing platform data\n");
-		ret = -EINVAL;
-		goto out;
-	}
 
 	if (nowait) {
 		const struct firmware *fw;
@@ -710,8 +728,7 @@ static int __devinit mms_ts_config(struct mms_ts_info *info, bool nowait)
 		}
 		mms_ts_fw_load(fw, info);
 	} else {
-		info->fw_name = kasprintf(GFP_KERNEL, "mms144_v%02x.fw",
-					  REQUIRED_FW_VERSION);
+		info->fw_name = kstrdup("mms144_ts.fw", GFP_KERNEL);
 		ret = request_firmware_nowait(THIS_MODULE, true, info->fw_name,
 					      &client->dev, GFP_KERNEL,
 					      info, mms_ts_fw_load);
