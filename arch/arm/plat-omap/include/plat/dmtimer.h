@@ -104,7 +104,6 @@ struct omap_dm_timer {
 	struct platform_device *pdev;
 	struct list_head node;
 
-	int (*get_context_loss_count)(struct device *dev);
 };
 
 extern struct omap_dm_timer *gptimer_wakeup;
@@ -118,7 +117,6 @@ struct dmtimer_platform_data {
 	u32 needs_manual_reset:1;
 	bool loses_context;
 
-	int (*get_context_loss_count)(struct device *dev);
 };
 
 struct omap_dm_timer *omap_dm_timer_request(void);
