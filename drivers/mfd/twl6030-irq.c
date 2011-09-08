@@ -146,6 +146,7 @@ static int twl6030_irq_thread(void *data)
 		u8 bytes[4];
 		u32 int_sts;
 		} sts;
+		u32 int_sts; /* sts.int_sts converted to CPU endianness */
 
 		/* Wait for IRQ, then read PIH irq status (also blocking) */
 		wait_for_completion_interruptible(&irq_event);
@@ -177,9 +178,10 @@ static int twl6030_irq_thread(void *data)
 		if (sts.bytes[2] & 0x10)
 			sts.bytes[2] |= 0x08;
 
-		for (i = 0; sts.int_sts; sts.int_sts >>= 1, i++) {
+		int_sts = le32_to_cpu(sts.int_sts);
+		for (i = 0; int_sts; int_sts >>= 1, i++) {
 			local_irq_disable();
-			if (sts.int_sts & 0x1) {
+			if (int_sts & 0x1) {
 				int module_irq = twl6030_irq_base +
 					twl6030_interrupt_mapping[i];
 				generic_handle_irq(module_irq);
