@@ -43,6 +43,7 @@
 
 #include <plat/dma.h>
 #include <plat/omap_hwmod.h>
+#include <plat/mcpdm.h>
 #include "omap-mcpdm.h"
 #include "omap-pcm.h"
 #if defined(CONFIG_SND_OMAP_SOC_ABE_DSP) ||\
@@ -71,6 +72,8 @@ struct omap_mcpdm {
 	struct abe *abe;
 	struct omap_abe_port *dl_port;
 	struct omap_abe_port *ul_port;
+
+	u32 *reg_cache;
 
 	/* channel data */
 	u32 dn_channels;
@@ -114,6 +117,17 @@ static inline void omap_mcpdm_write(struct omap_mcpdm *mcpdm,
 static inline int omap_mcpdm_read(struct omap_mcpdm *mcpdm, u16 reg)
 {
 	return __raw_readl(mcpdm->io_base + reg);
+}
+
+static inline void omap_mcpdm_write_cache(struct omap_mcpdm *mcpdm,
+		u16 reg, u32 val)
+{
+	mcpdm->reg_cache[reg / sizeof(u32)] = val;
+}
+
+static inline int omap_mcpdm_read_cache(struct omap_mcpdm *mcpdm, u16 reg)
+{
+	return mcpdm->reg_cache[reg / sizeof(u32)];
 }
 
 #ifdef DEBUG
@@ -536,6 +550,68 @@ static struct snd_soc_dai_ops omap_mcpdm_dai_ops = {
 	.trigger	= omap_mcpdm_dai_trigger,
 };
 
+#ifdef CONFIG_PM
+static int omap_mcpdm_suspend(struct snd_soc_dai *dai)
+{
+	struct omap_mcpdm *mcpdm = snd_soc_dai_get_drvdata(dai);
+
+	/* save context only if we are streaming */
+	if (!mcpdm->active)
+		return 0;
+
+	omap_mcpdm_write_cache(mcpdm, MCPDM_DN_OFFSET,
+		omap_mcpdm_read(mcpdm, MCPDM_DN_OFFSET));
+	omap_mcpdm_write_cache(mcpdm, MCPDM_IRQENABLE_SET,
+		omap_mcpdm_read(mcpdm, MCPDM_IRQENABLE_SET));
+	omap_mcpdm_write_cache(mcpdm, MCPDM_DMAENABLE_SET,
+		omap_mcpdm_read(mcpdm, MCPDM_DMAENABLE_SET));
+	omap_mcpdm_write_cache(mcpdm, MCPDM_FIFO_CTRL_DN,
+		omap_mcpdm_read(mcpdm, MCPDM_FIFO_CTRL_DN));
+	omap_mcpdm_write_cache(mcpdm, MCPDM_FIFO_CTRL_UP,
+		omap_mcpdm_read(mcpdm, MCPDM_FIFO_CTRL_UP));
+	omap_mcpdm_write_cache(mcpdm, MCPDM_CTRL,
+		omap_mcpdm_read(mcpdm, MCPDM_CTRL));
+
+	pm_runtime_put_sync(mcpdm->dev);
+
+	return 0;
+}
+
+static int omap_mcpdm_resume(struct snd_soc_dai *dai)
+{
+	struct omap_mcpdm *mcpdm = snd_soc_dai_get_drvdata(dai);
+	struct omap_mcpdm_platform_data *pdata = mcpdm->pdata;
+
+	/* restore context only if we were streaming */
+	if (!mcpdm->active)
+		return 0;
+
+	if (!pdata->was_context_lost(mcpdm->dev))
+		return 0;
+
+	pm_runtime_get_sync(mcpdm->dev);
+
+	/* restore from reg cache */
+	omap_mcpdm_write(mcpdm, MCPDM_DN_OFFSET,
+		omap_mcpdm_read_cache(mcpdm, MCPDM_DN_OFFSET));
+	omap_mcpdm_write(mcpdm, MCPDM_IRQENABLE_SET,
+		omap_mcpdm_read_cache(mcpdm, MCPDM_IRQENABLE_SET));
+	omap_mcpdm_write(mcpdm, MCPDM_DMAENABLE_SET,
+		omap_mcpdm_read_cache(mcpdm, MCPDM_DMAENABLE_SET));
+	omap_mcpdm_write(mcpdm, MCPDM_FIFO_CTRL_DN,
+		omap_mcpdm_read_cache(mcpdm, MCPDM_FIFO_CTRL_DN));
+	omap_mcpdm_write(mcpdm, MCPDM_FIFO_CTRL_UP,
+		omap_mcpdm_read_cache(mcpdm, MCPDM_FIFO_CTRL_UP));
+	omap_mcpdm_write(mcpdm, MCPDM_CTRL,
+		omap_mcpdm_read_cache(mcpdm, MCPDM_CTRL));
+
+	return 0;
+}
+#else
+#define omap_mcpdm_suspend	NULL
+#define omap_mcpdm_resume	NULL
+#endif
+
 static int omap_mcpdm_probe(struct snd_soc_dai *dai)
 {
 	struct omap_mcpdm *mcpdm = snd_soc_dai_get_drvdata(dai);
@@ -577,6 +653,8 @@ static struct snd_soc_dai_driver omap_mcpdm_dai[] = {
 	.remove = omap_mcpdm_remove,
 	.probe_order = SND_SOC_COMP_ORDER_LATE,
 	.remove_order = SND_SOC_COMP_ORDER_EARLY,
+	.suspend = omap_mcpdm_suspend,
+	.resume = omap_mcpdm_resume,
 	.playback = {
 		.channels_min = 1,
 		.channels_max = 4,
@@ -590,6 +668,8 @@ static struct snd_soc_dai_driver omap_mcpdm_dai[] = {
 	.id	= MCPDM_LEGACY_DAI_UL1,
 	.probe_order = SND_SOC_COMP_ORDER_LATE,
 	.remove_order = SND_SOC_COMP_ORDER_EARLY,
+	.suspend = omap_mcpdm_suspend,
+	.resume = omap_mcpdm_resume,
 	.capture = {
 		.channels_min = 1,
 		.channels_max = 2,
@@ -605,6 +685,8 @@ static struct snd_soc_dai_driver omap_mcpdm_dai[] = {
 	.id	= MCPDM_ABE_DAI_DL1,
 	.probe_order = SND_SOC_COMP_ORDER_LATE,
 	.remove_order = SND_SOC_COMP_ORDER_EARLY,
+	.suspend = omap_mcpdm_suspend,
+	.resume = omap_mcpdm_resume,
 	.playback = {
 		.channels_min = 1,
 		.channels_max = 2,
@@ -618,6 +700,8 @@ static struct snd_soc_dai_driver omap_mcpdm_dai[] = {
 	.id	= MCPDM_ABE_DAI_DL2,
 	.probe_order = SND_SOC_COMP_ORDER_LATE,
 	.remove_order = SND_SOC_COMP_ORDER_EARLY,
+	.suspend = omap_mcpdm_suspend,
+	.resume = omap_mcpdm_resume,
 	.playback = {
 		.channels_min = 1,
 		.channels_max = 2,
@@ -631,6 +715,8 @@ static struct snd_soc_dai_driver omap_mcpdm_dai[] = {
 	.id	= MCPDM_ABE_DAI_VIB,
 	.probe_order = SND_SOC_COMP_ORDER_LATE,
 	.remove_order = SND_SOC_COMP_ORDER_EARLY,
+	.suspend = omap_mcpdm_suspend,
+	.resume = omap_mcpdm_resume,
 	.playback = {
 		.channels_min = 1,
 		.channels_max = 2,
@@ -644,6 +730,8 @@ static struct snd_soc_dai_driver omap_mcpdm_dai[] = {
 	.id	= MCPDM_ABE_DAI_UL1,
 	.probe_order = SND_SOC_COMP_ORDER_LATE,
 	.remove_order = SND_SOC_COMP_ORDER_EARLY,
+	.suspend = omap_mcpdm_suspend,
+	.resume = omap_mcpdm_resume,
 	.capture = {
 		.channels_min = 1,
 		.channels_max = 2,
@@ -657,6 +745,7 @@ static struct snd_soc_dai_driver omap_mcpdm_dai[] = {
 
 static __devinit int asoc_mcpdm_probe(struct platform_device *pdev)
 {
+	struct omap_mcpdm_platform_data *pdata = pdev->dev.platform_data;
 	struct omap_mcpdm *mcpdm;
 	struct resource *res;
 	int ret = 0, err;
@@ -681,6 +770,12 @@ static __devinit int asoc_mcpdm_probe(struct platform_device *pdev)
 		goto err_iomap;
 	}
 
+	mcpdm->reg_cache = kzalloc(resource_size(res), GFP_KERNEL);
+	if (!mcpdm->reg_cache) {
+		ret = -ENOMEM;
+		goto err_cache;
+	}
+
 	mcpdm->irq = platform_get_irq(pdev, 0);
 	if (mcpdm->irq < 0) {
 		ret = mcpdm->irq;
@@ -688,6 +783,7 @@ static __devinit int asoc_mcpdm_probe(struct platform_device *pdev)
 	}
 
 	mcpdm->dev = &pdev->dev;
+	mcpdm->pdata = pdata;
 
 	/* DL1 and DL2 DC offset values will be different for each device */
 	mcpdm->dl1_offset = DN_OFST_MAX >> 1;
@@ -732,6 +828,8 @@ err_ul:
 	omap_abe_port_mgr_put(mcpdm->abe);
 #endif
 err_irq:
+	kfree(mcpdm->reg_cache);
+err_cache:
 	iounmap(mcpdm->io_base);
 err_iomap:
 	release_mem_region(res->start, resource_size(res));
@@ -759,7 +857,7 @@ static int __devexit asoc_mcpdm_remove(struct platform_device *pdev)
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	iounmap(mcpdm->io_base);
-
+	kfree(mcpdm->reg_cache);
 	kfree(mcpdm);
 	return 0;
 }
