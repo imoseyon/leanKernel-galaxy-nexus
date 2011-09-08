@@ -43,9 +43,11 @@ bool hsi_is_channel_busy(struct hsi_channel *ch)
 	if (ch->write_data.addr == NULL)
 		return false;
 
-	/* Note: we do not check if there is a read pending, because incoming */
-	/* data will trigger an interrupt (FIFO or DMA), and wake up the */
-	/* platform, so no need to keep the clocks ON. */
+	/*
+	 * Note: we do not check if there is a read pending, because incoming
+	 * data will trigger an interrupt (FIFO or DMA), and wake up the
+	 * platform, so no need to keep the clocks ON.
+	 */
 	return true;
 }
 
@@ -373,13 +375,6 @@ static void hsi_do_channel_rx(struct hsi_channel *ch)
 								buff_offset);
 		}
 	}
-#if 0
-	if (omap_readl(0x4A05A810))
-		dev_err(hsi_ctrl->dev,
-			"RX BUF state is full. "
-			"Warning disabling interrupt %0x\n",
-			omap_readl(0x4A05A810));
-#endif
 	hsi_driver_disable_read_interrupt(ch);
 	hsi_reset_ch_read(ch);
 
@@ -394,13 +389,6 @@ done:
 
 	if (data_read) {
 		spin_unlock(&hsi_ctrl->lock);
-#if 0
-		dev_warn(hsi_ctrl->dev, "Read callback %d.\n", n_ch);
-		if (n_ch == 0)
-			dev_warn(hsi_ctrl->dev,
-				"Read callback %d \t DATA 0x%0x  .\n",
-				n_ch, data);
-#endif
 		(*ch->read_done) (ch->dev, 1);
 		spin_lock(&hsi_ctrl->lock);
 	}
@@ -427,12 +415,14 @@ int hsi_do_cawake_process(struct hsi_port *pport)
 	/* Deal with init condition */
 	if (unlikely(pport->cawake_status < 0))
 		pport->cawake_status = !cawake_status;
-	dev_dbg(hsi_ctrl->dev,
-		"Interrupts are not enabled but CAWAKE has come\n: 0x%0x.\n",
-		omap_readl(0x4A05880c));
-	dev_dbg(hsi_ctrl->dev,
-		"Interrupts are not enabled but CAWAKE has come\n: 0x%0x.\n",
-		omap_readl(0x4A058804));
+	dev_dbg(hsi_ctrl->dev, "%s: Interrupts are not enabled but CAWAKE came."
+		"hsi: port[%d] irq[%d] irq_en=0x%08x dma_irq_en=0x%08x\n",
+		__func__, pport->port_number, pport->n_irq,
+		hsi_inl(pport->hsi_controller->base,
+			HSI_SYS_MPU_ENABLE_REG(pport->port_number,
+					pport->n_irq)),
+		hsi_inl(pport->hsi_controller->base,
+			HSI_SYS_GDD_MPU_IRQ_ENABLE_REG));
 
 	/* Check CAWAKE line status */
 	if (cawake_status) {
@@ -452,9 +442,10 @@ int hsi_do_cawake_process(struct hsi_port *pport)
 
 		/* Force HSI to ON_ACTIVE when CAWAKE is high */
 		hsi_set_pm_force_hsi_on(hsi_ctrl);
-		/* TODO: Use omap_pm_set_max_dev_wakeup_lat() to set latency */
-		/* constraint to prevent L3INIT to enter RET/OFF when CAWAKE */
-		/* is high */
+		/*
+		 * TODO: Use pm_qos() to set latency constraint to prevent
+		 * L3INIT to enter RET/OFF when CAWAKE is high.
+		 */
 
 		spin_unlock(&hsi_ctrl->lock);
 		hsi_port_event_handler(pport, HSI_EVENT_CAWAKE_UP, NULL);
@@ -482,9 +473,10 @@ int hsi_do_cawake_process(struct hsi_port *pport)
 
 		/* Allow HSI HW to enter IDLE when CAWAKE is low */
 		hsi_set_pm_default(hsi_ctrl);
-		/* TODO: Use omap_pm_set_max_dev_wakeup_lat() to release */
-		/* latency constraint to prevent L3INIT to enter RET/OFF when */
-		/* CAWAKE is low */
+		/*
+		 * TODO: Use pm_qos() to release latency constraint to allow
+		 * L3INIT to enter RET/OFF when CAWAKE is low
+		 */
 
 		spin_unlock(&hsi_ctrl->lock);
 		hsi_port_event_handler(pport, HSI_EVENT_CAWAKE_DOWN, NULL);
@@ -637,16 +629,6 @@ static void do_hsi_tasklet(unsigned long hsi_port)
 
 	dev_dbg(hsi_ctrl->dev, "Int Tasklet : clock_enabled=%d\n",
 		hsi_ctrl->clock_enabled);
-#if 0
-	if (pport->cawake_off_event == true)
-		dev_info(hsi_ctrl->dev,
-			"Tasklet called from OFF/RET MODE THRU PAD CPU ID %d\n",
-			smp_processor_id());
-	else
-		dev_info(hsi_ctrl->dev,
-			"Tasklet called from ACTIVE MODE CPU ID %d\n",
-			smp_processor_id());
-#endif
 	spin_lock(&hsi_ctrl->lock);
 	hsi_clocks_enable(hsi_ctrl->dev, __func__);
 	pport->in_int_tasklet = true;
@@ -663,23 +645,13 @@ static void do_hsi_tasklet(unsigned long hsi_port)
 static irqreturn_t hsi_mpu_handler(int irq, void *p)
 {
 	struct hsi_port *pport = p;
-#if 0
-	printk(KERN_INFO "Tasklet called from MPU HANDLER CPU ID %d "
-		"\t STS 0x%0x \t ENB 0x%0x\n", smp_processor_id(),
-		omap_readl(0x4A058808), omap_readl(0x4A05880C));
-#endif
 	if (shceduled_already_flag == 0) {
-#if 0
-		tasklet_hi_schedule(&pport->hsi_tasklet);
-		if (TASKLET_STATE_SCHED == pport->hsi_tasklet.state) {
-			printk(KERN_INFO "MPU TASKLET ALREADY SCHEDULED RETURNING\n");
-			return IRQ_HANDLED;
-		}
-#endif
 		shceduled_already_flag = 1;
 		tasklet_hi_schedule(&pport->hsi_tasklet);
-		/* Disable interrupt until Bottom Half has cleared the */
-		/* IRQ status register */
+		/*
+		 * Disable interrupt until Bottom Half has cleared the
+		 * IRQ status register
+		 */
 		disable_irq_nosync(pport->irq);
 	}
 	return IRQ_HANDLED;

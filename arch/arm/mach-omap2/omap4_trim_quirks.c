@@ -25,7 +25,7 @@
  */
 int omap4_ldo_trim_configure(void)
 {
-	u32 is_trimmed = 0;
+	u32 bgap_trimmed = 0;
 	u32 val;
 
 	/* Applicable only for OMAP4 */
@@ -42,11 +42,13 @@ int omap4_ldo_trim_configure(void)
 	 */
 
 	if (omap_rev() >= CHIP_IS_OMAP4430ES2_2)
-		is_trimmed = omap_ctrl_readl(
-			OMAP4_CTRL_MODULE_CORE_LDOSRAM_MPU_VOLTAGE_CTRL);
+		bgap_trimmed = omap_ctrl_readl(
+			OMAP4_CTRL_MODULE_CORE_STD_FUSE_OPP_BGAP);
+
+	bgap_trimmed &= OMAP4_STD_FUSE_OPP_BGAP_MASK_LSB;
 
 	/* if not trimmed, we set force overide, insted of efuse. */
-	if (!is_trimmed) {
+	if (!bgap_trimmed) {
 		pr_err("%s: UNTRIMMED PART\n", __func__);
 		/* Fill in recommended values */
 		val = 0x0f << OMAP4_LDOSRAMCORE_ACTMODE_VSET_OUT_SHIFT;
@@ -64,16 +66,23 @@ int omap4_ldo_trim_configure(void)
 		/* write value as per trim recomendation */
 		val =  0xc0 << OMAP4_AVDAC_TRIM_BYTE0_SHIFT;
 		val |=  0x01 << OMAP4_AVDAC_TRIM_BYTE1_SHIFT;
-		omap_ctrl_writel(val,
+		omap4_ctrl_pad_writel(val,
 			OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_EFUSE_1);
 	}
 
+	/* For all trimmed and untrimmed write value as per recomendation */
+	val =  0x10 << OMAP4_AVDAC_TRIM_BYTE0_SHIFT;
+	val |=  0x01 << OMAP4_AVDAC_TRIM_BYTE1_SHIFT;
+	val |=  0x4d << OMAP4_AVDAC_TRIM_BYTE2_SHIFT;
+	val |=  0x1C << OMAP4_AVDAC_TRIM_BYTE3_SHIFT;
+	omap4_ctrl_pad_writel(val,
+		OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_EFUSE_1);
 	/*
 	 * For all ESx.y trimmed and untrimmed units LPDDR IO and
 	 * Smart IO override efuse.
 	 */
 	val = OMAP4_LPDDR2_PTV_P5_MASK | OMAP4_LPDDR2_PTV_N5_MASK;
-	omap_ctrl_writel(val, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_EFUSE_2);
+	omap4_ctrl_pad_writel(val, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_EFUSE_2);
 
 	/* Required for DPLL_MPU to lock at 2.4 GHz */
 	if (cpu_is_omap446x())

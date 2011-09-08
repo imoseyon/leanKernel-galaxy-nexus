@@ -1117,7 +1117,7 @@ static const struct snd_kcontrol_new ep_driver_switch_controls =
 
 /* Headset power mode */
 static const char *twl6040_headset_power_texts[] = {
-	"Low-Power", "High-Perfomance",
+	"Low-Power", "High-Performance",
 };
 
 static const struct soc_enum twl6040_headset_power_enum =
