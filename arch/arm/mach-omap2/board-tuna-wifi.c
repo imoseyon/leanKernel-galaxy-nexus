@@ -380,7 +380,7 @@ static void __init tuna_wlan_gpio(void)
 	omap_mux_init_signal("sdmmc5_dat2", OMAP_PIN_INPUT_PULLUP);
 	omap_mux_init_signal("sdmmc5_dat3", OMAP_PIN_INPUT_PULLUP);
 	/* WLAN OOB - BCM4330 - GPIO 16 or GPIO 2 */
-	omap_mux_init_signal("sim_reset.gpio_wk2", OMAP_PIN_INPUT);
+	omap_mux_init_signal("sim_reset.gpio_wk2", OMAP_PIN_INPUT | OMAP_WAKEUP_EN);
 	omap_mux_init_signal("kpd_row1.safe_mode", 0);
 	/* WLAN PMENA - GPIO 104 */
 	omap_mux_init_signal("gpmc_ncs7.gpio_104", OMAP_PIN_OUTPUT);
