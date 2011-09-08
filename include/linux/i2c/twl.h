@@ -71,6 +71,7 @@
 #define TWL4030_MODULE_PM_RECEIVER	0x15
 #define TWL4030_MODULE_RTC		0x16
 #define TWL4030_MODULE_SECURED_REG	0x17
+#define TWL6030_MODULE_SLAVE_RES	0x19
 
 #define TWL_MODULE_USB		TWL4030_MODULE_USB
 #define TWL_MODULE_AUDIO_VOICE	TWL4030_MODULE_AUDIO_VOICE
@@ -81,6 +82,7 @@
 #define TWL_MODULE_PM_RECEIVER	TWL4030_MODULE_PM_RECEIVER
 #define TWL_MODULE_RTC		TWL4030_MODULE_RTC
 #define TWL_MODULE_PWM		TWL4030_MODULE_PWM0
+#define TWL_MODULE_PM_SLAVE_RES	TWL6030_MODULE_SLAVE_RES
 
 #define TWL6030_MODULE_ID0	0x0D
 #define TWL6030_MODULE_ID1	0x0E
@@ -100,6 +102,7 @@
  * Offset from TWL6030_IRQ_BASE / pdata->irq_base
  */
 #define PWR_INTR_OFFSET		0
+#define TWL_VLOW_INTR_OFFSET	6
 #define HOTDIE_INTR_OFFSET	12
 #define SMPSLDO_INTR_OFFSET	13
 #define BATDETECT_INTR_OFFSET	14
@@ -150,6 +153,8 @@
 #define TWL6030_CFG_INPUT_PUPD3	0xF2
 #define MMC_PU				(0x1 << 3)
 #define MMC_PD				(0x1 << 2)
+
+#define VLOW_INT_MASK			(0x1 << 2)
 
 #define TWL_SIL_TYPE(rev)		((rev) & 0x00FFFFFF)
 #define TWL_SIL_REV(rev)		((rev) >> 24)
@@ -449,6 +454,14 @@ static inline int twl6030_mmc_card_detect(struct device *dev, int slot)
 #define TWL4030_PM_MASTER_KEY_TST2		0x0e
 
 #define TWL4030_PM_MASTER_GLOBAL_TST		0xb6
+
+/*
+ * PM Slave resource module register offsets (use TWL6030_MODULE_SLAVE_RES)
+ */
+
+#define REG_VBATMIN_HI_CFG_STATE		0x1D
+
+#define VBATMIN_VLOW_EN				0x21
 
 /*----------------------------------------------------------------------*/
 

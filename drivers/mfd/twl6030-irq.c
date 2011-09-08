@@ -38,6 +38,7 @@
 #include <linux/i2c/twl.h>
 #include <linux/platform_device.h>
 #include <linux/suspend.h>
+#include <linux/reboot.h>
 
 #include "twl-core.h"
 
@@ -56,7 +57,7 @@
 static int twl6030_interrupt_mapping[24] = {
 	PWR_INTR_OFFSET,	/* Bit 0	PWRON			*/
 	PWR_INTR_OFFSET,	/* Bit 1	RPWRON			*/
-	PWR_INTR_OFFSET,	/* Bit 2	BAT_VLOW		*/
+	TWL_VLOW_INTR_OFFSET,	/* Bit 2	BAT_VLOW		*/
 	RTC_INTR_OFFSET,	/* Bit 3	RTC_ALARM		*/
 	RTC_INTR_OFFSET,	/* Bit 4	RTC_PERIOD		*/
 	HOTDIE_INTR_OFFSET,	/* Bit 5	HOT_DIE			*/
@@ -216,6 +217,17 @@ static irqreturn_t handle_twl6030_pih(int irq, void *devid)
 	return IRQ_HANDLED;
 }
 
+/*
+ * handle_twl6030_vlow() is a threaded BAT_VLOW interrupt handler. BAT_VLOW
+ * is a secondary interrupt generated in twl6030_irq_thread().
+ */
+static irqreturn_t handle_twl6030_vlow(int irq, void *unused)
+{
+	pr_info("handle_twl6030_vlow: kernel_power_off()\n");
+	kernel_power_off();
+	return IRQ_HANDLED;
+}
+
 /*----------------------------------------------------------------------*/
 
 static inline void activate_irq(int irq)
@@ -344,6 +356,70 @@ int twl6030_mmc_card_detect(struct device *dev, int slot)
 }
 EXPORT_SYMBOL(twl6030_mmc_card_detect);
 
+int twl6030_vlow_init(int vlow_irq)
+{
+	int status;
+	u8 val;
+
+	status = twl_i2c_read_u8(TWL_MODULE_PM_SLAVE_RES, &val,
+			REG_VBATMIN_HI_CFG_STATE);
+	if (status < 0) {
+		pr_err("twl6030: I2C err reading REG_VBATMIN_HI_CFG_STATE: %d\n",
+				status);
+		return status;
+	}
+
+	status = twl_i2c_write_u8(TWL_MODULE_PM_SLAVE_RES,
+			val | VBATMIN_VLOW_EN, REG_VBATMIN_HI_CFG_STATE);
+	if (status < 0) {
+		pr_err("twl6030: I2C err writing REG_VBATMIN_HI_CFG_STATE: %d\n",
+				status);
+		return status;
+	}
+
+	status = twl_i2c_read_u8(TWL_MODULE_PIH, &val, REG_INT_MSK_LINE_A);
+	if (status < 0) {
+		pr_err("twl6030: I2C err reading REG_INT_MSK_LINE_A: %d\n",
+				status);
+		return status;
+	}
+
+	status = twl_i2c_write_u8(TWL_MODULE_PIH, val & ~VLOW_INT_MASK,
+			REG_INT_MSK_LINE_A);
+	if (status < 0) {
+		pr_err("twl6030: I2C err writing REG_INT_MSK_LINE_A: %d\n",
+				status);
+		return status;
+	}
+
+	status = twl_i2c_read_u8(TWL_MODULE_PIH, &val, REG_INT_MSK_STS_A);
+	if (status < 0) {
+		pr_err("twl6030: I2C err reading REG_INT_MSK_STS_A: %d\n",
+				status);
+		return status;
+	}
+
+	status = twl_i2c_write_u8(TWL_MODULE_PIH, val & ~VLOW_INT_MASK,
+		REG_INT_MSK_STS_A);
+	if (status < 0) {
+		pr_err("twl6030: I2C err writing REG_INT_MSK_STS_A: %d\n",
+				status);
+		return status;
+	}
+
+	/* install an irq handler for vlow */
+	status = request_threaded_irq(vlow_irq, NULL, handle_twl6030_vlow,
+			IRQF_ONESHOT,
+			"TWL6030-VLOW", handle_twl6030_vlow);
+	if (status < 0) {
+		pr_err("twl6030: could not claim vlow irq %d: %d\n", vlow_irq,
+				status);
+		return status;
+	}
+
+	return 0;
+}
+
 int twl6030_init_irq(int irq_num, unsigned irq_base, unsigned irq_end)
 {
 
@@ -403,7 +479,16 @@ int twl6030_init_irq(int irq_num, unsigned irq_base, unsigned irq_end)
 
 	twl_irq = irq_num;
 	register_pm_notifier(&twl6030_irq_pm_notifier_block);
+
+	status = twl6030_vlow_init(twl6030_irq_base + TWL_VLOW_INTR_OFFSET);
+	if (status < 0)
+		goto fail_vlow;
+
 	return status;
+
+fail_vlow:
+	free_irq(irq_num, &irq_event);
+
 fail_irq:
 	free_irq(irq_num, &irq_event);
 
@@ -425,6 +510,9 @@ int twl6030_exit_irq(void)
 		pr_err("twl6030: can't yet clean up IRQs?\n");
 		return -ENOSYS;
 	}
+
+	free_irq(twl6030_irq_base + TWL_VLOW_INTR_OFFSET,
+		handle_twl6030_vlow);
 
 	free_irq(twl_irq, &irq_event);
 
