@@ -73,6 +73,12 @@ static struct voltagedomain *mpu_voltdm, *iva_voltdm, *core_voltdm;
 static struct clockdomain *tesla_clkdm;
 static struct powerdomain *tesla_pwrdm;
 
+/* Yet un-named erratum which requires AUTORET to be disabled for IVA PD */
+#define OMAP4_PM_ERRATUM_IVA_AUTO_RET_iXXX	BIT(1)
+
+static u8 pm44xx_errata;
+#define is_pm44xx_erratum(erratum) (pm44xx_errata & OMAP4_PM_ERRATUM_##erratum)
+
 #define MAX_IOPAD_LATCH_TIME 1000
 void omap4_trigger_ioctrl(void)
 {
@@ -152,8 +158,10 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 			}
 			omap_vc_set_auto_trans(core_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
-			omap_vc_set_auto_trans(iva_voltdm,
-				OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
+			if (!is_pm44xx_erratum(IVA_AUTO_RET_iXXX)) {
+				omap_vc_set_auto_trans(iva_voltdm,
+				  OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
+			}
 
 			omap_temp_sensor_prepare_idle();
 		}
@@ -192,8 +200,10 @@ abort_device_off:
 		/* See note above */
 		omap_vc_set_auto_trans(core_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE);
-		omap_vc_set_auto_trans(iva_voltdm,
+		if (!is_pm44xx_erratum(IVA_AUTO_RET_iXXX)) {
+			omap_vc_set_auto_trans(iva_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE);
+		}
 
 		omap_temp_sensor_resume_idle();
 		if (!suspend) {
@@ -886,6 +896,16 @@ bool omap4_device_next_state_off(void)
 			& OMAP4430_DEVICE_OFF_ENABLE_MASK ? true : false;
 }
 
+static void __init omap4_pm_setup_errata(void)
+{
+	/*
+	 * Current understanding is that the following errata impacts
+	 * all OMAP4 silica
+	 */
+	if (cpu_is_omap44xx())
+		pm44xx_errata |= OMAP4_PM_ERRATUM_IVA_AUTO_RET_iXXX;
+}
+
 /**
  * omap4_pm_init - Init routine for OMAP4 PM
  *
@@ -907,6 +927,9 @@ static int __init omap4_pm_init(void)
 	}
 
 	pr_err("Power Management for TI OMAP4.\n");
+
+	/* setup the erratas */
+	omap4_pm_setup_errata();
 
 	prcm_setup_regs();
 
