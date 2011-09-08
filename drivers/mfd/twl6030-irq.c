@@ -490,7 +490,7 @@ fail_vlow:
 	free_irq(irq_num, &irq_event);
 
 fail_irq:
-	free_irq(irq_num, &irq_event);
+	kthread_stop(task);
 
 fail_kthread:
 	for (i = irq_base; i < irq_end; i++)
