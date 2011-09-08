@@ -174,7 +174,7 @@ static irqreturn_t phone_active_irq_handler(int irq, void *_mc)
 {
 	struct modem_ctl *mc = (struct modem_ctl *)_mc;
 
-	schedule_delayed_work(&mc->dwork, 0);
+	schedule_delayed_work(&mc->dwork, 20);
 
 	return IRQ_HANDLED;
 }
