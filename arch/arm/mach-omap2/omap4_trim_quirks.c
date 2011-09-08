@@ -66,7 +66,7 @@ int omap4_ldo_trim_configure(void)
 		/* write value as per trim recomendation */
 		val =  0xc0 << OMAP4_AVDAC_TRIM_BYTE0_SHIFT;
 		val |=  0x01 << OMAP4_AVDAC_TRIM_BYTE1_SHIFT;
-		omap_ctrl_writel(val,
+		omap4_ctrl_pad_writel(val,
 			OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_EFUSE_1);
 	}
 
@@ -82,7 +82,7 @@ int omap4_ldo_trim_configure(void)
 	 * Smart IO override efuse.
 	 */
 	val = OMAP4_LPDDR2_PTV_P5_MASK | OMAP4_LPDDR2_PTV_N5_MASK;
-	omap_ctrl_writel(val, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_EFUSE_2);
+	omap4_ctrl_pad_writel(val, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_EFUSE_2);
 
 	/* Required for DPLL_MPU to lock at 2.4 GHz */
 	if (cpu_is_omap446x())
