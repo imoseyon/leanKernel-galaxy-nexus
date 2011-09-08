@@ -83,10 +83,11 @@ static int twl6030_interrupt_mapping[24] = {
 };
 /*----------------------------------------------------------------------*/
 
-static unsigned twl6030_irq_base;
+static unsigned twl6030_irq_base, twl6030_irq_end;
 static int twl_irq;
 static bool twl_irq_wake_enabled;
 
+static struct task_struct *task;
 static struct completion irq_event;
 static atomic_t twl6030_wakeirqs = ATOMIC_INIT(0);
 
@@ -346,7 +347,6 @@ int twl6030_init_irq(int irq_num, unsigned irq_base, unsigned irq_end)
 
 	int	status = 0;
 	int	i;
-	struct task_struct	*task;
 	int ret;
 	u8 mask[4];
 
@@ -362,6 +362,7 @@ int twl6030_init_irq(int irq_num, unsigned irq_base, unsigned irq_end)
 			REG_INT_STS_A, 3); /* clear INT_STS_A,B,C */
 
 	twl6030_irq_base = irq_base;
+	twl6030_irq_end = irq_end;
 
 	/* install an irq handler for each of the modules;
 	 * clone dummy irq_chip since PIH can't *do* anything
@@ -412,12 +413,22 @@ fail_kthread:
 
 int twl6030_exit_irq(void)
 {
+	int i;
 	unregister_pm_notifier(&twl6030_irq_pm_notifier_block);
 
-	if (twl6030_irq_base) {
+	if (task)
+		kthread_stop(task);
+
+	if (!twl6030_irq_base || !twl6030_irq_end) {
 		pr_err("twl6030: can't yet clean up IRQs?\n");
 		return -ENOSYS;
 	}
+
+	free_irq(twl_irq, &irq_event);
+
+	for (i = twl6030_irq_base; i < twl6030_irq_end; i++)
+		irq_set_chip_and_handler(i, NULL, NULL);
+
 	return 0;
 }
 
