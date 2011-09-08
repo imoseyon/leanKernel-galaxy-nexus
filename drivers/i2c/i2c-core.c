@@ -39,6 +39,7 @@
 #include <linux/rwsem.h>
 #include <linux/pm_runtime.h>
 #include <asm/uaccess.h>
+#include <linux/interrupt.h>
 
 #include "i2c-core.h"
 
@@ -518,6 +519,7 @@ i2c_new_device(struct i2c_adapter *adap, struct i2c_board_info const *info)
 	client->flags = info->flags;
 	client->addr = info->addr;
 	client->irq = info->irq;
+	client->ext_master = info->ext_master;
 
 	strlcpy(client->name, info->type, sizeof(client->name));
 
@@ -776,15 +778,27 @@ static struct class_compat *i2c_adapter_compat_class;
 static void i2c_scan_static_board_info(struct i2c_adapter *adapter)
 {
 	struct i2c_devinfo	*devinfo;
+	struct i2c_client *client;
 
 	down_read(&__i2c_board_lock);
 	list_for_each_entry(devinfo, &__i2c_board_list, list) {
-		if (devinfo->busnum == adapter->nr
-				&& !i2c_new_device(adapter,
-						&devinfo->board_info))
-			dev_err(&adapter->dev,
-				"Can't create device at 0x%02x\n",
-				devinfo->board_info.addr);
+		if (devinfo->busnum == adapter->nr) {
+			client = i2c_new_device(adapter,&devinfo->board_info);
+			if (!client)
+				dev_err(&adapter->dev,
+					"Can't create device at 0x%02x\n",
+					devinfo->board_info.addr);
+			else {
+				/* Keep track of the newly created device(s)
+				 * with external master
+				 */
+				if (client->ext_master) {
+					mutex_lock(&adapter->ext_clients_lock);
+					list_add_tail(&client->detected, &adapter->ext_clients);
+					mutex_unlock(&adapter->ext_clients_lock);
+				}
+			}
+		}
 	}
 	up_read(&__i2c_board_lock);
 }
@@ -837,6 +851,9 @@ static int i2c_register_adapter(struct i2c_adapter *adap)
 	rt_mutex_init(&adap->bus_lock);
 	mutex_init(&adap->userspace_clients_lock);
 	INIT_LIST_HEAD(&adap->userspace_clients);
+
+	mutex_init(&adap->ext_clients_lock);
+	INIT_LIST_HEAD(&adap->ext_clients);
 
 	/* Set default timeout to 1 second if not already set */
 	if (adap->timeout == 0)
@@ -1058,6 +1075,16 @@ int i2c_del_adapter(struct i2c_adapter *adap)
 	}
 	mutex_unlock(&adap->userspace_clients_lock);
 
+	/* Clear list of extenally controlled clients */
+	mutex_lock(&adap->ext_clients_lock);
+	list_for_each_entry_safe(client, next, &adap->ext_clients,
+				 detected) {
+		dev_dbg(&adap->dev, "Removing %s at 0x%x\n", client->name,
+			client->addr);
+		list_del(&client->detected);
+	}
+	mutex_unlock(&adap->ext_clients_lock);
+
 	/* Detach any active clients. This can't fail, thus we do not
 	 * check the returned value. This is a two-pass process, because
 	 * we can't remove the dummy devices during the first pass: they
@@ -1094,6 +1121,46 @@ int i2c_del_adapter(struct i2c_adapter *adap)
 }
 EXPORT_SYMBOL(i2c_del_adapter);
 
+/**
+ * i2c_detect_ext_master - Perform some special handling
+ * for externally controlled I2C devices.
+ * For now we only disable the spurious IRQ
+ * @adap: the adapter driving the client
+ * Context: can sleep
+ *
+ * This detects registered I2C devices which are controlled
+ * by a remote/external proc.
+ */
+void i2c_detect_ext_master(struct i2c_adapter *adap)
+{
+	struct i2c_adapter *found;
+	struct i2c_client *client;
+
+	/* First make sure that this adapter was ever added */
+	mutex_lock(&core_lock);
+	found = idr_find(&i2c_adapter_idr, adap->nr);
+	mutex_unlock(&core_lock);
+	if (found != adap) {
+		pr_debug("i2c-core: attempting to process unregistered "
+			 "adapter [%s]\n", adap->name);
+		return;
+	}
+
+	/* Disable IRQ(s) automatically registeried via HWMOD
+	 * for I2C channel controlled by remote master
+	 */
+	mutex_lock(&adap->ext_clients_lock);
+	list_for_each_entry(client, &adap->ext_clients,
+			    detected) {
+		dev_dbg("Client detected %s at 0x%x\n", client->name,
+			client->addr);
+		disable_irq(client->irq);
+	}
+	mutex_unlock(&adap->ext_clients_lock);
+
+	return;
+}
+EXPORT_SYMBOL(i2c_detect_ext_master);
 
 /* ------------------------------------------------------------------------- */
 

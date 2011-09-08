@@ -529,6 +529,7 @@ struct omap_dss_device {
 			u16 regm_dsi;
 
 			u16 lp_clk_div;
+			unsigned offset_ddr_clk;
 			enum omap_dss_clk_source dsi_fclk_src;
 		} dsi;
 

@@ -46,8 +46,6 @@ struct lpj_info {
 	unsigned int	freq;
 };
 
-#define THROTTLE_DELAY_MS 10000
-
 static DEFINE_PER_CPU(struct lpj_info, lpj_ref);
 static struct lpj_info global_lpj_ref;
 #endif
@@ -157,64 +155,21 @@ static unsigned int omap_thermal_lower_speed(void)
 	return max;
 }
 
-static void throttle_delayed_work_fn(struct work_struct *work);
-
-static DECLARE_DELAYED_WORK(throttle_delayed_work, throttle_delayed_work_fn);
-
-static void throttle_delayed_work_fn(struct work_struct *work)
-{
-	unsigned int new_max;
-	unsigned int cur;
-
-	mutex_lock(&omap_cpufreq_lock);
-
-	if (max_thermal == max_freq)
-		goto out;
-
-	new_max = omap_thermal_lower_speed();
-	if (new_max == max_thermal)
-		goto out;
-
-	max_thermal = new_max;
-
-	pr_warn("%s: temperature still too high, throttling cpu to max %u\n",
-		__func__, max_thermal);
-
-	cur = omap_getspeed(0);
-	if (cur > max_thermal)
-		omap_cpufreq_scale(max_thermal, cur);
-
-	schedule_delayed_work(&throttle_delayed_work,
-		msecs_to_jiffies(THROTTLE_DELAY_MS));
-
-out:
-	mutex_unlock(&omap_cpufreq_lock);
-}
-
 void omap_thermal_throttle(void)
 {
 	unsigned int cur;
 
 	mutex_lock(&omap_cpufreq_lock);
 
-	if (max_thermal != max_freq) {
-		pr_warn("%s: already throttling\n", __func__);
-		goto out;
-	}
-
 	max_thermal = omap_thermal_lower_speed();
 
-	pr_warn("%s: temperature too high, starting cpu throttling at max %u\n",
+	pr_warn("%s: temperature too high, cpu throttle at max %u\n",
 		__func__, max_thermal);
 
 	cur = omap_getspeed(0);
 	if (cur > max_thermal)
 		omap_cpufreq_scale(max_thermal, cur);
 
-	schedule_delayed_work(&throttle_delayed_work,
-		msecs_to_jiffies(THROTTLE_DELAY_MS));
-
-out:
 	mutex_unlock(&omap_cpufreq_lock);
 }
 
@@ -230,8 +185,6 @@ void omap_thermal_unthrottle(void)
 	}
 
 	max_thermal = max_freq;
-
-	cancel_delayed_work_sync(&throttle_delayed_work);
 
 	pr_warn("%s: temperature reduced, ending cpu throttling\n", __func__);
 
