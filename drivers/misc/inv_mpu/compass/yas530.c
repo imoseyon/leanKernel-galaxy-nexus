@@ -75,9 +75,9 @@ static int Cx, Cy1, Cy2;
 static int /*a1, */ a2, a3, a4, a5, a6, a7, a8, a9;
 static int k;
 
-static char dx, dy1, dy2;
-static char d2, d3, d4, d5, d6, d7, d8, d9, d0;
-static char dck;
+static unsigned char dx, dy1, dy2;
+static unsigned char d2, d3, d4, d5, d6, d7, d8, d9, d0;
+static unsigned char dck;
 
 /* -------------------------------------------------------------------------- */
 
@@ -259,10 +259,10 @@ static int measure_and_set_offset(void *mlsl_handle,
 }
 
 static void coordinate_conversion(short x, short y1, short y2, short t,
-				  int *xo, int *yo, int *zo)
+				  int32_t *xo, int32_t *yo, int32_t *zo)
 {
-	int sx, sy1, sy2, sy, sz;
-	int hx, hy, hz;
+	int32_t sx, sy1, sy2, sy, sz;
+	int32_t hx, hy, hz;
 
 	sx = x - (Cx * t) / 100;
 	sy1 = y1 - (Cy1 * t) / 100;
@@ -345,18 +345,18 @@ static int power_up(void *mlsl_handle,
 	dck = ((data[9] << 1) & 0x06) | ((data[10] >> 7) & 0x01);
 
 	/*Correction Data */
-	Cx = dx * 6 - 768;
-	Cy1 = dy1 * 6 - 768;
-	Cy2 = dy2 * 6 - 768;
-	a2 = d2 - 32;
-	a3 = d3 - 8;
-	a4 = d4 - 32;
-	a5 = d5 + 38;
-	a6 = d6 - 32;
-	a7 = d7 - 64;
-	a8 = d8 - 32;
-	a9 = d9;
-	k = d0 + 10;
+	Cx = (int)dx * 6 - 768;
+	Cy1 = (int)dy1 * 6 - 768;
+	Cy2 = (int)dy2 * 6 - 768;
+	a2 = (int)d2 - 32;
+	a3 = (int)d3 - 8;
+	a4 = (int)d4 - 32;
+	a5 = (int)d5 + 38;
+	a6 = (int)d6 - 32;
+	a7 = (int)d7 - 64;
+	a8 = (int)d8 - 32;
+	a9 = (int)d9;
+	k = (int)d0 + 10;
 
 	/*Obtain the [49:47] bits */
 	dck &= 0x07;
@@ -433,7 +433,7 @@ static int yas530_read(void *mlsl_handle,
 
 	int busy;
 	short t, x, y1, y2;
-	int xyz[3];
+	int32_t xyz[3];
 	short rawfixed[3];
 
 	result = measure_normal(mlsl_handle, slave, pdata,
