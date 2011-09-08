@@ -244,7 +244,9 @@ struct rproc {
 	struct mutex lock;
 	struct dentry *dbg_dir;
 	char *trace_buf0, *trace_buf1;
+	char *last_trace_buf0, *last_trace_buf1;
 	int trace_len0, trace_len1;
+	int last_trace_len0, last_trace_len1;
 	struct completion firmware_loading_complete;
 	struct work_struct mmufault_work;
 	struct blocking_notifier_head nb_error;
