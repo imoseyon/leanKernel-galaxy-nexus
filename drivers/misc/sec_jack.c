@@ -182,8 +182,11 @@ static void sec_jack_set_type(struct sec_jack_info *hi, int jack_type)
 	/* this can happen during slow inserts where we think we identified
 	 * the type but then we get another interrupt and do it again
 	 */
-	if (jack_type == hi->cur_jack_type)
+	if (jack_type == hi->cur_jack_type) {
+		if (jack_type != SEC_HEADSET_4POLE)
+			pdata->set_micbias_state(false);
 		return;
+	}
 
 	if (jack_type == SEC_HEADSET_4POLE) {
 		/* for a 4 pole headset, enable detection of send/end key */
