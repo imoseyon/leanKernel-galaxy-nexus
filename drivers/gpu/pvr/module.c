@@ -144,6 +144,10 @@ static int AssignedMajorNumber;
 static int PVRSRVOpen(struct inode* pInode, struct file* pFile);
 static int PVRSRVRelease(struct inode* pInode, struct file* pFile);
 
+#if defined(CONFIG_DEBUG_FS)
+int pvr_debugfs_create_files(void);
+#endif
+
 static struct file_operations pvrsrv_fops =
 {
 	.owner=THIS_MODULE,
@@ -704,6 +708,11 @@ static int __init PVRCore_Init(void)
 	}
 #endif 
 #endif 
+
+#if defined(CONFIG_DEBUG_FS)
+	if (pvr_debugfs_create_files())
+		PVR_DPF((PVR_DBG_ERROR, "PVRCore_Init: unable to create debugfs file(s)"));
+#endif
 
 	return 0;
 
