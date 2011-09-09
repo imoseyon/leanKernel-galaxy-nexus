@@ -1228,12 +1228,14 @@ static int omap_abe_dai_trigger(struct snd_pcm_substream *substream,
 static int omap_abe_dai_bespoke_trigger(struct snd_pcm_substream *substream,
 				  int cmd, struct snd_soc_dai *dai)
 {
+	struct snd_soc_pcm_runtime *fe = substream->private_data;
 	struct omap_abe_data *abe_priv = snd_soc_dai_get_drvdata(dai);
 	int ret = 0;
 
 	dev_dbg(dai->dev, "%s: %s cmd %d\n", __func__, dai->name, cmd);
 
-	if (dai->id == ABE_FRONTEND_DAI_MODEM) {
+	if ((dai->id == ABE_FRONTEND_DAI_MODEM) &&
+			snd_soc_dsp_is_trigger_for_fe(fe, substream->stream)) {
 
 		dev_dbg(abe_priv->modem_dai->dev, "%s: MODEM stream %d cmd %d\n",
 				__func__, substream->stream, cmd);
