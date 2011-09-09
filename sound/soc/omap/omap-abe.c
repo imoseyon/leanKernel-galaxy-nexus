@@ -150,7 +150,7 @@ static int modem_get_dai(struct snd_pcm_substream *substream,
 
 	abe_priv->modem_substream[substream->stream] =
 			snd_soc_get_dai_substream(rtd->card,
-					OMAP_ABE_BE_MM_EXT1, substream->stream);
+					OMAP_ABE_BE_MM_EXT1, !substream->stream);
 
 	if (abe_priv->modem_substream[substream->stream] == NULL)
 		return -ENODEV;
