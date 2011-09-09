@@ -55,8 +55,8 @@ static ssize_t rproc_format_trace_buf(char __user *userbuf, size_t count,
 	int i, w_pos;
 
 	/* Assume write_idx is the penultimate byte in the buffer trace*/
-	w_idx = (int *)(buf + (size - (sizeof(u32) * 2)));
 	size = size - (sizeof(u32) * 2);
+	w_idx = (int *)(buf + size);
 	w_pos = *w_idx;
 
 	if (from_beg)
@@ -127,6 +127,10 @@ static const struct file_operations rproc_name_ops = {
 
 DEBUGFS_READONLY_FILE(trace0, rproc->trace_buf0, rproc->trace_len0);
 DEBUGFS_READONLY_FILE(trace1, rproc->trace_buf1, rproc->trace_len1);
+DEBUGFS_READONLY_FILE(trace0_last, rproc->last_trace_buf0,
+						rproc->last_trace_len0);
+DEBUGFS_READONLY_FILE(trace1_last, rproc->last_trace_buf1,
+						rproc->last_trace_len1);
 
 #define DEBUGFS_ADD(name)						\
 	debugfs_create_file(#name, 0400, rproc->dbg_dir,		\
@@ -194,10 +198,17 @@ rproc_da_to_pa(const struct rproc_mem_entry *maps, u64 da, phys_addr_t *pa)
 static int rproc_mmu_fault_isr(struct rproc *rproc, u64 da, u32 flags)
 {
 	dev_err(rproc->dev, "%s\n", __func__);
-	rproc->state = RPROC_CRASHED;
-	schedule_work(&rproc->mmufault_work);
+	schedule_work(&rproc->error_work);
 
 	return -EIO;
+}
+
+static int rproc_watchdog_isr(struct rproc *rproc)
+{
+	dev_err(rproc->dev, "Enter %s\n", __func__);
+	schedule_work(&rproc->error_work);
+
+	return 0;
 }
 
 static int _event_notify(struct rproc *rproc, int type, void *data)
@@ -211,6 +222,12 @@ static int _event_notify(struct rproc *rproc, int type, void *data)
 		init_completion(&rproc->error_comp);
 		rproc->state = RPROC_CRASHED;
 		mutex_unlock(&rproc->lock);
+		if (rproc->trace_buf0 && rproc->last_trace_buf0)
+			memcpy(rproc->last_trace_buf0, rproc->trace_buf0,
+					rproc->last_trace_len0);
+		if (rproc->trace_buf1 && rproc->last_trace_buf1)
+			memcpy(rproc->last_trace_buf1, rproc->trace_buf1,
+					rproc->last_trace_len1);
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 		pm_runtime_dont_use_autosuspend(rproc->dev);
 #endif
@@ -255,6 +272,15 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 		err = rproc->ops->iommu_init(rproc, rproc_mmu_fault_isr);
 		if (err) {
 			dev_err(dev, "can't configure iommu %d\n", err);
+			goto unlock_mutext;
+		}
+	}
+
+	if (rproc->ops->watchdog_init) {
+		err = rproc->ops->watchdog_init(rproc, rproc_watchdog_isr);
+		if (err) {
+			dev_err(dev, "can't configure watchdog timer %d\n",
+				err);
 			goto unlock_mutext;
 		}
 	}
@@ -393,9 +419,11 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 			/* store the da for processing at the end */
 			if (!trace_da0) {
 				rproc->trace_len0 = rsc->len;
+				rproc->last_trace_len0 = rsc->len;
 				trace_da0 = da;
 			} else {
 				rproc->trace_len1 = rsc->len;
+				rproc->last_trace_len1 = rsc->len;
 				trace_da1 = da;
 			}
 			break;
@@ -446,6 +474,9 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 		len -= sizeof(*rsc);
 	}
 
+	if (ret)
+		goto error;
+
 	/*
 	 * post-process trace buffers, as we cannot rely on the order of the
 	 * trace section and the carveout sections.
@@ -453,33 +484,54 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 	 * trace buffer memory _is_ normal memory, so we cast away the
 	 * __iomem to make sparse happy
 	 */
-	if (!ret && trace_da0) {
+	if (trace_da0) {
 		ret = rproc_da_to_pa(rproc->memory_maps, trace_da0, &pa);
-		if (!ret) {
-			rproc->trace_buf0 = (__force void *)
-					ioremap_nocache(pa, rproc->trace_len0);
-			if (rproc->trace_buf0)
-				DEBUGFS_ADD(trace0);
-			else {
-				dev_err(dev, "can't ioremap trace buffer0\n");
-				ret = -EIO;
+		if (ret)
+			goto error;
+		rproc->trace_buf0 = (__force void *)
+				ioremap_nocache(pa, rproc->trace_len0);
+		if (rproc->trace_buf0) {
+			DEBUGFS_ADD(trace0);
+			if (!rproc->last_trace_buf0) {
+				rproc->last_trace_buf0 = kzalloc(sizeof(u32) *
+							rproc->last_trace_len0,
+							GFP_KERNEL);
+				if (!rproc->last_trace_buf0) {
+					ret = -ENOMEM;
+					goto error;
+				}
+				DEBUGFS_ADD(trace0_last);
 			}
+		} else {
+			dev_err(dev, "can't ioremap trace buffer0\n");
+			ret = -EIO;
+			goto error;
 		}
 	}
-	if (!ret && trace_da1) {
+	if (trace_da1) {
 		ret = rproc_da_to_pa(rproc->memory_maps, trace_da1, &pa);
-		if (!ret) {
-			rproc->trace_buf1 = (__force void *)
-					ioremap_nocache(pa, rproc->trace_len1);
-			if (rproc->trace_buf1)
-				DEBUGFS_ADD(trace1);
-			else {
-				dev_err(dev, "can't ioremap trace buffer1\n");
-				ret = -EIO;
+		if (ret)
+			goto error;
+		rproc->trace_buf1 = (__force void *)
+				ioremap_nocache(pa, rproc->trace_len1);
+		if (rproc->trace_buf1) {
+			DEBUGFS_ADD(trace1);
+			if (!rproc->last_trace_buf1) {
+				rproc->last_trace_buf1 = kzalloc(sizeof(u32) *
+							rproc->last_trace_len1,
+							GFP_KERNEL);
+				if (!rproc->last_trace_buf1) {
+					ret = -ENOMEM;
+					goto error;
+				}
+				DEBUGFS_ADD(trace1_last);
 			}
+		} else {
+			dev_err(dev, "can't ioremap trace buffer1\n");
+			ret = -EIO;
 		}
 	}
-
+error:
 	return ret;
 }
 
@@ -638,6 +690,12 @@ static int rproc_loader(struct rproc *rproc)
 	return 0;
 }
 
+int rproc_errror_notify(struct rproc *rproc)
+{
+	return _event_notify(rproc, RPROC_ERROR, NULL);
+}
+EXPORT_SYMBOL_GPL(rproc_errror_notify);
+
 struct rproc *rproc_get(const char *name)
 {
 	struct rproc *rproc, *ret = NULL;
@@ -760,6 +818,14 @@ void rproc_put(struct rproc *rproc)
 									ret);
 			goto out;
 		}
+		if (rproc->ops->watchdog_exit) {
+			ret = rproc->ops->watchdog_exit(rproc);
+			if (ret) {
+				dev_err(rproc->dev, "error watchdog_exit %d\n",
+					ret);
+				goto out;
+			}
+		}
 		if (rproc->ops->iommu_exit) {
 			ret = rproc->ops->iommu_exit(rproc);
 			if (ret) {
@@ -784,9 +850,9 @@ out:
 }
 EXPORT_SYMBOL_GPL(rproc_put);
 
-static void rproc_mmufault_work(struct work_struct *work)
+static void rproc_error_work(struct work_struct *work)
 {
-	struct rproc *rproc = container_of(work, struct rproc, mmufault_work);
+	struct rproc *rproc = container_of(work, struct rproc, error_work);
 
 	dev_dbg(rproc->dev, "Enter %s\n", __func__);
 	_event_notify(rproc, RPROC_ERROR, NULL);
@@ -1093,7 +1159,7 @@ int rproc_register(struct device *dev, const char *name,
 	mutex_init(&rproc->pm_lock);
 #endif
 	mutex_init(&rproc->lock);
-	INIT_WORK(&rproc->mmufault_work, rproc_mmufault_work);
+	INIT_WORK(&rproc->error_work, rproc_error_work);
 	BLOCKING_INIT_NOTIFIER_HEAD(&rproc->nb_error);
 
 	rproc->state = RPROC_OFFLINE;
@@ -1160,6 +1226,8 @@ int rproc_unregister(const char *name)
 
 	pm_qos_remove_request(rproc->qos_request);
 	kfree(rproc->qos_request);
+	kfree(rproc->last_trace_buf0);
+	kfree(rproc->last_trace_buf1);
 	kfree(rproc);
 
 	return 0;

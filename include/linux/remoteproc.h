@@ -153,6 +153,8 @@ struct rproc_ops {
 	int (*set_lat)(struct rproc *rproc, long v);
 	int (*set_bw)(struct rproc *rproc, long v);
 	int (*scale)(struct rproc *rproc, long v);
+	int (*watchdog_init)(struct rproc *, int (*)(struct rproc *));
+	int (*watchdog_exit)(struct rproc *);
 };
 
 /*
@@ -244,9 +246,11 @@ struct rproc {
 	struct mutex lock;
 	struct dentry *dbg_dir;
 	char *trace_buf0, *trace_buf1;
+	char *last_trace_buf0, *last_trace_buf1;
 	int trace_len0, trace_len1;
+	int last_trace_len0, last_trace_len1;
 	struct completion firmware_loading_complete;
-	struct work_struct mmufault_work;
+	struct work_struct error_work;
 	struct blocking_notifier_head nb_error;
 	struct completion error_comp;
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
@@ -277,5 +281,6 @@ extern const struct dev_pm_ops rproc_gen_pm_ops;
 #define GENERIC_RPROC_PM_OPS	NULL
 #endif
 int rproc_set_constraints(struct rproc *, enum rproc_constraint type, long v);
+int rproc_errror_notify(struct rproc *rproc);
 
 #endif /* REMOTEPROC_H */

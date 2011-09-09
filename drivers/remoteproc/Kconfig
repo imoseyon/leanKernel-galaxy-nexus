@@ -41,3 +41,10 @@ config OMAP_RPRES
 	help
 	  Say Y here if you want to use OMAP remote processor resources
 	  frame work.
+
+config REMOTEPROC_WATCHDOG
+	bool "OMAP remoteproc watchdog timer"
+	depends on REMOTE_PROC
+	default y
+	help
+	  Say y to enable watchdog timer for remote cores

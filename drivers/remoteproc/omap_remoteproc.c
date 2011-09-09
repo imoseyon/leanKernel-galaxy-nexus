@@ -39,6 +39,7 @@
 struct omap_rproc_priv {
 	struct iommu *iommu;
 	int (*iommu_cb)(struct rproc *, u64, u32);
+	int (*wdt_cb)(struct rproc *);
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	struct omap_mbox *mbox;
 	void __iomem *idle;
@@ -321,7 +322,51 @@ static void _destroy_pm_flags(struct rproc *rproc)
 	}
 }
 #endif
+#ifdef CONFIG_REMOTEPROC_WATCHDOG
+static int omap_rproc_watchdog_init(struct rproc *rproc,
+		 int (*callback)(struct rproc *rproc))
+{
+	struct omap_rproc_priv *rpp = rproc->priv;
 
+	rpp->wdt_cb = callback;
+	return 0;
+}
+
+static int omap_rproc_watchdog_exit(struct rproc *rproc)
+{
+	struct omap_rproc_priv *rpp = rproc->priv;
+
+	rpp->wdt_cb = NULL;
+	return 0;
+}
+
+static irqreturn_t omap_rproc_watchdog_isr(int irq, void *p)
+{
+	struct rproc *rproc = p;
+	struct omap_rproc_pdata *pdata = rproc->dev->platform_data;
+	struct omap_rproc_timers_info *timers = pdata->timers;
+	struct omap_dm_timer *timer = NULL;
+	struct omap_rproc_priv *rpp = rproc->priv;
+	int i;
+
+	for (i = 0; i < pdata->timers_cnt; i++) {
+		if (irq == omap_dm_timer_get_irq(timers[i].odt)) {
+			timer = timers[i].odt;
+			break;
+		}
+	}
+
+	if (!timer)
+		return IRQ_NONE;
+
+	omap_dm_timer_write_status(timer, OMAP_TIMER_INT_OVERFLOW);
+
+	if (rpp->wdt_cb)
+		rpp->wdt_cb(rproc);
+
+	return IRQ_HANDLED;
+}
+#endif
 static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 {
 	struct device *dev = rproc->dev;
@@ -339,6 +384,16 @@ static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 			goto out;
 		}
 		omap_dm_timer_set_source(timers[i].odt, OMAP_TIMER_SRC_SYS_CLK);
+#ifdef CONFIG_REMOTEPROC_WATCHDOG
+		/* GPT 9 and 11 are using as WDT */
+		if (timers[i].id == 9 || timers[i].id == 11) {
+			ret = request_irq(omap_dm_timer_get_irq(timers[i].odt),
+					 omap_rproc_watchdog_isr, IRQF_DISABLED,
+					"rproc-wdt", rproc);
+			/* Clean counter, remoteproc proc will set the value */
+			omap_dm_timer_set_load(timers[i].odt, 0, 0);
+		}
+#endif
 	}
 
 	ret = omap_device_enable(pdev);
@@ -413,6 +468,10 @@ static struct rproc_ops omap_rproc_ops = {
 	.set_lat = omap_rproc_set_lat,
 	.set_bw = omap_rproc_set_l3_bw,
 	.scale = omap_rproc_scale,
+#ifdef CONFIG_REMOTEPROC_WATCHDOG
+	.watchdog_init = omap_rproc_watchdog_init,
+	.watchdog_exit = omap_rproc_watchdog_exit,
+#endif
 };
 
 static int omap_rproc_probe(struct platform_device *pdev)
