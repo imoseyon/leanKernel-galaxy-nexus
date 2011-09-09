@@ -148,7 +148,7 @@ static inline int omap2_i2c_add_bus(int bus_id)
 	 * completes.
 	 * Only omap3 has support for constraints
 	 */
-	if (cpu_is_omap34xx())
+	if (cpu_is_omap34xx() ||  cpu_is_omap44xx())
 		pdata->needs_wakeup_latency = true;
 	od = omap_device_build(name, bus_id, oh, pdata,
 			sizeof(struct omap_i2c_bus_platform_data),
