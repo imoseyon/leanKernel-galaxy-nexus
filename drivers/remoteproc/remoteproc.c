@@ -690,6 +690,12 @@ static int rproc_loader(struct rproc *rproc)
 	return 0;
 }
 
+int rproc_errror_notify(struct rproc *rproc)
+{
+	return _event_notify(rproc, RPROC_ERROR, NULL);
+}
+EXPORT_SYMBOL_GPL(rproc_errror_notify);
+
 struct rproc *rproc_get(const char *name)
 {
 	struct rproc *rproc, *ret = NULL;

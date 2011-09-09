@@ -281,5 +281,6 @@ extern const struct dev_pm_ops rproc_gen_pm_ops;
 #define GENERIC_RPROC_PM_OPS	NULL
 #endif
 int rproc_set_constraints(struct rproc *, enum rproc_constraint type, long v);
+int rproc_errror_notify(struct rproc *rproc);
 
 #endif /* REMOTEPROC_H */
