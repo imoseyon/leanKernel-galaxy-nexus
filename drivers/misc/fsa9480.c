@@ -663,6 +663,40 @@ static int __devexit fsa9480_remove(struct i2c_client *client)
 	return 0;
 }
 
+#if defined(CONFIG_PM)
+static int fsa9480_resume(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+
+	otg_id_resume();
+	enable_irq(client->irq);
+
+	return 0;
+}
+
+static int fsa9480_suspend(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	int ret;
+
+	disable_irq(client->irq);
+	ret = otg_id_suspend();
+	if (ret)
+		goto err;
+
+	return 0;
+
+err:
+	enable_irq(client->irq);
+	return ret;
+}
+
+static const struct dev_pm_ops fsa9480_pm_ops = {
+	.suspend	= fsa9480_suspend,
+	.resume		= fsa9480_resume,
+};
+#endif
+
 static const struct i2c_device_id fsa9480_id[] = {
 	{"fsa9480", 0},
 	{}
@@ -672,6 +706,9 @@ MODULE_DEVICE_TABLE(i2c, fsa9480_id);
 static struct i2c_driver fsa9480_i2c_driver = {
 	.driver = {
 		.name = "fsa9480",
+#if defined(CONFIG_PM)
+		.pm	= &fsa9480_pm_ops,
+#endif
 	},
 	.probe = fsa9480_probe,
 	.remove = __devexit_p(fsa9480_remove),
