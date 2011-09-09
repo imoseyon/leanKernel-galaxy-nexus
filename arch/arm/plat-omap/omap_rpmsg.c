@@ -168,7 +168,7 @@ static int omap_rpmsg_mbox_callback(struct notifier_block *this,
 	switch (msg) {
 	case RP_MBOX_CRASH:
 		pr_err("%s has just crashed !\n", rpdev->rproc_name);
-		/* todo: smarter error handling here */
+		rproc_errror_notify(rpdev->rproc);
 		break;
 	case RP_MBOX_ECHO_REPLY:
 		pr_info("received echo reply from %s !\n", rpdev->rproc_name);
