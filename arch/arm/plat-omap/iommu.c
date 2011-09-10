@@ -836,9 +836,13 @@ struct iommu *iommu_get(const char *name)
 	mutex_lock(&obj->iommu_lock);
 
 	if (obj->refcount++ == 0) {
+		dev_info(obj->dev, "%s: %s qos_request\n", __func__, obj->name);
+		pm_qos_update_request(obj->qos_request, 10);
 		err = iommu_enable(obj);
-		if (err)
+		if (err) {
+			pm_qos_update_request(obj->qos_request, -1);
 			goto err_enable;
+		}
 		flush_iotlb_all(obj);
 	}
 
@@ -871,8 +875,16 @@ void iommu_put(struct iommu *obj)
 
 	mutex_lock(&obj->iommu_lock);
 
-	if (--obj->refcount == 0)
+	if (!obj->refcount) {
+		dev_err(obj->dev, "%s: %s unbalanced iommu_get/put\n",
+				__func__, obj->name);
+		return -EIO;
+	}
+
+	if (--obj->refcount == 0) {
 		iommu_disable(obj);
+		pm_qos_update_request(obj->qos_request, -1);
+	}
 
 	module_put(obj->owner);
 
@@ -938,6 +950,15 @@ static int __devinit omap_iommu_probe(struct platform_device *pdev)
 
 	obj->regbase = pdata->io_base;
 
+	obj->qos_request = kzalloc(sizeof(*obj->qos_request), GFP_KERNEL);
+	if (!obj->qos_request) {
+		kfree(obj);
+		return -ENOMEM;
+	}
+
+	pm_qos_add_request(obj->qos_request, PM_QOS_CPU_DMA_LATENCY,
+				PM_QOS_DEFAULT_VALUE);
+
 	err = request_irq(pdata->irq, iommu_fault_handler, IRQF_SHARED,
 			  dev_name(&pdev->dev), obj);
 	if (err < 0)
@@ -976,6 +997,9 @@ static int __devexit omap_iommu_remove(struct platform_device *pdev)
 
 	iopgtable_clear_entry_all(obj);
 	free_pages((unsigned long)obj->iopgd, get_order(IOPGD_TABLE_SIZE));
+
+	pm_qos_remove_request(obj->qos_request);
+	kfree(obj->qos_request);
 
 	dev_info(&pdev->dev, "%s removed\n", obj->name);
 	kfree(obj);

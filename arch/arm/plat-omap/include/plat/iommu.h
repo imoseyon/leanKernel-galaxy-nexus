@@ -13,6 +13,8 @@
 #ifndef __MACH_IOMMU_H
 #define __MACH_IOMMU_H
 
+#include <linux/pm_qos_params.h>
+
 struct iotlb_entry {
 	u32 da;
 	u32 pa;
@@ -53,6 +55,7 @@ struct iommu {
 	u32 da_start;
 	u32 da_end;
 	struct platform_device *pdev;
+	struct pm_qos_request_list *qos_request;
 };
 
 struct cr_regs {
