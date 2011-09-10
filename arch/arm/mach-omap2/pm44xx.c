@@ -183,6 +183,11 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 		omap4_sar_overwrite();
 		omap4_cm_prepare_off();
 		omap4_dpll_prepare_off();
+
+		/* Extend Non-EMIF I/O isolation */
+		omap4_prminst_rmw_inst_reg_bits(OMAP4430_ISOOVR_EXTEND_MASK,
+			OMAP4430_ISOOVR_EXTEND_MASK, OMAP4430_PRM_PARTITION,
+			OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_IO_PMCTRL_OFFSET);
 	}
 
 	omap4_enter_lowpower(cpu, power_state);
@@ -219,12 +224,18 @@ abort_device_off:
 		omap4_ldo_trim_configure();
 	}
 
-	/*
-	 * GPIO: since we have put_synced clks, we need to resume
-	 * even if OFF was not really achieved
-	 */
-	if (omap4_device_next_state_off())
+	if (omap4_device_next_state_off()) {
+		/*
+		 * GPIO: since we have put_synced clks, we need to resume
+		 * even if OFF was not really achieved
+		 */
 		omap2_gpio_resume_after_idle();
+
+		/* Disable the extension of Non-EMIF I/O isolation */
+		omap4_prminst_rmw_inst_reg_bits(OMAP4430_ISOOVR_EXTEND_MASK,
+			0, OMAP4430_PRM_PARTITION,
+			OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_IO_PMCTRL_OFFSET);
+	}
 
 	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
 		omap_vc_set_auto_trans(mpu_voltdm,

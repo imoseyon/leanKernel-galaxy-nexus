@@ -49,6 +49,8 @@
 #define UART_OMAP_IIR_ID		0x3e
 #define UART_OMAP_IIR_RX_TIMEOUT	0xc
 
+#define UART_OMAP_TXFIFO_LVL		(0x68/4)
+
 static struct uart_omap_port *ui[OMAP_MAX_HSUART_PORTS];
 
 /* Forward declaration of functions */
@@ -279,10 +281,10 @@ ignore_char:
 	spin_lock(&up->port.lock);
 }
 
-static void transmit_chars(struct uart_omap_port *up)
+static void transmit_chars(struct uart_omap_port *up, u8 tx_fifo_lvl)
 {
 	struct circ_buf *xmit = &up->port.state->xmit;
-	int count;
+	int count, i;
 
 	if (up->port.x_char) {
 		serial_out(up, UART_TX, up->port.x_char);
@@ -294,14 +296,14 @@ static void transmit_chars(struct uart_omap_port *up)
 		serial_omap_stop_tx(&up->port);
 		return;
 	}
-	count = up->port.fifosize / 4;
-	do {
+	count = up->port.fifosize - tx_fifo_lvl;
+	for (i = 0; i < count; i++) {
 		serial_out(up, UART_TX, xmit->buf[xmit->tail]);
 		xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
 		up->port.icount.tx++;
 		if (uart_circ_empty(xmit))
 			break;
-	} while (--count > 0);
+	}
 
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
 		uart_write_wakeup(&up->port);
@@ -422,6 +424,7 @@ static inline irqreturn_t serial_omap_irq(int irq, void *dev_id)
 	unsigned int int_id;
 	unsigned long flags;
 	int ret = IRQ_HANDLED;
+	u8 tx_fifo_lvl;
 
 	serial_omap_port_enable(up);
 	iir = serial_in(up, UART_IIR);
@@ -450,8 +453,9 @@ static inline irqreturn_t serial_omap_irq(int irq, void *dev_id)
 
 	check_modem_status(up);
 	if (int_id == UART_IIR_THRI) {
-		if (lsr & UART_LSR_THRE)
-			transmit_chars(up);
+		tx_fifo_lvl = serial_in(up, UART_OMAP_TXFIFO_LVL);
+		if (lsr & UART_LSR_THRE || tx_fifo_lvl < up->port.fifosize)
+			transmit_chars(up, tx_fifo_lvl);
 		else
 			ret = IRQ_NONE;
 	}
@@ -683,19 +687,19 @@ serial_omap_configure_xonxoff
 
 	/*
 	 * IXON Flag:
-	 * Enable XON/XOFF flow control on output.
-	 * Transmit XON1, XOFF1
+	 * Flow control for OMAP.TX
+	 * OMAP.RX should listen for XON/XOFF
 	 */
 	if (termios->c_iflag & IXON)
-		up->efr |= OMAP_UART_SW_TX;
+		up->efr |= OMAP_UART_SW_RX;
 
 	/*
 	 * IXOFF Flag:
-	 * Enable XON/XOFF flow control on input.
-	 * Receiver compares XON1, XOFF1.
+	 * Flow control for OMAP.RX
+	 * OMAP.TX should send XON/XOFF
 	 */
 	if (termios->c_iflag & IXOFF)
-		up->efr |= OMAP_UART_SW_RX;
+		up->efr |= OMAP_UART_SW_TX;
 
 	serial_out(up, UART_EFR, up->efr | UART_EFR_ECB);
 	serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
@@ -900,21 +904,26 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 	/* Hardware Flow Control Configuration */
 
 	if (termios->c_cflag & CRTSCTS) {
-		efr |= (UART_EFR_CTS | UART_EFR_RTS);
 		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
-
 		up->mcr = serial_in(up, UART_MCR);
 		serial_out(up, UART_MCR, up->mcr | UART_MCR_TCRTLR);
 
 		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B);
 		up->efr = serial_in(up, UART_EFR);
 		serial_out(up, UART_EFR, up->efr | UART_EFR_ECB);
-
 		serial_out(up, UART_TI752_TCR, OMAP_UART_TCR_TRIG);
-		serial_out(up, UART_EFR, efr); /* Enable AUTORTS and AUTOCTS */
+
+		up->efr |= (UART_EFR_CTS | UART_EFR_RTS);
+		serial_out(up, UART_EFR, up->efr); /* Enable AUTORTS and AUTOCTS */
 		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
 		up->mcr |= UART_MCR_RTS;
 		serial_out(up, UART_MCR, up->mcr);
+		serial_out(up, UART_LCR, cval);
+	} else {
+		serial_out(up, UART_LCR, UART_LCR_CONF_MODE_B);
+		up->efr = serial_in(up, UART_EFR);
+		up->efr &= ~(UART_EFR_CTS | UART_EFR_RTS);
+		serial_out(up, UART_EFR, up->efr); /* Disable AUTORTS and AUTOCTS */
 		serial_out(up, UART_LCR, cval);
 	}
 
