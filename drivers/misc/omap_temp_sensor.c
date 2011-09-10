@@ -525,13 +525,13 @@ static int __devinit omap_temp_sensor_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&temp_sensor->throttle_work,
 			  throttle_delayed_work_fn);
 
+	platform_set_drvdata(pdev, temp_sensor);
+
 	ret = omap_temp_sensor_enable(temp_sensor);
 	if (ret) {
 		dev_err(dev, "%s:Cannot enable temp sensor\n", __func__);
 		goto sensor_enable_err;
 	}
-
-	platform_set_drvdata(pdev, temp_sensor);
 
 	omap_enable_continuous_mode(temp_sensor);
 	omap_configure_temp_sensor_thresholds(temp_sensor);
