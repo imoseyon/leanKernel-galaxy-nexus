@@ -746,24 +746,23 @@ static void playback_trigger(struct snd_pcm_substream *substream,
 		unmute_fe_port(substream, dai, stream);
 		break;
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		/* mute FE port */
+		mute_fe_port(substream, dai, stream);
+
 		/* disable Frontend sDMA  */
 		disable_fe_port(substream, dai, stream);
 		snd_soc_dsp_platform_trigger(substream, cmd, fe->platform);
-
-		/* mute FE port */
-		mute_fe_port(substream, dai, stream);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 
 		/* does this trigger() apply to the FE ? */
 		if (snd_soc_dsp_is_trigger_for_fe(fe, stream)) {
+			/* mute FE port */
+			mute_fe_port(substream, dai, stream);
 
 			/* disable the transfer */
 			disable_fe_port(substream, dai, stream);
 			snd_soc_dsp_platform_trigger(substream, cmd, fe->platform);
-
-			/* mute FE port */
-			mute_fe_port(substream, dai, stream);
 		}
 
 		/* disable BE ports */
