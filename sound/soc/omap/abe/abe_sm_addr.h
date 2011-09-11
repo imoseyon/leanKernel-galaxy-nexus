@@ -351,3 +351,5 @@
 #define OMAP_ABE_S_TONES_44P1_XK_SIZE                      0x10
 #define OMAP_ABE_S_SRC_44P1_MULFAC1_ADDR                   0x4C60
 #define OMAP_ABE_S_SRC_44P1_MULFAC1_SIZE                   0x8
+#define OMAP_ABE_S_SATURATION_EQ_ADDR                      0x4C68
+#define OMAP_ABE_S_SATURATION_EQ_SIZE                      0x8

@@ -57,7 +57,6 @@
  */
 #ifndef _ABE_DEFINE_H_
 #define _ABE_DEFINE_H_
-
 #define ATC_DESCRIPTOR_NUMBER                               64
 #define PROCESSING_SLOTS                                    25
 #define TASK_POOL_LENGTH                                    136
@@ -98,8 +97,8 @@
 #define OUTPUT_SCALE_SHIFTM2                                5160
 #define NTAPS_SRC_44P1                                      24
 #define NTAPS_SRC_44P1_M4                                   96
-#define NTAPS_SRC_44P1_THR                                  48
-#define NTAPS_SRC_44P1_THRM4                                192
+#define NTAPS_SRC_44P1_THR                                  60
+#define NTAPS_SRC_44P1_THRM4                                240
 #define DRIFT_COUNTER_44P1M1                                443
 #define NB_OF_PHASES_SRC44P1                                12
 #define NB_OF_PHASES_SRC44P1M1                              11
@@ -115,6 +114,7 @@
 #define ASRC_BT_UL_FIR_L                                    19
 #define ASRC_BT_DL_FIR_L                                    19
 #define SRC44P1_COEF_ADDR                                   1466
-#define NTAPS_P_SRC_44P1_M4                                 144
-
+#define NTAPS_P_SRC_44P1_M4                                 192
+#define MAX_SMEM_CHECK                                      32
+#define SATURATION_EQ                                       9780
 #endif /* _ABE_DEFINE_H_ */

@@ -215,7 +215,15 @@ struct ABE_SPingPongDescriptor {
 	u8 atc_irq_data;
 	/* 11: ping/pong buffer flag */
 	u8 counter;
-	/* 12: current Base address of the working buffer */
+	/* 12: reseved */
+	u16 dummy1;
+	/* 14: reseved */
+	u16 dummy2;
+	/* 16 For 12/11 in case of 44.1 mode (same address as SIO desc)*/
+	u16 split_addr1;
+	/* 18: reseved */
+	u16 dummy3;
+	/* 20: current Base address of the working buffer */
 	u16 workbuff_BaseAddr;
 	/* 14: samples left in the working buffer */
 	u16 workbuff_Samples;
