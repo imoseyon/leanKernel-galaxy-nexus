@@ -44,6 +44,7 @@
 
 static int twl6040_power_mode;
 static int mcbsp_cfg;
+static struct snd_soc_codec *twl6040_codec;
 
 static int sdp4430_modem_mcbsp_configure(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params, int flag)
@@ -300,6 +301,27 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"AFMR", NULL, "Aux/FM Stereo In"},
 };
 
+static int sdp4430_set_pdm_dl1_gains(struct snd_soc_dapm_context *dapm)
+{
+	int output, val;
+
+	if (snd_soc_dapm_get_pin_power(dapm, "Earphone Spk")) {
+		output = OMAP_ABE_DL1_EARPIECE;
+	} else if (snd_soc_dapm_get_pin_power(dapm, "Headset Stereophone")) {
+		val = snd_soc_read(twl6040_codec, TWL6040_REG_HSLCTL);
+		if (val & TWL6040_HSDACMODEL)
+			/* HSDACL in LP mode */
+			output = OMAP_ABE_DL1_HEADSET_LP;
+		else
+			/* HSDACL in HP mode */
+			output = OMAP_ABE_DL1_HEADSET_HP;
+	} else {
+		output = OMAP_ABE_DL1_NO_PDM;
+	}
+
+	return omap_abe_set_dl1_output(output);
+}
+
 static int sdp4430_mcpdm_twl6040_pre(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -413,6 +435,15 @@ static int sdp4430_twl6040_dl2_init(struct snd_soc_pcm_runtime *rtd)
 	rtd->pmdown_time = 0;
 
 	return 0;
+}
+
+static int sdp4430_stream_event(struct snd_soc_dapm_context *dapm)
+{
+	/*
+	 * set DL1 gains dynamically according to the active output
+	 * (Headset, Earpiece) and HSDAC power mode
+	 */
+	return sdp4430_set_pdm_dl1_gains(dapm);
 }
 
 /* TODO: make this a separate BT CODEC driver or DUMMY */
@@ -786,6 +817,7 @@ static struct snd_soc_card snd_soc_sdp4430 = {
 	.long_name = "TI OMAP4 Board",
 	.dai_link = sdp4430_dai,
 	.num_links = ARRAY_SIZE(sdp4430_dai),
+	.stream_event = sdp4430_stream_event,
 };
 
 static struct platform_device *sdp4430_snd_device;
@@ -819,6 +851,9 @@ static int __init sdp4430_soc_init(void)
 	ret = platform_device_add(sdp4430_snd_device);
 	if (ret)
 		goto err;
+
+	twl6040_codec = snd_soc_card_get_codec(&snd_soc_sdp4430,
+					"twl6040-codec");
 
 	return 0;
 
