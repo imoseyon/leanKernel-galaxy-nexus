@@ -251,6 +251,7 @@ static int __devinit twl6030_madc_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	platform_set_drvdata(pdev, madc);
+	madc->dev = &pdev->dev;
 	mutex_init(&madc->lock);
 	madc->file = debugfs_create_file(DRIVER_NAME, S_IRUGO, NULL,
 					madc, DEBUG_FOPS);
