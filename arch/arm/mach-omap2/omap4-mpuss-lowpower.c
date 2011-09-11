@@ -573,7 +573,9 @@ cpu_prepare:
 	 * Call low level function  with targeted CPU id
 	 * and its low power state.
 	 */
+	stop_critical_timings();
 	omap4_cpu_suspend(cpu, save_state);
+	start_critical_timings();
 
 	/*
 	 * Restore the CPUx power state to ON otherwise CPUx

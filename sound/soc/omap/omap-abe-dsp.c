@@ -2036,6 +2036,8 @@ static int aess_save_context(struct abe_data *abe)
 	abe_mute_gain(GAINS_DMIC3, GAIN_RIGHT_OFFSET);
 	abe_mute_gain(GAINS_AMIC, GAIN_LEFT_OFFSET);
 	abe_mute_gain(GAINS_AMIC, GAIN_RIGHT_OFFSET);
+	abe_mute_gain(GAINS_BTUL, GAIN_LEFT_OFFSET);
+	abe_mute_gain(GAINS_BTUL, GAIN_RIGHT_OFFSET);
 
 	return 0;
 }
@@ -2086,6 +2088,8 @@ static int aess_restore_context(struct abe_data *abe)
 	abe_unmute_gain(GAINS_DMIC3, GAIN_RIGHT_OFFSET);
 	abe_unmute_gain(GAINS_AMIC, GAIN_LEFT_OFFSET);
 	abe_unmute_gain(GAINS_AMIC, GAIN_RIGHT_OFFSET);
+	abe_unmute_gain(GAINS_BTUL, GAIN_LEFT_OFFSET);
+	abe_unmute_gain(GAINS_BTUL, GAIN_RIGHT_OFFSET);
 
 	abe_set_router_configuration(UPROUTE, 0, (u32 *)abe->router);
 
@@ -2353,7 +2357,11 @@ static int abe_suspend(struct snd_soc_dai *dai)
 	case OMAP_ABE_DAI_PDM_DL1:
 	case OMAP_ABE_DAI_PDM_DL2:
 	case OMAP_ABE_DAI_PDM_VIB:
+		break;
 	case OMAP_ABE_DAI_BT_VX:
+		abe_mute_gain(GAINS_BTUL, GAIN_LEFT_OFFSET);
+		abe_mute_gain(GAINS_BTUL, GAIN_RIGHT_OFFSET);
+		break;
 	case OMAP_ABE_DAI_MM_FM:
 	case OMAP_ABE_DAI_MODEM:
 		break;
@@ -2418,7 +2426,11 @@ static int abe_resume(struct snd_soc_dai *dai)
 	case OMAP_ABE_DAI_PDM_DL1:
 	case OMAP_ABE_DAI_PDM_DL2:
 	case OMAP_ABE_DAI_PDM_VIB:
+		break;
 	case OMAP_ABE_DAI_BT_VX:
+		abe_unmute_gain(GAINS_BTUL, GAIN_LEFT_OFFSET);
+		abe_unmute_gain(GAINS_BTUL, GAIN_RIGHT_OFFSET);
+		break;
 	case OMAP_ABE_DAI_MM_FM:
 	case OMAP_ABE_DAI_MODEM:
 		break;
