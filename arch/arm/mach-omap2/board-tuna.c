@@ -876,6 +876,17 @@ static struct omap_device_pad tuna_uart3_pads[] __initdata = {
 	},
 };
 
+static struct omap_device_pad tuna_uart4_pads[] __initdata = {
+	{
+		.name	= "uart4_tx.uart4_tx",
+		.enable	= OMAP_PIN_OUTPUT | OMAP_MUX_MODE0,
+	},
+	{
+		.name	= "uart4_rx.uart4_rx",
+		.enable	= OMAP_PIN_INPUT | OMAP_MUX_MODE0,
+	},
+};
+
 static struct omap_uart_port_info tuna_uart2_info __initdata = {
 	.use_dma	= 0,
 	.dma_rx_buf_size = DEFAULT_RXDMA_BUFSIZE,
@@ -894,7 +905,8 @@ static inline void __init board_serial_init(void)
 		ARRAY_SIZE(tuna_uart2_pads), &tuna_uart2_info);
 	omap_serial_init_port_pads(2, tuna_uart3_pads,
 		ARRAY_SIZE(tuna_uart3_pads), NULL);
-	omap_serial_init_port_pads(3, NULL, 0, NULL);
+	omap_serial_init_port_pads(3, tuna_uart4_pads,
+				   ARRAY_SIZE(tuna_uart4_pads), NULL);
 }
 
 /*SPI for LTE modem bootloader*/
