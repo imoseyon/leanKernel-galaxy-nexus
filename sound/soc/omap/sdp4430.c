@@ -38,6 +38,7 @@
 #include <linux/gpio.h>
 #include "omap-mcpdm.h"
 #include "omap-abe.h"
+#include "omap-abe-dsp.h"
 #include "omap-pcm.h"
 #include "omap-mcbsp.h"
 #include "../codecs/twl6040.h"
@@ -318,6 +319,7 @@ static int sdp4430_set_power_mode(struct snd_kcontrol *kcontrol,
 		return 0;
 
 	twl6040_power_mode = ucontrol->value.integer.value[0];
+	abe_dsp_set_power_mode(twl6040_power_mode);
 
 	return 1;
 }
@@ -401,8 +403,10 @@ static void sdp4430_mcpdm_twl6040_post(struct snd_pcm_substream *substream)
 static int sdp4430_twl6040_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
+	struct twl6040 *twl6040 = codec->control_data;
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
-	int ret;
+	int hsotrim, left_offset, right_offset, mode, ret;
+
 
 	/* Add SDP4430 specific controls */
 	ret = snd_soc_add_controls(codec, sdp4430_controls,
@@ -459,6 +463,20 @@ static int sdp4430_twl6040_init(struct snd_soc_pcm_runtime *rtd)
 	else
 		snd_soc_jack_report(&hs_jack, SND_JACK_HEADSET, SND_JACK_HEADSET);
 
+	/* DC offset cancellation computation */
+	hsotrim = snd_soc_read(codec, TWL6040_REG_HSOTRIM);
+	right_offset = (hsotrim & TWL6040_HSRO) >> TWL6040_HSRO_OFFSET;
+	left_offset = hsotrim & TWL6040_HSLO;
+
+	if (twl6040_get_icrev(twl6040) < TWL6040_REV_1_3)
+		/* For ES under ES_1.3 HS step is 2 mV */
+		mode = 2;
+	else
+		/* For ES_1.3 HS step is 1 mV */
+		mode = 1;
+
+	abe_dsp_set_hs_offset(left_offset, right_offset, mode);
+
 	/* don't wait before switching of HS power */
 	rtd->pmdown_time = 0;
 
@@ -467,6 +485,16 @@ static int sdp4430_twl6040_init(struct snd_soc_pcm_runtime *rtd)
 
 static int sdp4430_twl6040_dl2_init(struct snd_soc_pcm_runtime *rtd)
 {
+	struct snd_soc_codec *codec = rtd->codec;
+	int hfotrim, left_offset, right_offset;
+
+	/* DC offset cancellation computation */
+	hfotrim = snd_soc_read(codec, TWL6040_REG_HFOTRIM);
+	right_offset = (hfotrim & TWL6040_HFRO) >> TWL6040_HFRO_OFFSET;
+	left_offset = hfotrim & TWL6040_HFLO;
+
+	abe_dsp_set_hf_offset(left_offset, right_offset);
+
 	/* don't wait before switching of HF power */
 	rtd->pmdown_time = 0;
 

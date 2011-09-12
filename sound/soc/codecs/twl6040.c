@@ -316,6 +316,10 @@ static void twl6040_init_vio_regs(struct snd_soc_codec *codec)
 		case TWL6040_REG_ACCCTL:
 		case TWL6040_REG_STATUS:
 			continue;
+		case TWL6040_REG_HSOTRIM:
+		case TWL6040_REG_HFOTRIM:
+			twl6040_read_reg_volatile(codec, reg);
+			continue;
 		default:
 			break;
 		}
@@ -816,14 +820,14 @@ static int twl6040_power_mode_event(struct snd_soc_dapm_widget *w,
 
 	if (SND_SOC_DAPM_EVENT_ON(event)) {
 		priv->non_lp++;
-		if (!strcmp(w->name, "Earphone Driver")) {
+		if (!strcmp(w->name, "Earphone Enable")) {
 			/* Earphone doesn't support low power mode */
 			priv->power_mode_forced = 1;
 			ret = headset_power_mode(codec, 1);
 		}
 	} else {
 		priv->non_lp--;
-		if (!strcmp(w->name, "Earphone Driver")) {
+		if (!strcmp(w->name, "Earphone Enable")) {
 			priv->power_mode_forced = 0;
 			ret = headset_power_mode(codec, priv->headset_mode);
 		}

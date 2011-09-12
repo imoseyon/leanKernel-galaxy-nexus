@@ -184,4 +184,7 @@
 #define C_ABE_FW_TASK_SRC44P1_TONES                         124
 #define C_ABE_FW_TASK_SRC44P1_MMDL_1211                     125
 #define C_ABE_FW_TASK_SRC44P1_TONES_1211                    126
+#define C_ABE_FW_TASK_SRC44P1_MMDL_PP                       127
+#define C_ABE_FW_TASK_SRC44P1_MMDL_1211_PP                  128
+#define C_ABE_FW_TASK_CHECK_IIR                             129
 #endif /* _ABE_TASKID_H_ */
