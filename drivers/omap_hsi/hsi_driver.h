@@ -55,6 +55,10 @@
 /* Number of DMA channels when nothing is defined for the device */
 #define HSI_DMA_CHANNEL_DEFAULT		8
 
+/* Defines bit number for atomic operations */
+#define HSI_FLAGS_TASKLET_LOCK		0 /* prevents to disable IRQ and */
+					  /* schedule tasklet more than once */
+
 
 #define LOG_NAME		"OMAP HSI: "
 
@@ -115,7 +119,8 @@ struct hsi_channel {
  * struct hsi_port - hsi port driver data
  * @hsi_channel: Array of channels in the port
  * @hsi_controller: Reference to the HSI controller
- * @port_number: port number
+ * @flags: atomic flags (for atomic operations)
+ * @port_number: port number. Range [1,2]
  * @max_ch: maximum number of channels supported on the port
  * @n_irq: HSI irq line use to handle interrupts (0 or 1)
  * @irq: IRQ number
@@ -126,6 +131,7 @@ struct hsi_channel {
  * @acwake_status: Bitmap to track ACWAKE line status per channel
  * @in_int_tasklet: True if interrupt tasklet for this port is currently running
  * @in_cawake_tasklet: True if CAWAKE tasklet for this port is currently running
+ * @tasklet_lock: prevents to disable IRQ and schedule tasklet more than once
  * @counters_on: indicates if the HSR counters are in use or not
  * @reg_counters: stores the previous counters values when deactivated
  * @lock: Serialize access to the port registers and internal data
@@ -135,8 +141,8 @@ struct hsi_channel {
 struct hsi_port {
 	struct hsi_channel hsi_channel[HSI_PORT_MAX_CH];
 	struct hsi_dev *hsi_controller;
-	u8 flags;
-	u8 port_number;		/* Range [1,2] */
+	unsigned long flags;
+	u8 port_number;
 	u8 max_ch;
 	u8 n_irq;
 	int irq;
@@ -151,8 +157,7 @@ struct hsi_port {
 	unsigned long reg_counters;
 	spinlock_t lock; /* access to the port registers and internal data */
 	struct tasklet_struct hsi_tasklet;
-	struct tasklet_struct cawake_tasklet;	/* SSI_TODO : need to replace */
-						/* by a workqueue */
+	struct tasklet_struct cawake_tasklet;
 };
 
 /**

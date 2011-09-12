@@ -538,6 +538,7 @@ static int __init hsi_ports_init(struct hsi_dev *hsi_ctrl)
 
 	for (port = 0; port < hsi_ctrl->max_p; port++) {
 		hsi_p = &hsi_ctrl->hsi_port[port];
+		hsi_p->flags = 0;
 		hsi_p->port_number = port + 1;
 		hsi_p->hsi_controller = hsi_ctrl;
 		hsi_p->max_ch = hsi_driver_device_is_hsi(pd) ?
@@ -711,7 +712,7 @@ int hsi_clocks_enable_channel(struct device *dev, u8 channel_number,
 		dev_warn(dev, "Error holding DPLL cascading constraint\n");
 #endif
 
-        /*
+	/*
 	return pm_runtime_get_sync(dev);
 	 */
 	omap_device_enable(pd);

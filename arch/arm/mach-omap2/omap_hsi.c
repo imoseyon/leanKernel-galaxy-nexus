@@ -211,7 +211,7 @@ int omap_hsi_is_io_wakeup_from_hsi(void)
 		return 0;
 
 	if (val & OMAP44XX_PADCONF_WAKEUPEVENT0)
-	return 1;
+		return 1;
 
 	return 0;
 }
@@ -283,8 +283,11 @@ int omap_hsi_prepare_suspend(int hsi_port, bool dev_may_wakeup)
 /**
 * omap_hsi_wakeup - Prepare HSI for wakeup from suspend mode (RET/OFF)
 *
-* Return value : 1 if IO wakeup source is HSI
-*		 0 if IO wakeup source is not HSI.
+* @hsi_port - reference to the HSI port which triggered wakeup.
+*	      Range [1, 2]
+*
+* Return value : * 0 if HSI tasklet scheduled.
+*		 * negative value else.
 */
 int omap_hsi_wakeup(int hsi_port)
 {
@@ -292,10 +295,10 @@ int omap_hsi_wakeup(int hsi_port)
 	static struct hsi_dev *hsi_ctrl;
 
 	if (!pdev) {
-	pdev = hsi_get_hsi_platform_device();
+		pdev = hsi_get_hsi_platform_device();
 		if (!pdev)
-		return -ENODEV;
-}
+			return -ENODEV;
+	}
 
 	if (!device_may_wakeup(&pdev->dev)) {
 		dev_info(&pdev->dev, "Modem not allowed to wakeup platform");
@@ -303,10 +306,15 @@ int omap_hsi_wakeup(int hsi_port)
 	}
 
 	if (!hsi_ctrl) {
-	hsi_ctrl = hsi_get_hsi_controller_data(pdev);
-	if (!hsi_ctrl)
-		return -ENODEV;
+		hsi_ctrl = hsi_get_hsi_controller_data(pdev);
+		if (!hsi_ctrl)
+			return -ENODEV;
 	}
+
+	/* Check no other interrupt handler has already scheduled the tasklet */
+	if (test_and_set_bit(HSI_FLAGS_TASKLET_LOCK,
+			     &hsi_ctrl->hsi_port->flags))
+		return -EBUSY;
 
 	dev_dbg(hsi_ctrl->dev, "Modem wakeup detected from HSI CAWAKE Pad");
 

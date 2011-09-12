@@ -20,7 +20,7 @@
 
 #include "hsi_driver.h"
 #include <linux/delay.h>
-int shceduled_already_flag = 0;
+
 void hsi_reset_ch_read(struct hsi_channel *ch)
 {
 	ch->read_data.addr = NULL;
@@ -635,24 +635,27 @@ static void do_hsi_tasklet(unsigned long hsi_port)
 	status_reg = hsi_process_int_event(pport);
 
 	pport->in_int_tasklet = false;
+	clear_bit(HSI_FLAGS_TASKLET_LOCK, &pport->flags);
 	hsi_clocks_disable(hsi_ctrl->dev, __func__);
 	spin_unlock(&hsi_ctrl->lock);
-	shceduled_already_flag = 0;
+
 	enable_irq(pport->irq);
 }
 
 static irqreturn_t hsi_mpu_handler(int irq, void *p)
 {
-	struct hsi_port *pport = p;
-	if (shceduled_already_flag == 0) {
-		shceduled_already_flag = 1;
+	struct hsi_port *pport = (struct hsi_port *) p;
+
+	/* Check no other interrupt handler has already scheduled the tasklet */
+	if (test_and_set_bit(HSI_FLAGS_TASKLET_LOCK, &pport->flags))
+		return IRQ_HANDLED;
+
 		tasklet_hi_schedule(&pport->hsi_tasklet);
-		/*
-		 * Disable interrupt until Bottom Half has cleared the
-		 * IRQ status register
-		 */
+
+	/* Disable interrupt until Bottom Half has cleared the IRQ status */
+	/* register */
 		disable_irq_nosync(pport->irq);
-	}
+
 	return IRQ_HANDLED;
 }
 
