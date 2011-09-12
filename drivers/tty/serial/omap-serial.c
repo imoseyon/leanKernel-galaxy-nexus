@@ -522,9 +522,9 @@ static void serial_omap_set_mctrl(struct uart_port *port, unsigned int mctrl)
 	if (mctrl & TIOCM_LOOP)
 		mcr |= UART_MCR_LOOP;
 
+	serial_omap_port_enable(up);
 	up->mcr = serial_in(up, UART_MCR);
 	up->mcr |= mcr;
-	serial_omap_port_enable(up);
 	serial_out(up, UART_MCR, up->mcr);
 	serial_omap_port_disable(up);
 }
