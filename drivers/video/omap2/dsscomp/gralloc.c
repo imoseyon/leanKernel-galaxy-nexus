@@ -137,6 +137,7 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 	int r = 0;
 	struct omap_dss_device *dev;
 	struct omap_overlay_manager *mgr;
+	static DEFINE_MUTEX(local_mtx);
 	dsscomp_t comp[MAX_MANAGERS];
 	u32 ovl_new_use_mask[MAX_MANAGERS];
 	u32 mgr_set_mask = 0;
@@ -159,6 +160,8 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 	dump_total_comp_info(cdev, d, "queue");
 	for (i = 0; i < d->num_ovls; i++)
 		dump_ovl_info(cdev, d->ovls + i);
+
+	mutex_lock(&local_mtx);
 
 	mutex_lock(&mtx);
 
@@ -382,6 +385,8 @@ skip_map1d:
 skip_comp:
 	/* release sync object ref - this completes unapplied compositions */
 	dsscomp_gralloc_cb(gsync, DSS_COMPLETION_RELEASED);
+
+	mutex_unlock(&local_mtx);
 
 	return r;
 }
