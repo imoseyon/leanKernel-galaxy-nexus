@@ -161,6 +161,9 @@ int omap_rproc_activate(struct omap_device *od)
 		}
 		rpp->iommu = iommu;
 	}
+
+	if (!rpp->mbox)
+		rpp->mbox = omap_mbox_get(pdata->sus_mbox_name, NULL);
 #endif
 
 	/**
@@ -218,6 +221,11 @@ int omap_rproc_deactivate(struct omap_device *od)
 	if (rpp->iommu) {
 		iommu_put(rpp->iommu);
 		rpp->iommu = NULL;
+	}
+
+	if (rpp->mbox) {
+		omap_mbox_put(rpp->mbox, NULL);
+		rpp->mbox = NULL;
 	}
 #endif
 err:
