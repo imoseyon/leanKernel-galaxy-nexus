@@ -806,15 +806,13 @@ static irqreturn_t
 omap_i2c_isr(int this_irq, void *dev_id)
 {
 	struct omap_i2c_dev *dev = dev_id;
-	u16 bits;
 	u16 stat, w;
 	int err, count = 0;
 
 	if (dev->idle)
 		return IRQ_NONE;
 
-	bits = omap_i2c_read_reg(dev, OMAP_I2C_IE_REG);
-	while ((stat = (omap_i2c_read_reg(dev, OMAP_I2C_STAT_REG))) & bits) {
+	while ((stat = (omap_i2c_read_reg(dev, OMAP_I2C_STAT_REG))) & dev->iestate) {
 		dev_dbg(dev->dev, "IRQ (ISR = 0x%04x)\n", stat);
 		if (count++ == 100) {
 			dev_warn(dev->dev, "Too much work in one IRQ\n");
