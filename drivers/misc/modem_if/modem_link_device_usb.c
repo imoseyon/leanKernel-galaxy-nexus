@@ -1,5 +1,4 @@
-/* /linux/drivers/new_modem_if/link_dev_usb.c
- *
+/*
  * Copyright (C) 2010 Google, Inc.
  * Copyright (C) 2010 Samsung Electronics.
  *
@@ -27,8 +26,9 @@
 #include "modem_prj.h"
 #include "modem_link_device_usb.h"
 
+#define URB_COUNT	4
+
 static irqreturn_t usb_resume_irq(int irq, void *data);
-static void usb_rx_complete(struct urb *urb);
 
 static int usb_attach_io_dev(struct link_device *ld,
 			struct io_device *iod)
@@ -41,6 +41,21 @@ static int usb_attach_io_dev(struct link_device *ld,
 	list_add(&iod->list, &usb_ld->list_of_io_devices);
 
 	return 0;
+}
+
+static void
+usb_free_urbs(struct usb_link_device *usb_ld, struct if_usb_devdata *pipe)
+{
+	struct usb_device *usbdev = usb_ld->usbdev;
+	struct urb *urb;
+
+	while ((urb = usb_get_from_anchor(&pipe->urbs))) {
+		usb_free_coherent(usbdev, pipe->rx_buf_size,
+				urb->transfer_buffer, urb->transfer_dma);
+		urb->transfer_buffer = NULL;
+		usb_put_urb(urb);
+		usb_free_urb(urb);
+	}
 }
 
 static int usb_init_communication(struct link_device *ld,
@@ -76,24 +91,17 @@ static void usb_terminate_communication(
 }
 
 
-static int usb_rx_submit(struct usb_link_device *usb_ld,
-					struct if_usb_devdata *pipe_data,
-					gfp_t gfp_flags)
+static int usb_rx_submit(struct if_usb_devdata *pipe, struct urb *urb, gfp_t gfp_flags)
 {
 	int ret;
-	struct urb *urb;
 
-	urb = pipe_data->urb;
-
-	urb->transfer_flags = 0;
-	usb_fill_bulk_urb(urb, usb_ld->usbdev,
-					pipe_data->rx_pipe, pipe_data->rx_buf,
-					pipe_data->rx_buf_size, usb_rx_complete,
-					(void *)pipe_data);
-
+	usb_anchor_urb(urb, &pipe->reading);
 	ret = usb_submit_urb(urb, gfp_flags);
-	if (ret)
+	if (ret) {
+		usb_unanchor_urb(urb);
+		usb_anchor_urb(urb, &pipe->urbs);
 		pr_err("%s: submit urb fail with ret (%d)\n", __func__, ret);
+	}
 
 	usb_mark_last_busy(urb->dev);
 	return ret;
@@ -150,23 +158,21 @@ static void usb_rx_complete(struct urb *urb)
 			}
 		}
 re_submit:
-		usb_rx_submit(usb_ld, pipe_data, GFP_ATOMIC);
-		break;
-	case -ENOENT:
-		break;
-	case -EPROTO:
-	case -ECONNRESET:
+		usb_rx_submit(pipe_data, urb, GFP_ATOMIC);
+		return;
 	case -ESHUTDOWN:
-		pr_err("%s: RX complete Status (%d)\n", __func__, urb->status);
+	case -ENOENT:
+	case -EPROTO:
 		break;
 	case -EOVERFLOW:
 		pr_err("%s: RX overflow\n", __func__);
 		break;
-	case -EILSEQ:
-		break;
 	default:
+		pr_err("%s: RX complete Status (%d)\n", __func__, urb->status);
 		break;
 	}
+
+	usb_anchor_urb(urb, &pipe_data->urbs);
 }
 
 static int usb_send(struct link_device *ld, struct io_device *iod,
@@ -174,27 +180,17 @@ static int usb_send(struct link_device *ld, struct io_device *iod,
 {
 	struct sk_buff_head *txq;
 
-	switch (iod->format) {
-	case IPC_RAW:
+	if (iod->format == IPC_RAW)
 		txq = &ld->sk_raw_tx_q;
-		break;
-
-	case IPC_FMT:
-	case IPC_RFS:
-	case IPC_BOOT:
-	case IPC_RAMDUMP:
-	default:
+	else
 		txq = &ld->sk_fmt_tx_q;
-		break;
-	}
 
 	/* save io device into cb area */
 	*((struct io_device **)skb->cb) = iod;
 	/* en queue skb data */
 	skb_queue_tail(txq, skb);
 
-	if (!work_pending(&ld->tx_delayed_work.work))
-		queue_delayed_work(ld->tx_wq, &ld->tx_delayed_work, 0);
+	queue_delayed_work(ld->tx_wq, &ld->tx_delayed_work, 0);
 
 	return skb->len;
 }
@@ -207,13 +203,6 @@ static void usb_tx_complete(struct urb *urb)
 	switch (urb->status) {
 	case 0:
 		break;
-	case -EPROTO:
-	case -ESHUTDOWN:
-		/* debugging purpose : will be removed later */
-		dump_stack();
-		break;
-	case -ENOENT:
-	case -ECONNRESET:
 	default:
 		pr_err("%s:TX error (%d)\n", __func__, urb->status);
 	}
@@ -278,6 +267,7 @@ static int usb_tx_urb_with_skb(struct usb_link_device *usb_ld,
 	if (atomic_read(&usb_ld->suspend_count)) {
 		/* transmission will be done in resume */
 		usb_anchor_urb(urb, &usb_ld->deferred);
+		usb_put_urb(urb);
 		pr_debug("%s: anchor urb (0x%p)\n", __func__, urb);
 		spin_unlock_irqrestore(&usb_ld->lock, flags);
 		return 0;
@@ -321,11 +311,6 @@ static void usb_tx_work(struct work_struct *work)
 				break;
 			default:
 				/* wrong packet for fmt tx q , drop it */
-				pipe_data =  NULL;
-				break;
-			}
-
-			if (!pipe_data) {
 				dev_kfree_skb_any(skb);
 				continue;
 			}
@@ -341,27 +326,12 @@ static void usb_tx_work(struct work_struct *work)
 
 		skb = skb_dequeue(&ld->sk_raw_tx_q);
 		if (skb) {
-			iod = *((struct io_device **)skb->cb);
-			switch (iod->format) {
-			case IPC_RAW:
-				pipe_data = &usb_ld->devdata[IF_USB_RAW_EP];
-				break;
-			default:
-				/* wrong packet for raw tx q , drop it */
-				pipe_data =  NULL;
-				break;
-			}
-
-			if (!pipe_data) {
-				dev_kfree_skb_any(skb);
-				continue;
-			}
-
+			pipe_data = &usb_ld->devdata[IF_USB_RAW_EP];
 			ret = usb_tx_urb_with_skb(usb_ld, skb, pipe_data);
 			if (ret < 0) {
-				pr_err("%s usb_tx_urb_with_skb for iod(%d)\n",
-						__func__, iod->format);
-				skb_queue_head(&ld->sk_fmt_tx_q, skb);
+				pr_err("%s usb_tx_urb_with_skb for raw iod\n",
+						__func__);
+				skb_queue_head(&ld->sk_raw_tx_q, skb);
 				return;
 			}
 		}
@@ -377,7 +347,7 @@ static int if_usb_suspend(struct usb_interface *intf, pm_message_t message)
 		pr_debug("%s\n", __func__);
 
 		for (i = 0; i < IF_USB_DEVNUM_MAX; i++)
-			usb_kill_urb(usb_ld->devdata[i].urb);
+			usb_kill_anchored_urbs(&usb_ld->devdata[i].reading);
 
 		wake_unlock(&usb_ld->susplock);
 	}
@@ -396,9 +366,10 @@ static void runtime_pm_work(struct work_struct *work)
 static int if_usb_resume(struct usb_interface *intf)
 {
 	int i, ret;
-	struct urb *res;
 	struct sk_buff *skb;
 	struct usb_link_device *usb_ld = usb_get_intfdata(intf);
+	struct if_usb_devdata *pipe;
+	struct urb *urb;
 
 	spin_lock_irq(&usb_ld->lock);
 	if (!atomic_dec_return(&usb_ld->suspend_count)) {
@@ -413,24 +384,28 @@ static int if_usb_resume(struct usb_interface *intf)
 							msecs_to_jiffies(50));
 
 		for (i = 0; i < IF_USB_DEVNUM_MAX; i++) {
-			ret = usb_rx_submit(usb_ld, &usb_ld->devdata[i],
-					GFP_KERNEL);
-			if (ret < 0) {
-				pr_err("%s: usb_rx_submit error with (%d)\n",
+			pipe = &usb_ld->devdata[i];
+			while ((urb = usb_get_from_anchor(&pipe->urbs))) {
+				ret = usb_rx_submit(pipe, urb, GFP_KERNEL);
+				if (ret < 0) {
+					usb_put_urb(urb);
+					pr_err("%s: usb_rx_submit error with (%d)\n",
 						__func__, ret);
-				return ret;
+					return ret;
+				}
+				usb_put_urb(urb);
 			}
 		}
 
-		while ((res = usb_get_from_anchor(&usb_ld->deferred))) {
+		while ((urb = usb_get_from_anchor(&usb_ld->deferred))) {
 			pr_debug("%s: got urb (0x%p) from anchor & resubmit\n",
-					__func__, res);
-			skb = (struct sk_buff *)res->context;
-			ret = usb_submit_urb(res, GFP_KERNEL);
+					__func__, urb);
+			ret = usb_submit_urb(urb, GFP_KERNEL);
 			if (ret < 0) {
 				pr_err("%s: resubmit failed\n", __func__);
+				skb = urb->context;
 				dev_kfree_skb_any(skb);
-				usb_free_urb(res);
+				usb_free_urb(urb);
 				if (pm_runtime_put_autosuspend(&usb_ld->usbdev->dev) < 0)
 					pr_debug("pm_runtime_put_autosuspend fail\n");
 			}
@@ -468,12 +443,12 @@ static void if_usb_disconnect(struct usb_interface *intf)
 	struct usb_link_device *usb_ld  = usb_get_intfdata(intf);
 	struct usb_device *usbdev = usb_ld->usbdev;
 	int dev_id = intf->altsetting->desc.bInterfaceNumber;
-	struct device *ppdev;
+	struct if_usb_devdata *pipe_data = &usb_ld->devdata[dev_id];
 
 	usb_set_intfdata(intf, NULL);
 
-	if (usb_ld->devdata[dev_id].disconnected)
-		return;
+	pipe_data->disconnected = 1;
+	smp_wmb();
 
 	if (usb_ld->if_usb_connected) {
 		disable_irq_wake(usb_ld->pdata->irq_host_wakeup);
@@ -484,35 +459,16 @@ static void if_usb_disconnect(struct usb_interface *intf)
 
 	dev_dbg(&usbdev->dev, "%s\n", __func__);
 	usb_ld->dev_count--;
-	usb_ld->devdata[dev_id].disconnected = 1;
-	usb_driver_release_interface(&if_usb_driver,
-			usb_ld->devdata[dev_id].data_intf);
+	usb_driver_release_interface(&if_usb_driver, pipe_data->data_intf);
 
-	ppdev = usbdev->dev.parent->parent;
-	/*pm_runtime_forbid(ppdev);*/ /*ehci*/
-
-	usb_kill_urb(usb_ld->devdata[dev_id].urb);
+	usb_kill_anchored_urbs(&pipe_data->reading);
+	usb_free_urbs(usb_ld, pipe_data);
 
 	if (usb_ld->dev_count == 0) {
 		cancel_delayed_work_sync(&usb_ld->runtime_pm_work);
+		cancel_delayed_work_sync(&usb_ld->ld.tx_delayed_work);
 		usb_put_dev(usbdev);
 		usb_ld->usbdev = NULL;
-
-		cancel_delayed_work_sync(&usb_ld->ld.tx_delayed_work);
-		cancel_work_sync(&usb_ld->post_resume_work);
-		if (!usb_ld->driver_info) {
-			/*TODO:check the Phone ACTIVE pin*/
-#ifdef AIRPLAIN_MODE_TEST
-			if (lte_airplain_mode == 0) {
-				printk(KERN_INFO "%s reconnect_work\n",
-							__func__);
-				usb_ld->reconnect_cnt = 5;
-				schedule_delayed_work(&usb_ld->reconnect_work,
-						10);
-			}
-#endif
-			/*wake_unlock_pm(svn);*/
-		}
 	}
 }
 
@@ -525,8 +481,10 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 	struct usb_interface *data_intf;
 	struct usb_device *usbdev = interface_to_usbdev(intf);
 	struct device *dev;
-
+	struct if_usb_devdata *pipe;
+	struct urb *urb;
 	int i;
+	int j;
 	int dev_id;
 	int err;
 
@@ -550,7 +508,6 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 				__func__, dev_id, id, usb_ld);
 
 	usb_ld->usbdev = usbdev;
-	usb_ld->driver_info = (unsigned long)id->driver_info;
 
 	usb_get_dev(usbdev);
 
@@ -559,42 +516,35 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 
 		/* remap endpoint of RAW to no.1 for LTE modem */
 		if (i == 0)
-			i = 1;
+			pipe = &usb_ld->devdata[1];
 		else if (i == 1)
-			i = 0;
+			pipe = &usb_ld->devdata[0];
+		else
+			pipe = &usb_ld->devdata[i];
 
-
-		usb_ld->devdata[i].data_intf = data_intf;
+		pipe->disconnected = 0;
+		pipe->data_intf = data_intf;
 		data_desc = data_intf->cur_altsetting;
 
 		/* Endpoints */
 		if (usb_pipein(data_desc->endpoint[0].desc.bEndpointAddress)) {
-			usb_ld->devdata[i].rx_pipe = usb_rcvbulkpipe(usbdev,
+			pipe->rx_pipe = usb_rcvbulkpipe(usbdev,
 				data_desc->endpoint[0].desc.bEndpointAddress);
-			usb_ld->devdata[i].tx_pipe = usb_sndbulkpipe(usbdev,
+			pipe->tx_pipe = usb_sndbulkpipe(usbdev,
 				data_desc->endpoint[1].desc.bEndpointAddress);
+			pipe->rx_buf_size = le16_to_cpu(
+				data_desc->endpoint[0].desc.wMaxPacketSize);
 		} else {
-			usb_ld->devdata[i].rx_pipe = usb_rcvbulkpipe(usbdev,
+			pipe->rx_pipe = usb_rcvbulkpipe(usbdev,
 				data_desc->endpoint[1].desc.bEndpointAddress);
-			usb_ld->devdata[i].tx_pipe = usb_sndbulkpipe(usbdev,
+			pipe->tx_pipe = usb_sndbulkpipe(usbdev,
 				data_desc->endpoint[0].desc.bEndpointAddress);
+			pipe->rx_buf_size = le16_to_cpu(
+				data_desc->endpoint[1].desc.wMaxPacketSize);
 		}
 
-
-		/* remap endpoint of RAW to no.1 for LTE modem */
-		if (i == 0)
-			i = 1;
-		else if (i == 1)
-			i = 0;
-
-
 		if (i == 0) {
-			usb_set_intfdata(data_intf, usb_ld);
-			usb_ld->dev_count++;
-
-			dev_err(&usbdev->dev, "USB IF USB device found\n");
-
-			pm_suspend_ignore_children(&data_intf->dev, true);
+			dev_info(&usbdev->dev, "USB IF USB device found\n");
 		} else {
 			err = usb_driver_claim_interface(&if_usb_driver,
 					data_intf, usb_ld);
@@ -603,14 +553,35 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 						__func__);
 				goto out;
 			}
-
-			usb_set_intfdata(data_intf, usb_ld);
-			usb_ld->dev_count++;
-
-			pm_suspend_ignore_children(&data_intf->dev, true);
 		}
 
-		usb_ld->devdata[i].disconnected = 0;
+		usb_set_intfdata(data_intf, usb_ld);
+		usb_ld->dev_count++;
+		pm_suspend_ignore_children(&data_intf->dev, true);
+
+		for (j = 0; j < URB_COUNT; j++) {
+			urb = usb_alloc_urb(0, GFP_KERNEL);
+			if (!urb) {
+				pr_err("%s: alloc urb fail\n", __func__);
+				err = -ENOMEM;
+				goto out2;
+			}
+
+			urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
+			urb->transfer_buffer = usb_alloc_coherent(usbdev,
+				pipe->rx_buf_size, GFP_KERNEL, &urb->transfer_dma);
+			if (!urb->transfer_buffer) {
+				pr_err("%s: Failed to allocate transfer buffer\n", __func__);
+				usb_free_urb(urb);
+				err = -ENOMEM;
+				goto out2;
+			}
+
+			usb_fill_bulk_urb(urb, usbdev, pipe->rx_pipe,
+				urb->transfer_buffer, pipe->rx_buf_size,
+				usb_rx_complete, pipe);
+			usb_anchor_urb(urb, &pipe->urbs);
+		}
 	}
 
 	/* temporary call reset_resume */
@@ -646,18 +617,13 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 
 	return 0;
 
+out2:
+	usb_ld->dev_count--;
+	for (i = 0; i < IF_USB_DEVNUM_MAX; i++)
+		usb_free_urbs(usb_ld, &usb_ld->devdata[i]);
 out:
 	usb_set_intfdata(intf, NULL);
 	return err;
-}
-
-static void if_usb_free_pipe_data(struct usb_link_device *usb_ld)
-{
-	int i;
-	for (i = 0; i < IF_USB_DEVNUM_MAX; i++) {
-		kfree(usb_ld->devdata[i].rx_buf);
-		usb_kill_urb(usb_ld->devdata[i].urb);
-	}
 }
 
 static irqreturn_t usb_resume_irq(int irq, void *data)
@@ -697,15 +663,25 @@ static irqreturn_t usb_resume_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static int if_usb_init(struct link_device *ld)
+static int if_usb_init(struct usb_link_device *usb_ld)
 {
 	int ret;
 	int i;
-	struct usb_link_device *usb_ld = to_usb_link_device(ld);
-	struct if_usb_devdata *pipe_data;
+	struct if_usb_devdata *pipe;
 
 	/* give it to probe, or global variable needed */
 	if_usb_ids[0].driver_info = (unsigned long)usb_ld;
+
+	for (i = 0; i < IF_USB_DEVNUM_MAX; i++) {
+		pipe = &usb_ld->devdata[i];
+		pipe->format = i;
+		pipe->disconnected = 1;
+		init_usb_anchor(&pipe->urbs);
+		init_usb_anchor(&pipe->reading);
+	}
+
+	init_waitqueue_head(&usb_ld->l2_wait);
+	init_usb_anchor(&usb_ld->deferred);
 
 	ret = usb_register(&if_usb_driver);
 	if (ret) {
@@ -713,34 +689,7 @@ static int if_usb_init(struct link_device *ld)
 		return ret;
 	}
 
-	/* allocate rx buffer for usb receive */
-	for (i = 0; i < IF_USB_DEVNUM_MAX; i++) {
-		pipe_data = &usb_ld->devdata[i];
-		pipe_data->format = i;
-		if (i == IF_USB_RFS_EP)
-			pipe_data->rx_buf_size = RX_BUFSIZE_RFS;
-		else
-			pipe_data->rx_buf_size = RX_BUFSIZE_RAW;
-
-		pipe_data->rx_buf = kmalloc(pipe_data->rx_buf_size,
-						GFP_DMA | GFP_KERNEL);
-		if (!pipe_data->rx_buf) {
-			if_usb_free_pipe_data(usb_ld);
-			ret = -ENOMEM;
-			break;
-		}
-
-		pipe_data->urb = usb_alloc_urb(0, GFP_KERNEL);
-		if (!pipe_data->urb) {
-			pr_err("%s: alloc urb fail\n", __func__);
-			if_usb_free_pipe_data(usb_ld);
-			return -ENOMEM;
-		}
-	}
-	init_waitqueue_head(&usb_ld->l2_wait);
-	init_usb_anchor(&usb_ld->deferred);
-
-	return ret;
+	return 0;
 }
 
 struct link_device *usb_create_link_device(void *data)
@@ -788,11 +737,11 @@ struct link_device *usb_create_link_device(void *data)
 	INIT_DELAYED_WORK(&ld->tx_delayed_work, usb_tx_work);
 	INIT_DELAYED_WORK(&usb_ld->runtime_pm_work, runtime_pm_work);
 
-	ret = if_usb_init(ld);
+	ret = if_usb_init(usb_ld);
 	if (ret)
 		return NULL;
 
-	return (void *)ld;
+	return ld;
 }
 
 static struct usb_driver if_usb_driver = {
