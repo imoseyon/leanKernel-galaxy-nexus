@@ -221,11 +221,11 @@ struct hsi_platform_data {
 	int (*device_idle) (struct platform_device *pdev);
 	int (*wakeup_enable) (int hsi_port);
 	int (*wakeup_disable) (int hsi_port);
-	int (*wakeup_is_from_hsi) (void);
+	int (*wakeup_is_from_hsi) (int *hsi_port);
 	int (*board_suspend)(int hsi_port, bool dev_may_wakeup);
 	int (*board_resume)(int hsi_port);
 	u8 num_ports;
-	struct ctrl_ctx *ctx;
+	struct hsi_ctrl_ctx *ctx;
 	u8 hsi_gdd_chan_count;
 	unsigned long default_hsi_fclk;
 };

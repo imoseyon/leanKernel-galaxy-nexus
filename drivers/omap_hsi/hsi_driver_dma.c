@@ -436,24 +436,23 @@ int hsi_get_info_from_gdd_lch(struct hsi_dev *hsi_ctrl, unsigned int lch,
 			      unsigned int *port, unsigned int *channel,
 			      unsigned int *is_read_path)
 {
-	int i_ports;
-	int i_chans;
+	int i, j;
 	int err = -1;
 
-	for (i_ports = 0; i_ports < HSI_MAX_PORTS; i_ports++)
-		for (i_chans = 0; i_chans < HSI_PORT_MAX_CH; i_chans++)
-			if (hsi_ctrl->hsi_port[i_ports].
-			    hsi_channel[i_chans].read_data.lch == lch) {
+	for (i = 0; i < hsi_ctrl->max_p; i++)
+		for (j = 0; j < hsi_ctrl->hsi_port[i].max_ch; j++)
+			if (hsi_ctrl->hsi_port[i].
+			    hsi_channel[j].read_data.lch == lch) {
 				*is_read_path = 1;
-				*port = i_ports + 1;
-				*channel = i_chans;
+				*port = i + 1;
+				*channel = j;
 				err = 0;
 				goto get_info_bk;
-			} else if (hsi_ctrl->hsi_port[i_ports].
-				   hsi_channel[i_chans].write_data.lch == lch) {
+			} else if (hsi_ctrl->hsi_port[i].
+				   hsi_channel[j].write_data.lch == lch) {
 				*is_read_path = 0;
-				*port = i_ports + 1;
-				*channel = i_chans;
+				*port = i + 1;
+				*channel = j;
 				err = 0;
 				goto get_info_bk;
 			}

@@ -797,6 +797,7 @@ static void omap_pm_clear_dsp_wake_up(void)
 static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 {
 	u32 irqenable_mpu, irqstatus_mpu;
+	int hsi_port;
 
 	irqenable_mpu = omap4_prm_read_inst_reg(OMAP4430_PRM_OCP_SOCKET_INST,
 					 OMAP4_PRM_IRQENABLE_MPU_OFFSET);
@@ -806,9 +807,9 @@ static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 	/* Check if a IO_ST interrupt */
 	if (irqstatus_mpu & OMAP4430_IO_ST_MASK) {
 		/* Check if HSI caused the IO wakeup */
-		if (omap_hsi_is_io_wakeup_from_hsi()) {
+		if (omap_hsi_is_io_wakeup_from_hsi(&hsi_port)) {
 			omap_pm_clear_dsp_wake_up();
-			omap_hsi_wakeup(0);
+			omap_hsi_wakeup(hsi_port);
 		}
 		omap_uart_resume_idle();
 		usbhs_wakeup();
