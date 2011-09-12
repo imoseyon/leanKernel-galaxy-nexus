@@ -170,5 +170,8 @@ void abe_dsp_pm_get(void);
 void abe_dsp_pm_put(void);
 int abe_add_opp_req(struct device *dev, int opp);
 int abe_remove_opp_req(struct device *dev);
+void abe_dsp_set_power_mode(int mode);
+void abe_dsp_set_hs_offset(int left, int right, int mult);
+void abe_dsp_set_hf_offset(int left, int right);
 
 #endif	/* End of __OMAP_ABE_DSP_H__ */

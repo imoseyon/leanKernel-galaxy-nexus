@@ -134,7 +134,7 @@
 #define DMIC0_96_labelID                                    74
 #define DMIC1_96_labelID                                    75
 #define DMIC2_96_labelID                                    76
-#define UL_MIC_48K_labelID                                  77
+#define MM_DL_44P1_WPTR_labelID                             77
 #define EQ_DL_48K_labelID                                   78
 #define EQ_48K_labelID                                      79
 #define McPDM_Out1_labelID                                  80
@@ -223,13 +223,13 @@
 #define TONES_44P1_XK_labelID                               163
 #define SRC_44P1_MULFAC1_2_labelID                          164
 #define A00_labelID                                         165
-#define MM_DL_44P1_WPTR_labelID                             166
+#define MM_DL_44P1_WPTR1_labelID                            166
 #define MM_DL_44P1_RPTR_labelID                             167
 #define TONES_44P1_WPTR_labelID                             168
 #define TONES_44P1_RPTR_labelID                             169
 #define C_0DB_SAT_labelID                                   170
-#define AC_labelID                                          171
-#define AD_labelID                                          172
+#define UL_MIC_48K_labelID                                  171
+#define MM_DL_44P1_PP_REGS_labelID                          172
 #define AE_labelID                                          173
 #define AF_labelID                                          174
 #define AG_labelID                                          175
@@ -248,7 +248,7 @@
 #define AT_labelID                                          188
 #define AU_labelID                                          189
 #define AV_labelID                                          190
-#define AW_labelID                                          191
+#define SaturationMinMaxEQ_labelID                          191
 #define pVIBRA1_p0_labelID                                  192
 #define pVIBRA1_p1_labelID                                  193
 #define pVIBRA1_p23_labelID                                 194
