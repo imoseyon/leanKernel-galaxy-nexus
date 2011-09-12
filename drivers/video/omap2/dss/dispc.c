@@ -189,6 +189,7 @@ static void dispc_save_context(void)
 	SR(DIVISORo(OMAP_DSS_CHANNEL_LCD));
 	if (dss_has_feature(FEAT_GLOBAL_ALPHA))
 		SR(GLOBAL_ALPHA);
+	SR(GLOBAL_BUFFER);
 	SR(SIZE_MGR(OMAP_DSS_CHANNEL_DIGIT));
 	SR(SIZE_MGR(OMAP_DSS_CHANNEL_LCD));
 	if (dss_has_feature(FEAT_MGR_LCD2)) {
@@ -334,6 +335,7 @@ static void dispc_restore_context(void)
 	RR(DIVISORo(OMAP_DSS_CHANNEL_LCD));
 	if (dss_has_feature(FEAT_GLOBAL_ALPHA))
 		RR(GLOBAL_ALPHA);
+	RR(GLOBAL_BUFFER);
 	RR(SIZE_MGR(OMAP_DSS_CHANNEL_DIGIT));
 	RR(SIZE_MGR(OMAP_DSS_CHANNEL_LCD));
 	if (dss_has_feature(FEAT_MGR_LCD2)) {
@@ -470,6 +472,7 @@ static u32 dispc_calculate_threshold(enum omap_plane plane, u32 paddr,
 	u32 val, burstsize, doublestride;
 	u32 rotation, bursttype, color_mode;
 	struct dispc_config dispc_reg_config;
+	u32 dispc_buffer_sizes;
 
 	if (width >= 1920)
 		return 1500;
@@ -507,16 +510,17 @@ static u32 dispc_calculate_threshold(enum omap_plane plane, u32 paddr,
 	dispc_reg_config.rotation = rotation;
 
 	/* DMA buffer allications - assuming reset values */
-	dispc_reg_config.gfx_top_buffer = 0;
-	dispc_reg_config.gfx_bottom_buffer = 0;
-	dispc_reg_config.vid1_top_buffer = 1;
-	dispc_reg_config.vid1_bottom_buffer = 1;
-	dispc_reg_config.vid2_top_buffer = 2;
-	dispc_reg_config.vid2_bottom_buffer = 2;
-	dispc_reg_config.vid3_top_buffer = 3;
-	dispc_reg_config.vid3_bottom_buffer = 3;
-	dispc_reg_config.wb_top_buffer = 4;
-	dispc_reg_config.wb_bottom_buffer = 4;
+	dispc_buffer_sizes = dispc_read_reg(DISPC_GLOBAL_BUFFER);
+	dispc_reg_config.gfx_top_buffer = (dispc_buffer_sizes >> 0) & 7 ;
+	dispc_reg_config.gfx_bottom_buffer = (dispc_buffer_sizes >> 3) & 7;
+	dispc_reg_config.vid1_top_buffer = (dispc_buffer_sizes >> 6) & 7;
+	dispc_reg_config.vid1_bottom_buffer = (dispc_buffer_sizes >> 9) & 7;
+	dispc_reg_config.vid2_top_buffer = (dispc_buffer_sizes >> 12) & 7;
+	dispc_reg_config.vid2_bottom_buffer = (dispc_buffer_sizes >> 15) & 7;
+	dispc_reg_config.vid3_top_buffer = (dispc_buffer_sizes >> 18) & 7;
+	dispc_reg_config.vid3_bottom_buffer = (dispc_buffer_sizes >> 21) & 7;
+	dispc_reg_config.wb_top_buffer = (dispc_buffer_sizes >> 24) & 7;
+	dispc_reg_config.wb_bottom_buffer = (dispc_buffer_sizes >> 27) & 7;
 
 	/* antiFlicker is off */
 	dispc_reg_config.antiflicker = 0;
@@ -3244,6 +3248,18 @@ int dispc_get_clock_div(enum omap_channel channel,
 	return 0;
 }
 
+int dispc_move_wb_buffers(bool buffer_state)
+{
+	if (buffer_state) {
+		REG_FLD_MOD(DISPC_GLOBAL_BUFFER, 0x4, 26, 24);
+		dispc.fifo_size[OMAP_DSS_GFX] = 0x500;
+	} else {
+		REG_FLD_MOD(DISPC_GLOBAL_BUFFER, 0x0, 26, 24);
+		dispc.fifo_size[OMAP_DSS_GFX] = 0x900;
+	}
+	return 0;
+}
+
 /* dispc.irq_lock has to be locked by the caller */
 static void _omap_dispc_set_irqs(void)
 {
@@ -3810,6 +3826,9 @@ void dispc_disable_sidle(void)
 static void _omap_dispc_initial_config(void)
 {
 	u32 l;
+	struct device *dev = &dispc.pdev->dev;
+	struct omap_display_platform_data *pdata = dev->platform_data;
+	struct omap_dss_board_info *board_data = pdata->board_data;
 
 	/* Exclusively enable DISPC_CORE_CLK and set divider to 1 */
 	if (dss_has_feature(FEAT_CORE_CLK_DIV)) {
@@ -3832,6 +3851,9 @@ static void _omap_dispc_initial_config(void)
 	dispc_set_loadmode(OMAP_DSS_LOAD_FRAME_ONLY);
 
 	dispc_read_plane_fifo_sizes();
+
+	if (board_data->move_wb_buffers)
+		dispc_move_wb_buffers(false);
 }
 
 /* DISPC HW IP initialisation */
