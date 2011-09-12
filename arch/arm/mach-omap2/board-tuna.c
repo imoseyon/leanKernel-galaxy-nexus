@@ -837,7 +837,7 @@ static struct omap_board_mux board_mux[] __initdata = {
 
 static struct omap_board_mux board_wkup_mux[] __initdata = {
 	/* power button */
-	OMAP4_MUX(SIM_CD, OMAP_MUX_MODE3 | OMAP_PIN_INPUT | OMAP_WAKEUP_EN),
+	OMAP4_MUX(SIM_CD, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 
