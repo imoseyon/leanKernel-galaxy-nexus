@@ -515,6 +515,7 @@ int omapdss_hdmi_display_check_timing(struct omap_dss_device *dssdev,
 					struct omap_video_timings *timings);
 int omapdss_hdmi_display_set_mode(struct omap_dss_device *dssdev,
 					struct fb_videomode *mode);
+void omapdss_hdmi_restart(void);
 int hdmi_panel_hpd_handler(int hpd);
 int omapdss_hdmi_get_pixel_clock(void);
 int omapdss_hdmi_get_mode(void);
@@ -527,7 +528,8 @@ u8 *hdmi_read_edid(struct omap_video_timings *);
 int hdmi_panel_init(void);
 void hdmi_panel_exit(void);
 void hdmi_dump_regs(struct seq_file *s);
-
+int omapdss_hdmi_register_hdcp_callbacks(void (*hdmi_start_frame_cb)(void),
+					 void (*hdmi_irq_cb)(int status));
 int omap_dss_ovl_set_info(struct omap_overlay *ovl,
 		struct omap_overlay_info *info);
 

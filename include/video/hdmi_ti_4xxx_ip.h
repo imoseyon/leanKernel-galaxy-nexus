@@ -21,6 +21,10 @@
 #ifndef _HDMI_TI_4xxx_
 #define _HDMI_TI_4xxx_
 
+#define HDMI_HPD_LOW		0x10
+#define HDMI_HPD_HIGH		0x20
+#define HDMI_BCAP		0x40
+#define HDMI_RI_ERR		0x80
 enum hdmi_pll_pwr {
 	HDMI_PLLPWRCMD_ALLOFF = 0,
 	HDMI_PLLPWRCMD_PLLONLY = 1,
@@ -361,6 +365,8 @@ int hdmi_ti_4xxx_pll_program(struct hdmi_ip_data *ip_data,
 int hdmi_ti_4xxx_set_pll_pwr(struct hdmi_ip_data *ip_data, enum hdmi_pll_pwr val);
 void hdmi_ti_4xxx_basic_configure(struct hdmi_ip_data *ip_data,
 			struct hdmi_config *cfg);
+int hdmi_ti_4xxx_rxdet(struct hdmi_ip_data *ip_data);
+int hdmi_ti_4xxx_wp_get_video_state(struct hdmi_ip_data *ip_data);
 void hdmi_ti_4xxx_dump_regs(struct hdmi_ip_data *ip_data, struct seq_file *s);
 int hdmi_ti_4xxx_config_audio_acr(struct hdmi_ip_data *ip_data,
 			       u32 sample_freq, u32 *n, u32 *cts, u32 pclk);

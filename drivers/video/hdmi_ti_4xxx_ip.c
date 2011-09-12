@@ -674,6 +674,13 @@ void hdmi_ti_4xxx_wp_video_start(struct hdmi_ip_data *ip_data, bool start)
 }
 EXPORT_SYMBOL(hdmi_ti_4xxx_wp_video_start);
 
+int hdmi_ti_4xxx_wp_get_video_state(struct hdmi_ip_data *ip_data)
+{
+	u32 status = hdmi_read_reg(hdmi_wp_base(ip_data), HDMI_WP_VIDEO_CFG);
+
+	return (status & 0x80000000) ? 1 : 0;
+}
+
 static void hdmi_wp_video_init_format(struct hdmi_video_format *video_fmt,
 	struct omap_video_timings *timings, struct hdmi_config *param)
 {

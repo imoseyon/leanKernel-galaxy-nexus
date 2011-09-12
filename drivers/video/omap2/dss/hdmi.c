@@ -82,6 +82,9 @@ static struct {
 	int runtime_count;
 	int enabled;
 	bool set_mode;
+
+	void (*hdmi_start_frame_cb)(void);
+	void (*hdmi_irq_cb)(int);
 } hdmi;
 
 static const u8 edid_header[8] = {0x0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0};
@@ -416,6 +419,9 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 
 	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 1);
 
+	if (hdmi.hdmi_start_frame_cb && hdmi.custom_set)
+		(*hdmi.hdmi_start_frame_cb)();
+
 	return 0;
 err:
 	hdmi_runtime_put();
@@ -443,6 +449,16 @@ int omapdss_hdmi_get_mode(void)
 	return hdmi.mode;
 }
 
+int omapdss_hdmi_register_hdcp_callbacks(void (*hdmi_start_frame_cb)(void),
+					 void (*hdmi_irq_cb)(int status))
+{
+	hdmi.hdmi_start_frame_cb = hdmi_start_frame_cb;
+	hdmi.hdmi_irq_cb = hdmi_irq_cb;
+
+	return hdmi_ti_4xxx_wp_get_video_state(&hdmi.hdmi_data);
+}
+EXPORT_SYMBOL(omapdss_hdmi_register_hdcp_callbacks);
+
 void omapdss_hdmi_set_deepcolor(int val)
 {
 	hdmi.deep_color = val;
@@ -462,6 +478,9 @@ static irqreturn_t hpd_irq_handler(int irq, void *ptr)
 {
 	int hpd = hdmi_get_current_hpd();
 	pr_info("hpd %d\n", hpd);
+
+	if (hdmi.hdmi_irq_cb && !hpd)
+		hdmi.hdmi_irq_cb(HDMI_HPD_LOW);
 
 	hdmi_panel_hpd_handler(hpd);
 
@@ -640,6 +659,27 @@ static void hdmi_put_clocks(void)
 	if (hdmi.hdmi_clk)
 		clk_put(hdmi.hdmi_clk);
 }
+
+void omapdss_hdmi_restart(void)
+{
+	struct omap_dss_device *dssdev = NULL;
+
+	int match(struct omap_dss_device *dssdev, void *arg)
+	{
+		return sysfs_streq(dssdev->name , "hdmi");
+	}
+
+	DSSDBG("Enter omapdss_hdmi_restart\n");
+
+	dssdev = omap_dss_find_device(NULL, match);
+
+	if (dssdev == NULL)
+		return;
+
+	hdmi_power_off(dssdev);
+	hdmi_power_on(dssdev);
+}
+EXPORT_SYMBOL(omapdss_hdmi_restart);
 
 /* HDMI HW IP initialisation */
 static int omapdss_hdmihw_probe(struct platform_device *pdev)
