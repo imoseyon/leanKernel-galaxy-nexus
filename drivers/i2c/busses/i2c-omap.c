@@ -290,12 +290,12 @@ static void omap_i2c_unidle(struct omap_i2c_dev *dev)
 	}
 	dev->idle = 0;
 
-	/*
-	 * Don't write to this register if the IE state is 0 as it can
-	 * cause deadlock.
-	 */
-	if (dev->iestate)
+	if (dev->rev >= OMAP_I2C_REV_ON_4430) {
+		omap_i2c_write_reg(dev, OMAP_I2C_IRQENABLE_CLR,0x6FFF);
+		omap_i2c_write_reg(dev, OMAP_I2C_IRQENABLE_SET, dev->iestate);
+	} else {
 		omap_i2c_write_reg(dev, OMAP_I2C_IE_REG, dev->iestate);
+	}
 }
 
 static void omap_i2c_idle(struct omap_i2c_dev *dev)
@@ -309,7 +309,6 @@ static void omap_i2c_idle(struct omap_i2c_dev *dev)
 	pdev = to_platform_device(dev->dev);
 	pdata = pdev->dev.platform_data;
 
-	dev->iestate = omap_i2c_read_reg(dev, OMAP_I2C_IE_REG);
 	if (dev->rev >= OMAP_I2C_REV_ON_4430)
 		omap_i2c_write_reg(dev, OMAP_I2C_IRQENABLE_CLR, 0x6FFF);
 	else
@@ -317,11 +316,6 @@ static void omap_i2c_idle(struct omap_i2c_dev *dev)
 
 	if (dev->rev < OMAP_I2C_REV_2) {
 		iv = omap_i2c_read_reg(dev, OMAP_I2C_IV_REG); /* Read clears */
-	} else {
-		omap_i2c_write_reg(dev, OMAP_I2C_STAT_REG, dev->iestate);
-
-		/* Flush posted write before the dev->idle store occurs */
-		omap_i2c_read_reg(dev, OMAP_I2C_STAT_REG);
 	}
 	dev->idle = 1;
 
@@ -489,12 +483,6 @@ static int omap_i2c_init(struct omap_i2c_dev *dev)
 	if (cpu_is_omap2430() || cpu_is_omap34xx())
 		dev->errata |= I2C_OMAP_ERRATA_I207;
 
-	/* Enable interrupts */
-	dev->iestate = (OMAP_I2C_IE_XRDY | OMAP_I2C_IE_RRDY |
-			OMAP_I2C_IE_ARDY | OMAP_I2C_IE_NACK |
-			OMAP_I2C_IE_AL)  | ((dev->fifo_size) ?
-				(OMAP_I2C_IE_RDR | OMAP_I2C_IE_XDR) : 0);
-	omap_i2c_write_reg(dev, OMAP_I2C_IE_REG, dev->iestate);
 	if (cpu_is_omap34xx() || cpu_is_omap44xx()) {
 		dev->pscstate = psc;
 		dev->scllstate = scll;
@@ -1056,7 +1044,8 @@ omap_i2c_probe(struct platform_device *pdev)
 		dev->regs = (u8 *) reg_map;
 
 	pm_runtime_enable(&pdev->dev);
-	omap_i2c_unidle(dev);
+	pm_runtime_get_sync(&pdev->dev);
+	dev->idle = 0;
 
 	dev->rev = omap_i2c_read_reg(dev, OMAP_I2C_REV_REG) & 0xff;
 
@@ -1089,6 +1078,12 @@ omap_i2c_probe(struct platform_device *pdev)
 
 	/* reset ASAP, clearing any IRQs */
 	omap_i2c_init(dev);
+
+	/* Decide what interrupts are needed */
+	dev->iestate = (OMAP_I2C_IE_XRDY | OMAP_I2C_IE_RRDY |
+			OMAP_I2C_IE_ARDY | OMAP_I2C_IE_NACK |
+			OMAP_I2C_IE_AL)  | ((dev->fifo_size) ?
+				(OMAP_I2C_IE_RDR | OMAP_I2C_IE_XDR) : 0);
 
 	isr = (dev->rev < OMAP_I2C_REV_2) ? omap_i2c_rev1_isr : omap_i2c_isr;
 	r = request_irq(dev->irq, isr, 0, pdev->name, dev);
