@@ -469,6 +469,7 @@ static struct omap_dss_board_info tuna_dss_data = {
 	.num_devices	= ARRAY_SIZE(tuna_dss_devices),
 	.devices	= tuna_dss_devices,
 	.default_device	= &tuna_oled_device,
+	.move_wb_buffers = true,
 };
 
 static struct omapfb_platform_data tuna_fb_pdata = {
