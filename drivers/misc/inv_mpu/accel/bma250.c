@@ -629,8 +629,6 @@ static int bma250_read(void *mlsl_handle,
 		       unsigned char *data)
 {
 	int result = INV_SUCCESS;
-	result = inv_serial_read(mlsl_handle, pdata->address,
-				BMA250_STATUS_REG, 1, data);
 	if (1) { /* KLP - workaroud for small data ready window */
 		result = inv_serial_read(mlsl_handle, pdata->address,
 				slave->read_reg, slave->read_len, data);
