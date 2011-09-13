@@ -165,6 +165,8 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 		}
 	}
 
+	omap2_gpio_set_edge_wakeup();
+
 	if (omap4_device_next_state_off()) {
 		omap2_gpio_prepare_for_idle(true);
 		omap_gpmc_save_context();
@@ -232,6 +234,8 @@ abort_device_off:
 			0, OMAP4430_PRM_PARTITION,
 			OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_IO_PMCTRL_OFFSET);
 	}
+
+	omap2_gpio_restore_edge_wakeup();
 
 	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
 		omap_vc_set_auto_trans(mpu_voltdm,
