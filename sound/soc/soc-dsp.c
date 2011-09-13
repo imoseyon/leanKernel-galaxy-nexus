@@ -1124,6 +1124,10 @@ int soc_dsp_runtime_update(struct snd_soc_dapm_widget *widget)
 		/* DAPM sync will call this to update DSP paths */
 		dev_dbg(card->dev, "DSP runtime update for FE %s\n", fe->dai_link->name);
 
+		/* skip if FE doesn't have playback capability */
+		if (!fe->cpu_dai->driver->playback.channels_min)
+			goto capture;
+
 		/* update any playback paths */
 		start = dsp_add_new_paths(fe, SNDRV_PCM_STREAM_PLAYBACK, 1);
 		stop = dsp_prune_old_paths(fe, SNDRV_PCM_STREAM_PLAYBACK, 1);
@@ -1142,6 +1146,10 @@ int soc_dsp_runtime_update(struct snd_soc_dapm_widget *widget)
 		fe_clear_pending(fe, SNDRV_PCM_STREAM_PLAYBACK);
 
 capture:
+		/* skip if FE doesn't have capture capability */
+		if (!fe->cpu_dai->driver->capture.channels_min)
+			continue;
+
 		/* update any capture paths */
 		start = dsp_add_new_paths(fe, SNDRV_PCM_STREAM_CAPTURE, 1);
 		stop = dsp_prune_old_paths(fe, SNDRV_PCM_STREAM_CAPTURE, 1);
