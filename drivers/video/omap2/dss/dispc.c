@@ -189,6 +189,7 @@ static void dispc_save_context(void)
 	SR(DIVISORo(OMAP_DSS_CHANNEL_LCD));
 	if (dss_has_feature(FEAT_GLOBAL_ALPHA))
 		SR(GLOBAL_ALPHA);
+	SR(GLOBAL_BUFFER);
 	SR(SIZE_MGR(OMAP_DSS_CHANNEL_DIGIT));
 	SR(SIZE_MGR(OMAP_DSS_CHANNEL_LCD));
 	if (dss_has_feature(FEAT_MGR_LCD2)) {
@@ -334,6 +335,7 @@ static void dispc_restore_context(void)
 	RR(DIVISORo(OMAP_DSS_CHANNEL_LCD));
 	if (dss_has_feature(FEAT_GLOBAL_ALPHA))
 		RR(GLOBAL_ALPHA);
+	RR(GLOBAL_BUFFER);
 	RR(SIZE_MGR(OMAP_DSS_CHANNEL_DIGIT));
 	RR(SIZE_MGR(OMAP_DSS_CHANNEL_LCD));
 	if (dss_has_feature(FEAT_MGR_LCD2)) {
@@ -460,6 +462,71 @@ static void dispc_restore_context(void)
 
 #undef SR
 #undef RR
+
+static u32 dispc_calculate_threshold(enum omap_plane plane, u32 paddr,
+				u32 puv_addr, u16 width, u16 height,
+				s32 row_inc, s32 pix_inc)
+{
+	int shift;
+	u32 channel_no = plane;
+	u32 val, burstsize, doublestride;
+	u32 rotation, bursttype, color_mode;
+	struct dispc_config dispc_reg_config;
+	u32 dispc_buffer_sizes;
+
+	if (width >= 1920)
+		return 1500;
+
+	/* Get the burst size */
+	shift = (plane == OMAP_DSS_GFX) ? 6 : 14;
+	val = dispc_read_reg(DISPC_OVL_ATTRIBUTES(plane));
+	burstsize = FLD_GET(val, shift + 1, shift);
+	doublestride = FLD_GET(val, 22, 22);
+	rotation = FLD_GET(val, 13, 12);
+	bursttype = FLD_GET(val, 29, 29);
+	color_mode = FLD_GET(val, 4, 1);
+
+	/* base address for frame (Luma frame in case of YUV420) */
+	dispc_reg_config.ba = paddr;
+	/* base address for Chroma frame in case of YUV420 */
+	dispc_reg_config.bacbcr = puv_addr;
+	/* OrgSizeX for frame */
+	dispc_reg_config.sizex = width;
+	/* OrgSizeY for frame */
+	dispc_reg_config.sizey = height;
+	/* burst size */
+	dispc_reg_config.burstsize = burstsize;
+	/* pixel increment */
+	dispc_reg_config.pixelinc = pix_inc;
+	/* row increment */
+	dispc_reg_config.rowinc  = row_inc;
+	/* burst type: 1D/2D */
+	dispc_reg_config.bursttype = bursttype;
+	/* chroma DoubleStride when in YUV420 format */
+	dispc_reg_config.doublestride = doublestride;
+	/* Pixcel format of the frame.*/
+	dispc_reg_config.format = color_mode;
+	/* Rotation of frame */
+	dispc_reg_config.rotation = rotation;
+
+	/* DMA buffer allications - assuming reset values */
+	dispc_buffer_sizes = dispc_read_reg(DISPC_GLOBAL_BUFFER);
+	dispc_reg_config.gfx_top_buffer = (dispc_buffer_sizes >> 0) & 7 ;
+	dispc_reg_config.gfx_bottom_buffer = (dispc_buffer_sizes >> 3) & 7;
+	dispc_reg_config.vid1_top_buffer = (dispc_buffer_sizes >> 6) & 7;
+	dispc_reg_config.vid1_bottom_buffer = (dispc_buffer_sizes >> 9) & 7;
+	dispc_reg_config.vid2_top_buffer = (dispc_buffer_sizes >> 12) & 7;
+	dispc_reg_config.vid2_bottom_buffer = (dispc_buffer_sizes >> 15) & 7;
+	dispc_reg_config.vid3_top_buffer = (dispc_buffer_sizes >> 18) & 7;
+	dispc_reg_config.vid3_bottom_buffer = (dispc_buffer_sizes >> 21) & 7;
+	dispc_reg_config.wb_top_buffer = (dispc_buffer_sizes >> 24) & 7;
+	dispc_reg_config.wb_bottom_buffer = (dispc_buffer_sizes >> 27) & 7;
+
+	/* antiFlicker is off */
+	dispc_reg_config.antiflicker = 0;
+
+	return sa_calc_wrap(&dispc_reg_config, channel_no);
+}
 
 int dispc_runtime_get(void)
 {
@@ -2026,6 +2093,7 @@ int dispc_setup_plane(enum omap_plane plane,
 	int pixpg = (color_mode &
 		(OMAP_DSS_COLOR_YUV2 | OMAP_DSS_COLOR_UYVY)) ? 2 : 1;
 	unsigned long tiler_width, tiler_height;
+	u32 fifo_high, fifo_low;
 
 	DSSDBG("dispc_setup_plane %d, pa %x, sw %d, %d,%d, %d/%dx%d/%d -> "
 	       "%dx%d, ilace %d, cmode %x, rot %d, mir %d chan %d %dtap\n",
@@ -2211,6 +2279,15 @@ int dispc_setup_plane(enum omap_plane plane,
 
 	_dispc_set_pre_mult_alpha(plane, pre_mult_alpha);
 	_dispc_setup_global_alpha(plane, global_alpha);
+
+	if (cpu_is_omap44xx()) {
+		fifo_low = dispc_calculate_threshold(plane, paddr + offset0,
+				   puv_addr + offset0, width, height,
+				   row_inc, pix_inc);
+		fifo_high = dispc_get_plane_fifo_size(plane) - 1;
+		dispc_setup_plane_fifo(plane, fifo_low, fifo_high);
+	}
+
 	return 0;
 }
 
@@ -3171,6 +3248,18 @@ int dispc_get_clock_div(enum omap_channel channel,
 	return 0;
 }
 
+int dispc_move_wb_buffers(bool buffer_state)
+{
+	if (buffer_state) {
+		REG_FLD_MOD(DISPC_GLOBAL_BUFFER, 0x4, 26, 24);
+		dispc.fifo_size[OMAP_DSS_GFX] = 0x500;
+	} else {
+		REG_FLD_MOD(DISPC_GLOBAL_BUFFER, 0x0, 26, 24);
+		dispc.fifo_size[OMAP_DSS_GFX] = 0x900;
+	}
+	return 0;
+}
+
 /* dispc.irq_lock has to be locked by the caller */
 static void _omap_dispc_set_irqs(void)
 {
@@ -3737,6 +3826,9 @@ void dispc_disable_sidle(void)
 static void _omap_dispc_initial_config(void)
 {
 	u32 l;
+	struct device *dev = &dispc.pdev->dev;
+	struct omap_display_platform_data *pdata = dev->platform_data;
+	struct omap_dss_board_info *board_data = pdata->board_data;
 
 	/* Exclusively enable DISPC_CORE_CLK and set divider to 1 */
 	if (dss_has_feature(FEAT_CORE_CLK_DIV)) {
@@ -3759,6 +3851,9 @@ static void _omap_dispc_initial_config(void)
 	dispc_set_loadmode(OMAP_DSS_LOAD_FRAME_ONLY);
 
 	dispc_read_plane_fifo_sizes();
+
+	if (board_data->move_wb_buffers)
+		dispc_move_wb_buffers(false);
 }
 
 /* DISPC HW IP initialisation */
