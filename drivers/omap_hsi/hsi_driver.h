@@ -124,6 +124,7 @@ struct hsi_channel {
  * @max_ch: maximum number of channels supported on the port
  * @n_irq: HSI irq line use to handle interrupts (0 or 1)
  * @irq: IRQ number
+ * @wake_rx_3_wires_mode: receiver 3 wires mode (1) or 4 wires mode (0)
  * @cawake_gpio: GPIO number for cawake line (-1 if none)
  * @cawake_gpio_irq: IRQ number for cawake gpio events
  * @cawake_status: Tracks CAWAKE line status
@@ -146,6 +147,7 @@ struct hsi_port {
 	u8 max_ch;
 	u8 n_irq;
 	int irq;
+	int wake_rx_3_wires_mode;
 	int cawake_gpio;
 	int cawake_gpio_irq;
 	int cawake_status;
@@ -252,6 +254,7 @@ bool hsi_is_hst_port_busy(struct hsi_port *pport);
 bool hsi_is_hst_controller_busy(struct hsi_dev *hsi_ctrl);
 
 int hsi_driver_enable_interrupt(struct hsi_port *pport, u32 flag);
+int hsi_driver_disable_interrupt(struct hsi_port *pport, u32 flag);
 int hsi_driver_enable_read_interrupt(struct hsi_channel *hsi_channel,
 					u32 *data);
 int hsi_driver_enable_write_interrupt(struct hsi_channel *hsi_channel,

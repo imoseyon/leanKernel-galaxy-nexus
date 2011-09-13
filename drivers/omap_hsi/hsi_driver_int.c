@@ -64,6 +64,7 @@ bool hsi_is_channel_busy(struct hsi_channel *ch)
 /* Check if a HSI port is busy :
  * - data transfer (Write) is ongoing for a given HSI channel
  * - CAWAKE is high
+ * - CAWAKE is not used (receiver in 3-wires mode)
  * - Currently in HSI interrupt tasklet
  * - Currently in HSI CAWAKE tasklet (for SSI)
  */
@@ -80,6 +81,13 @@ bool hsi_is_hsi_port_busy(struct hsi_port *pport)
 
 	if (pport->in_cawake_tasklet) {
 		dev_dbg(hsi_ctrl->dev, "SSI Cawake tasklet running\n");
+		return true;
+	}
+
+	if (pport->wake_rx_3_wires_mode) {
+		dev_dbg(hsi_ctrl->dev, "Receiver Port %d in 3 wires mode,"
+			"acwake_status %d\n", pport->port_number,
+			pport->acwake_status);
 		return true;
 	}
 
@@ -161,6 +169,16 @@ int hsi_driver_enable_interrupt(struct hsi_port *pport, u32 flag)
 
 	return 0;
 }
+
+/* Disables the CAWAKE, BREAK, or ERROR interrupt for the given port */
+int hsi_driver_disable_interrupt(struct hsi_port *pport, u32 flag)
+{
+	hsi_outl_and(~flag, pport->hsi_controller->base,
+		     HSI_SYS_MPU_ENABLE_REG(pport->port_number, pport->n_irq));
+
+	return 0;
+}
+
 
 /* Enables the Data Accepted Interrupt of HST for the given channel */
 int hsi_driver_enable_write_interrupt(struct hsi_channel *ch, u32 * data)
@@ -423,6 +441,11 @@ int hsi_do_cawake_process(struct hsi_port *pport)
 {
 	struct hsi_dev *hsi_ctrl = pport->hsi_controller;
 	bool cawake_status = hsi_get_cawake(pport);
+
+	if (pport->wake_rx_3_wires_mode) {
+		dev_warn(hsi_ctrl->dev, "CAWAKE edge in RX 3 wires, exiting\n");
+		return 0;
+	}
 
 	/* Deal with init condition */
 	if (unlikely(pport->cawake_status < 0))

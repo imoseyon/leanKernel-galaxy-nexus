@@ -40,7 +40,7 @@
 #define CS_SW_RESET		CS_IO(11)
 #define CS_GET_FIFO_OCCUPANCY	CS_IOR(12, size_t)
 #define CS_GET_CAWAKELINE	CS_IOR(13, unsigned int)
-
+#define CS_SET_WAKE_RX_3WIRES_MODE	CS_IOR(14, unsigned int)
 
 #define HSI_MODE_SLEEP		0
 #define HSI_MODE_STREAM		1

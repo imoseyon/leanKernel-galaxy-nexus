@@ -740,14 +740,13 @@ int hsi_ioctl(struct hsi_device *dev, unsigned int command, void *arg)
 
 	switch (command) {
 	case HSI_IOCTL_ACWAKE_UP:
+		/* Wake up request to Modem (typically OMAP initiated) */
+		/* Symetrical disable will be done in HSI_IOCTL_ACWAKE_DOWN */
 		if (ch->flags & HSI_CH_ACWAKE) {
 			dev_dbg(dev->device.parent, "Duplicate ACWAKE UP\n");
 			err = -EPERM;
 			goto out;
 		}
-
-		/* Wake up request to Modem (typically OMAP initiated) */
-		/* Symetrical disable will be done in HSI_IOCTL_ACWAKE_DOWN */
 
 		ch->flags |= HSI_CH_ACWAKE;
 		pport->acwake_status |= BIT(channel);
@@ -872,17 +871,31 @@ int hsi_ioctl(struct hsi_device *dev, unsigned int command, void *arg)
 		}
 		*(size_t *)arg = hsi_get_rx_fifo_occupancy(hsi_ctrl, fifo);
 		break;
-	case HSI_IOCTL_SET_ACREADY_SAFEMODE:
-		omap_writel(omap_readl(0x4A1000C8) | 0x7, 0x4A1000C8);
+	case HSI_IOCTL_SET_WAKE_RX_3WIRES_MODE:
+		dev_info(dev->device.parent,
+			 "Entering RX wakeup in 3 wires mode (no CAWAKE)\n");
+		pport->wake_rx_3_wires_mode = 1;
+		/* HW errata HSI-C1BUG00085, HSI wakeup issue in 3 wires mode :
+		 * HSI will NOT generate the Swakeup for 2nd frame if it entered
+		 * IDLE after 1st received frame */
+		if (hsi_driver_device_is_hsi(to_platform_device(hsi_ctrl->dev)))
+			hsi_set_pm_force_hsi_on(hsi_ctrl);
+		/* When WAKE is not available, ACREADY must be set to 1 at
+		 * reset else remote will never have a chance to transmit. */
+		hsi_outl_or(HSI_SET_WAKE_3_WIRES | HSI_SET_WAKE_READY_LVL_1,
+			    base, HSI_SYS_SET_WAKE_REG(port));
+		hsi_driver_disable_interrupt(pport, HSI_CAWAKEDETECTED);
 		break;
-	case HSI_IOCTL_SET_ACREADY_NORMAL:
-		omap_writel(omap_readl(0x4A1000C8) & 0xFFFFFFF9, 0x4A1000C8);
-		break;
-	case HSI_IOCTL_SET_3WIRE_MODE:
-		omap_writel(0x30000, 0x4A058C08);
-		break;
-	case HSI_IOCTL_SET_4WIRE_MODE:
-		omap_writel((omap_readl(0x4A058C08) & 0xFFFF), 0x4A058C08);
+	case HSI_IOCTL_SET_WAKE_RX_4WIRES_MODE:
+		dev_info(dev->device.parent,
+			 "Entering RX wakeup in 4 wires mode\n");
+		pport->wake_rx_3_wires_mode = 0;
+		/* HW errata HSI-C1BUG00085 : go back to normal IDLE mode */
+		if (hsi_driver_device_is_hsi(to_platform_device(hsi_ctrl->dev)))
+			hsi_set_pm_default(hsi_ctrl);
+		hsi_driver_enable_interrupt(pport, HSI_CAWAKEDETECTED);
+		hsi_outl_and(HSI_SET_WAKE_3_WIRES_MASK,	base,
+			     HSI_SYS_SET_WAKE_REG(port));
 		break;
 	default:
 		err = -ENOIOCTLCMD;

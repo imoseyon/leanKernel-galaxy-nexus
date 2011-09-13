@@ -262,6 +262,15 @@ void if_hsi_get_cawakeline(int ch, unsigned int *state)
 	hsi_ioctl(channel->dev, HSI_IOCTL_GET_CAWAKE, state);
 }
 
+void if_hsi_set_wake_rx_3wires_mode(int ch, unsigned int state)
+{
+	struct if_hsi_channel *channel;
+	channel = &hsi_iface.channels[ch];
+	hsi_ioctl(channel->dev,
+		  state ? HSI_IOCTL_SET_WAKE_RX_3WIRES_MODE :
+			  HSI_IOCTL_SET_WAKE_RX_4WIRES_MODE, NULL);
+}
+
 int if_hsi_set_rx(int ch, struct hsi_rx_config *cfg)
 {
 	int ret;

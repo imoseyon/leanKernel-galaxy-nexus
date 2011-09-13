@@ -135,7 +135,10 @@
 #define HSI_SSI_WAKE_MASK		0xff	/* for SSI */
 #define HSI_WAKE_MASK			0xffff	/* for HSI */
 #define HSI_SET_WAKE_4_WIRES		(0 << 16)
+#define HSI_SET_WAKE_3_WIRES		(1 << 16)
+#define HSI_SET_WAKE_3_WIRES_MASK	0xfffcffff /* 3-wires + ACREADY to 1 */
 #define HSI_SET_WAKE_READY_LVL_0	(0 << 17)
+#define HSI_SET_WAKE_READY_LVL_1	(1 << 17)
 #define HSI_SET_WAKE(channel)		(1 << (channel) |\
 						HSI_SET_WAKE_4_WIRES |\
 						HSI_SET_WAKE_READY_LVL_0)
@@ -273,6 +276,7 @@
 
 #define HSI_HSR_OVERRUNACK_REG(port)	(HSI_HSR_BASE(port) + 0x0030)
 
+/* HSR_COUNTERS_Pp is former SSI_TIMEOUT_REG */
 #define HSI_HSR_COUNTERS_REG(port)	(HSI_HSR_BASE(port) + 0x0034)
 #define SSI_TIMEOUT_REG(port)		(HSI_HSR_COUNTERS_REG(port))
 #define HSI_TIMEOUT_DEFAULT		0	/* SSI only */
@@ -292,6 +296,7 @@
 		(((FB << HSI_COUNTERS_FB_OFFSET) & HSI_COUNTERS_FB_MASK) \
 		 ((TB << HSI_COUNTERS_TB_OFFSET) & HSI_COUNTERS_TB_MASK) \
 		 ((FT << HSI_COUNTERS_FT_OFFSET) & HSI_COUNTERS_FT_MASK))
+/* For SSI */
 #define SSI_SSR_COMBINE_COUNTERS(FT)				  \
 		((FT << HSI_SSI_RX_TIMEOUT_OFFSET) & HSI_SSI_RX_TIMEOUT_MASK)
 

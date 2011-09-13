@@ -62,10 +62,8 @@ enum {
 	HSI_IOCTL_GET_TX,	/* Get HST configuration */
 	HSI_IOCTL_SW_RESET,	/* Force a HSI SW RESET */
 	HSI_IOCTL_GET_FIFO_OCCUPANCY, /* Get amount of words in RX FIFO */
-	HSI_IOCTL_SET_ACREADY_SAFEMODE,
-	HSI_IOCTL_SET_ACREADY_NORMAL,
-	HSI_IOCTL_SET_3WIRE_MODE,
-	HSI_IOCTL_SET_4WIRE_MODE,
+	HSI_IOCTL_SET_WAKE_RX_3WIRES_MODE, /* Enable RX wakeup 3-wires mode */
+	HSI_IOCTL_SET_WAKE_RX_4WIRES_MODE, /* Enable RX wakeup 4-wires mode */
 };
 
 /* Forward references */
@@ -114,7 +112,6 @@ struct hsi_ctrl_ctx {
 	struct hsi_port_ctx *pctx;
 };
 /* END DPS */
-
 
 /**
  * struct hsi_device - HSI device object (Virtual)

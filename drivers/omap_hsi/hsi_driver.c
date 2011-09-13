@@ -544,6 +544,7 @@ static int __init hsi_ports_init(struct hsi_dev *hsi_ctrl)
 		hsi_p->max_ch = hsi_driver_device_is_hsi(pd) ?
 		    HSI_CHANNELS_MAX : HSI_SSI_CHANNELS_MAX;
 		hsi_p->irq = 0;
+		hsi_p->wake_rx_3_wires_mode = 0; /* 4 wires */
 		hsi_p->cawake_status = -1; /* Unknown */
 		hsi_p->cawake_off_event = false;
 		hsi_p->acwake_status = 0;
