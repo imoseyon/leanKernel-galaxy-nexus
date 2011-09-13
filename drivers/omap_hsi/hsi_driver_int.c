@@ -333,7 +333,6 @@ static void hsi_do_channel_rx(struct hsi_channel *ch)
 	int rx_poll = 0;
 	int data_read = 0;
 	int fifo, fifo_words_avail;
-	unsigned int data;
 
 	n_ch = ch->channel_number;
 	n_p = ch->hsi_port->port_number;
@@ -362,15 +361,18 @@ static void hsi_do_channel_rx(struct hsi_channel *ch)
 		}
 	}
 
+	/* Disable interrupts if not needed for polling */
+	if (!(ch->flags & HSI_CH_RX_POLL))
+		hsi_driver_disable_read_interrupt(ch);
+
 	/*
 	 * Check race condition: RX transmission initiated but DMA transmission
 	 * already started - acknowledge then ignore interrupt occurence
 	 */
 	if (ch->read_data.lch != -1) {
-		dev_err(hsi_ctrl->dev,
-			"race condition between rx txmn and DMA txmn %0x\n",
-			ch->read_data.lch);
-		hsi_driver_disable_read_interrupt(ch);
+		dev_warn(hsi_ctrl->dev,
+			"Race condition between RX Int ch %d and DMA %0x\n",
+			n_ch, ch->read_data.lch);
 		goto done;
 	}
 
@@ -381,11 +383,10 @@ static void hsi_do_channel_rx(struct hsi_channel *ch)
 		buff_offset = hsi_hsr_buffer_reg(hsi_ctrl, n_p, n_ch);
 		if (buff_offset >= 0) {
 			data_read = 1;
-			data = *(ch->read_data.addr) = hsi_inl(base,
-								buff_offset);
+			*(ch->read_data.addr) = hsi_inl(base, buff_offset);
 		}
 	}
-	hsi_driver_disable_read_interrupt(ch);
+
 	hsi_reset_ch_read(ch);
 
 done:
@@ -399,6 +400,7 @@ done:
 
 	if (data_read) {
 		spin_unlock(&hsi_ctrl->lock);
+		dev_dbg(hsi_ctrl->dev, "Calling ch %d read callback.\n", n_ch);
 		(*ch->read_done) (ch->dev, 1);
 		spin_lock(&hsi_ctrl->lock);
 	}
