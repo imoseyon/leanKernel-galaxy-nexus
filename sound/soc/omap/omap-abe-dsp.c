@@ -2057,6 +2057,61 @@ static int aess_set_runtime_opp_level(struct abe_data *abe)
 	return 0;
 }
 
+static void abe_dsp_init_gains(struct abe_data *abe)
+{
+	/* Uplink gains */
+	abe_mute_gain(MIXAUDUL, MIX_AUDUL_INPUT_MM_DL);
+	abe_mute_gain(MIXAUDUL, MIX_AUDUL_INPUT_TONES);
+	abe_mute_gain(MIXAUDUL, MIX_AUDUL_INPUT_UPLINK);
+	abe_mute_gain(MIXAUDUL, MIX_AUDUL_INPUT_VX_DL);
+
+	abe_mute_gain(MIXVXREC, MIX_VXREC_INPUT_TONES);
+	abe_mute_gain(MIXVXREC, MIX_VXREC_INPUT_VX_DL);
+	abe_mute_gain(MIXVXREC, MIX_VXREC_INPUT_MM_DL);
+	abe_mute_gain(MIXVXREC, MIX_VXREC_INPUT_VX_UL);
+
+	abe_mute_gain(GAINS_DMIC1, GAIN_LEFT_OFFSET);
+	abe_mute_gain(GAINS_DMIC1, GAIN_RIGHT_OFFSET);
+	abe_mute_gain(GAINS_DMIC2, GAIN_LEFT_OFFSET);
+	abe_mute_gain(GAINS_DMIC2, GAIN_RIGHT_OFFSET);
+	abe_mute_gain(GAINS_DMIC3, GAIN_LEFT_OFFSET);
+	abe_mute_gain(GAINS_DMIC3, GAIN_RIGHT_OFFSET);
+
+	abe_mute_gain(GAINS_AMIC, GAIN_LEFT_OFFSET);
+	abe_mute_gain(GAINS_AMIC, GAIN_RIGHT_OFFSET);
+
+	abe_mute_gain(GAINS_BTUL, GAIN_LEFT_OFFSET);
+	abe_mute_gain(GAINS_BTUL, GAIN_RIGHT_OFFSET);
+
+	/* Downlink gains */
+	abe_write_gain(GAINS_DL1, GAIN_0dB, RAMP_5MS, GAIN_LEFT_OFFSET);
+	abe_write_gain(GAINS_DL1, GAIN_0dB, RAMP_5MS, GAIN_RIGHT_OFFSET);
+	abe_mute_gain(GAINS_DL1, GAIN_LEFT_OFFSET);
+	abe_mute_gain(GAINS_DL1, GAIN_RIGHT_OFFSET);
+
+	abe_write_gain(GAINS_DL2, GAIN_M7dB, RAMP_5MS, GAIN_LEFT_OFFSET);
+	abe_write_gain(GAINS_DL2, GAIN_M7dB, RAMP_5MS, GAIN_RIGHT_OFFSET);
+	abe_mute_gain(GAINS_DL2, GAIN_LEFT_OFFSET);
+	abe_mute_gain(GAINS_DL2, GAIN_RIGHT_OFFSET);
+
+	abe_mute_gain(MIXDL1, MIX_DL1_INPUT_MM_DL);
+	abe_mute_gain(MIXDL1, MIX_DL1_INPUT_MM_UL2);
+	abe_mute_gain(MIXDL1, MIX_DL1_INPUT_VX_DL);
+	abe_mute_gain(MIXDL1, MIX_DL1_INPUT_TONES);
+
+	abe_mute_gain(MIXDL2, MIX_DL2_INPUT_TONES);
+	abe_mute_gain(MIXDL2, MIX_DL2_INPUT_VX_DL);
+	abe_mute_gain(MIXDL2, MIX_DL2_INPUT_MM_DL);
+	abe_mute_gain(MIXDL2, MIX_DL2_INPUT_MM_UL2);
+
+	abe_mute_gain(MIXECHO, MIX_ECHO_DL1);
+	abe_mute_gain(MIXECHO, MIX_ECHO_DL2);
+
+	/* Sidetone gains */
+	abe_mute_gain(MIXSDT, MIX_SDT_INPUT_UP_MIXER);
+	abe_mute_gain(MIXSDT, MIX_SDT_INPUT_DL1_MIXER);
+}
+
 static int aess_save_context(struct abe_data *abe)
 {
 	/* TODO: Find a better way to save/retore gains after OFF mode */
@@ -2692,6 +2747,9 @@ static int abe_probe(struct snd_soc_platform *platform)
 
 	/* "tick" of the audio engine */
 	abe_write_event_generator(EVENT_TIMER);
+
+	abe_dsp_init_gains(abe);
+
 	/* Stop the engine */
 	abe_stop_event_generator();
 	abe_disable_irq();
