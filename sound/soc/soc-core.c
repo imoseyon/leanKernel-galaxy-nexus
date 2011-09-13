@@ -1117,6 +1117,20 @@ static int soc_pcm_ioctl(struct snd_pcm_substream *substream,
 	return snd_pcm_lib_ioctl(substream, cmd, arg);
 }
 
+struct snd_soc_codec *snd_soc_card_get_codec(struct snd_soc_card *card,
+					const char *codec_name)
+{
+	struct snd_soc_codec *codec = NULL;
+
+	list_for_each_entry(codec, &card->codec_dev_list, card_list) {
+		if (!strcmp(codec->name, codec_name))
+			return codec;
+	}
+
+	return codec;
+}
+EXPORT_SYMBOL(snd_soc_card_get_codec);
+
 struct snd_pcm_substream *snd_soc_get_dai_substream(struct snd_soc_card *card,
 		const char *dai_link, int stream)
 {
@@ -2082,6 +2096,7 @@ static void snd_soc_instantiate_card(struct snd_soc_card *card)
 	card->dapm.bias_level = SND_SOC_BIAS_OFF;
 	card->dapm.dev = card->dev;
 	card->dapm.card = card;
+	card->dapm.stream_event = card->stream_event;
 	list_add(&card->dapm.list, &card->dapm_list);
 
 #ifdef CONFIG_DEBUG_FS
