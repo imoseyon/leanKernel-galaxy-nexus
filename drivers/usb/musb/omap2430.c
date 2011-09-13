@@ -230,25 +230,37 @@ static inline void omap2430_low_level_init(struct musb *musb)
 }
 
 /* blocking notifier support */
+static void musb_otg_notifier_work(struct work_struct *data_notifier_work);
+
 static int musb_otg_notifications(struct notifier_block *nb,
 		unsigned long event, void *unused)
 {
 	struct musb	*musb = container_of(nb, struct musb, nb);
+	struct musb_otg_work *otg_work;
 
-	musb->xceiv_event = event;
-	schedule_work(&musb->otg_notifier_work);
-
+	otg_work = kmalloc(sizeof(struct musb_otg_work), GFP_ATOMIC);
+	if (!otg_work)
+		return notifier_from_errno(-ENOMEM);
+	INIT_WORK(&otg_work->work, musb_otg_notifier_work);
+	otg_work->xceiv_event = event;
+	otg_work->musb = musb;
+	queue_work(musb->otg_notifier_wq, &otg_work->work);
 	return 0;
 }
 
 static void musb_otg_notifier_work(struct work_struct *data_notifier_work)
 {
-        struct musb *musb = container_of(data_notifier_work, struct musb, otg_notifier_work);
+	struct musb_otg_work *otg_work =
+		container_of(data_notifier_work, struct musb_otg_work, work);
+        struct musb *musb = otg_work->musb;
 	struct device *dev = musb->controller;
 	struct musb_hdrc_platform_data *pdata = dev->platform_data;
 	struct omap_musb_board_data *data = pdata->board_data;
+	enum usb_xceiv_events xceiv_event = otg_work->xceiv_event;
 
-	switch (musb->xceiv_event) {
+	kfree(otg_work);
+
+	switch (xceiv_event) {
 	case USB_EVENT_ID:
 		dev_dbg(musb->controller, "ID GND\n");
 
@@ -332,12 +344,17 @@ static int omap2430_musb_init(struct musb *musb)
 		return -ENODEV;
 	}
 
-	INIT_WORK(&musb->otg_notifier_work, musb_otg_notifier_work);
+	musb->otg_notifier_wq = create_singlethread_workqueue("musb-otg");
+	if (!musb->otg_notifier_wq) {
+		pr_err("HS USB OTG: cannot allocate otg event wq\n");
+		status = -ENOMEM;
+		goto err1;
+	}
 
 	status = pm_runtime_get_sync(dev);
 	if (status < 0) {
 		dev_err(dev, "pm_runtime_get_sync FAILED");
-		goto err1;
+		goto err2;
 	}
 
 	l = musb_readl(musb->mregs, OTG_INTERFSEL);
@@ -370,7 +387,10 @@ static int omap2430_musb_init(struct musb *musb)
 
 	return 0;
 
+err2:
+	destroy_workqueue(musb->otg_notifier_wq);
 err1:
+	otg_put_transceiver(musb->xceiv);
 	pm_runtime_disable(dev);
 	return status;
 }
@@ -424,6 +444,8 @@ static int omap2430_musb_exit(struct musb *musb)
 {
 	del_timer_sync(&musb_idle_timer);
 
+	otg_unregister_notifier(musb->xceiv, &musb->nb);
+	destroy_workqueue(musb->otg_notifier_wq);
 	omap2430_low_level_exit(musb);
 	otg_put_transceiver(musb->xceiv);
 

@@ -387,7 +387,7 @@ struct musb {
 
 	irqreturn_t		(*isr)(int, void *);
 	struct work_struct	irq_work;
-	struct work_struct	otg_notifier_work;
+	struct workqueue_struct	*otg_notifier_wq;
 	u16			hwvers;
 
 /* this hub status bit is reserved by USB 2.0 and not seen by usbcore */
@@ -434,7 +434,6 @@ struct musb {
 	u16			int_tx;
 
 	struct otg_transceiver	*xceiv;
-	u8			xceiv_event;
 
 	int nIrq;
 	unsigned		irq_wake:1;
@@ -520,6 +519,12 @@ struct musb {
 #ifdef MUSB_CONFIG_PROC_FS
 	struct proc_dir_entry *proc_entry;
 #endif
+};
+
+struct musb_otg_work {
+	struct work_struct	work;
+	enum usb_xceiv_events	xceiv_event;
+	struct musb		*musb;
 };
 
 #ifdef CONFIG_USB_GADGET_MUSB_HDRC
