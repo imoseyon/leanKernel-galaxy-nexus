@@ -19,6 +19,10 @@
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/printk.h>
+#include <linux/irq.h>
+#include <linux/interrupt.h>
+#include <linux/wakelock.h>
+#include <plat/serial.h>
 
 #include "mux.h"
 
@@ -30,7 +34,10 @@
 #define PWR_ON		1
 #define PWR_ON_FW	2
 
+#define NFC_UART_NUM	4  /* omap_uart_wake() counts from 1 */
+
 static unsigned int nfc_power;
+static struct wake_lock nfc_wake_lock;
 
 static void nfc_power_apply(void) {
 	switch (nfc_power) {
@@ -84,9 +91,23 @@ static ssize_t nfc_power_store(struct device *dev,
 static DEVICE_ATTR(nfc_power, S_IWUSR | S_IRUGO, nfc_power_show,
 		nfc_power_store);
 
+static irqreturn_t nfc_irq_isr(int irq, void *dev)
+{
+	omap_uart_wake(NFC_UART_NUM);
+
+	/*
+	 * take a 500ms wakelock, to give time for higher layers
+	 * to either take their own wakelock or finish processing
+	 */
+	wake_lock_timeout(&nfc_wake_lock, msecs_to_jiffies(500));
+
+	return IRQ_HANDLED;
+}
+
 void __init omap4_tuna_nfc_init(void)
 {
 	struct platform_device *pdev;
+	int irq;
 
 	gpio_request(GPIO_NFC_FW, "nfc_fw");
 	gpio_direction_output(GPIO_NFC_FW, 0);
@@ -99,6 +120,20 @@ void __init omap4_tuna_nfc_init(void)
 	gpio_request(GPIO_NFC_IRQ, "nfc_irq");
 	gpio_direction_input(GPIO_NFC_IRQ);
 	omap_mux_init_gpio(GPIO_NFC_IRQ, OMAP_PIN_INPUT_PULLUP);
+
+	wake_lock_init(&nfc_wake_lock, WAKE_LOCK_SUSPEND, "nfc");
+
+	irq = gpio_to_irq(GPIO_NFC_IRQ);
+	if (request_irq(irq, nfc_irq_isr, IRQF_TRIGGER_RISING, "nfc_irq",
+			NULL)) {
+		pr_err("%s: request_irq() failed\n", __func__);
+		return;
+	}
+
+	if (enable_irq_wake(irq)) {
+		pr_err("%s: irq_set_irq_wake() failed\n", __func__);
+		return;
+	}
 
 	nfc_power = PWR_OFF;
 
