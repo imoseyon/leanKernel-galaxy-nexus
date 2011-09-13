@@ -2115,23 +2115,13 @@ static void abe_dsp_init_gains(struct abe_data *abe)
 static int aess_save_context(struct abe_data *abe)
 {
 	/* mute gains not associated with FEs/BEs */
-	abe_mute_gain(MIXSDT, MIX_SDT_INPUT_UP_MIXER);
 	abe_mute_gain(MIXAUDUL, MIX_AUDUL_INPUT_MM_DL);
 	abe_mute_gain(MIXAUDUL, MIX_AUDUL_INPUT_TONES);
-	abe_mute_gain(MIXAUDUL, MIX_AUDUL_INPUT_UPLINK);
 	abe_mute_gain(MIXAUDUL, MIX_AUDUL_INPUT_VX_DL);
 	abe_mute_gain(MIXVXREC, MIX_VXREC_INPUT_TONES);
 	abe_mute_gain(MIXVXREC, MIX_VXREC_INPUT_VX_DL);
 	abe_mute_gain(MIXVXREC, MIX_VXREC_INPUT_MM_DL);
 	abe_mute_gain(MIXVXREC, MIX_VXREC_INPUT_VX_UL);
-	abe_mute_gain(MIXDL1, MIX_DL1_INPUT_MM_DL);
-	abe_mute_gain(MIXDL1, MIX_DL1_INPUT_MM_UL2);
-	abe_mute_gain(MIXDL1, MIX_DL1_INPUT_VX_DL);
-	abe_mute_gain(MIXDL1, MIX_DL1_INPUT_TONES);
-	abe_mute_gain(MIXDL2, MIX_DL2_INPUT_TONES);
-	abe_mute_gain(MIXDL2, MIX_DL2_INPUT_VX_DL);
-	abe_mute_gain(MIXDL2, MIX_DL2_INPUT_MM_DL);
-	abe_mute_gain(MIXDL2, MIX_DL2_INPUT_MM_UL2);
 	abe_mute_gain(MIXECHO, MIX_ECHO_DL1);
 	abe_mute_gain(MIXECHO, MIX_ECHO_DL2);
 
@@ -2156,23 +2146,13 @@ static int aess_restore_context(struct abe_data *abe)
 		abe_reload_fw(abe->firmware);
 
 	/* unmute gains not associated with FEs/BEs */
-	abe_unmute_gain(MIXSDT, MIX_SDT_INPUT_UP_MIXER);
 	abe_unmute_gain(MIXAUDUL, MIX_AUDUL_INPUT_MM_DL);
 	abe_unmute_gain(MIXAUDUL, MIX_AUDUL_INPUT_TONES);
-	abe_unmute_gain(MIXAUDUL, MIX_AUDUL_INPUT_UPLINK);
 	abe_unmute_gain(MIXAUDUL, MIX_AUDUL_INPUT_VX_DL);
 	abe_unmute_gain(MIXVXREC, MIX_VXREC_INPUT_TONES);
 	abe_unmute_gain(MIXVXREC, MIX_VXREC_INPUT_VX_DL);
 	abe_unmute_gain(MIXVXREC, MIX_VXREC_INPUT_MM_DL);
 	abe_unmute_gain(MIXVXREC, MIX_VXREC_INPUT_VX_UL);
-	abe_unmute_gain(MIXDL1, MIX_DL1_INPUT_MM_DL);
-	abe_unmute_gain(MIXDL1, MIX_DL1_INPUT_MM_UL2);
-	abe_unmute_gain(MIXDL1, MIX_DL1_INPUT_VX_DL);
-	abe_unmute_gain(MIXDL1, MIX_DL1_INPUT_TONES);
-	abe_unmute_gain(MIXDL2, MIX_DL2_INPUT_TONES);
-	abe_unmute_gain(MIXDL2, MIX_DL2_INPUT_VX_DL);
-	abe_unmute_gain(MIXDL2, MIX_DL2_INPUT_MM_DL);
-	abe_unmute_gain(MIXDL2, MIX_DL2_INPUT_MM_UL2);
 	abe_unmute_gain(MIXECHO, MIX_ECHO_DL1);
 	abe_unmute_gain(MIXECHO, MIX_ECHO_DL2);
 
