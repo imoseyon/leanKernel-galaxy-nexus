@@ -1152,8 +1152,8 @@ void i2c_detect_ext_master(struct i2c_adapter *adap)
 	mutex_lock(&adap->ext_clients_lock);
 	list_for_each_entry(client, &adap->ext_clients,
 			    detected) {
-		dev_dbg("Client detected %s at 0x%x\n", client->name,
-			client->addr);
+		dev_dbg(&adap->dev, "Client detected %s at 0x%x\n",
+			client->name, client->addr);
 		disable_irq(client->irq);
 	}
 	mutex_unlock(&adap->ext_clients_lock);
