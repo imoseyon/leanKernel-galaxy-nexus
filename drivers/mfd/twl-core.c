@@ -126,6 +126,7 @@
 
 /* Last - for index max*/
 #define TWL4030_MODULE_LAST		TWL4030_MODULE_SECURED_REG
+#define TWL6030_MODULE_LAST		TWL6030_MODULE_SLAVE_RES
 
 #define TWL_NUM_SLAVES		4
 
@@ -141,7 +142,7 @@
 #define SUB_CHIP_ID2 2
 #define SUB_CHIP_ID3 3
 
-#define TWL_MODULE_LAST TWL4030_MODULE_LAST
+#define TWL_MODULE_LAST TWL6030_MODULE_LAST
 
 /* Base Address defns for twl4030_map[] */
 
@@ -187,6 +188,7 @@
 #define TWL6030_BASEADD_MEM		0x0017
 #define TWL6030_BASEADD_PM_MASTER	0x001F
 #define TWL6030_BASEADD_PM_SLAVE_MISC	0x0030 /* PM_RECEIVER */
+#define TWL6030_BASEADD_PM_SLAVE_RES	0x00AD
 #define TWL6030_BASEADD_PM_MISC		0x00E2
 #define TWL6030_BASEADD_PM_PUPD		0x00F0
 
@@ -333,6 +335,7 @@ static struct twl_mapping twl6030_map[] = {
 	{ SUB_CHIP_ID0, TWL6030_BASEADD_RTC },
 	{ SUB_CHIP_ID0, TWL6030_BASEADD_MEM },
 	{ SUB_CHIP_ID1, TWL6025_BASEADD_CHARGER },
+	{ SUB_CHIP_ID0, TWL6030_BASEADD_PM_SLAVE_RES },
 };
 
 /*----------------------------------------------------------------------*/

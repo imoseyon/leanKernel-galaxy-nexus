@@ -29,6 +29,8 @@
 
 #include "omap_l3_noc.h"
 
+#define NUM_OF_L3_MASTERS ARRAY_SIZE(l3_masters)
+
 /*
  * Interrupt Handler for L3 error detection.
  *	1) Identify the L3 clockdomain partition to which the error belongs to.
@@ -56,10 +58,10 @@ static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 {
 
 	struct omap4_l3		*l3 = _l3;
-	int inttype, i, j;
+	int inttype, i, j, k;
 	int err_src = 0;
 	u32 std_err_main_addr, std_err_main, err_reg;
-	u32 base, slave_addr, clear;
+	u32 base, slave_addr, clear, regoffset, masterid;
 	char *source_name;
 
 	/* Get the Type of interrupt */
@@ -101,9 +103,29 @@ static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 			case CUSTOM_ERROR:
 				source_name =
 				l3_targ_stderrlog_main_name[i][err_src];
+				regoffset = targ_reg_offset[i][err_src];
 
 				WARN(true, "CUSTOM SRESP error with SOURCE:%s\n",
 							source_name);
+
+				masterid = readl(base + regoffset +
+					L3_CUSTOMINFO_MSTADDR);
+
+				for (k = 0;
+				     k < NUM_OF_L3_MASTERS;
+				     k++) {
+					if (masterid == l3_masters[k].id) {
+						pr_err("Master 0x%x %10s\n",
+							masterid,
+							l3_masters[k].name);
+						pr_err("%s OPCODE   0x%08x\n",
+							source_name,
+							readl(base + regoffset +
+							L3_CUSTOMINFO_OPCODE));
+						break;
+					}
+				}
+
 				/* clear the std error log*/
 				clear = std_err_main | CLEAR_STDERR_LOG;
 				writel(clear, std_err_main_addr);

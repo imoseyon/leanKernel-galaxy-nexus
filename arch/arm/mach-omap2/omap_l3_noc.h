@@ -36,6 +36,8 @@
 #define LOGICAL_ADDR_ERRORLOG		0x4
 #define L3_APPLICATION_ERROR		0x0
 #define L3_DEBUG_ERROR			0x1
+#define L3_CUSTOMINFO_MSTADDR 0x68
+#define L3_CUSTOMINFO_OPCODE 0x6C
 
 u32 l3_flagmux[L3_MODULES] = {
 	0x50C,
@@ -79,6 +81,34 @@ u32 l3_targ_stderrlog_main_clk3[] = {
 	0x0148	/* EMUSS */
 };
 
+struct l3_masters_data {
+	u32 id;
+	char name[15];
+};
+
+struct l3_masters_data l3_masters[] = {
+	 { 0x0 , "MPU"},
+	 { 0x10, "CS_ADP"},
+	 { 0x14, "Unknown"},
+	 { 0x20, "DSP"},
+	 { 0x30, "IVAHD"},
+	 { 0x40, "ISS"},
+	 { 0x44, "DucatiM3"},
+	 { 0x48, "FaceDetect"},
+	 { 0x50, "SDMA_Rd"},
+	 { 0x54, "SDMA_Wr"},
+	 { 0x58, "Unknown"},
+	 { 0x5C, "Unknown"},
+	 { 0x60, "SGX"},
+	 { 0x70, "DSS"},
+	 { 0x80, "C2C"},
+	 { 0x88, "Unknown"},
+	 { 0x8C, "Unknown"},
+	 { 0x90, "HSI"},
+	 { 0xA0, "MMC1"},
+	 { 0xA4, "MMC2"},
+};
+
 char *l3_targ_stderrlog_main_name[L3_MODULES][18] = {
 	{
 	"DMM1",
@@ -109,6 +139,39 @@ char *l3_targ_stderrlog_main_name[L3_MODULES][18] = {
 	},
 	{
 	"EMUSS",
+	},
+};
+
+u32 targ_reg_offset[L3_MODULES][18] = {
+	{
+	0x100,
+	0x200,
+	0x300,
+	0x400,
+	0x0,
+	},
+	{
+	0x800500,
+	0x800300,
+	0x800100,
+	0x800400,
+	0x800700,
+	0x000000,
+	0x000000,
+	0x000000,
+	0x000000,
+	0x800600,
+	0x800800,
+	0x000000,
+	0x000000,
+	0x000000,
+	0x000000,
+	0x800100,
+	0x800A00,
+	0x800B00,
+	},
+	{
+	0x000000
 	},
 };
 
