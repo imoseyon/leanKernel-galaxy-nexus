@@ -61,8 +61,6 @@ struct omap_abe_data {
 	int suspended_dais;
 };
 
-static int dl1_gain;	/* dynamically set by machine drivers */
-
 /*
  * Stream DMA parameters
  */
@@ -166,64 +164,99 @@ static int modem_get_dai(struct snd_pcm_substream *substream,
 
 int omap_abe_set_dl1_output(int output)
 {
+	int gain;
+
 	/*
 	 * the output itself is not important, but the DL1 gain
 	 * to use when each output is active
 	 */
 	switch (output) {
 	case OMAP_ABE_DL1_HEADSET_LP:
-		dl1_gain = GAIN_M8dB;
+		gain = GAIN_M8dB;
 		break;
 	case OMAP_ABE_DL1_HEADSET_HP:
 	case OMAP_ABE_DL1_EARPIECE:
-		dl1_gain = GAIN_M1dB;
+		gain = GAIN_M1dB;
 		break;
 	case OMAP_ABE_DL1_NO_PDM:
-		dl1_gain = GAIN_0dB;
+		gain = GAIN_0dB;
 		break;
 	default:
 		return -EINVAL;
 	}
 
+	abe_write_gain(GAINS_DL1, gain, RAMP_5MS, GAIN_LEFT_OFFSET);
+	abe_write_gain(GAINS_DL1, gain, RAMP_5MS, GAIN_RIGHT_OFFSET);
+
 	return 0;
 }
 EXPORT_SYMBOL(omap_abe_set_dl1_output);
 
+static int omap_abe_dl1_enabled(struct omap_abe_data *abe_priv)
+{
+	/* DL1 path is common for PDM_DL1, BT_VX_DL and MM_EXT_DL */
+	return omap_abe_port_is_enabled(abe_priv->abe,
+				abe_priv->port[OMAP_ABE_BE_PORT_PDM_DL1]) +
+		omap_abe_port_is_enabled(abe_priv->abe,
+				abe_priv->port[OMAP_ABE_BE_PORT_BT_VX_DL]) +
+		omap_abe_port_is_enabled(abe_priv->abe,
+				abe_priv->port[OMAP_ABE_BE_PORT_MM_EXT_DL]);
+}
+
 static void mute_be(struct snd_soc_pcm_runtime *be,
 		struct snd_soc_dai *dai, int stream)
 {
+	struct omap_abe_data *abe_priv = snd_soc_dai_get_drvdata(dai);
+
 	dev_dbg(&be->dev, "%s: %s %d\n", __func__, be->cpu_dai->name, stream);
 
 	if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		switch (be->dai_link->be_id) {
 		case OMAP_ABE_DAI_PDM_DL1:
-			abe_write_gain(GAINS_DL1, MUTE_GAIN, RAMP_5MS,
-				GAIN_LEFT_OFFSET);
-			abe_write_gain(GAINS_DL1, MUTE_GAIN, RAMP_5MS,
-				GAIN_RIGHT_OFFSET);
-			break;
-		case OMAP_ABE_DAI_PDM_DL2:
-			abe_write_gain(GAINS_DL2, MUTE_GAIN, RAMP_5MS,
-				GAIN_LEFT_OFFSET);
-			abe_write_gain(GAINS_DL2, MUTE_GAIN, RAMP_5MS,
-				GAIN_RIGHT_OFFSET);
-			break;
-		case OMAP_ABE_DAI_PDM_VIB:
 		case OMAP_ABE_DAI_BT_VX:
 		case OMAP_ABE_DAI_MM_FM:
+			/*
+			 * DL1 gain is common for PDM_DL1, BT_VX_DL
+			 * and MM_EXT_DL, mute DL1 gain only if the
+			 * last active BE
+			 */
+			if (omap_abe_dl1_enabled(abe_priv) == 1) {
+				abe_mute_gain(GAINS_DL1, GAIN_LEFT_OFFSET);
+				abe_mute_gain(GAINS_DL1, GAIN_RIGHT_OFFSET);
+			}
+			break;
+		case OMAP_ABE_DAI_PDM_DL2:
+			abe_mute_gain(GAINS_DL2, GAIN_LEFT_OFFSET);
+			abe_mute_gain(GAINS_DL2, GAIN_RIGHT_OFFSET);
+			break;
+		case OMAP_ABE_DAI_PDM_VIB:
 		case OMAP_ABE_DAI_MODEM:
 			break;
 		}
 	} else {
 		switch (be->dai_link->be_id) {
 		case OMAP_ABE_DAI_PDM_UL:
+			abe_mute_gain(GAINS_AMIC, GAIN_LEFT_OFFSET);
+			abe_mute_gain(GAINS_AMIC, GAIN_RIGHT_OFFSET);
 			break;
 		case OMAP_ABE_DAI_BT_VX:
+			abe_mute_gain(GAINS_BTUL, GAIN_LEFT_OFFSET);
+			abe_mute_gain(GAINS_BTUL, GAIN_RIGHT_OFFSET);
+			break;
 		case OMAP_ABE_DAI_MM_FM:
 		case OMAP_ABE_DAI_MODEM:
+			break;
 		case OMAP_ABE_DAI_DMIC0:
+			abe_mute_gain(GAINS_DMIC1, GAIN_LEFT_OFFSET);
+			abe_mute_gain(GAINS_DMIC1, GAIN_RIGHT_OFFSET);
+			break;
 		case OMAP_ABE_DAI_DMIC1:
+			abe_mute_gain(GAINS_DMIC2, GAIN_LEFT_OFFSET);
+			abe_mute_gain(GAINS_DMIC2, GAIN_RIGHT_OFFSET);
+			break;
 		case OMAP_ABE_DAI_DMIC2:
+			abe_mute_gain(GAINS_DMIC3, GAIN_LEFT_OFFSET);
+			abe_mute_gain(GAINS_DMIC3, GAIN_RIGHT_OFFSET);
 			break;
 		}
 	}
@@ -239,20 +272,21 @@ static void unmute_be(struct snd_soc_pcm_runtime *be,
 	if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		switch (be->dai_link->be_id) {
 		case OMAP_ABE_DAI_PDM_DL1:
-			abe_write_gain(GAINS_DL1, dl1_gain, RAMP_5MS,
-				GAIN_LEFT_OFFSET);
-			abe_write_gain(GAINS_DL1, dl1_gain, RAMP_5MS,
-				GAIN_RIGHT_OFFSET);
-			break;
-		case OMAP_ABE_DAI_PDM_DL2:
-			abe_write_gain(GAINS_DL2, GAIN_M7dB, RAMP_5MS,
-				GAIN_LEFT_OFFSET);
-			abe_write_gain(GAINS_DL2, GAIN_M7dB, RAMP_5MS,
-				GAIN_RIGHT_OFFSET);
-			break;
-		case OMAP_ABE_DAI_PDM_VIB:
 		case OMAP_ABE_DAI_BT_VX:
 		case OMAP_ABE_DAI_MM_FM:
+			/*
+			 * DL1 gain is common for PDM_DL1, BT_VX_DL
+			 * and MM_EXT_DL, unmute when any of them
+			 * becomes active
+			 */
+			abe_unmute_gain(GAINS_DL1, GAIN_LEFT_OFFSET);
+			abe_unmute_gain(GAINS_DL1, GAIN_RIGHT_OFFSET);
+			break;
+		case OMAP_ABE_DAI_PDM_DL2:
+			abe_unmute_gain(GAINS_DL2, GAIN_LEFT_OFFSET);
+			abe_unmute_gain(GAINS_DL2, GAIN_RIGHT_OFFSET);
+			break;
+		case OMAP_ABE_DAI_PDM_VIB:
 			break;
 		case OMAP_ABE_DAI_MODEM:
 			if (omap_abe_port_is_enabled(abe_priv->abe,
@@ -270,14 +304,32 @@ static void unmute_be(struct snd_soc_pcm_runtime *be,
 
 		switch (be->dai_link->be_id) {
 		case OMAP_ABE_DAI_PDM_UL:
+			abe_unmute_gain(GAINS_AMIC, GAIN_LEFT_OFFSET);
+			abe_unmute_gain(GAINS_AMIC, GAIN_RIGHT_OFFSET);
 			break;
 		case OMAP_ABE_DAI_BT_VX:
+			abe_reset_mic_ul_src_filters();
+			abe_unmute_gain(GAINS_BTUL, GAIN_LEFT_OFFSET);
+			abe_unmute_gain(GAINS_BTUL, GAIN_RIGHT_OFFSET);
+			break;
 		case OMAP_ABE_DAI_MM_FM:
 		case OMAP_ABE_DAI_MODEM:
+			abe_reset_mic_ul_src_filters();
+			break;
 		case OMAP_ABE_DAI_DMIC0:
+			abe_reset_mic_ul_src_filters();
+			abe_unmute_gain(GAINS_DMIC1, GAIN_LEFT_OFFSET);
+			abe_unmute_gain(GAINS_DMIC1, GAIN_RIGHT_OFFSET);
+			break;
 		case OMAP_ABE_DAI_DMIC1:
+			abe_reset_mic_ul_src_filters();
+			abe_unmute_gain(GAINS_DMIC2, GAIN_LEFT_OFFSET);
+			abe_unmute_gain(GAINS_DMIC2, GAIN_RIGHT_OFFSET);
+			break;
 		case OMAP_ABE_DAI_DMIC2:
 			abe_reset_mic_ul_src_filters();
+			abe_unmute_gain(GAINS_DMIC3, GAIN_LEFT_OFFSET);
+			abe_unmute_gain(GAINS_DMIC3, GAIN_RIGHT_OFFSET);
 			break;
 		}
 	}
@@ -691,6 +743,9 @@ static void capture_trigger(struct snd_pcm_substream *substream,
 
 			be_substream = snd_soc_dsp_get_substream(be, stream);
 
+			/* mute the BE port */
+			mute_be(be, dai, stream);
+
 			/* disable the BE port */
 			disable_be_port(be, dai, stream);
 
@@ -811,6 +866,9 @@ static void playback_trigger(struct snd_pcm_substream *substream,
 				continue;
 
 			be_substream = snd_soc_dsp_get_substream(be, stream);
+
+			/* mute the BE port */
+			mute_be(be, dai, stream);
 
 			/* disable the BE */
 			disable_be_port(be, dai, stream);
@@ -1235,9 +1293,6 @@ static int omap_abe_dai_probe(struct snd_soc_dai *dai)
 	}
 
 	snd_soc_dai_set_drvdata(dai, abe_priv);
-
-	dl1_gain = GAIN_0dB;
-
 	return 0;
 
 err_port:
