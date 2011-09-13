@@ -446,7 +446,7 @@ void hsi_softreset_driver(struct hsi_dev *hsi_ctrl)
 		hsi_port_channels_reset(&hsi_ctrl->hsi_port[port]);
 	}
 
-	hsi_set_pm_default(hsi_ctrl);
+	hsi_set_pm_force_hsi_on(hsi_ctrl);
 
 	/* Re-Configure HSI ports */
 	hsi_set_ports_default(hsi_ctrl, pd);
@@ -765,6 +765,7 @@ static int __init hsi_controller_init(struct hsi_dev *hsi_ctrl,
 		return -ENXIO;
 	}
 	hsi_ctrl->max_p = pdata->num_ports;
+	hsi_ctrl->clock_enabled = false;
 	hsi_ctrl->in_dma_tasklet = false;
 	hsi_ctrl->fifo_mapping_strategy = pdata->fifo_mapping_strategy;
 	hsi_ctrl->dev = &pd->dev;
@@ -840,7 +841,7 @@ static int __init hsi_platform_device_probe(struct platform_device *pd)
 	if (err < 0)
 		goto rollback2;
 
-	hsi_set_pm_default(hsi_ctrl);
+	hsi_set_pm_force_hsi_on(hsi_ctrl);
 
 	/* Configure HSI ports */
 	hsi_set_ports_default(hsi_ctrl, pd);
