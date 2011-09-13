@@ -2116,7 +2116,6 @@ static int aess_save_context(struct abe_data *abe)
 {
 	/* mute gains not associated with FEs/BEs */
 	abe_mute_gain(MIXSDT, MIX_SDT_INPUT_UP_MIXER);
-	abe_mute_gain(MIXSDT, MIX_SDT_INPUT_DL1_MIXER);
 	abe_mute_gain(MIXAUDUL, MIX_AUDUL_INPUT_MM_DL);
 	abe_mute_gain(MIXAUDUL, MIX_AUDUL_INPUT_TONES);
 	abe_mute_gain(MIXAUDUL, MIX_AUDUL_INPUT_UPLINK);
@@ -2158,7 +2157,6 @@ static int aess_restore_context(struct abe_data *abe)
 
 	/* unmute gains not associated with FEs/BEs */
 	abe_unmute_gain(MIXSDT, MIX_SDT_INPUT_UP_MIXER);
-	abe_unmute_gain(MIXSDT, MIX_SDT_INPUT_DL1_MIXER);
 	abe_unmute_gain(MIXAUDUL, MIX_AUDUL_INPUT_MM_DL);
 	abe_unmute_gain(MIXAUDUL, MIX_AUDUL_INPUT_TONES);
 	abe_unmute_gain(MIXAUDUL, MIX_AUDUL_INPUT_UPLINK);

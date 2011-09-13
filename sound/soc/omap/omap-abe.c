@@ -216,13 +216,14 @@ static void mute_be(struct snd_soc_pcm_runtime *be,
 		case OMAP_ABE_DAI_BT_VX:
 		case OMAP_ABE_DAI_MM_FM:
 			/*
-			 * DL1 gain is common for PDM_DL1, BT_VX_DL
-			 * and MM_EXT_DL, mute DL1 gain only if the
-			 * last active BE
+			 * DL1 Mixer->SDT Mixer and DL1 gain are common for
+			 * PDM_DL1, BT_VX_DL and MM_EXT_DL, mute those gains
+			 * only if the last active BE
 			 */
 			if (omap_abe_dl1_enabled(abe_priv) == 1) {
 				abe_mute_gain(GAINS_DL1, GAIN_LEFT_OFFSET);
 				abe_mute_gain(GAINS_DL1, GAIN_RIGHT_OFFSET);
+				abe_mute_gain(MIXSDT, MIX_SDT_INPUT_DL1_MIXER);
 			}
 			break;
 		case OMAP_ABE_DAI_PDM_DL2:
@@ -275,12 +276,13 @@ static void unmute_be(struct snd_soc_pcm_runtime *be,
 		case OMAP_ABE_DAI_BT_VX:
 		case OMAP_ABE_DAI_MM_FM:
 			/*
-			 * DL1 gain is common for PDM_DL1, BT_VX_DL
-			 * and MM_EXT_DL, unmute when any of them
-			 * becomes active
+			 * DL1 Mixer->SDT Mixer and DL1 gain are common for
+			 * PDM_DL1, BT_VX_DL and MM_EXT_DL, unmute when any
+			 * of them becomes active
 			 */
 			abe_unmute_gain(GAINS_DL1, GAIN_LEFT_OFFSET);
 			abe_unmute_gain(GAINS_DL1, GAIN_RIGHT_OFFSET);
+			abe_unmute_gain(MIXSDT, MIX_SDT_INPUT_DL1_MIXER);
 			break;
 		case OMAP_ABE_DAI_PDM_DL2:
 			abe_unmute_gain(GAINS_DL2, GAIN_LEFT_OFFSET);
