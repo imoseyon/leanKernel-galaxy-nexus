@@ -34,6 +34,8 @@ struct dsscomp_gralloc_t {
 	struct list_head q;
 	struct list_head slots;
 	atomic_t refs;
+	bool early_callback;
+	bool programmed;
 };
 
 /* queued gralloc compositions */
@@ -58,9 +60,13 @@ static void unpin_tiler_blocks(struct list_head *slots)
 static void dsscomp_gralloc_cb(void *data, int status)
 {
 	struct dsscomp_gralloc_t *gsync = data, *gsync_;
+	bool early_cbs = true;
 	LIST_HEAD(done);
 
 	mutex_lock(&mtx);
+	if (gsync->early_callback && status == DSS_COMPLETION_PROGRAMMED)
+		gsync->programmed = true;
+
 	if (status & DSS_COMPLETION_RELEASED) {
 		if (atomic_dec_and_test(&gsync->refs))
 			unpin_tiler_blocks(&gsync->slots);
@@ -71,11 +77,18 @@ static void dsscomp_gralloc_cb(void *data, int status)
 	}
 
 	/* get completed list items in order, if any */
-	while (!list_empty(&flip_queue)) {
-		gsync = list_first_entry(&flip_queue, typeof(*gsync), q);
-		if (gsync->refs.counter)
+	list_for_each_entry_safe(gsync, gsync_, &flip_queue, q) {
+		if (gsync->cb_fn) {
+			early_cbs &= gsync->early_callback && gsync->programmed;
+			if (early_cbs) {
+				gsync->cb_fn(gsync->cb_arg, 1);
+				gsync->cb_fn = NULL;
+			}
+		}
+		if (gsync->refs.counter && gsync->cb_fn)
 			break;
-		list_move_tail(&gsync->q, &done);
+		if (gsync->refs.counter == 0)
+			list_move_tail(&gsync->q, &done);
 	}
 	mutex_unlock(&mtx);
 
@@ -123,7 +136,7 @@ int dsscomp_gralloc_queue_ioctl(struct dsscomp_setup_dispc_data *d)
 				PAGE_ALIGN(oi->cfg.height * oi->cfg.stride +
 					(addr & ~PAGE_MASK)) >> PAGE_SHIFT);
 	}
-	ret = dsscomp_gralloc_queue(d, pas, NULL, NULL);
+	ret = dsscomp_gralloc_queue(d, pas, false, NULL, NULL);
 	for (i = 0; i < d->num_ovls; i++)
 		tiler_pa_free(pas[i]);
 	return ret;
@@ -131,6 +144,7 @@ int dsscomp_gralloc_queue_ioctl(struct dsscomp_setup_dispc_data *d)
 
 int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 			struct tiler_pa_info **pas,
+			bool early_callback,
 			void (*cb_fn)(void *, int), void *cb_arg)
 {
 	u32 i;
@@ -147,8 +161,6 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 #ifdef CONFIG_DEBUG_FS
 	u32 ms = ktime_to_ms(ktime_get());
 #endif
-
-
 	u32 channels[ARRAY_SIZE(d->mgrs)], ch;
 	int skip;
 	struct dsscomp_gralloc_t *gsync;
@@ -170,6 +182,7 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 	gsync->cb_arg = cb_arg;
 	gsync->cb_fn = cb_fn;
 	gsync->refs.counter = 1;
+	gsync->early_callback = early_callback;
 	INIT_LIST_HEAD(&gsync->slots);
 	list_add_tail(&gsync->q, &flip_queue);
 	if (debug & DEBUG_GRALLOC_PHASES)
@@ -412,7 +425,7 @@ static void dsscomp_early_suspend(struct early_suspend *h)
 
 	/* use gralloc queue as we need to blank all screens */
 	blank_complete = false;
-	dsscomp_gralloc_queue(&d, NULL, dsscomp_early_suspend_cb, NULL);
+	dsscomp_gralloc_queue(&d, NULL, false, dsscomp_early_suspend_cb, NULL);
 
 	/* wait until composition is displayed */
 	err = wait_event_timeout(early_suspend_wq, blank_complete,

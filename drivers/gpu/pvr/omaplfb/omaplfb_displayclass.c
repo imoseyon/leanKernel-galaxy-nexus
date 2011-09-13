@@ -809,10 +809,11 @@ static IMG_BOOL ProcessFlipV1(IMG_HANDLE hCmdCookie,
 		if (is_tiler_addr(psBuffer->sSysAddr.uiAddr)) {
 			IMG_UINT32 w = psBuffer->psDevInfo->sDisplayDim.ui32Width;
 			IMG_UINT32 h = psBuffer->psDevInfo->sDisplayDim.ui32Height;
-			struct omap_overlay_manager *mgr = omap_dss_get_overlay_manager(0);
-			dsscomp_t comp = dsscomp_new(mgr);
-			struct dss2_ovl_info oi = {
-				.cfg = {
+			struct dsscomp_setup_dispc_data comp = {
+				.num_mgrs = 1,
+				.mgrs[0].alpha_blending = 1,
+				.num_ovls = 1,
+				.ovls[0].cfg = {
 					.width = w,
 					.win.w = w,
 					.crop.w = w,
@@ -824,16 +825,13 @@ static IMG_BOOL ProcessFlipV1(IMG_HANDLE hCmdCookie,
 					.enabled = 1,
 					.global_alpha = 255,
 				},
+				.mode = DSSCOMP_SETUP_DISPLAY,
 			};
-			struct dss2_mgr_info mi = { .alpha_blending = 1, };
-			struct dss2_rect_t win = { .w = 0 };
-			oi.ba = (u32) psBuffer->sSysAddr.uiAddr;
-			dsscomp_set_ovl(comp, &oi);
-			dsscomp_set_mgr(comp, &mi);
-			dsscomp_setup(comp, DSSCOMP_SETUP_DISPLAY, win);
-			dsscomp_delayed_apply(comp);
-
-			psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete((IMG_HANDLE)psBuffer->hCmdComplete, IMG_TRUE);
+			struct tiler_pa_info *pas[1] = { NULL };
+			comp.ovls[0].ba = (u32) psBuffer->sSysAddr.uiAddr;
+			dsscomp_gralloc_queue(&comp, pas, true,
+					      (void *) psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete,
+					      (void *) psBuffer->hCmdComplete);
 		} else {
 			OMAPLFBQueueBufferForSwap(psSwapChain, psBuffer);
 		}
@@ -944,7 +942,7 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 		psDssData->ovls[i].uv = psDssData->ovls[ix].uv;
 	}
 
-	dsscomp_gralloc_queue(psDssData, apsTilerPAs,
+	dsscomp_gralloc_queue(psDssData, apsTilerPAs, false,
 						  (void *)psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete,
 						  (void *)hCmdCookie);
 
