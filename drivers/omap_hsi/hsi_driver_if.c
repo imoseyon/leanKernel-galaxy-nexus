@@ -274,20 +274,19 @@ int hsi_open(struct hsi_device *dev)
 			"registered\n");
 		return -EINVAL;
 	}
+	if (ch->flags & HSI_CH_OPEN) {
+		dev_err(dev->device.parent,
+			"Port %d Channel %d already OPENED\n",
+			dev->n_p, dev->n_ch);
+		return -EBUSY;
+	}
+
 	port = ch->hsi_port;
 	hsi_ctrl = port->hsi_controller;
 
 	spin_lock_bh(&hsi_ctrl->lock);
 	hsi_clocks_enable_channel(dev->device.parent, ch->channel_number,
 				__func__);
-
-	if (ch->flags & HSI_CH_OPEN) {
-		dev_err(dev->device.parent,
-			"Port %d Channel %d already OPENED\n",
-			dev->n_p, dev->n_ch);
-		spin_unlock_bh(&hsi_ctrl->lock);
-		return -EBUSY;
-	}
 
 	/* Restart with flags cleaned up */
 	ch->flags = HSI_CH_OPEN;
@@ -312,7 +311,7 @@ EXPORT_SYMBOL(hsi_open);
  * @addr - pointer to a 32-bit word data to be written.
  * @size - number of 32-bit word to be written.
  *
- * Return 0 on sucess, a negative value on failure.
+ * Return 0 on success, a negative value on failure.
  * A success value only indicates that the request has been accepted.
  * Transfer is only completed when the write_done callback is called.
  *
@@ -342,6 +341,13 @@ int hsi_write(struct hsi_device *dev, u32 *addr, unsigned int size)
 	}
 
 	ch = dev->ch;
+	if (ch->write_data.addr != NULL) {
+		dev_err(dev->device.parent, "# Invalid request - Write "
+				"operation pending port %d channel %d\n",
+					ch->hsi_port->port_number,
+					ch->channel_number);
+		return -EINVAL;
+	}
 
 	spin_lock_bh(&ch->hsi_port->hsi_controller->lock);
 	if (pm_runtime_suspended(dev->device.parent) ||
@@ -352,18 +358,6 @@ int hsi_write(struct hsi_device *dev, u32 *addr, unsigned int size)
 
 	hsi_clocks_enable_channel(dev->device.parent,
 				ch->channel_number, __func__);
-
-	if (ch->write_data.addr != NULL) {
-		dev_err(dev->device.parent, "# Invalid request - Write "
-				"operation pending port %d channel %d\n",
-					ch->hsi_port->port_number,
-					ch->channel_number);
-
-		hsi_clocks_disable_channel(dev->device.parent,
-					ch->channel_number, __func__);
-		spin_unlock_bh(&ch->hsi_port->hsi_controller->lock);
-		return -EINVAL;
-	}
 
 	ch->write_data.addr = addr;
 	ch->write_data.size = size;
