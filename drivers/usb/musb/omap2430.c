@@ -371,6 +371,7 @@ static int omap2430_musb_init(struct musb *musb)
 	return 0;
 
 err1:
+	otg_put_transceiver(musb->xceiv);
 	pm_runtime_disable(dev);
 	return status;
 }
@@ -424,6 +425,7 @@ static int omap2430_musb_exit(struct musb *musb)
 {
 	del_timer_sync(&musb_idle_timer);
 
+	otg_unregister_notifier(musb->xceiv, &musb->nb);
 	omap2430_low_level_exit(musb);
 	otg_put_transceiver(musb->xceiv);
 
