@@ -442,6 +442,11 @@ static inline int omap_rproc_stop(struct rproc *rproc)
 		goto err;
 
 	for (i = 0; i < pdata->timers_cnt; i++) {
+#ifdef CONFIG_REMOTEPROC_WATCHDOG
+		/* GPT 9 and 11 are used as WDT */
+		if (timers[i].id == 9 || timers[i].id == 11)
+			free_irq(omap_dm_timer_get_irq(timers[i].odt), rproc);
+#endif
 		omap_dm_timer_free(timers[i].odt);
 		timers[i].odt = NULL;
 	}
