@@ -328,6 +328,11 @@ u8 hsi_get_rx_fifo_occupancy(struct hsi_dev *hsi_ctrl, u8 fifo)
 	void __iomem *base = hsi_ctrl->base;
 	int hsr_mapping, mapping_words;
 
+	if (unlikely(fifo < 0)) {
+		dev_err(hsi_ctrl->dev, "Invalid FIFO id %d.\n", fifo);
+		return 0;
+	}
+
 	hsr_mapping = hsi_inl(base, HSI_HSR_MAPPING_FIFO_REG(fifo));
 	mapping_words = (hsr_mapping >> HSI_HST_MAPPING_THRESH_OFFSET) & 0xF;
 	return mapping_words;

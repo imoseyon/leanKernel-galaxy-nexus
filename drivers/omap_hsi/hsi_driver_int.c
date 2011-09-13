@@ -40,6 +40,16 @@ void hsi_reset_ch_write(struct hsi_channel *ch)
  */
 bool hsi_is_channel_busy(struct hsi_channel *ch)
 {
+	struct hsi_port *p = ch->hsi_port;
+	unsigned int port = p->port_number;
+	unsigned int channel = ch->channel_number;
+	unsigned int fifo;
+
+	/* Data in FIFO is lost during the transition to RET or OFF modes */
+	fifo = hsi_fifo_get_id(p->hsi_controller, channel, port);
+	if (hsi_get_rx_fifo_occupancy(p->hsi_controller, fifo) > 0)
+		return true;
+
 	if (ch->write_data.addr == NULL)
 		return false;
 
