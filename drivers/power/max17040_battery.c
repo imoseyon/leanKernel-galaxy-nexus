@@ -38,13 +38,17 @@
 #define MAX17040_CMD_MSB	0xFE
 #define MAX17040_CMD_LSB	0xFF
 
-#define MAX17040_DELAY		1000
-#define MAX17040_BATTERY_FULL	95
+#define MAX17040_BATTERY_FULL	100
 
 #define HAS_ALERT_INTERRUPT(ver)	(ver >= 3)
 
 #define FAST_POLL		(1 * 60)
 #define SLOW_POLL		(10 * 60)
+
+#define STATUS_CHARGABLE	0x0
+#define STATUS_CHARGE_FULL	0x1
+#define STATUS_ABNORMAL_TEMP	0x2
+#define STATUS_CHARGE_TIMEOVER	0x3
 
 struct max17040_chip {
 	struct i2c_client		*client;
@@ -60,6 +64,10 @@ struct max17040_chip {
 	int soc;
 	/* State Of Charge */
 	int status;
+	/* Health of Battery */
+	int bat_health;
+	/* Temperature of Battery */
+	int bat_temp;
 
 	struct notifier_block	pm_notifier;
 	struct wake_lock	work_wake_lock;
@@ -70,6 +78,11 @@ struct max17040_chip {
 	int shutdown;
 	/* chip version */
 	u16 ver;
+
+	int charger_status;
+	unsigned long chg_limit_time;
+
+	bool is_timer_flag;
 };
 
 static int max17040_get_property(struct power_supply *psy,
@@ -82,6 +95,9 @@ static int max17040_get_property(struct power_supply *psy,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
 		val->intval = chip->status;
+		break;
+	case POWER_SUPPLY_PROP_HEALTH:
+		val->intval = chip->bat_health;
 		break;
 	case POWER_SUPPLY_PROP_ONLINE:
 		val->intval = chip->online;
@@ -202,16 +218,111 @@ static void max17040_get_status(struct i2c_client *client)
 	}
 
 	if (chip->pdata->charger_online()) {
-		if (chip->pdata->charger_enable())
+		if (chip->pdata->charger_enable()) {
 			chip->status = POWER_SUPPLY_STATUS_CHARGING;
-		else
-			chip->status = POWER_SUPPLY_STATUS_NOT_CHARGING;
+		} else {
+			chip->status =
+				chip->charger_status == STATUS_CHARGE_FULL ?
+				POWER_SUPPLY_STATUS_FULL :
+				POWER_SUPPLY_STATUS_NOT_CHARGING;
+		}
 	} else {
 		chip->status = POWER_SUPPLY_STATUS_DISCHARGING;
+		chip->chg_limit_time = 0;
+		chip->charger_status = STATUS_CHARGABLE;
+	}
+}
+
+static void max17040_get_temp_status(struct max17040_chip *chip)
+{
+	if (!chip->pdata->get_bat_temp) {
+		chip->bat_health = POWER_SUPPLY_HEALTH_UNKNOWN;
+		return;
 	}
 
-	if (chip->soc > MAX17040_BATTERY_FULL)
-		chip->status = POWER_SUPPLY_STATUS_FULL;
+	chip->bat_temp = chip->pdata->get_bat_temp();
+
+	if (chip->bat_temp >= chip->pdata->high_block_temp) {
+		chip->bat_health = POWER_SUPPLY_HEALTH_OVERHEAT;
+	} else if (chip->bat_temp <= chip->pdata->high_recover_temp &&
+		chip->bat_temp >= chip->pdata->low_recover_temp) {
+		chip->bat_health = POWER_SUPPLY_HEALTH_GOOD;
+	} else if (chip->bat_temp <= chip->pdata->low_block_temp) {
+		chip->bat_health = POWER_SUPPLY_HEALTH_COLD;
+	}
+}
+
+static void max17040_charger_update(struct max17040_chip *chip)
+{
+	ktime_t ktime;
+	struct timespec cur_time;
+
+	if (!chip->pdata->is_full_charge || !chip->pdata->allow_charging)
+		return;
+
+	ktime = alarm_get_elapsed_realtime();
+	cur_time = ktime_to_timespec(ktime);
+
+	switch (chip->charger_status) {
+	case STATUS_CHARGABLE:
+		if (chip->pdata->is_full_charge() &&
+			chip->soc >= MAX17040_BATTERY_FULL &&
+				chip->vcell > chip->pdata->fully_charged_vol) {
+			chip->charger_status = STATUS_CHARGE_FULL;
+			chip->is_timer_flag = true;
+			chip->chg_limit_time = 0;
+			chip->pdata->allow_charging(0);
+		} else if (chip->chg_limit_time &&
+				 cur_time.tv_sec > chip->chg_limit_time) {
+			chip->charger_status = STATUS_CHARGE_TIMEOVER;
+			chip->is_timer_flag = true;
+			chip->chg_limit_time = 0;
+			chip->pdata->allow_charging(0);
+		} else if (chip->bat_health != POWER_SUPPLY_HEALTH_GOOD) {
+			chip->charger_status = STATUS_ABNORMAL_TEMP;
+			chip->chg_limit_time = 0;
+			chip->pdata->allow_charging(0);
+		}
+		break;
+
+	case STATUS_CHARGE_FULL:
+		if (chip->vcell <= chip->pdata->recharge_vol) {
+			chip->charger_status = STATUS_CHARGABLE;
+			chip->pdata->allow_charging(1);
+		}
+		break;
+
+	case STATUS_ABNORMAL_TEMP:
+		if (chip->bat_temp <= chip->pdata->high_recover_temp &&
+			chip->bat_temp >=
+				chip->pdata->low_recover_temp) {
+			chip->charger_status = STATUS_CHARGABLE;
+			chip->pdata->allow_charging(1);
+		}
+		break;
+
+	case STATUS_CHARGE_TIMEOVER:
+		if (chip->vcell <= chip->pdata->fully_charged_vol) {
+			chip->charger_status = STATUS_CHARGABLE;
+			chip->pdata->allow_charging(1);
+		}
+		break;
+
+	default:
+		dev_err(&chip->client->dev, "%s : invalid status [%d]\n",
+			__func__, chip->charger_status);
+	}
+
+	if (!chip->chg_limit_time &&
+			chip->charger_status == STATUS_CHARGABLE) {
+		chip->chg_limit_time =
+			chip->is_timer_flag ?
+			cur_time.tv_sec + chip->pdata->limit_recharging_time :
+			cur_time.tv_sec + chip->pdata->limit_charging_time;
+	}
+
+	dev_dbg(&chip->client->dev, "%s, Charger Status : %d, Limit Time : %ld\n",
+			__func__, chip->charger_status, chip->chg_limit_time);
 }
 
 static void max17040_update(struct max17040_chip *chip)
@@ -222,6 +333,11 @@ static void max17040_update(struct max17040_chip *chip)
 	max17040_get_vcell(chip->client);
 	max17040_get_soc(chip->client);
 	max17040_get_online(chip->client);
+	max17040_get_temp_status(chip);
+	if (chip->pdata->charger_online())
+		max17040_charger_update(chip);
+	else
+		chip->is_timer_flag = false;
 	max17040_get_status(chip->client);
 	if ((chip->soc != prev_soc) || (chip->status != prev_status))
 		power_supply_changed(&chip->battery);
@@ -279,6 +395,7 @@ static void max17040_ext_power_changed(struct power_supply *psy)
 
 static enum power_supply_property max17040_battery_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
+	POWER_SUPPLY_PROP_HEALTH,
 	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_CAPACITY,
@@ -358,6 +475,26 @@ static int __devinit max17040_probe(struct i2c_client *client,
 	chip->battery.properties	= max17040_battery_props;
 	chip->battery.num_properties	= ARRAY_SIZE(max17040_battery_props);
 	chip->battery.external_power_changed	= max17040_ext_power_changed;
+
+	chip->bat_health = POWER_SUPPLY_HEALTH_GOOD;
+	chip->charger_status = STATUS_CHARGABLE;
+	chip->is_timer_flag = false;
+	chip->chg_limit_time = 0;
+
+	if (!chip->pdata->high_block_temp)
+		chip->pdata->high_block_temp = 500;
+	if (!chip->pdata->high_recover_temp)
+		chip->pdata->high_recover_temp = 420;
+	if (!chip->pdata->low_block_temp)
+		chip->pdata->low_block_temp = -50;
+	if (!chip->pdata->fully_charged_vol)
+		chip->pdata->fully_charged_vol = 4150000;
+	if (!chip->pdata->recharge_vol)
+		chip->pdata->recharge_vol = 4140000;
+	if (!chip->pdata->limit_charging_time)
+		chip->pdata->limit_charging_time = 21600;
+	if (!chip->pdata->limit_recharging_time)
+		chip->pdata->limit_recharging_time = 5400;
 
 	chip->last_poll = alarm_get_elapsed_realtime();
 	alarm_init(&chip->alarm, ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP,
