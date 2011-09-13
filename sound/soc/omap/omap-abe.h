@@ -58,5 +58,11 @@
 #define OMAP_ABE_BE_DMIC1		"DMIC1"
 #define OMAP_ABE_BE_DMIC2		"DMIC2"
 
+#define OMAP_ABE_DL1_NO_PDM		0
+#define OMAP_ABE_DL1_HEADSET_LP		1
+#define OMAP_ABE_DL1_HEADSET_HP		2
+#define OMAP_ABE_DL1_EARPIECE		3
+
+int omap_abe_set_dl1_output(int output);
 
 #endif	/* End of __OMAP_MCPDM_H__ */

@@ -337,6 +337,8 @@ unsigned int snd_soc_platform_read(struct snd_soc_platform *platform,
 unsigned int snd_soc_platform_write(struct snd_soc_platform *platform,
 					unsigned int reg, unsigned int val);
 
+struct snd_soc_codec *snd_soc_card_get_codec(struct snd_soc_card *card,
+		const char *codec_name);
 struct snd_pcm_substream *snd_soc_get_dai_substream(struct snd_soc_card *card,
 		const char *dai_link, int stream);
 struct snd_soc_pcm_runtime *snd_soc_get_pcm_runtime(struct snd_soc_card *card,
@@ -869,6 +871,7 @@ struct snd_soc_card {
 
 	/* Generic DAPM context for the card */
 	struct snd_soc_dapm_context dapm;
+	int (*stream_event)(struct snd_soc_dapm_context *dapm);
 
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *debugfs_card_root;

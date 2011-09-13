@@ -2913,6 +2913,7 @@ int snd_soc_dapm_stream_event(struct snd_soc_pcm_runtime *rtd,
 
 	soc_dapm_platform_stream_event(rtd->platform, stream, event);
 	soc_dapm_codec_stream_event(rtd->codec, stream, event);
+	soc_dapm_stream_event(&rtd->card->dapm, stream, event);
 
 	mutex_unlock(&rtd->card->dapm_mutex);
 	return 0;
@@ -3020,6 +3021,27 @@ int snd_soc_dapm_get_pin_status(struct snd_soc_dapm_context *dapm,
 	return 0;
 }
 EXPORT_SYMBOL_GPL(snd_soc_dapm_get_pin_status);
+
+/**
+ * snd_soc_dapm_get_pin_power - get audio pin power state
+ * @dapm: DAPM context
+ * @pin: audio signal pin endpoint (or start point)
+ *
+ * Get audio pin power state - powered or not-powered.
+ *
+ * Returns 1 if powered, otherwise 0.
+ */
+int snd_soc_dapm_get_pin_power(struct snd_soc_dapm_context *dapm,
+				const char *pin)
+{
+	struct snd_soc_dapm_widget *w = dapm_find_widget(dapm, pin, true);
+
+	if (w)
+		return w->power;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(snd_soc_dapm_get_pin_power);
 
 /**
  * snd_soc_dapm_ignore_suspend - ignore suspend status for DAPM endpoint

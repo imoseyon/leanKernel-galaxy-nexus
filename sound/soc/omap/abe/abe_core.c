@@ -201,12 +201,12 @@ int omap_abe_irq_processing(struct omap_abe *abe)
 		case IRQtag_COUNT:
 			_log(ABE_ID_IRQ_PROCESSING, IRQ_data.data, 0, 3);
 			abe_irq_check_for_sequences(IRQ_data.data);
+			abe_monitoring();
 			break;
 		default:
 			break;
 		}
 	}
-	abe_monitoring();
 	return 0;
 }
 EXPORT_SYMBOL(omap_abe_irq_processing);
