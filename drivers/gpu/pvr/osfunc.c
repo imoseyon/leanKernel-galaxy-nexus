@@ -3048,7 +3048,7 @@ IMG_VOID OSCleanCPUCacheKM(IMG_VOID)
 	
 	ON_EACH_CPU(per_cpu_cache_flush, NULL, 1);
 #if defined(CONFIG_OUTER_CACHE) && !defined(PVR_NO_FULL_CACHE_OPS)
-	outer_clean_all();
+	outer_clean_range(0, ULONG_MAX);
 #endif
 }
 
