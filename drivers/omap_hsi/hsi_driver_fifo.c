@@ -26,7 +26,7 @@
  * hsi_fifo_get_id - Get fifo index corresponding to (port, channel)
  * @hsi_ctrl - HSI controler data
  * @channel - channel used
- * @port - HSI port used
+ * @port - HSI port used. Range [1, 2]
  *
  * Returns the fifo index associated to the provided (port, channel).
  * Notes: 1) The fifo <=> (port, channel) correspondance depends on the selected
@@ -39,6 +39,7 @@ int hsi_fifo_get_id(struct hsi_dev *hsi_ctrl, unsigned int channel,
 {
 	int fifo_index = 0;
 	int err = 0;
+	int fifo_port; /* Range [1, 2] */
 
 	if (unlikely((channel >= HSI_CHANNELS_MAX) || (port < 1) ||
 						      (port > 2))) {
@@ -46,8 +47,11 @@ int hsi_fifo_get_id(struct hsi_dev *hsi_ctrl, unsigned int channel,
 		goto fifo_id_bk;
 	}
 
-	if (hsi_ctrl->fifo_mapping_strategy == HSI_FIFO_MAPPING_ALL_PORT1) {
-		if (unlikely(port != 1)) {
+	if ((hsi_ctrl->fifo_mapping_strategy == HSI_FIFO_MAPPING_ALL_PORT1) ||
+	    (hsi_ctrl->fifo_mapping_strategy == HSI_FIFO_MAPPING_ALL_PORT2)) {
+		fifo_port = (hsi_ctrl->fifo_mapping_strategy ==
+					HSI_FIFO_MAPPING_ALL_PORT1) ? 1 : 2;
+		if (unlikely(port != fifo_port)) {
 			err = -EINVAL;
 			goto fifo_id_bk;
 		} else {
@@ -102,6 +106,10 @@ int hsi_fifo_get_chan(struct hsi_dev *hsi_ctrl, unsigned int fifo,
 	if (hsi_ctrl->fifo_mapping_strategy == HSI_FIFO_MAPPING_ALL_PORT1) {
 		*channel = fifo;
 		*port = 1;
+	} else if (hsi_ctrl->fifo_mapping_strategy ==
+						HSI_FIFO_MAPPING_ALL_PORT2) {
+		*channel = fifo;
+		*port = 2;
 	} else if (hsi_ctrl->fifo_mapping_strategy == HSI_FIFO_MAPPING_SSI) {
 		if (fifo < 8) {
 			*channel = fifo;
@@ -128,7 +136,7 @@ fifo_id_bk:
  * @hsi_ctrl - HSI controler data
  * @mtype - mapping strategy
  *
- * Returns 0 in case of success, and errocode (< 0) else
+ * Returns 0 in case of success, and error code (< 0) else
  * Configures the HSI FIFO mapping registers. Several mapping strategies are
  * proposed.
  * Note: The mapping is identical for Read and Write path.
@@ -141,24 +149,26 @@ int hsi_fifo_mapping(struct hsi_dev *hsi_ctrl, unsigned int mtype)
 	int i;
 	unsigned int channel, port;
 
-	if (mtype == HSI_FIFO_MAPPING_ALL_PORT1) {
+	if ((mtype == HSI_FIFO_MAPPING_ALL_PORT1) ||
+	    (mtype == HSI_FIFO_MAPPING_ALL_PORT2)) {
+		port = (mtype == HSI_FIFO_MAPPING_ALL_PORT1) ? 0 : 1;
 		channel = 0;
 		for (i = 0; i < HSI_HST_FIFO_COUNT; i++) {
 			hsi_outl(HSI_MAPPING_ENABLE |
 				 (channel << HSI_MAPPING_CH_NUMBER_OFFSET) |
-				 (0 << HSI_MAPPING_PORT_NUMBER_OFFSET) |
+				 (port << HSI_MAPPING_PORT_NUMBER_OFFSET) |
 				 HSI_HST_MAPPING_THRESH_VALUE,
 				 base, HSI_HST_MAPPING_FIFO_REG(i));
 			hsi_outl(HSI_MAPPING_ENABLE |
 				 (channel << HSI_MAPPING_CH_NUMBER_OFFSET) |
-				 (0 << HSI_MAPPING_PORT_NUMBER_OFFSET),
+				 (port << HSI_MAPPING_PORT_NUMBER_OFFSET),
 				 base, HSI_HSR_MAPPING_FIFO_REG(i));
 			channel++;
 		}
+
 		if (hsi_ctrl->fifo_mapping_strategy == HSI_FIFO_MAPPING_UNDEF)
 			dev_dbg(hsi_ctrl->dev, "Fifo mapping : All FIFOs for "
-						"Port1\n");
-		hsi_ctrl->fifo_mapping_strategy = HSI_FIFO_MAPPING_ALL_PORT1;
+						"Port %d\n", port + 1);
 	} else if (mtype == HSI_FIFO_MAPPING_SSI) {
 		channel = 0;
 		port = 0;
@@ -182,13 +192,13 @@ int hsi_fifo_mapping(struct hsi_dev *hsi_ctrl, unsigned int mtype)
 		if (hsi_ctrl->fifo_mapping_strategy == HSI_FIFO_MAPPING_UNDEF)
 			dev_dbg(hsi_ctrl->dev, "Fifo mapping : 8 FIFOs per Port"
 						" (SSI compatible mode)\n");
-		hsi_ctrl->fifo_mapping_strategy = HSI_FIFO_MAPPING_SSI;
 	} else {
-		hsi_ctrl->fifo_mapping_strategy = HSI_FIFO_MAPPING_UNDEF;
 		dev_err(hsi_ctrl->dev, "Bad Fifo strategy request : %d\n",
 			mtype);
 		err = -EINVAL;
 	}
+
+	hsi_ctrl->fifo_mapping_strategy = mtype;
 
 	return err;
 }

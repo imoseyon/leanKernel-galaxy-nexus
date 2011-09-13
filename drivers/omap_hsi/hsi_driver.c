@@ -128,7 +128,7 @@ void hsi_restore_ctx(struct hsi_dev *hsi_ctrl)
 
 	if (hsi_driver_device_is_hsi(pdev)) {
 		/* SW strategy for HSI fifo management can be changed here */
-		hsi_fifo_mapping(hsi_ctrl, HSI_FIFO_MAPPING_DEFAULT);
+		hsi_fifo_mapping(hsi_ctrl, hsi_ctrl->fifo_mapping_strategy);
 	}
 
 	/* As a last step move HSR from MODE_VAL.SLEEP to the relevant mode. */
@@ -373,7 +373,7 @@ static void hsi_set_ports_default(struct hsi_dev *hsi_ctrl,
 
 	if (hsi_driver_device_is_hsi(pdev)) {
 		/* SW strategy for HSI fifo management can be changed here */
-		hsi_fifo_mapping(hsi_ctrl, HSI_FIFO_MAPPING_DEFAULT);
+		hsi_fifo_mapping(hsi_ctrl, hsi_ctrl->fifo_mapping_strategy);
 		hsi_outl(pdata->ctx->dll, base, HSI_HSR_DLL_REG);
 	}
 }
@@ -766,7 +766,7 @@ static int __init hsi_controller_init(struct hsi_dev *hsi_ctrl,
 	}
 	hsi_ctrl->max_p = pdata->num_ports;
 	hsi_ctrl->in_dma_tasklet = false;
-	hsi_ctrl->fifo_mapping_strategy = HSI_FIFO_MAPPING_UNDEF;
+	hsi_ctrl->fifo_mapping_strategy = pdata->fifo_mapping_strategy;
 	hsi_ctrl->dev = &pd->dev;
 	spin_lock_init(&hsi_ctrl->lock);
 	err = hsi_init_gdd_chan_count(hsi_ctrl);
