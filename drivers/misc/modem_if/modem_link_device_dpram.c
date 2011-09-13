@@ -818,7 +818,6 @@ dpram_download(struct dpram_link_device *dpld, const char *buf, int len)
 static int
 dpram_upload(struct dpram_link_device *dpld, struct dpram_firmware *uploaddata)
 {
-	struct io_device *iod = dpram_find_iod(dpld, FMT_IDX);
 	struct dpram_map *dpram = (void *)dpld->dpram;
 	struct ul_header header;
 	u8 *dest;
@@ -870,7 +869,6 @@ dpram_upload(struct dpram_link_device *dpld, struct dpram_firmware *uploaddata)
 
 		memcpy(buff, dest, plen);
 		dest += plen;
-		pr_err("plen = %d\n", plen);
 
 		ret = copy_to_user(uploaddata->firmware + tlen,	buff,  plen);
 		if (ret < 0) {
@@ -909,8 +907,6 @@ dpram_upload(struct dpram_link_device *dpld, struct dpram_firmware *uploaddata)
 
 	dpram_writew(0, &dpld->dpram->magic); /*clear magic code */
 
-	if (iod && iod->modem_state_changed)
-		iod->modem_state_changed(iod, STATE_CRASH_EXIT);
 	wake_unlock(&dpld->dpram_wake_lock);
 
 	vfree(buff);
