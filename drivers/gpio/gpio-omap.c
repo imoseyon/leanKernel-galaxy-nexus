@@ -86,6 +86,27 @@ static void omap_gpio_mod_init(struct gpio_bank *bank);
 #define GPIO_INDEX(bank, gpio) (gpio % bank->width)
 #define GPIO_BIT(bank, gpio) (1 << GPIO_INDEX(bank, gpio))
 #define GPIO_MOD_CTRL_BIT	BIT(0)
+static void _set_gpio_waken(struct gpio_bank *bank, int gpio)
+{
+	if (bank->regs->wkup_set != bank->regs->wkup_clear) {
+		__raw_writel((1 << gpio), bank->base + bank->regs->wkup_set);
+	} else {
+		u32 val =  __raw_readl(bank->base + bank->regs->wkup_set);
+		val |= 1 << gpio;
+		__raw_writel(val, bank->base + bank->regs->wkup_set);
+	}
+}
+static void _clear_gpio_waken(struct gpio_bank *bank, int gpio)
+{
+	if (bank->regs->wkup_set != bank->regs->wkup_clear) {
+		__raw_writel((1 << gpio), bank->base + bank->regs->wkup_clear);
+	} else {
+		u32 val =  __raw_readl(bank->base + bank->regs->wkup_clear);
+		val &= ~(1 << gpio);
+		__raw_writel(val, bank->base + bank->regs->wkup_clear);
+	}
+
+}
 
 static void _set_gpio_direction(struct gpio_bank *bank, int gpio, int is_input)
 {
@@ -224,11 +245,9 @@ static inline void set_gpio_trigger(struct gpio_bank *bank, int gpio,
 			 * transitions
 			 */
 			if (trigger & IRQ_TYPE_EDGE_BOTH)
-				__raw_writel(1 << gpio, bank->base
-					+ bank->regs->wkup_set);
+				_set_gpio_waken(bank, gpio);
 			else
-				__raw_writel(1 << gpio, bank->base
-					+ bank->regs->wkup_clear);
+				_clear_gpio_waken(bank, gpio);
 		}
 	}
 	/* This part needs to be executed always for OMAP{34xx, 44xx} */
@@ -314,11 +333,9 @@ static int _set_gpio_triggering(struct gpio_bank *bank, int gpio, int trigger)
 
 		if (trigger)
 			/* Enable wake-up during idle for dynamic tick */
-			__raw_writel(1 << gpio, bank->base
-						+ bank->regs->wkup_set);
+			_set_gpio_waken(bank, gpio);
 		else
-			__raw_writel(1 << gpio, bank->base
-						+ bank->regs->wkup_clear);
+			_clear_gpio_waken(bank, gpio);
 
 		__raw_writel(l, reg);
 	}
@@ -553,7 +570,7 @@ static void omap_gpio_free(struct gpio_chip *chip, unsigned offset)
 
 	if (bank->regs->wkup_clear)
 		/* Disable wake-up during idle for dynamic tick */
-		__raw_writel(1 << offset, bank->base + bank->regs->wkup_clear);
+		_clear_gpio_waken(bank, offset);
 
 	bank->mod_usage &= ~(1 << offset);
 
