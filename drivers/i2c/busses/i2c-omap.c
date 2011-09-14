@@ -640,8 +640,7 @@ static int omap_i2c_xfer_msg(struct i2c_adapter *adap,
 		return 0;
 
 	/* We have an error */
-	if (dev->cmd_err & (OMAP_I2C_STAT_AL | OMAP_I2C_STAT_ROVR |
-			    OMAP_I2C_STAT_XUDF)) {
+	if (dev->cmd_err & OMAP_I2C_STAT_AL) {
 		omap_i2c_init(dev);
 		return -EIO;
 	}
@@ -1012,12 +1011,10 @@ done:
 			continue;
 		}
 		if (stat & OMAP_I2C_STAT_ROVR) {
-			dev_err(dev->dev, "Receive overrun\n");
-			dev->cmd_err |= OMAP_I2C_STAT_ROVR;
+			dev_dbg(dev->dev, "Receive overrun\n");
 		}
 		if (stat & OMAP_I2C_STAT_XUDF) {
-			dev_err(dev->dev, "Transmit underflow\n");
-			dev->cmd_err |= OMAP_I2C_STAT_XUDF;
+			dev_dbg(dev->dev, "Transmit underflow\n");
 		}
 	}
 
