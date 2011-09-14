@@ -16,6 +16,7 @@
 
 #define TUNA_REV_MASK		0xf
 #define TUNA_REV_03		0x3
+#define TUNA_REV_SAMPLE_4	0x3
 
 #define TUNA_TYPE_TORO		0x10
 #define TUNA_TYPE_MAGURO	0x00

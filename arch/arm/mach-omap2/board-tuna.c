@@ -336,6 +336,8 @@ static int uart1_rts_ctrl_write(struct file *file, const char __user *buffer,
 {
 	char buf[10] = {0,};
 
+	if (omap4_tuna_get_revision() < TUNA_REV_SAMPLE_4)
+		return -ENXIO;
 	if (count > sizeof(buf) - 1)
 		return -EINVAL;
 	if (copy_from_user(buf, buffer, count))
@@ -820,7 +822,8 @@ static struct omap_board_mux board_wkup_mux[] __initdata = {
 #define board_wkup_mux	NULL
 #endif
 
-static struct omap_device_pad tuna_uart1_pads[] __initdata = {
+/* sample4+ adds gps rts/cts lines */
+static struct omap_device_pad tuna_uart1_pads_sample4[] __initdata = {
 	{
 		.name	= "mcspi1_cs3.uart1_rts",
 		.flags  = OMAP_DEVICE_PAD_REMUX,
@@ -843,6 +846,18 @@ static struct omap_device_pad tuna_uart1_pads[] __initdata = {
 	},
 };
 
+static struct omap_device_pad tuna_uart1_pads[] __initdata = {
+	{
+		.name   = "uart3_cts_rctx.uart1_tx",
+		.enable = OMAP_PIN_OUTPUT | OMAP_MUX_MODE1,
+	},
+	{
+		.name   = "mcspi1_cs1.uart1_rx",
+		.flags  = OMAP_DEVICE_PAD_REMUX | OMAP_DEVICE_PAD_WAKEUP,
+		.enable = OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE1,
+		.idle   = OMAP_PIN_INPUT_PULLUP | OMAP_MUX_MODE1,
+	},
+};
 
 static struct omap_device_pad tuna_uart2_pads[] __initdata = {
 	{
@@ -899,8 +914,18 @@ static struct omap_uart_port_info tuna_uart2_info __initdata = {
 
 static inline void __init board_serial_init(void)
 {
-	omap_serial_init_port_pads(0, tuna_uart1_pads,
-		ARRAY_SIZE(tuna_uart1_pads), NULL);
+	struct omap_device_pad *uart1_pads;
+	int uart1_pads_sz;
+
+	if (omap4_tuna_get_revision() >= TUNA_REV_SAMPLE_4) {
+		uart1_pads = tuna_uart1_pads_sample4;
+		uart1_pads_sz = ARRAY_SIZE(tuna_uart1_pads_sample4);
+	} else {
+		uart1_pads = tuna_uart1_pads;
+		uart1_pads_sz = ARRAY_SIZE(tuna_uart1_pads);
+	}
+
+	omap_serial_init_port_pads(0, uart1_pads, uart1_pads_sz, NULL);
 	omap_serial_init_port_pads(1, tuna_uart2_pads,
 		ARRAY_SIZE(tuna_uart2_pads), &tuna_uart2_info);
 	omap_serial_init_port_pads(2, tuna_uart3_pads,
