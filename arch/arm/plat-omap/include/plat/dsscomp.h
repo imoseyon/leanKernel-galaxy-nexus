@@ -20,5 +20,6 @@ void dsscomp_drop(dsscomp_t c);
 struct tiler_pa_info;
 int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 			struct tiler_pa_info **pas,
+			bool early_callback,
 			void (*cb_fn)(void *, int), void *cb_arg);
 #endif

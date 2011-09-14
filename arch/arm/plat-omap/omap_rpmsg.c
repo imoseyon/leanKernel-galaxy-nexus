@@ -50,6 +50,8 @@ struct omap_rpmsg_vproc {
 	struct rproc *rproc;
 	struct notifier_block nb;
 	struct notifier_block rproc_nb;
+	struct notifier_block rproc_nb_pos_suspend;
+	struct notifier_block rproc_nb_resume;
 	struct notifier_block rproc_nb_error;
 	struct work_struct reset_work;
 	struct virtqueue *vq[2];
@@ -226,6 +228,35 @@ static int rpmsg_rproc_suspend(struct notifier_block *this,
 	return NOTIFY_DONE;
 }
 
+static int rpmsg_rproc_pos_suspend(struct notifier_block *this,
+				unsigned long type, void *data)
+{
+	struct omap_rpmsg_vproc *rpdev =
+			container_of(this,
+				     struct omap_rpmsg_vproc,
+				     rproc_nb_pos_suspend);
+
+	if (rpdev->mbox) {
+		omap_mbox_put(rpdev->mbox, &rpdev->nb);
+		rpdev->mbox = NULL;
+	}
+
+	return NOTIFY_DONE;
+}
+
+static int rpmsg_rproc_resume(struct notifier_block *this,
+				unsigned long type, void *data)
+{
+	struct omap_rpmsg_vproc *rpdev =
+			container_of(this,
+				     struct omap_rpmsg_vproc,
+				     rproc_nb_resume);
+
+	if (!rpdev->mbox)
+		rpdev->mbox = omap_mbox_get(rpdev->mbox_name, &rpdev->nb);
+
+	return NOTIFY_DONE;
+}
 static struct virtqueue *rp_find_vq(struct virtio_device *vdev,
 				    unsigned index,
 				    void (*callback)(struct virtqueue *vq),
@@ -379,6 +410,16 @@ static int omap_rpmsg_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 	/* register for remoteproc pre-suspend */
 	rpdev->rproc_nb.notifier_call = rpmsg_rproc_suspend;
 	rproc_event_register(rpdev->rproc, &rpdev->rproc_nb, RPROC_PRE_SUSPEND);
+
+	/* register for remoteproc post-suspend */
+	rpdev->rproc_nb_pos_suspend.notifier_call = rpmsg_rproc_pos_suspend;
+	rproc_event_register(rpdev->rproc,
+			     &rpdev->rproc_nb_pos_suspend, RPROC_POS_SUSPEND);
+
+	/* register for remoteproc resume */
+	rpdev->rproc_nb_resume.notifier_call = rpmsg_rproc_resume;
+	rproc_event_register(rpdev->rproc,
+			     &rpdev->rproc_nb_resume, RPROC_RESUME);
 
 	/* register for fatal errors */
 	INIT_WORK(&rpdev->reset_work, rpmsg_reset_work);

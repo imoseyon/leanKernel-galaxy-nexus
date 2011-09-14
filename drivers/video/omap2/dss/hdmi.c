@@ -59,12 +59,11 @@
 
 #define OMAP_HDMI_TIMINGS_NB			34
 
-#define GPIO_HDMI_HPD		63
-
 static struct {
 	struct mutex lock;
 	struct omap_display_platform_data *pdata;
 	struct platform_device *pdev;
+	struct omap_dss_device *dssdev;
 	struct hdmi_ip_data hdmi_data;
 	int code;
 	int mode;
@@ -81,204 +80,6 @@ static struct {
 
 	int runtime_count;
 } hdmi;
-
-/*
- * Logic for the below structure :
- * user enters the CEA or VESA timings by specifying the HDMI/DVI code.
- * There is a correspondence between CEA/VESA timing and code, please
- * refer to section 6.3 in HDMI 1.3 specification for timing code.
- *
- * In the below structure, cea_vesa_timings corresponds to all OMAP4
- * supported CEA and VESA timing values.code_cea corresponds to the CEA
- * code, It is used to get the timing from cea_vesa_timing array.Similarly
- * with code_vesa. Code_index is used for back mapping, that is once EDID
- * is read from the TV, EDID is parsed to find the timing values and then
- * map it to corresponding CEA or VESA index.
- */
-
-struct fb_videomode cea_timings[] = {
-	/* 640x480 at 60.00 Hz */
-	[1] = { NULL, 60,
-		640, 480, 39682, 48, 16, 33, 10, 96, 2,
-		0, FB_VMODE_NONINTERLACED, },
-	/* 720x480 at 60.00 Hz */
-	[2] = { NULL, 60,
-		720, 480, 37000, 60, 16, 30, 9, 62, 6,
-		0, FB_VMODE_NONINTERLACED, },
-	/* 720x480 at 60.00 Hz */
-	[3] = { NULL, 60,
-		720, 480, 37000, 60, 16, 30, 9, 62, 6,
-		0, FB_VMODE_NONINTERLACED, },
-	/* 1280x720 at 60.00 Hz */
-	[4] = { NULL, 60,
-		1280, 720, 13468, 220, 110, 20, 5, 40, 5,
-		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, },
-	/* 1920x540 at 60.05 Hz */
-	[5] = { NULL, 60,
-		1920, 1080, 13468, 148, 88, 15, 2, 44, 5,
-		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_INTERLACED, },
-	/* 1440x240 at 60.11 Hz */
-	[6] = { NULL, 60,
-		1440, 480, 37000, 114, 38, 15, 4, 124, 3,
-		0, FB_VMODE_INTERLACED, },
-	/* 1440x240 at 60.11 Hz */
-	[7] = { NULL, 60,
-		1440, 480, 37000, 114, 38, 15, 4, 124, 3,
-		0, FB_VMODE_INTERLACED, },
-	/* 1920x1080 at 60.00 Hz */
-	[16] = { NULL, 60,
-		1920, 1080, 6734, 148, 88, 36, 4, 44, 5,
-		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, },
-	/* 720x576 at 50.00 Hz */
-	[17] = { NULL, 50,
-		720, 576, 37037, 68, 12, 39, 5, 64, 5,
-		0, FB_VMODE_NONINTERLACED, },
-	/* 720x576 at 50.00 Hz */
-	[18] = { NULL, 50,
-		720, 576, 37037, 68, 12, 39, 5, 64, 5,
-		0, FB_VMODE_NONINTERLACED, },
-	/* 1280x720 at 50.00 Hz */
-	[19] = { NULL, 50,
-		1280, 720, 13468, 220, 440, 20, 5, 40, 5,
-		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, },
-	/* 1920x540 at 50.04 Hz */
-	[20] = { NULL, 50,
-		1920, 1080, 13468, 148, 528, 15, 2, 44, 5,
-		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_INTERLACED, },
-	/* 1440x288 at 50.08 Hz */
-	[21] = { NULL, 50,
-		1440, 576, 37037, 138, 24, 19, 2, 126, 3,
-		0, FB_VMODE_INTERLACED, },
-	/* 1440x288 at 50.08 Hz */
-	[22] = { NULL, 50,
-		1440, 576, 37037, 138, 24, 19, 2, 126, 3,
-		0, FB_VMODE_INTERLACED, },
-	/* 1440x576 at 50.00 Hz */
-	[29] = { NULL, 50,
-		1440, 576, 18518, 136, 24, 39, 5, 128, 5,
-		0, FB_VMODE_NONINTERLACED, },
-	/* 1440x576 at 50.00 Hz */
-	[30] = { NULL, 50,
-		1440, 576, 18518, 136, 24, 39, 5, 128, 5,
-		0, FB_VMODE_NONINTERLACED, },
-	/* 1920x1080 at 50.00 Hz */
-	[31] = { NULL, 50,
-		1920, 1080, 6734, 148, 528, 36, 4, 44, 5,
-		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, },
-	/* 1920x1080 at 24.00 Hz */
-	[32] = { NULL, 24,
-		1920, 1080, 13468, 148, 638, 36, 4, 44, 5,
-		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, },
-	/* 2880x480 at 60.00 Hz */
-	[35] = { NULL, 60,
-		2880, 480, 9250, 240, 64, 30, 9, 248, 6,
-		0, FB_VMODE_NONINTERLACED, },
-	/* 2880x480 at 60.00 Hz */
-	[36] = { NULL, 60,
-		2880, 480, 9250, 240, 64, 30, 9, 248, 6,
-		0, FB_VMODE_NONINTERLACED, },
-	/* 2880x576 at 50.00 Hz */
-	[37] = { NULL, 50,
-		2880, 576, 9259, 272, 48, 39, 5, 256, 5,
-		0, FB_VMODE_NONINTERLACED, },
-	/* 2880x576 at 50.00 Hz */
-	[38] = { NULL, 50,
-		2880, 576, 9259, 272, 48, 39, 5, 256, 5,
-		0, FB_VMODE_NONINTERLACED, },
-};
-struct fb_videomode vesa_timings[] = {
-	/* 640x480 at 60.05 Hz */
-	[4] = { NULL, 60,
-		640, 480, 39721, 48, 16, 31, 11, 96, 2,
-		0, FB_VMODE_NONINTERLACED, },
-	/* 800x600 at 60.32 Hz */
-	[9] = { NULL, 60,
-		800, 600, 25000, 88, 40, 23, 1, 128, 4,
-		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, },
-	/* 848x480 at 60.00 Hz */
-	[14] = { NULL, 60,
-		848, 480, 29629, 112, 16, 23, 6, 112, 8,
-		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, },
-	/* 1024x768 at 60.00 Hz */
-	[16] = { NULL, 60,
-		1024, 768, 15384, 160, 24, 29, 3, 136, 6,
-		0, FB_VMODE_NONINTERLACED, },
-	/* 1280x768 at 59.99 Hz */
-	[22] = { NULL, 59,
-		1280, 768, 14652, 80, 48, 12, 3, 32, 7,
-		FB_SYNC_HOR_HIGH_ACT, FB_VMODE_NONINTERLACED, },
-	/* 1280x768 at 59.87 Hz */
-	[23] = { NULL, 59,
-		1280, 768, 12578, 192, 64, 20, 3, 128, 7,
-		FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED, },
-	/* 1280x800 at 67.08 Hz */
-	[27] = { NULL, 67,
-		1280, 800, 12578, 80, 48, 14, 3, 32, 6,
-		FB_SYNC_HOR_HIGH_ACT, FB_VMODE_NONINTERLACED, },
-	/* 1280x800 at 59.81 Hz */
-	[28] = { NULL, 59,
-		1280, 800, 11976, 200, 72, 22, 3, 128, 6,
-		FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED, },
-	/* 1280x960 at 60.00 Hz */
-	[32] = { NULL, 60,
-		1280, 960, 9259, 312, 96, 36, 1, 112, 3,
-		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, },
-	/* 1280x1024 at 60.02 Hz */
-	[35] = { NULL, 60,
-		1280, 1024, 9259, 248, 48, 38, 1, 112, 3,
-		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, },
-	/* 1360x768 at 60.02 Hz */
-	[39] = { NULL, 60,
-		1360, 768, 11695, 256, 64, 18, 3, 112, 6,
-		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, },
-	/* 1400x1050 at 59.95 Hz */
-	[41] = { NULL, 59,
-		1400, 1050, 9900, 80, 48, 23, 3, 32, 4,
-		FB_SYNC_HOR_HIGH_ACT, FB_VMODE_NONINTERLACED, },
-	/* 1400x1050 at 59.98 Hz */
-	[42] = { NULL, 59,
-		1400, 1050, 8213, 232, 88, 32, 3, 144, 4,
-		FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED, },
-	/* 1440x900 at 59.89 Hz */
-	[47] = { NULL, 59,
-		1440, 900, 9389, 232, 80, 25, 3, 152, 6,
-		FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED, },
-	/* 1680x1050 at 59.88 Hz */
-	[57] = { NULL, 59,
-		1680, 1050, 8403, 80, 48, 21, 3, 32, 6,
-		FB_SYNC_HOR_HIGH_ACT, FB_VMODE_NONINTERLACED, },
-	/* 1680x1050 at 59.95 Hz */
-	[58] = { NULL, 59,
-		1680, 1050, 6837, 280, 104, 30, 3, 176, 6,
-		FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED, },
-	/* 1366x768 at 59.79 Hz */
-	[81] = { NULL, 59,
-		1366, 768, 11695, 213, 70, 24, 3, 143, 3,
-		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, },
-	/* 1920x1080 at 60.22 Hz */
-	[82] = { NULL, 60,
-		1920, 1080, 6734, 80, 148, 36, 4, 44, 5,
-		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, },
-	/* 1280x720 at 60.00 Hz */
-	[84] = { NULL, 60,
-		1280, 720, 13468, 220, 110, 20, 5, 40, 5,
-		FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-		FB_VMODE_NONINTERLACED, },
-};
 
 static const u8 edid_header[8] = {0x0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0};
 
@@ -346,19 +147,23 @@ int hdmi_init_display(struct omap_dss_device *dssdev)
 static int relaxed_fb_mode_is_equal(const struct fb_videomode *mode1,
 				    const struct fb_videomode *mode2)
 {
+	u32 ratio1 = mode1->flag & (FB_FLAG_RATIO_4_3 | FB_FLAG_RATIO_16_9);
+	u32 ratio2 = mode2->flag & (FB_FLAG_RATIO_4_3 | FB_FLAG_RATIO_16_9);
+
 	return (mode1->xres         == mode2->xres &&
 		mode1->yres         == mode2->yres &&
-		mode1->pixclock     <= mode2->pixclock + 1 &&
-		mode1->pixclock     >= mode2->pixclock - 1 &&
+		mode1->pixclock     <= mode2->pixclock * 201 / 200 &&
+		mode1->pixclock     >= mode2->pixclock * 200 / 201 &&
 		mode1->hsync_len + mode1->left_margin + mode1->right_margin ==
 		mode2->hsync_len + mode2->left_margin + mode2->right_margin &&
 		mode1->vsync_len + mode1->upper_margin + mode1->lower_margin ==
 		mode2->vsync_len + mode2->upper_margin + mode2->lower_margin &&
+		(!ratio1 || !ratio2 || ratio1 == ratio2) &&
 		(mode1->vmode & FB_VMODE_INTERLACED) ==
 		(mode2->vmode & FB_VMODE_INTERLACED));
 }
 
-static int hdmi_set_timings(const struct fb_videomode *vm, bool check_only)
+static int hdmi_set_timings(struct fb_videomode *vm, bool check_only)
 {
 	int i = 0;
 	DSSDBG("hdmi_get_code\n");
@@ -366,30 +171,9 @@ static int hdmi_set_timings(const struct fb_videomode *vm, bool check_only)
 	if (!vm->xres || !vm->yres || !vm->pixclock)
 		goto fail;
 
-	for (i = 0; i < ARRAY_SIZE(cea_timings); i++) {
-		if (relaxed_fb_mode_is_equal(cea_timings + i, vm)) {
-			if (check_only)
-				return 1;
-			hdmi.cfg.cm.code = i;
-			hdmi.cfg.cm.mode = HDMI_HDMI;
-			hdmi.cfg.timings = cea_timings[hdmi.cfg.cm.code];
-			goto done;
-		}
-	}
-
-	for (i = 0; i < ARRAY_SIZE(vesa_timings); i++) {
-		if (relaxed_fb_mode_is_equal(vesa_timings + i, vm)) {
-			if (check_only)
-				return 1;
-			hdmi.cfg.cm.code = i;
-			hdmi.cfg.cm.mode = HDMI_DVI;
-			hdmi.cfg.timings = vesa_timings[hdmi.cfg.cm.code];
-			goto done;
-		}
-	}
-#if 0
-	for (i = 0; i < sizeof(cea_modes); i++) {
+	for (i = 0; i < CEA_MODEDB_SIZE; i++) {
 		if (relaxed_fb_mode_is_equal(cea_modes + i, vm)) {
+			*vm = cea_modes[i];
 			if (check_only)
 				return 1;
 			hdmi.cfg.cm.code = i;
@@ -399,8 +183,9 @@ static int hdmi_set_timings(const struct fb_videomode *vm, bool check_only)
 		}
 	}
 
-	for (i = 0; i < 34; i++) {
+	for (i = 0; i < VESA_MODEDB_SIZE; i++) {
 		if (relaxed_fb_mode_is_equal(vesa_modes + i, vm)) {
+			*vm = vesa_modes[i];
 			if (check_only)
 				return 1;
 			hdmi.cfg.cm.code = i;
@@ -409,13 +194,13 @@ static int hdmi_set_timings(const struct fb_videomode *vm, bool check_only)
 			goto done;
 		}
 	}
-#endif
+
 fail:
 	if (check_only)
 		return 0;
 	hdmi.cfg.cm.code = 1;
 	hdmi.cfg.cm.mode = HDMI_HDMI;
-	hdmi.cfg.timings = cea_timings[hdmi.cfg.cm.code];
+	hdmi.cfg.timings = cea_modes[hdmi.cfg.cm.code];
 
 	i = -1;
 done:
@@ -444,8 +229,18 @@ void hdmi_get_monspecs(struct fb_monspecs *specs)
 
 	/* filter out resolutions we don't support */
 	for (i = j = 0; i < specs->modedb_len; i++) {
-		if (hdmi_set_timings(&specs->modedb[i], true))
-			specs->modedb[j++] = specs->modedb[i];
+		u32 max_pclk = hdmi.dssdev->clocks.hdmi.max_pixclk_khz;
+		if (!hdmi_set_timings(&specs->modedb[i], true))
+			continue;
+
+		if (max_pclk &&
+		    max_pclk < PICOS2KHZ(specs->modedb[i].pixclock))
+			continue;
+
+		if (specs->modedb[i].flag & FB_FLAG_PIXEL_REPEAT)
+			continue;
+
+		specs->modedb[j++] = specs->modedb[i];
 	}
 	specs->modedb_len = j;
 }
@@ -545,8 +340,10 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 		dssdev->panel.timings.x_res,
 		dssdev->panel.timings.y_res);
 
-	if (!hdmi.custom_set)
-		hdmi_set_timings(&vesa_timings[4], false);
+	if (!hdmi.custom_set) {
+		struct fb_videomode vesa_vga = vesa_modes[4];
+		hdmi_set_timings(&vesa_vga, false);
+	}
 
 	omapfb_fb2dss_timings(&hdmi.cfg.timings, &dssdev->panel.timings);
 
@@ -653,7 +450,7 @@ int omapdss_hdmi_get_deepcolor(void)
 
 int hdmi_get_current_hpd()
 {
-	return gpio_get_value(GPIO_HDMI_HPD);
+	return gpio_get_value(hdmi.dssdev->hpd_gpio);
 }
 
 static irqreturn_t hpd_irq_handler(int irq, void *ptr)
@@ -832,12 +629,24 @@ static void hdmi_put_clocks(void)
 static int omapdss_hdmihw_probe(struct platform_device *pdev)
 {
 	struct resource *hdmi_mem;
+	struct omap_dss_board_info *board_data;
 	int r;
 
 	hdmi.pdata = pdev->dev.platform_data;
 	hdmi.pdev = pdev;
 
 	mutex_init(&hdmi.lock);
+
+	/* save reference to HDMI device */
+	board_data = hdmi.pdata->board_data;
+	for (r = 0; r < board_data->num_devices; r++) {
+		if (board_data->devices[r]->type == OMAP_DISPLAY_TYPE_HDMI)
+			hdmi.dssdev = board_data->devices[r];
+	}
+	if (!hdmi.dssdev) {
+		DSSERR("can't get HDMI device\n");
+		return -EINVAL;
+	}
 
 	hdmi_mem = platform_get_resource(hdmi.pdev, IORESOURCE_MEM, 0);
 	if (!hdmi_mem) {
@@ -861,12 +670,12 @@ static int omapdss_hdmihw_probe(struct platform_device *pdev)
 
 	pm_runtime_enable(&pdev->dev);
 
-	r = request_irq(gpio_to_irq(GPIO_HDMI_HPD), hpd_irq_handler,
+	r = request_irq(gpio_to_irq(hdmi.dssdev->hpd_gpio), hpd_irq_handler,
 			IRQF_DISABLED | IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
 			"hpd", NULL);
 	if (r < 0) {
 		pr_err("hdmi: request_irq %d failed\n",
-			gpio_to_irq(GPIO_HDMI_HPD));
+			gpio_to_irq(hdmi.dssdev->hpd_gpio));
 		return -EINVAL;
 	}
 
@@ -883,6 +692,10 @@ static int omapdss_hdmihw_probe(struct platform_device *pdev)
 static int omapdss_hdmihw_remove(struct platform_device *pdev)
 {
 	hdmi_panel_exit();
+
+	if (hdmi.dssdev)
+		free_irq(gpio_to_irq(hdmi.dssdev->hpd_gpio), hpd_irq_handler);
+	hdmi.dssdev = NULL;
 
 	pm_runtime_disable(&pdev->dev);
 
