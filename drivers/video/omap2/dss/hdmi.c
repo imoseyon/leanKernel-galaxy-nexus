@@ -69,6 +69,7 @@ static struct {
 	int mode;
 	u8 edid[HDMI_EDID_MAX_LENGTH];
 	u8 edid_set;
+	bool can_do_hdmi;
 
 	bool custom_set;
 	enum hdmi_deep_color_mode deep_color;
@@ -228,6 +229,8 @@ void hdmi_get_monspecs(struct fb_monspecs *specs)
 			fb_edid_add_monspecs(edid + i * 128, specs);
 	}
 
+	hdmi.can_do_hdmi = specs->misc & FB_MISC_HDMI;
+
 	/* filter out resolutions we don't support */
 	for (i = j = 0; i < specs->modedb_len; i++) {
 		u32 max_pclk = hdmi.dssdev->clocks.hdmi.max_pixclk_khz;
@@ -386,7 +389,7 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 		goto err;
 	}
 
-	hdmi.cfg.cm.mode = hdmi.mode;
+	hdmi.cfg.cm.mode = hdmi.can_do_hdmi ? hdmi.mode : HDMI_DVI;
 	hdmi.cfg.cm.code = hdmi.code;
 	hdmi_ti_4xxx_basic_configure(&hdmi.hdmi_data, &hdmi.cfg);
 
