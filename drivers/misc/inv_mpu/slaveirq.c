@@ -162,7 +162,6 @@ static irqreturn_t slaveirq_handler(int irq, void *dev_id)
 {
 	struct slaveirq_dev_data *data = (struct slaveirq_dev_data *)dev_id;
 	static int mycount;
-	struct timeval irqtime;
 	mycount++;
 
 	data->data.interruptcount++;
@@ -170,9 +169,7 @@ static irqreturn_t slaveirq_handler(int irq, void *dev_id)
 	/* wake up (unblock) for reading data from userspace */
 	data->data_ready = 1;
 
-	do_gettimeofday(&irqtime);
-	data->data.irqtime = (((long long)irqtime.tv_sec) << 32);
-	data->data.irqtime += irqtime.tv_usec;
+	data->data.irqtime = ktime_to_ns(ktime_get());
 	data->data.data_type |= 1;
 
 	wake_up_interruptible(&data->slaveirq_wait);

@@ -84,7 +84,6 @@ static int mpu_pm_notifier_callback(struct notifier_block *nb,
 	struct mpu_private_data *mpu =
 	    container_of(nb, struct mpu_private_data, nb);
 	struct i2c_client *client = mpu->client;
-	struct timeval event_time;
 	dev_dbg(&client->adapter->dev, "%s: %ld\n", __func__, event);
 
 	/* Prevent the file handle from being closed before we initialize
@@ -96,17 +95,15 @@ static int mpu_pm_notifier_callback(struct notifier_block *nb,
 		return NOTIFY_OK;
 	}
 
-	do_gettimeofday(&event_time);
-	mpu->mpu_pm_event.interruptcount++;
-	mpu->mpu_pm_event.irqtime =
-	    (((long long)event_time.tv_sec) << 32) + event_time.tv_usec;
-	mpu->mpu_pm_event.data_type = MPUIRQ_DATA_TYPE_PM_EVENT;
-	mpu->mpu_pm_event.data = mpu->event;
-
 	if (event == PM_SUSPEND_PREPARE)
 		mpu->event = MPU_PM_EVENT_SUSPEND_PREPARE;
 	if (event == PM_POST_SUSPEND)
 		mpu->event = MPU_PM_EVENT_POST_SUSPEND;
+
+	mpu->mpu_pm_event.irqtime = ktime_to_ns(ktime_get());
+	mpu->mpu_pm_event.interruptcount++;
+	mpu->mpu_pm_event.data_type = MPUIRQ_DATA_TYPE_PM_EVENT;
+	mpu->mpu_pm_event.data = mpu->event;
 
 	if (mpu->response_timeout > 0) {
 		mpu->timeout.expires = jiffies + mpu->response_timeout * HZ;

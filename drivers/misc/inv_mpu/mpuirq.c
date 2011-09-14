@@ -155,7 +155,6 @@ static long mpuirq_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 static irqreturn_t mpuirq_handler(int irq, void *dev_id)
 {
 	static int mycount;
-	struct timeval irqtime;
 	mycount++;
 
 	mpuirq_data.interruptcount++;
@@ -164,9 +163,7 @@ static irqreturn_t mpuirq_handler(int irq, void *dev_id)
 	/* and ignore first interrupt generated in module init */
 	mpuirq_dev_data.data_ready = 1;
 
-	do_gettimeofday(&irqtime);
-	mpuirq_data.irqtime = (((long long)irqtime.tv_sec) << 32);
-	mpuirq_data.irqtime += irqtime.tv_usec;
+	mpuirq_data.irqtime = ktime_to_ns(ktime_get());
 	mpuirq_data.data_type = MPUIRQ_DATA_TYPE_MPU_IRQ;
 	mpuirq_data.data = 0;
 
