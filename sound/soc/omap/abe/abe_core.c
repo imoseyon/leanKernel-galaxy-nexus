@@ -254,6 +254,10 @@ int omap_abe_set_ping_pong_buffer(struct omap_abe *abe, u32 port, u32 n_bytes)
 			(u32) &(desc_pp);
 		base_and_size = desc_pp.nextbuff1_BaseAddr;
 	}
+
+	base_and_size = abe->pp_buf_addr[abe->pp_buf_id_next];
+	abe->pp_buf_id_next = (abe->pp_buf_id_next + 1) & 0x03;
+
 	base_and_size = (base_and_size & 0xFFFFL) + (n_samples << 16);
 	sio_pp_desc_address = OMAP_ABE_D_PINGPONGDESC_ADDR + struct_offset;
 	src = &base_and_size;
@@ -334,6 +338,13 @@ int omap_abe_init_ping_pong_buffer(struct omap_abe *abe,
 		/* base addresses of the ping pong buffers in U8 unit */
 		abe_base_address_pingpong[i] = dmem_addr;
 	}
+
+	for (i = 0; i < 4; i++)
+		abe->pp_buf_addr[i] = OMAP_ABE_D_PING_ADDR + (i * size_bytes);
+	abe->pp_buf_id = 0;
+	abe->pp_buf_id_next = 0;
+	abe->pp_first_irq = 1;
+
 	/* global data */
 	abe_size_pingpong = size_bytes;
 	*p = (u32) OMAP_ABE_D_PING_ADDR;
@@ -371,29 +382,27 @@ int omap_abe_read_offset_from_ping_buffer(struct omap_abe *abe,
 		   the value of the counter */
 		if ((desc_pp.counter & 0x1) == 0) {
 			/* the next is buffer0, hence the current is buffer1 */
-			switch (abe_port[OMAP_ABE_MM_DL_PORT].format.samp_format) {
-			case MONO_MSB:
-			case MONO_RSHIFTED_16:
-			case STEREO_16_16:
-				*n = abe_size_pingpong / 4 +
-					desc_pp.nextbuff1_Samples -
-					desc_pp.workbuff_Samples;
-				break;
-			case STEREO_MSB:
-			case STEREO_RSHIFTED_16:
-				*n = abe_size_pingpong / 8 +
-					desc_pp.nextbuff1_Samples -
-					desc_pp.workbuff_Samples;
-				break;
-			default:
-				omap_abe_dbg_error(abe, OMAP_ABE_ERR_API,
-						   ABE_PARAMETER_ERROR);
-				break;
-			}
+			*n = desc_pp.nextbuff1_Samples -
+				desc_pp.workbuff_Samples;
 		} else {
 			/* the next is buffer1, hence the current is buffer0 */
 			*n = desc_pp.nextbuff0_Samples -
 				desc_pp.workbuff_Samples;
+		}
+		switch (abe_port[OMAP_ABE_MM_DL_PORT].format.samp_format) {
+		case MONO_MSB:
+		case MONO_RSHIFTED_16:
+		case STEREO_16_16:
+			*n +=  abe->pp_buf_id * abe_size_pingpong / 4;
+			break;
+		case STEREO_MSB:
+		case STEREO_RSHIFTED_16:
+			*n += abe->pp_buf_id * abe_size_pingpong / 8;
+			break;
+		default:
+			omap_abe_dbg_error(abe, OMAP_ABE_ERR_API,
+					   ABE_PARAMETER_ERROR);
+			return -EINVAL;
 		}
 	}
 

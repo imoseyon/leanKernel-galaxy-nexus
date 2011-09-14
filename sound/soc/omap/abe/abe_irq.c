@@ -81,6 +81,12 @@ extern u32 abe_irq_pingpong_player_id;
  */
 void abe_irq_ping_pong(void)
 {
+	/* first IRQ doesn't represent a buffer transference completion */
+	if (abe->pp_first_irq)
+		abe->pp_first_irq = 0;
+	else
+		abe->pp_buf_id = (abe->pp_buf_id + 1) & 0x03;
+
 	abe_call_subroutine(abe_irq_pingpong_player_id, NOPARAMETER,
 			    NOPARAMETER, NOPARAMETER, NOPARAMETER);
 }

@@ -59,6 +59,8 @@
 #ifndef _ABE_DBG_H_
 #define _ABE_DBG_H_
 
+#include <linux/mutex.h>
+
 #include "abe_typ.h"
 #include "abe_dm_addr.h"
 
@@ -192,6 +194,29 @@ struct omap_abe_dma {
 	void *l4_dmem;
 	/* number of iterations for the DMA data moves. */
 	u32 iter;
+};
+
+struct omap_abe {
+	void __iomem *io_base[5];
+	u32 firmware_version_number;
+	u16 MultiFrame[25][8];
+	u32 compensated_mixer_gain;
+	u8  muted_gains_indicator[MAX_NBGAIN_CMEM];
+	u32 desired_gains_decibel[MAX_NBGAIN_CMEM];
+	u32 muted_gains_decibel[MAX_NBGAIN_CMEM];
+	u32 desired_gains_linear[MAX_NBGAIN_CMEM];
+	u32 desired_ramp_delay_ms[MAX_NBGAIN_CMEM];
+	int pp_buf_id;
+	int pp_buf_id_next;
+	int pp_buf_addr[4];
+	int pp_first_irq;
+	struct mutex mutex;
+	u32 warm_boot;
+
+	u32 irq_dbg_read_ptr;
+	u32 dbg_param;
+
+	struct omap_abe_dbg dbg;
 };
 
 /**
