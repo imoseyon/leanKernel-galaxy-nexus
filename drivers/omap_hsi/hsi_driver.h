@@ -225,7 +225,7 @@ struct hsi_platform_data {
 			unsigned long rate);
 	int (*wakeup_enable) (int hsi_port);
 	int (*wakeup_disable) (int hsi_port);
-	int (*wakeup_is_from_hsi) (int *hsi_port);
+	bool (*wakeup_is_from_hsi) (int *hsi_port);
 	int (*board_suspend)(int hsi_port, bool dev_may_wakeup);
 	int (*board_resume)(int hsi_port);
 	u8 num_ports;

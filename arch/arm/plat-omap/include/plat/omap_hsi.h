@@ -486,13 +486,13 @@ extern int omap_hsi_config(struct omap_hsi_board_config *hsi_config);
 extern int omap_hsi_prepare_suspend(int hsi_port, bool dev_may_wakeup);
 extern int omap_hsi_io_wakeup_check(void);
 extern int omap_hsi_wakeup(int hsi_port);
-extern int omap_hsi_is_io_wakeup_from_hsi(int *hsi_port);
+extern bool omap_hsi_is_io_wakeup_from_hsi(int *hsi_port);
 #else
 inline int omap_hsi_prepare_suspend(int hsi_port,
 					bool dev_may_wakeup) { return -ENOSYS; }
 inline int omap_hsi_io_wakeup_check(void) { return -ENOSYS; }
 inline int omap_hsi_wakeup(int hsi_port) { return -ENOSYS; }
-inline int omap_hsi_is_io_wakeup_from_hsi(int *hsi_port) { return -ENOSYS; }
+inline bool omap_hsi_is_io_wakeup_from_hsi(int *hsi_port) { return false; }
 #endif
 
 #endif /* __OMAP_HSI_H__ */
