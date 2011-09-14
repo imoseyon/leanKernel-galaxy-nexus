@@ -161,6 +161,9 @@ int omap_rproc_activate(struct omap_device *od)
 		}
 		rpp->iommu = iommu;
 	}
+
+	if (!rpp->mbox)
+		rpp->mbox = omap_mbox_get(pdata->sus_mbox_name, NULL);
 #endif
 
 	/**
@@ -218,6 +221,11 @@ int omap_rproc_deactivate(struct omap_device *od)
 	if (rpp->iommu) {
 		iommu_put(rpp->iommu);
 		rpp->iommu = NULL;
+	}
+
+	if (rpp->mbox) {
+		omap_mbox_put(rpp->mbox, NULL);
+		rpp->mbox = NULL;
 	}
 #endif
 err:
@@ -434,6 +442,11 @@ static inline int omap_rproc_stop(struct rproc *rproc)
 		goto err;
 
 	for (i = 0; i < pdata->timers_cnt; i++) {
+#ifdef CONFIG_REMOTEPROC_WATCHDOG
+		/* GPT 9 and 11 are used as WDT */
+		if (timers[i].id == 9 || timers[i].id == 11)
+			free_irq(omap_dm_timer_get_irq(timers[i].odt), rproc);
+#endif
 		omap_dm_timer_free(timers[i].odt);
 		timers[i].odt = NULL;
 	}

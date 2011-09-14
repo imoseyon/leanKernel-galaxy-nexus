@@ -302,7 +302,7 @@ void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 		d.ovls[0].ba = sFBFix.smem_start;
 		omapfb_mode_to_dss_mode(&sFBVar, &d.ovls[0].cfg.color_mode);
 
-		res = dsscomp_gralloc_queue(&d, pas, NULL, NULL);
+		res = dsscomp_gralloc_queue(&d, pas, true, NULL, NULL);
 	}
 #else
 #if !defined(PVR_OMAPLFB_DONT_USE_FB_PAN_DISPLAY)

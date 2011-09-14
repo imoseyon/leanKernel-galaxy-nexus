@@ -443,10 +443,20 @@ static long comp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	}
 	case DSSCOMP_QUERY_DISPLAY:
 	{
-		r = copy_from_user(&u.dis, ptr, sizeof(u.dis)) ? :
-		    query_display(cdev, &u.dis) ? :
-		    copy_to_user(ptr, &u.dis, sizeof(u.dis) +
-				sizeof(*u.dis.modedb) * u.dis.modedb_len);
+		struct dsscomp_display_info *dis = NULL;
+		r = copy_from_user(&u.dis, ptr, sizeof(u.dis));
+		if (!r)
+			dis = kzalloc(sizeof(*dis->modedb) * u.dis.modedb_len +
+						sizeof(*dis), GFP_KERNEL);
+		if (dis) {
+			*dis = u.dis;
+			r = query_display(cdev, dis) ? :
+			    copy_to_user(ptr, dis, sizeof(*dis) +
+				sizeof(*dis->modedb) * dis->modedb_len);
+			kfree(dis);
+		} else {
+			r = r ? : -ENOMEM;
+		}
 		break;
 	}
 	case DSSCOMP_CHECK_OVL:
