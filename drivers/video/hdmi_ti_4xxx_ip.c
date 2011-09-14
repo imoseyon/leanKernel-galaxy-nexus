@@ -774,6 +774,12 @@ void hdmi_ti_4xxx_basic_configure(struct hdmi_ip_data *ip_data,
 	avi_cfg.db1_scan_info = HDMI_INFOFRAME_AVI_DB1S_0;
 	avi_cfg.db2_colorimetry = HDMI_INFOFRAME_AVI_DB2C_NO;
 	avi_cfg.db2_aspect_ratio = HDMI_INFOFRAME_AVI_DB2M_NO;
+	if (cfg->cm.mode == HDMI_HDMI && cfg->cm.code < CEA_MODEDB_SIZE) {
+		if (cea_modes[cfg->cm.code].flag & FB_FLAG_RATIO_16_9)
+			avi_cfg.db2_aspect_ratio = HDMI_INFOFRAME_AVI_DB2M_169;
+		else if (cea_modes[cfg->cm.code].flag & FB_FLAG_RATIO_4_3)
+			avi_cfg.db2_aspect_ratio = HDMI_INFOFRAME_AVI_DB2M_43;
+	}
 	avi_cfg.db2_active_fmt_ar = HDMI_INFOFRAME_AVI_DB2R_SAME;
 	avi_cfg.db3_itc = HDMI_INFOFRAME_AVI_DB3ITC_NO;
 	avi_cfg.db3_ec = HDMI_INFOFRAME_AVI_DB3EC_XVYUV601;
