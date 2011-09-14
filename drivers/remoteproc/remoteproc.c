@@ -36,6 +36,8 @@
 #include <linux/debugfs.h>
 #include <linux/remoteproc.h>
 #include <linux/pm_runtime.h>
+#include <linux/uaccess.h>
+#include <linux/elf.h>
 
 /* list of available remote processors on this board */
 static LIST_HEAD(rprocs);
@@ -118,6 +120,275 @@ static const struct file_operations name ##_rproc_ops = {		\
 	.open = rproc_open_generic,					\
 	.llseek	= generic_file_llseek,					\
 };
+
+#ifdef CONFIG_REMOTEPROC_CORE_DUMP
+/* Intermediate core-dump-file format */
+struct core_rproc {
+	struct rproc *rproc;
+	/* ELF state */
+	Elf_Half e_phnum;
+	union {
+		struct {
+			struct elfhdr elf;
+			struct elf_phdr phdr[RPROC_MAX_MEM_ENTRIES];
+		} __packed;
+		u8 header[sizeof(struct elfhdr) +
+			  sizeof(struct elf_phdr) * RPROC_MAX_MEM_ENTRIES];
+	};
+
+	loff_t offset;
+};
+
+/* Return the number of segments to be written to the core file */
+static int rproc_core_map_count(const struct rproc *rproc)
+{
+	int i = 0;
+	int count = 0;
+	for (;; i++) {
+		if (!rproc->memory_maps[i].size)
+			break;
+		if (!rproc->memory_maps[i].core)
+			continue;
+		count++;
+	}
+
+	/* The Ducati has a low number of segments */
+	if (count > PN_XNUM)
+		return -1;
+
+	return count;
+}
+
+#define ELFOSABI_DUCATI ELFOSABI_NONE
+
+/* Copied from fs/binfmt_elf.c */
+static void fill_elf_header(struct elfhdr *elf, int segs,
+			    u16 machine, u32 flags, u8 osabi)
+{
+	memset(elf, 0, sizeof(*elf));
+
+	memcpy(elf->e_ident, ELFMAG, SELFMAG);
+	elf->e_ident[EI_CLASS] = ELF_CLASS;
+	elf->e_ident[EI_DATA] = ELF_DATA;
+	elf->e_ident[EI_VERSION] = EV_CURRENT;
+	elf->e_ident[EI_OSABI] = ELFOSABI_DUCATI;
+
+	elf->e_type = ET_CORE;
+	elf->e_machine = machine;
+	elf->e_version = EV_CURRENT;
+	elf->e_phoff = sizeof(struct elfhdr);
+	elf->e_flags = flags;
+	elf->e_ehsize = sizeof(struct elfhdr);
+	elf->e_phentsize = sizeof(struct elf_phdr);
+	elf->e_phnum = segs;
+
+	return;
+}
+
+static int fill_elf_segment_headers(struct core_rproc *d)
+{
+	int i = 0;
+	int hi = 0;
+	loff_t offset = d->offset;
+	for (;; i++) {
+		u32 size;
+
+		size = d->rproc->memory_maps[i].size;
+		if (!size)
+			break;
+		if (!d->rproc->memory_maps[i].core)
+			continue;
+
+		BUG_ON(hi >= d->e_phnum);
+
+		d->phdr[hi].p_type = PT_LOAD;
+		d->phdr[hi].p_offset = offset;
+		d->phdr[hi].p_vaddr = d->rproc->memory_maps[i].da;
+		d->phdr[hi].p_paddr = d->rproc->memory_maps[i].pa;
+		d->phdr[hi].p_filesz = size;
+		d->phdr[hi].p_memsz = size;
+		/* FIXME: get these from the Ducati */
+		d->phdr[hi].p_flags = PF_R | PF_W | PF_X;
+
+		pr_debug("%s: phdr type %d f_off %08x va %08x pa %08x fl %x\n",
+			__func__,
+			d->phdr[hi].p_type,
+			d->phdr[hi].p_offset,
+			d->phdr[hi].p_vaddr,
+			d->phdr[hi].p_paddr,
+			d->phdr[hi].p_flags);
+
+		offset += size;
+		hi++;
+	}
+
+	return 0;
+}
+
+static int setup_rproc_elf_core_dump(struct core_rproc *d)
+{
+	short __phnum;
+
+	memset(&d->elf, 0, sizeof(d->elf));
+
+	__phnum = rproc_core_map_count(d->rproc);
+	if (__phnum < 0 || __phnum > ARRAY_SIZE(d->phdr))
+		return -EIO;
+	d->e_phnum = __phnum;
+
+	pr_info("%s: number of segments: %d\n", __func__, d->e_phnum);
+
+	fill_elf_header(&d->elf, d->e_phnum, EM_ARM,
+		EF_ARM_EABI_VER2,
+		ELFOSABI_DUCATI);
+
+	d->offset += sizeof(struct elfhdr);
+	d->offset += RPROC_MAX_MEM_ENTRIES * sizeof(struct elf_phdr);
+	d->offset = roundup(d->offset, PAGE_SIZE);
+
+	return fill_elf_segment_headers(d);
+}
+
+static int core_rproc_open(struct inode *inode, struct file *filp)
+{
+	int i;
+	struct core_rproc *d;
+
+	d = kzalloc(sizeof(*d), GFP_KERNEL);
+	if (!d)
+		return -ENOMEM;
+
+	d->rproc = inode->i_private;
+	filp->private_data = d;
+
+	setup_rproc_elf_core_dump(d);
+
+	if (0) {
+		const struct rproc *rproc;
+		rproc = d->rproc;
+		for (i = 0; rproc->memory_maps[i].size; i++) {
+			pr_info("%s: memory_map[%d] pa %08x sz %d core %d\n",
+				__func__,
+				i,
+				rproc->memory_maps[i].pa,
+				rproc->memory_maps[i].size,
+				rproc->memory_maps[i].core);
+		}
+	}
+
+	return 0;
+}
+
+static int core_rproc_release(struct inode *inode, struct file *filp)
+{
+	pr_info("%s\n", __func__);
+	kfree(filp->private_data);
+	return 0;
+}
+
+/* Given an offset to read from, return the index of the memory-map region to
+ * read from.
+ */
+static int rproc_memory_map_index(const struct rproc *rproc, loff_t *off)
+{
+	int i = 0;
+	for (;; i++) {
+		int size = rproc->memory_maps[i].size;
+
+		if (!size)
+			break;
+		if (!rproc->memory_maps[i].core)
+			continue;
+		if (*off < size)
+			return i;
+
+		*off -= size;
+	}
+
+	return -1;
+}
+
+static ssize_t core_rproc_read(struct file *filp,
+			char __user *userbuf, size_t count, loff_t *ppos)
+{
+	const struct core_rproc *d = filp->private_data;
+	const struct rproc *rproc = d->rproc;
+	int index;
+	loff_t pos;
+	size_t remaining = count;
+	ssize_t copied = 0;
+
+	pr_debug("%s count %d off %lld\n", __func__, count, *ppos);
+
+	/* copy the ELF and segment header first */
+	if (*ppos < d->offset) {
+		copied = simple_read_from_buffer(userbuf, count,
+					ppos, d->header, d->offset);
+		if (copied < 0) {
+			pr_err("%s: could not copy ELF header\n", __func__);
+			return -EIO;
+		}
+
+		pr_debug("%s: copied %d/%lld from ELF header\n", __func__,
+			copied, d->offset);
+		remaining -= copied;
+	}
+
+	/* copy the data */
+	while (remaining) {
+		size_t remaining_in_region;
+		const struct rproc_mem_entry *r;
+		void __iomem *kvaddr;
+
+		pos = *ppos - d->offset;
+		index = rproc_memory_map_index(rproc, &pos);
+		if (index < 0) {
+			pr_info("%s: EOF at off %lld\n", __func__, *ppos);
+			break;
+		}
+
+		r = &rproc->memory_maps[index];
+
+		remaining_in_region = r->size - pos;
+		if (remaining_in_region > remaining)
+			remaining_in_region = remaining;
+
+		pr_debug("%s: iomap 0x%x size %d\n", __func__, r->pa, r->size);
+		kvaddr = ioremap(r->pa, r->size);
+		if (!kvaddr) {
+			pr_err("%s: iomap error: region %d (phys 0x%08x size %d)\n",
+				__func__, index, r->pa, r->size);
+			return -EIO;
+		}
+
+		pr_debug("%s: off %lld -> [%d](pa 0x%08x off %lld sz %d)\n",
+			__func__,
+			*ppos, index, r->pa, pos, r->size);
+
+		if (copy_to_user(userbuf + copied, kvaddr + pos,
+				remaining_in_region)) {
+			pr_err("%s: copy_to_user error\n", __func__);
+			return -EFAULT;
+		}
+
+		iounmap(kvaddr);
+
+		copied += remaining_in_region;
+		*ppos += remaining_in_region;
+		BUG_ON(remaining < remaining_in_region);
+		remaining -= remaining_in_region;
+	}
+
+	return copied;
+}
+
+static const struct file_operations core_rproc_ops = {
+	.read = core_rproc_read,
+	.open = core_rproc_open,
+	.release = core_rproc_release,
+	.llseek = generic_file_llseek,
+};
+#endif /* CONFIG_REMOTEPROC_CORE_DUMP */
 
 static const struct file_operations rproc_name_ops = {
 	.read = rproc_name_read,
@@ -287,6 +558,11 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 		}
 	}
 
+#ifdef CONFIG_REMOTEPROC_CORE_DUMP
+	debugfs_create_file("core", 0400, rproc->dbg_dir,
+			rproc, &core_rproc_ops);
+#endif
+
 	err = rproc->ops->start(rproc, bootaddr);
 	if (err) {
 		dev_err(dev, "can't start rproc %s: %d\n", rproc->name, err);
@@ -343,6 +619,15 @@ static int rproc_add_mem_entry(struct rproc *rproc, struct fw_resource *rsc)
 		me->da = rsc->da;
 		me->pa = (phys_addr_t)rsc->pa;
 		me->size = rsc->len;
+#ifdef CONFIG_REMOTEPROC_CORE_DUMP
+		/* FIXME: ION heaps are reported as RSC_CARVEOUT.  We need a
+		 * better way to understand which sections are for
+		 * code/stack/heap/static data, and which belong to the
+		 * carveouts we don't care about in a core dump.
+		 * Perhaps the ION carveout should be reported as RSC_DEVMEM.
+		 */
+		me->core = (rsc->type == RSC_CARVEOUT && rsc->pa != 0xba300000);
+#endif
 	}
 
 	return ret;

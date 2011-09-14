@@ -134,6 +134,7 @@ struct rproc_mem_entry {
 	u64 da;
 	phys_addr_t pa;
 	u32 size;
+	bool core;
 };
 
 enum rproc_constraint {
