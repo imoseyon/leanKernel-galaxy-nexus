@@ -662,6 +662,9 @@ typedef struct _PVRSRV_CLIENT_SYNC_INFO_
 	IMG_DEV_VIRTADDR		sReadOpsCompleteDevVAddr;
 
 	
+	IMG_DEV_VIRTADDR		sReadOps2CompleteDevVAddr;
+
+	
 #if defined (SUPPORT_SID_INTERFACE)
 	IMG_SID					hMappingInfo;
 
