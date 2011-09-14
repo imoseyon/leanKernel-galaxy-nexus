@@ -634,6 +634,7 @@ static void rxstate(struct musb *musb, struct musb_request *req)
 	u16			len;
 	u16			csr = musb_readw(epio, MUSB_RXCSR);
 	struct musb_hw_ep	*hw_ep = &musb->endpoints[epnum];
+	u8			use_mode_1;
 
 	if (hw_ep->is_shared_fifo)
 		musb_ep = &hw_ep->ep_in;
@@ -683,6 +684,14 @@ static void rxstate(struct musb *musb, struct musb_request *req)
 
 	if (csr & MUSB_RXCSR_RXPKTRDY) {
 		len = musb_readw(epio, MUSB_RXCOUNT);
+
+		 /* Enable Mode 1 for RX transfers only for BULK EP */
+		if (musb_ep->type == USB_ENDPOINT_XFER_BULK &&
+				len == musb_ep->packet_sz)
+			use_mode_1 = 1;
+		else
+			use_mode_1 = 0;
+
 		if (request->actual < request->length) {
 #ifdef CONFIG_USB_INVENTRA_DMA
 			if (is_buffer_mapped(req)) {
@@ -714,10 +723,13 @@ static void rxstate(struct musb *musb, struct musb_request *req)
 	 * then becomes usable as a runtime "use mode 1" hint...
 	 */
 
-				csr |= MUSB_RXCSR_DMAENAB;
-#ifdef USE_MODE1
+	/* Experimental: Mode1 works with mass storage use cases
+	 */
+		if (use_mode_1) {
 				csr |= MUSB_RXCSR_AUTOCLEAR;
-				/* csr |= MUSB_RXCSR_DMAMODE; */
+				musb_writew(epio, MUSB_RXCSR, csr);
+				csr |= MUSB_RXCSR_DMAENAB;
+				musb_writew(epio, MUSB_RXCSR, csr);
 
 				/* this special sequence (enabling and then
 				 * disabling MUSB_RXCSR_DMAMODE) is required
@@ -725,26 +737,27 @@ static void rxstate(struct musb *musb, struct musb_request *req)
 				 */
 				musb_writew(epio, MUSB_RXCSR,
 					csr | MUSB_RXCSR_DMAMODE);
-#else
+				musb_writew(epio, MUSB_RXCSR, csr);
+
+		} else {
 				if (!musb_ep->hb_mult &&
 					musb_ep->hw_ep->rx_double_buffered)
 					csr |= MUSB_RXCSR_AUTOCLEAR;
-#endif
+				csr |= MUSB_RXCSR_DMAENAB;
 				musb_writew(epio, MUSB_RXCSR, csr);
+		}
 
 				if (request->actual < request->length) {
 					int transfer_size = 0;
-#ifdef USE_MODE1
+		if (use_mode_1) {
 					transfer_size = min(request->length - request->actual,
 							channel->max_len);
-#else
+					musb_ep->dma->desired_mode = 1;
+		} else {
 					transfer_size = min(request->length - request->actual,
 							(unsigned)len);
-#endif
-					if (transfer_size <= musb_ep->packet_sz)
-						musb_ep->dma->desired_mode = 0;
-					else
-						musb_ep->dma->desired_mode = 1;
+					musb_ep->dma->desired_mode = 0;
+		}
 
 					use_dma = c->channel_program(
 							channel,
