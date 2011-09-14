@@ -645,6 +645,8 @@ PVRSRVAllocDeviceMemBW(IMG_UINT32 ui32BridgeID,
 			psMemInfo->psKernelSyncInfo->sWriteOpsCompleteDevVAddr;
 		psAllocDeviceMemOUT->sClientSyncInfo.sReadOpsCompleteDevVAddr =
 			psMemInfo->psKernelSyncInfo->sReadOpsCompleteDevVAddr;
+		psAllocDeviceMemOUT->sClientSyncInfo.sReadOps2CompleteDevVAddr =
+			psMemInfo->psKernelSyncInfo->sReadOps2CompleteDevVAddr;
 
 #if defined (SUPPORT_SID_INTERFACE)
 		if (psMemInfo->psKernelSyncInfo->psSyncDataMemInfoKM->sMemBlk.hOSMemHandle != IMG_NULL)
@@ -973,6 +975,8 @@ PVRSRVMapDeviceMemoryBW(IMG_UINT32 ui32BridgeID,
 			psDstKernelMemInfo->psKernelSyncInfo->sWriteOpsCompleteDevVAddr;
 		psMapDevMemOUT->sDstClientSyncInfo.sReadOpsCompleteDevVAddr =
 			psDstKernelMemInfo->psKernelSyncInfo->sReadOpsCompleteDevVAddr;
+		psMapDevMemOUT->sDstClientSyncInfo.sReadOps2CompleteDevVAddr =
+			psDstKernelMemInfo->psKernelSyncInfo->sReadOps2CompleteDevVAddr;
 
 #if defined (SUPPORT_SID_INTERFACE)
 		
@@ -1182,6 +1186,8 @@ PVRSRVMapDeviceClassMemoryBW(IMG_UINT32 ui32BridgeID,
 			psMemInfo->psKernelSyncInfo->sWriteOpsCompleteDevVAddr;
 		psMapDevClassMemOUT->sClientSyncInfo.sReadOpsCompleteDevVAddr =
 			psMemInfo->psKernelSyncInfo->sReadOpsCompleteDevVAddr;
+		psMapDevClassMemOUT->sClientSyncInfo.sReadOps2CompleteDevVAddr =
+			psMemInfo->psKernelSyncInfo->sReadOps2CompleteDevVAddr;
 
 #if defined (SUPPORT_SID_INTERFACE)
 		if (psMemInfo->psKernelSyncInfo->psSyncDataMemInfoKM->sMemBlk.hOSMemHandle != 0)
@@ -1397,6 +1403,8 @@ PVRSRVWrapExtMemoryBW(IMG_UINT32 ui32BridgeID,
 		psMemInfo->psKernelSyncInfo->sWriteOpsCompleteDevVAddr;
 	psWrapExtMemOUT->sClientSyncInfo.sReadOpsCompleteDevVAddr =
 		psMemInfo->psKernelSyncInfo->sReadOpsCompleteDevVAddr;
+	psWrapExtMemOUT->sClientSyncInfo.sReadOps2CompleteDevVAddr =
+		psMemInfo->psKernelSyncInfo->sReadOps2CompleteDevVAddr;
 
 #if defined (SUPPORT_SID_INTERFACE)
 	
@@ -3517,6 +3525,10 @@ PVRSRVMapMemInfoMemBW(IMG_UINT32 ui32BridgeID,
 			psKernelMemInfo->psKernelSyncInfo->sWriteOpsCompleteDevVAddr;
 		psMapMemInfoMemOUT->sClientSyncInfo.sReadOpsCompleteDevVAddr =
 			psKernelMemInfo->psKernelSyncInfo->sReadOpsCompleteDevVAddr;
+		psMapMemInfoMemOUT->sClientSyncInfo.sReadOps2CompleteDevVAddr =
+			psKernelMemInfo->psKernelSyncInfo->sReadOps2CompleteDevVAddr;
+		psMapMemInfoMemOUT->sClientSyncInfo.sReadOps2CompleteDevVAddr =
+			psKernelMemInfo->psKernelSyncInfo->sReadOps2CompleteDevVAddr;
 
 #if defined (SUPPORT_SID_INTERFACE)
 	if (psKernelMemInfo->psKernelSyncInfo->psSyncDataMemInfoKM->sMemBlk.hOSMemHandle != IMG_NULL)
