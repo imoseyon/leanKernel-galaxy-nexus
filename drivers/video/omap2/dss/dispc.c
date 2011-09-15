@@ -491,9 +491,9 @@ static u32 dispc_calculate_threshold(enum omap_plane plane, u32 paddr,
 	/* base address for Chroma frame in case of YUV420 */
 	dispc_reg_config.bacbcr = puv_addr;
 	/* OrgSizeX for frame */
-	dispc_reg_config.sizex = width - 1;
+	dispc_reg_config.sizex = width;
 	/* OrgSizeY for frame */
-	dispc_reg_config.sizey = height - 1;
+	dispc_reg_config.sizey = height;
 	/* burst size */
 	dispc_reg_config.burstsize = burstsize;
 	/* pixel increment */
