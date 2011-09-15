@@ -42,6 +42,9 @@
 #include <linux/omap_ion.h>
 extern struct ion_client *gpsIONClient;
 #endif
+#if defined(CONFIG_TI_TILER)
+#include <mach/tiler.h>
+#endif
 
 #define OMAPLFB_COMMAND_COUNT		1
 
@@ -329,7 +332,7 @@ static PVRSRV_ERROR GetDCBufferAddr(IMG_HANDLE        hDevice,
 
 	if (ppvCpuVAddr)
 	{
-		*ppvCpuVAddr = psSystemBuffer->sCPUVAddr;
+		*ppvCpuVAddr = psDevInfo->sFBInfo.bIs2D ? NULL : psSystemBuffer->sCPUVAddr;
 	}
 
 	if (phOSMapInfo)
@@ -339,8 +342,15 @@ static PVRSRV_ERROR GetDCBufferAddr(IMG_HANDLE        hDevice,
 
 	if (pbIsContiguous)
 	{
-		*pbIsContiguous = IMG_TRUE;
+		*pbIsContiguous = !psDevInfo->sFBInfo.bIs2D;
 	}
+
+#if defined(CONFIG_TI_TILER)
+	if (psDevInfo->sFBInfo.bIs2D) {
+		int i = (psSystemBuffer->sSysAddr.uiAddr - psDevInfo->sFBInfo.psPageList->uiAddr) >> PAGE_SHIFT;
+		*ppsSysAddr = psDevInfo->sFBInfo.psPageList + psDevInfo->sFBInfo.ulHeight * i;
+	}
+#endif
 
 	return PVRSRV_OK;
 }
@@ -1096,6 +1106,7 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 		/* for some reason we need at least 3 buffers in the swap chain */
 		int n = FBSize / RoundUpToMultiple(psLINFBInfo->fix.line_length * psLINFBInfo->var.yres, ulLCM);
 		int res;
+		int i, x, y, w;
 		ion_phys_addr_t phys;
 		size_t size;
 		struct tiler_view_t view;
@@ -1121,6 +1132,7 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 		psPVRFBInfo->bIs2D = OMAPLFB_TRUE;
 
 		res = omap_ion_tiler_alloc(gpsIONClient, &sAllocData);
+		psPVRFBInfo->psIONHandle = sAllocData.handle;
 		if (res < 0)
 		{
 			printk(KERN_ERR DRIVER_PREFIX
@@ -1135,12 +1147,31 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 
 		psPVRFBInfo->ulWidth = psLINFBInfo->var.xres;
 		psPVRFBInfo->ulHeight = psLINFBInfo->var.yres;
-
-		tilview_create(&view, phys, sAllocData.w, sAllocData.h);
-		psPVRFBInfo->ulByteStride = view.v_inc;
+		psPVRFBInfo->ulByteStride = PAGE_ALIGN(psPVRFBInfo->ulWidth * psPVRFBInfo->uiBytesPerPixel);
+		w = psPVRFBInfo->ulByteStride >> PAGE_SHIFT;
 
 		/* this is an "effective" FB size to get correct number of buffers */
 		psPVRFBInfo->ulFBSize = sAllocData.h * n * psPVRFBInfo->ulByteStride;
+		psPVRFBInfo->psPageList = kzalloc(w * n * psPVRFBInfo->ulHeight * sizeof(*psPVRFBInfo->psPageList), GFP_KERNEL);
+		if (!psPVRFBInfo->psPageList)
+		{
+			printk(KERN_WARNING DRIVER_PREFIX ": %s: Device %u: Could not allocate page list\n", __FUNCTION__, psDevInfo->uiFBDevID);
+			ion_free(gpsIONClient, sAllocData.handle);
+			goto ErrorModPut;
+		}
+
+		tilview_create(&view, phys, psDevInfo->sFBInfo.ulWidth, psDevInfo->sFBInfo.ulHeight);
+		for(i=0; i<n; i++)
+		{
+			for(y=0; y<psDevInfo->sFBInfo.ulHeight; y++)
+			{
+				for(x=0; x<w; x++)
+				{
+					psPVRFBInfo->psPageList[i * psDevInfo->sFBInfo.ulHeight * w + y * w + x].uiAddr =
+						phys + view.v_inc * y + ((x + i * w) << PAGE_SHIFT);
+				}
+			}
+		}
 	}
 	else
 	{
@@ -1152,6 +1183,8 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 		psPVRFBInfo->ulByteStride =  psLINFBInfo->fix.line_length;
 		psPVRFBInfo->ulFBSize = FBSize;
 		psPVRFBInfo->bIs2D = OMAPLFB_FALSE;
+		psPVRFBInfo->psPageList = IMG_NULL;
+		psPVRFBInfo->psIONHandle = IMG_NULL;
 	}
 	psPVRFBInfo->ulBufferSize = psPVRFBInfo->ulHeight * psPVRFBInfo->ulByteStride;
 	
@@ -1220,11 +1253,18 @@ ErrorRelSem:
 static void OMAPLFBDeInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 {
 	struct fb_info *psLINFBInfo = psDevInfo->psLINFBInfo;
+	OMAPLFB_FBINFO *psPVRFBInfo = &psDevInfo->sFBInfo;
 	struct module *psLINFBOwner;
 
 	OMAPLFB_CONSOLE_LOCK();
 
 	psLINFBOwner = psLINFBInfo->fbops->owner;
+
+	kfree(psPVRFBInfo->psPageList);
+	if (psPVRFBInfo->psIONHandle)
+	{
+		ion_free(gpsIONClient, psPVRFBInfo->psIONHandle);
+	}
 
 	if (psLINFBInfo->fbops->fb_release != NULL) 
 	{

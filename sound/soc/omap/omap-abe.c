@@ -720,6 +720,7 @@ static void playback_trigger(struct snd_pcm_substream *substream,
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
+	case SNDRV_PCM_TRIGGER_RESUME:
 
 		/* mute and enable ports */
 		list_for_each_entry(dsp_params, &fe->dsp[stream].be_clients, list_be) {
@@ -781,6 +782,7 @@ static void playback_trigger(struct snd_pcm_substream *substream,
 		snd_soc_dsp_platform_trigger(substream, cmd, fe->platform);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
+	case SNDRV_PCM_TRIGGER_SUSPEND:
 
 		/* does this trigger() apply to the FE ? */
 		if (snd_soc_dsp_is_trigger_for_fe(fe, stream)) {

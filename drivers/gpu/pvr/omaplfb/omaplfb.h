@@ -127,6 +127,10 @@ typedef struct OMAPLFB_FBINFO_TAG
 	PVRSRV_PIXEL_FORMAT ePixelFormat;
 
 	OMAPLFB_BOOL        bIs2D;
+	IMG_SYS_PHYADDR     *psPageList;
+#if defined(CONFIG_ION_OMAP)
+	struct ion_handle   *psIONHandle;
+#endif
 	IMG_UINT32          uiBytesPerPixel;
 }OMAPLFB_FBINFO;
 
