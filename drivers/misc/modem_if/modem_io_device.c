@@ -691,15 +691,19 @@ static ssize_t misc_write(struct file *filp, const char __user * buf,
 	switch (iod->format) {
 	case IPC_BOOT:
 	case IPC_RAMDUMP:
-		if (copy_from_user(skb_put(skb, count), buf, count) != 0)
+		if (copy_from_user(skb_put(skb, count), buf, count) != 0) {
+			dev_kfree_skb_any(skb);
 			return -EFAULT;
+		}
 		break;
 
 	case IPC_RFS:
 		memcpy(skb_put(skb, SIZE_OF_HDLC_START), hdlc_start,
 				SIZE_OF_HDLC_START);
-		if (copy_from_user(skb_put(skb, count), buf, count) != 0)
+		if (copy_from_user(skb_put(skb, count), buf, count) != 0) {
+			dev_kfree_skb_any(skb);
 			return -EFAULT;
+		}
 		memcpy(skb_put(skb, SIZE_OF_HDLC_END), hdlc_end,
 					SIZE_OF_HDLC_END);
 		break;
@@ -710,8 +714,10 @@ static ssize_t misc_write(struct file *filp, const char __user * buf,
 		memcpy(skb_put(skb, get_header_size(iod)),
 			get_header(iod, count, frame_header_buf),
 			get_header_size(iod));
-		if (copy_from_user(skb_put(skb, count), buf, count) != 0)
+		if (copy_from_user(skb_put(skb, count), buf, count) != 0) {
+			dev_kfree_skb_any(skb);
 			return -EFAULT;
+		}
 		memcpy(skb_put(skb, SIZE_OF_HDLC_END), hdlc_end,
 					SIZE_OF_HDLC_END);
 		break;
