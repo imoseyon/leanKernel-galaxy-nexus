@@ -343,7 +343,7 @@ static int rx_iodev_skb_raw(struct io_device *iod)
 			memcpy(ehdr->h_dest, ndev->dev_addr, ETH_ALEN);
 			memcpy(ehdr->h_source, source, ETH_ALEN);
 			ehdr->h_proto = skb->protocol;
-			skb->ip_summed = CHECKSUM_UNNECESSARY;
+			skb->ip_summed = CHECKSUM_NONE;
 			skb_reset_mac_header(skb);
 
 			skb_pull(skb, sizeof(struct ethhdr));
