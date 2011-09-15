@@ -2429,7 +2429,8 @@ static int finish_port_resume(struct usb_device *udev)
 			status = (status > 0 ? 0 : -ENODEV);
 
 		/* If a normal resume failed, try doing a reset-resume */
-		if (status && !udev->reset_resume && udev->persist_enabled) {
+		if (status && !udev->reset_resume && udev->persist_enabled &&
+				!(udev->quirks & USB_QUIRK_NO_RESET_RESUME)) {
 			dev_dbg(&udev->dev, "retry with reset-resume\n");
 			udev->reset_resume = 1;
 			goto retry_reset_resume;
