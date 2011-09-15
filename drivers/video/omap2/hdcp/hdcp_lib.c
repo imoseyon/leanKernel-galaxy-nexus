@@ -194,11 +194,12 @@ static int hdcp_lib_initiate_step1(void)
 	 *   2) Initializes HDCP (CP reset release)
 	 *   3) Read Bcaps - is HDMI Rx a repeater ?
 	 *   *** First part authentication ***
-	 *   4) Generates An
-	 *   5) DDC: Writes An, Aksv
-	 *   6) DDC: Read Bksv
+	 *   4) Read Bksv - check validity (is HDMI Rx supporting HDCP ?)
+	 *   5) Generates An
+	 *   6) DDC: Writes An, Aksv
+	 *   7) DDC: Write Bksv
 	 */
-	uint8_t an_ksv_data[8];
+	uint8_t an_ksv_data[8], an_bksv_data[8];
 	uint8_t rx_type;
 
 	DBG("hdcp_lib_initiate_step1()\n");
@@ -256,6 +257,10 @@ static int hdcp_lib_initiate_step1(void)
 			 "DONE\n"
 			 "*************************\n");
 #endif
+	/* DDC: Read BKSV from RX */
+	if (hdcp_ddc_read(DDC_BKSV_LEN, DDC_BKSV_ADDR , an_bksv_data))
+		return -HDCP_DDC_ERROR;
+
 	/* Generate An */
 	hdcp_lib_generate_an(an_ksv_data);
 
@@ -290,12 +295,8 @@ static int hdcp_lib_initiate_step1(void)
 	if (hdcp.pending_disable)
 		return -HDCP_CANCELLED_AUTH;
 
-	/* DDC: Read BKSV from RX */
-	if (hdcp_ddc_read(DDC_BKSV_LEN, DDC_BKSV_ADDR , an_ksv_data))
-		return -HDCP_DDC_ERROR;
-
 	/* Write Bksv to IP */
-	hdcp_lib_write_bksv(an_ksv_data);
+	hdcp_lib_write_bksv(an_bksv_data);
 
 	/* Check IP BKSV error */
 	if (RD_FIELD_32(hdcp.hdmi_wp_base_addr + HDMI_IP_CORE_SYSTEM,

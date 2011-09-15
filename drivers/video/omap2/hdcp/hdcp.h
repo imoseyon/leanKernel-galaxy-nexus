@@ -240,13 +240,13 @@ enum av_mute {
 /* FIXME: should be 300ms delay between HDMI start frame event and HDCP enable
  * (to respect 7 VSYNC delay in 24 Hz)
  */
-#define HDCP_ENABLE_DELAY	1500
+#define HDCP_ENABLE_DELAY	300
 #define HDCP_R0_DELAY		110
 #define HDCP_KSV_TIMEOUT_DELAY  5000
 #define HDCP_REAUTH_DELAY	100
 
 /* DDC access timeout in ms */
-#define HDCP_DDC_TIMEOUT	2000
+#define HDCP_DDC_TIMEOUT	500
 #define HDCP_STOP_FRAME_BLOCKING_TIMEOUT (2*HDCP_DDC_TIMEOUT)
 
 /* Event source */

@@ -268,10 +268,8 @@ static void hdcp_wq_authentication_failure(void)
 	} else {
 		printk(KERN_INFO "HDCP: authentication failed - "
 				 "HDCP disabled\n");
-		hdcp.hdcp_state = HDCP_DISABLED;
+		hdcp.hdcp_state = HDCP_ENABLE_PENDING;
 		hdcp.auth_state = HDCP_STATE_AUTH_FAILURE;
-		/* Notify user space exit */
-		hdcp_user_space_task(HDCP_EVENT_EXIT);
 	}
 
 }
@@ -505,6 +503,7 @@ static void hdcp_start_frame_cb(void)
 
 	hdcp.hpd_low = 0;
 	hdcp.pending_disable = 0;
+	hdcp.retry_cnt = hdcp.en_ctrl->nb_retry;
 	hdcp.pending_start = hdcp_submit_work(HDCP_START_FRAME_EVENT,
 					      HDCP_ENABLE_DELAY);
 }
@@ -887,7 +886,7 @@ static void hdcp_load_keys_cb(const struct firmware *fw, void *context)
 	}
 
 	memcpy(en_ctrl->key, fw->data, sizeof(en_ctrl->key));
-	en_ctrl->nb_retry = 0;
+	en_ctrl->nb_retry = 20;
 
 	hdcp.en_ctrl = en_ctrl;
 	hdcp.retry_cnt = hdcp.en_ctrl->nb_retry;
