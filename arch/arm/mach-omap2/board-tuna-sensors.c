@@ -27,6 +27,8 @@
 #define GPIO_MAG_INT		176
 #define GPIO_PS_ON		25
 #define GPIO_PS_VOUT		21
+#define GPIO_MSENSE_IRQ		157
+
 #define GP2A_LIGHT_ADC_CHANNEL	4
 
 static int gp2a_light_adc_value(void)
@@ -183,6 +185,8 @@ void __init omap4_tuna_sensors_init(void)
 	gpio_direction_input(GPIO_ACC_INT);
 	gpio_request(GPIO_MAG_INT, "MAG_INT");
 	gpio_direction_input(GPIO_MAG_INT);
+	gpio_request(GPIO_MSENSE_IRQ, "MSENSE_IRQ");
+	gpio_direction_output(GPIO_MSENSE_IRQ, 1);
 	/* optical sensor */
 	gp2a_gpio_init();
 
