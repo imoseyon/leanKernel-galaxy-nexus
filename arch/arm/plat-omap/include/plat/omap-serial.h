@@ -37,7 +37,7 @@
  * Enable module level wakeup in WER reg
  */
 #define OMAP2_UART_WER_MOD_WKUP	0X7F
-#define OMAP4_UART_WER_MOD_WKUP	0XE1
+#define OMAP4_UART_WER_MOD_WKUP	0XFF
 
 /* Enable XON/XOFF flow control on output */
 #define OMAP_UART_SW_TX		0x8
