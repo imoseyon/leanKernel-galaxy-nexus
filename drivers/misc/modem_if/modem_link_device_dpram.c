@@ -739,6 +739,8 @@ static int dpram_set_ulmagic(struct link_device *ld, struct io_device *iod)
 	dpram_writeb((u8)0x1, dest + 2);
 	dpram_writeb((u8)0x0, dest + 3);
 	dpram_writeb((u8)END_INDEX, dest + 4);
+
+	init_completion(&dpld->gota_download_start_complete);
 	dpram_write_command(dpld, CMD_DL_START_REQ);
 
 	return 0;
@@ -914,6 +916,7 @@ dpram_upload(struct dpram_link_device *dpld, struct dpram_firmware *uploaddata)
 
 err_out:
 	vfree(buff);
+	dpram_writew(0, &dpld->dpram->magic);
 	pr_err("CDMA dump error out\n");
 	wake_unlock(&dpld->dpram_wake_lock);
 	return -EIO;
