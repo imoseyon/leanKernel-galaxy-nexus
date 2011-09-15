@@ -530,11 +530,11 @@ int omap_abe_set_opp_processing(struct omap_abe *abe, u32 opp)
 	if (abe_port[OMAP_ABE_BT_VX_DL_PORT].format.f == 8000) {
 		if (dOppMode32 == DOPPMODE32_OPP100) {
 			abe->MultiFrame[TASK_BT_DL_48_8_SLT][TASK_BT_DL_48_8_IDX] =
-				ABE_TASK_ID(C_ABE_FW_TASK_BT_DL_48_8_OPP100);
+				ABE_TASK_ID(C_ABE_FW_TASK_BT_DL_48_8_FIR_OPP100);
 			sio_desc.smem_addr1 = BT_DL_8k_opp100_labelID;
 		} else {
 			abe->MultiFrame[TASK_BT_DL_48_8_SLT][TASK_BT_DL_48_8_IDX] =
-				ABE_TASK_ID(C_ABE_FW_TASK_BT_DL_48_8);
+				ABE_TASK_ID(C_ABE_FW_TASK_BT_DL_48_8_FIR);
 			sio_desc.smem_addr1 = BT_DL_8k_labelID;
 		}
 	} else {

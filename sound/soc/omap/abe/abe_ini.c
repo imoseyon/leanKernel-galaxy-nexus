@@ -286,16 +286,11 @@ void omap_abe_build_scheduler_table(struct omap_abe *abe)
 	abe->MultiFrame[7][3] = ABE_TASK_ID(C_ABE_FW_TASK_DBG_SYNC);
 	abe->MultiFrame[7][5] = ABE_TASK_ID(C_ABE_FW_TASK_ECHO_REF_SPLIT);
 
-	abe->MultiFrame[8][2] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC1_96_48_LP);
-	abe->MultiFrame[8][4] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC1_SPLIT);
+	abe->MultiFrame[9][2] = ABE_TASK_ID(C_ABE_FW_TASK_CHECK_IIR_RIGHT);
 
-	abe->MultiFrame[9][2] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC2_96_48_LP);
-	abe->MultiFrame[9][4] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC2_SPLIT);
 	abe->MultiFrame[9][6] = 0;
 	abe->MultiFrame[9][7] = ABE_TASK_ID(C_ABE_FW_TASK_IHF_48_96_LP);
 
-	abe->MultiFrame[10][2] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC3_96_48_LP);
-	abe->MultiFrame[10][4] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC3_SPLIT);
 	abe->MultiFrame[10][7] = ABE_TASK_ID(C_ABE_FW_TASK_IHF_48_96_LP);
 
 	abe->MultiFrame[11][2] = ABE_TASK_ID(C_ABE_FW_TASK_AMIC_96_48_LP);
@@ -311,7 +306,7 @@ void omap_abe_build_scheduler_table(struct omap_abe *abe)
 	abe->MultiFrame[13][5] = 0/*ABE_TASK_ID(C_ABE_FW_TASK_IO_BT_VX_DL)*/;
 
 	abe->MultiFrame[14][3] = 0/*ABE_TASK_ID(C_ABE_FW_TASK_IO_DMIC)*/;
-	abe->MultiFrame[14][4] = ABE_TASK_ID(C_ABE_FW_TASK_BT_DL_48_8);
+	abe->MultiFrame[14][4] = ABE_TASK_ID(C_ABE_FW_TASK_BT_DL_48_8_FIR);
 
 	abe->MultiFrame[15][0] = 0/*ABE_TASK_ID(C_ABE_FW_TASK_IO_MM_EXT_OUT)*/;
 	abe->MultiFrame[15][3] = 0/*ABE_TASK_ID(C_ABE_FW_TASK_IO_BT_VX_UL)*/;
@@ -345,7 +340,7 @@ void omap_abe_build_scheduler_table(struct omap_abe *abe)
 	abe->MultiFrame[22][4] = ABE_TASK_ID(C_ABE_FW_TASK_MM_EXT_IN_SPLIT);
 
 	abe->MultiFrame[23][0] = ABE_TASK_ID(C_ABE_FW_TASK_GAIN_UPDATE);
-	abe->MultiFrame[23][2] = ABE_TASK_ID(C_ABE_FW_TASK_CHECK_IIR);
+	abe->MultiFrame[23][2] = ABE_TASK_ID(C_ABE_FW_TASK_CHECK_IIR_LEFT);
 
 	omap_abe_mem_write(abe, OMAP_ABE_DMEM, OMAP_ABE_D_MULTIFRAME_ADDR,
 		       (u32 *) abe->MultiFrame, sizeof(abe->MultiFrame));
