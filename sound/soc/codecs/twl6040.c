@@ -109,6 +109,10 @@ struct twl6040_data {
 	struct delayed_work ep_delayed_work;
 };
 
+/* Shadow register used by the driver */
+#define TWL6040_REG_SW_SHADOW	0x2F
+#define TWL6040_CACHEREGNUM	(TWL6040_REG_SW_SHADOW + 1)
+
 /*
  * twl6040 register cache & default register settings
  */
@@ -160,6 +164,7 @@ static const u8 twl6040_reg[TWL6040_CACHEREGNUM] = {
 	0x00, /* TWL6040_HFOTRIM	0x2C	*/
 	0x09, /* TWL6040_ACCCTL		0x2D	*/
 	0x00, /* TWL6040_STATUS (ro)	0x2E	*/
+	0x00, /* TWL6040_SW_SHADOW	0x2F - Shadow, non HW register */
 };
 
 
@@ -215,6 +220,7 @@ static const u8 twl6040_reg_supply[TWL6040_CACHEREGNUM] = {
 	TWL6040_VIO_SUPPLY, /* TWL6040_HFOTRIM		*/
 	TWL6040_VIO_SUPPLY, /* TWL6040_ACCCTL		*/
 	TWL6040_VIO_SUPPLY, /* TWL6040_STATUS (ro)	*/
+	TWL6040_NO_SUPPLY,  /* TWL6040_SW_SHADOW	*/
 };
 
 /*
@@ -262,8 +268,12 @@ static int twl6040_read_reg_volatile(struct snd_soc_codec *codec,
 		!priv->codec_powered)
 		return -EINVAL;
 
-	value = twl6040_reg_read(twl6040, reg);
-	twl6040_write_reg_cache(codec, reg, value);
+	if (likely(reg < TWL6040_REG_SW_SHADOW)) {
+		value = twl6040_reg_read(twl6040, reg);
+		twl6040_write_reg_cache(codec, reg, value);
+	} else {
+		value = twl6040_read_reg_cache(codec, reg);
+	}
 
 	return value;
 }
@@ -286,7 +296,7 @@ static int twl6040_write(struct snd_soc_codec *codec,
 	if ((twl6040_reg_supply[reg] == TWL6040_VIO_SUPPLY) ||
 		priv->codec_powered)
 		ret = twl6040_reg_write(twl6040, reg, value);
-	else
+	else if (likely(reg < TWL6040_REG_SW_SHADOW))
 		dev_dbg(codec->dev, "deferring register 0x%02x write: %02x\n",
 			reg, value);
 
