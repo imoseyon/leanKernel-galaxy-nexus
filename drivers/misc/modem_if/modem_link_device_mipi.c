@@ -548,6 +548,7 @@ static int hsi_init_handshake(struct mipi_link_device *mipi_ld, int mode)
 static void hsi_conn_err_recovery(struct mipi_link_device *mipi_ld)
 {
 	int i;
+	int ret;
 	struct hst_ctx tx_config;
 	struct hsr_ctx rx_config;
 
@@ -583,6 +584,25 @@ static void hsi_conn_err_recovery(struct mipi_link_device *mipi_ld)
 			HSI_IOCTL_SET_ACREADY_NORMAL, NULL);
 		pr_debug("[MIPI-HSI] ACREADY_NORMAL\n");
 	}
+
+	ret = hsi_read(mipi_ld->hsi_channles[HSI_CONTROL_CHANNEL].dev,
+		mipi_ld->hsi_channles[HSI_CONTROL_CHANNEL].rx_data, 1);
+	if (ret)
+		pr_err("[MIPI-HSI] hsi_read fail : %d\n", ret);
+
+	for (i = 1; i < HSI_NUM_OF_USE_CHANNELS; i++) {
+		if ((mipi_ld->hsi_channles[i].recv_step == STEP_RX) &&
+				(mipi_ld->hsi_channles[i].rx_count)) {
+			pr_err("[MIPI-HSI] there was rx pending. ch:%d, len:%d",
+					i, mipi_ld->hsi_channles[i].rx_count);
+			ret = hsi_read(mipi_ld->hsi_channles[i].dev,
+					mipi_ld->hsi_channles[i].rx_data,
+					mipi_ld->hsi_channles[i].rx_count / 4);
+			if (ret)
+				pr_err("[MIPI-HSI] hsi_read fail : %d\n", ret);
+		}
+	}
+
 	pr_debug("[MIPI-HSI] hsi_conn_err_recovery Done\n");
 }
 
@@ -682,10 +702,6 @@ static void if_hsi_cmd_work(struct work_struct *work)
 			}
 
 			hsi_conn_err_recovery(mipi_ld);
-			ret = hsi_read(mipi_ld->hsi_channles[
-				HSI_CONTROL_CHANNEL].dev,
-				mipi_ld->hsi_channles[
-				HSI_CONTROL_CHANNEL].rx_data, 1);
 			channel->send_step = STEP_IDLE;
 
 			spin_lock_irqsave(&mipi_ld->list_cmd_lock, flags);
@@ -952,23 +968,24 @@ retry_send:
 					channel->channel_id);
 
 		if (mipi_ld->ld.com_state == COM_ONLINE) {
-			hsi_conn_err_recovery(mipi_ld);
 			channel->send_step = STEP_SEND_OPEN_CONN;
-			ret = hsi_read(mipi_ld->hsi_channles[
-				HSI_CONTROL_CHANNEL].dev,
-				mipi_ld->hsi_channles[
-				HSI_CONTROL_CHANNEL].rx_data, 1);
-			if (ret)
-				pr_err("[MIPI-HSI] hsi_read fail : %d\n", ret);
+			hsi_conn_err_recovery(mipi_ld);
 
 			ack_timeout_cnt++;
 			if (ack_timeout_cnt < 5) {
-				pr_err("[MIPI-HSI] ch=%d, retry send open. cnt : %d\n",
-					channel->channel_id, ack_timeout_cnt);
-				if_hsi_set_wakeline(channel, 0);
-				if_hsi_set_wakeline(channel, 1);
-				sema_init(&channel->ack_done_sem, 0);
-				goto retry_send;
+				pr_err("[MIPI-HSI] check ack again. cnt:%d\n",
+						ack_timeout_cnt);
+				msleep(10);
+				if (down_trylock(&channel->ack_done_sem)) {
+					pr_err("[MIPI-HSI] retry send open\n");
+					if_hsi_set_wakeline(channel, 0);
+					if_hsi_set_wakeline(channel, 1);
+					sema_init(&channel->ack_done_sem, 0);
+					goto retry_send;
+				} else {
+					pr_err("[MIPI-HSI] got ack after sw-reset\n");
+					goto check_nack;
+				}
 			}
 
 			/* try to recover cp */
@@ -985,6 +1002,9 @@ retry_send:
 		channel->send_step = STEP_IDLE;
 		return -ETIMEDOUT;
 	}
+
+check_nack:
+
 	pr_debug("[MIPI-HSI] ch=%d, got ack_done=%d\n", channel->channel_id,
 				channel->got_nack);
 
@@ -1021,12 +1041,8 @@ retry_send:
 		pr_err("[MIPI-HSI] ch=%d, close conn timeout\n",
 					channel->channel_id);
 
-		hsi_conn_err_recovery(mipi_ld);
 		channel->send_step = STEP_IDLE;
-		ret = hsi_read(mipi_ld->hsi_channles[HSI_CONTROL_CHANNEL].dev,
-			mipi_ld->hsi_channles[HSI_CONTROL_CHANNEL].rx_data, 1);
-		if (ret)
-			pr_err("[MIPI-HSI] hsi_read fail : %d\n", ret);
+		hsi_conn_err_recovery(mipi_ld);
 	}
 	pr_debug("[MIPI-HSI] ch=%d, got close_conn_done\n",
 				channel->channel_id);
