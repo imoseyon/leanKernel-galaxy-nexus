@@ -1276,8 +1276,8 @@ struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg)
 	struct vm_area_struct *vma = NULL;
 
 	struct tiler_pa_info *pa = NULL;
-	struct page *page = NULL;
-	u32 *mem = NULL, got_pg = 1, i = 0, write;
+	struct page **pages = NULL;
+	u32 *mem = NULL, write, usr_count, i;
 
 	pa = kzalloc(sizeof(*pa), GFP_KERNEL);
 	if (!pa)
@@ -1285,6 +1285,13 @@ struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg)
 
 	mem = kzalloc(num_pg * sizeof(*mem), GFP_KERNEL);
 	if (!mem) {
+		kfree(pa);
+		return NULL;
+	}
+
+	pages = kmalloc(num_pg * sizeof(*pages), GFP_KERNEL);
+	if (!pages) {
+		kfree(mem);
 		kfree(pa);
 		return NULL;
 	}
@@ -1311,6 +1318,8 @@ struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg)
 		printk(KERN_ERR "Failed to get the vma region for "
 			"user buffer.\n");
 		kfree(mem);
+		kfree(pa);
+		kfree(pages);
 		up_read(&mm->mmap_sem);
 		return ERR_PTR(-EFAULT);
 	}
@@ -1318,39 +1327,39 @@ struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg)
 	if (vma->vm_flags & (VM_WRITE | VM_MAYWRITE))
 		write = 1;
 
-	for (i = 0; i < num_pg; i++) {
-		/*
-		 * At first use get_user_pages which works best for
-		 * userspace buffers.  If it fails (e.g. for kernel
-		 * allocated buffers), fall back to using the page
-		 * table directly.
-		 */
-		if (got_pg && get_user_pages(curr_task, mm, usr_addr, 1,
-					write, 1, &page, NULL) && page) {
-			if (page_count(page) < 1) {
-				printk(KERN_ERR "Bad page count from"
-							"get_user_pages()\n");
+	usr_count = get_user_pages(curr_task, mm, usr_addr, num_pg, write, 1,
+					pages, NULL);
+
+	if (usr_count > 0) {
+		/* process user allocated buffer */
+		if (usr_count != num_pg) {
+			/* release the pages we did get */
+			for (i = 0; i < usr_count; i++)
+				page_cache_release(pages[i]);
+		} else {
+			/* fill in the physical address information */
+			for (i = 0; i < num_pg; i++) {
+				mem[i] = page_to_phys(pages[i]);
+				BUG_ON(pages[i] != phys_to_page(mem[i]));
 			}
-			mem[i] = page_to_phys(page);
-			BUG_ON(page != phys_to_page(mem[i]));
-		} else if (!got_pg || i == 0) {
-			got_pg = 0;
+		}
+	} else {
+		/* fallback for kernel allocated buffers */
+		for (i = 0; i < num_pg; i++) {
 			mem[i] = tiler_virt2phys(usr_addr);
+
 			if (!mem[i]) {
-				printk(KERN_ERR "get_user_pages() failed and virtual address is not in page table\n");
+				printk(KERN_ERR "VMA not in page table\n");
 				break;
 			}
-		} else {
-			/* we must get all or none of the pages */
-			/* release pages */
-			while (i--)
-				page_cache_release(phys_to_page(mem[i]));
-			i = 0;
-			break;
+
+			usr_addr += PAGE_SIZE;
 		}
-		usr_addr += PAGE_SIZE;
 	}
+
 	up_read(&mm->mmap_sem);
+
+	kfree(pages);
 
 	/* if failed to map all pages */
 	if (i < num_pg) {
@@ -1360,7 +1369,7 @@ struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg)
 	}
 
 	pa->mem = mem;
-	pa->memtype = got_pg ? TILER_MEM_GOT_PAGES : TILER_MEM_USING;
+	pa->memtype = usr_count > 0 ? TILER_MEM_GOT_PAGES : TILER_MEM_USING;
 	pa->num_pg = num_pg;
 	return pa;
 }
