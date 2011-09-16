@@ -233,8 +233,10 @@ static int usb_tx_urb_with_skb(struct usb_link_device *usb_ld,
 		SET_SLAVE_WAKEUP(usb_ld->pdata, 1);
 
 		while (!wait_event_interruptible_timeout(usb_ld->l2_wait,
-					(usbdev->dev.power.runtime_status == RPM_ACTIVE),
-					HOST_WAKEUP_TIMEOUT_MS)) {
+				usbdev->dev.power.runtime_status == RPM_ACTIVE ||
+				pipe_data->disconnected,
+				HOST_WAKEUP_TIMEOUT_MS)) {
+
 			if (cnt == MAX_RETRY) {
 				pr_err("host wakeup timeout !!\n");
 				SET_SLAVE_WAKEUP(usb_ld->pdata, 0);
@@ -247,6 +249,13 @@ static int usb_tx_urb_with_skb(struct usb_link_device *usb_ld,
 			SET_SLAVE_WAKEUP(usb_ld->pdata, 1);
 			cnt++;
 		}
+
+		if (pipe_data->disconnected) {
+			SET_SLAVE_WAKEUP(usb_ld->pdata, 0);
+			pm_runtime_put_autosuspend(&usbdev->dev);
+			return -ENODEV;
+		}
+
 		pr_debug("wait_q done (runtime_status=%d)\n",
 				usbdev->dev.power.runtime_status);
 	}
@@ -450,6 +459,8 @@ static void if_usb_disconnect(struct usb_interface *intf)
 	pipe_data->disconnected = 1;
 	smp_wmb();
 
+	wake_up(&usb_ld->l2_wait);
+
 	if (usb_ld->if_usb_connected) {
 		disable_irq_wake(usb_ld->pdata->irq_host_wakeup);
 		free_irq(usb_ld->pdata->irq_host_wakeup, usb_ld);
@@ -478,6 +489,7 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 	struct usb_host_interface *data_desc;
 	struct usb_link_device *usb_ld =
 			(struct usb_link_device *)id->driver_info;
+	struct link_device *ld = &usb_ld->ld;
 	struct usb_interface *data_intf;
 	struct usb_device *usbdev = interface_to_usbdev(intf);
 	struct device *dev;
@@ -613,6 +625,10 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 					usb_ld->pdata->irq_host_wakeup);
 
 		enable_irq_wake(usb_ld->pdata->irq_host_wakeup);
+
+		/* Queue work if skbs were pending before a disconnect/probe */
+		if (ld->sk_fmt_tx_q.qlen || ld->sk_raw_tx_q.qlen)
+			queue_delayed_work(ld->tx_wq, &ld->tx_delayed_work, 0);
 	}
 
 	return 0;
