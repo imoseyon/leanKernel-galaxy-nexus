@@ -584,6 +584,10 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 	}
 
 error:
+	if (ret && rproc->dbg_dir) {
+		debugfs_remove_recursive(rproc->dbg_dir);
+		rproc->dbg_dir = NULL;
+	}
 	return ret;
 }
 
@@ -913,7 +917,7 @@ static void rproc_error_work(struct work_struct *work)
 {
 	struct rproc *rproc = container_of(work, struct rproc, error_work);
 
-	dev_dbg(rproc->dev, "Enter %s\n", __func__);
+	dev_dbg(rproc->dev, "%s\n", __func__);
 	_event_notify(rproc, RPROC_ERROR, NULL);
 }
 
