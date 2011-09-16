@@ -147,7 +147,7 @@ EXPORT_SYMBOL(omap_abe_wakeup);
  */
 void abe_monitoring(void)
 {
-	abe_src_filters_saturation_monitoring();
+
 }
 
 /**
