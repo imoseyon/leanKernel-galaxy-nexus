@@ -210,6 +210,8 @@ static int pm_dbg_init(void);
 enum {
 	DEBUG_FILE_COUNTERS = 0,
 	DEBUG_FILE_TIMERS,
+	DEBUG_FILE_LAST_COUNTERS,
+	DEBUG_FILE_LAST_TIMERS,
 };
 
 struct pm_module_def {
@@ -383,7 +385,7 @@ void pm_dbg_update_time(struct powerdomain *pwrdm, int prev)
 	/* Update timer for previous state */
 	t = sched_clock();
 
-	pwrdm->state_timer[prev] += t - pwrdm->timer;
+	pwrdm->time.state[prev] += t - pwrdm->timer;
 
 	pwrdm->timer = t;
 }
@@ -405,10 +407,53 @@ static int clkdm_dbg_show_counter(struct clockdomain *clkdm, void *user)
 	return 0;
 }
 
+static int pwrdm_dbg_show_count_stats(struct powerdomain *pwrdm,
+	struct powerdomain_count_stats *stats, struct seq_file *s)
+{
+	int i;
+
+	seq_printf(s, "%s (%s)", pwrdm->name,
+			pwrdm_state_names[pwrdm->state]);
+
+	for (i = 0; i < PWRDM_MAX_PWRSTS; i++)
+		seq_printf(s, ",%s:%d", pwrdm_state_names[i],
+			stats->state[i]);
+
+	seq_printf(s, ",RET-LOGIC-OFF:%d", stats->ret_logic_off);
+	for (i = 0; i < pwrdm->banks; i++)
+		seq_printf(s, ",RET-MEMBANK%d-OFF:%d", i + 1,
+				stats->ret_mem_off[i]);
+
+	seq_printf(s, "\n");
+
+	return 0;
+}
+
+static int pwrdm_dbg_show_time_stats(struct powerdomain *pwrdm,
+	struct powerdomain_time_stats *stats, struct seq_file *s)
+{
+	int i;
+	u64 total = 0;
+
+	seq_printf(s, "%s (%s)", pwrdm->name,
+		pwrdm_state_names[pwrdm->state]);
+
+	for (i = 0; i < 4; i++)
+		total += stats->state[i];
+
+	for (i = 0; i < 4; i++)
+		seq_printf(s, ",%s:%lld (%lld%%)", pwrdm_state_names[i],
+			stats->state[i],
+			total ? div64_u64(stats->state[i] * 100, total) : 0);
+
+	seq_printf(s, "\n");
+
+	return 0;
+}
+
 static int pwrdm_dbg_show_counter(struct powerdomain *pwrdm, void *user)
 {
 	struct seq_file *s = (struct seq_file *)user;
-	int i;
 
 	if (strcmp(pwrdm->name, "emu_pwrdm") == 0 ||
 		strcmp(pwrdm->name, "wkup_pwrdm") == 0 ||
@@ -419,18 +464,7 @@ static int pwrdm_dbg_show_counter(struct powerdomain *pwrdm, void *user)
 		printk(KERN_ERR "pwrdm state mismatch(%s) %d != %d\n",
 			pwrdm->name, pwrdm->state, pwrdm_read_pwrst(pwrdm));
 
-	seq_printf(s, "%s (%s)", pwrdm->name,
-			pwrdm_state_names[pwrdm->state]);
-	for (i = 0; i < PWRDM_MAX_PWRSTS; i++)
-		seq_printf(s, ",%s:%d", pwrdm_state_names[i],
-			pwrdm->state_counter[i]);
-
-	seq_printf(s, ",RET-LOGIC-OFF:%d", pwrdm->ret_logic_off_counter);
-	for (i = 0; i < pwrdm->banks; i++)
-		seq_printf(s, ",RET-MEMBANK%d-OFF:%d", i + 1,
-				pwrdm->ret_mem_off_counter[i]);
-
-	seq_printf(s, "\n");
+	pwrdm_dbg_show_count_stats(pwrdm, &pwrdm->count, s);
 
 	return 0;
 }
@@ -438,8 +472,6 @@ static int pwrdm_dbg_show_counter(struct powerdomain *pwrdm, void *user)
 static int pwrdm_dbg_show_timer(struct powerdomain *pwrdm, void *user)
 {
 	struct seq_file *s = (struct seq_file *)user;
-	int i;
-	u64 total = 0;
 
 	if (strcmp(pwrdm->name, "emu_pwrdm") == 0 ||
 		strcmp(pwrdm->name, "wkup_pwrdm") == 0 ||
@@ -448,18 +480,50 @@ static int pwrdm_dbg_show_timer(struct powerdomain *pwrdm, void *user)
 
 	pwrdm_state_switch(pwrdm);
 
-	seq_printf(s, "%s (%s)", pwrdm->name,
-		pwrdm_state_names[pwrdm->state]);
+	pwrdm_dbg_show_time_stats(pwrdm, &pwrdm->time, s);
 
-	for (i = 0; i < 4; i++)
-		total += pwrdm->state_timer[i];
+	return 0;
+}
 
-	for (i = 0; i < 4; i++)
-		seq_printf(s, ",%s:%lld (%lld%%)", pwrdm_state_names[i],
-			pwrdm->state_timer[i],
-			total ? div64_u64(pwrdm->state_timer[i] * 100, total) : 0);
+static int pwrdm_dbg_show_last_counter(struct powerdomain *pwrdm, void *user)
+{
+	struct seq_file *s = (struct seq_file *)user;
+	struct powerdomain_count_stats stats;
+	int i;
 
-	seq_printf(s, "\n");
+	if (strcmp(pwrdm->name, "emu_pwrdm") == 0 ||
+		strcmp(pwrdm->name, "wkup_pwrdm") == 0 ||
+		strncmp(pwrdm->name, "dpll", 4) == 0)
+		return 0;
+
+	stats = pwrdm->count;
+	for (i = 0; i < PWRDM_MAX_PWRSTS; i++)
+		stats.state[i] -= pwrdm->last_count.state[i];
+	for (i = 0; i < PWRDM_MAX_MEM_BANKS; i++)
+		stats.ret_mem_off[i] -= pwrdm->last_count.ret_mem_off[i];
+	stats.ret_logic_off -= pwrdm->last_count.ret_logic_off;
+
+	pwrdm->last_count = pwrdm->count;
+
+	pwrdm_dbg_show_count_stats(pwrdm, &stats, s);
+
+	return 0;
+}
+
+static int pwrdm_dbg_show_last_timer(struct powerdomain *pwrdm, void *user)
+{
+	struct seq_file *s = (struct seq_file *)user;
+	struct powerdomain_time_stats stats;
+	int i;
+
+	stats = pwrdm->time;
+	for (i = 0; i < PWRDM_MAX_PWRSTS; i++)
+		stats.state[i] -= pwrdm->last_time.state[i];
+
+	pwrdm->last_time = pwrdm->time;
+
+	pwrdm_dbg_show_time_stats(pwrdm, &stats, s);
+
 	return 0;
 }
 
@@ -479,6 +543,18 @@ static int pm_dbg_show_timers(struct seq_file *s, void *unused)
 	return 0;
 }
 
+static int pm_dbg_show_last_counters(struct seq_file *s, void *unused)
+{
+	pwrdm_for_each(pwrdm_dbg_show_last_counter, s);
+	return 0;
+}
+
+static int pm_dbg_show_last_timers(struct seq_file *s, void *unused)
+{
+	pwrdm_for_each(pwrdm_dbg_show_last_timer, s);
+	return 0;
+}
+
 static int pm_dbg_open(struct inode *inode, struct file *file)
 {
 	switch ((int)inode->i_private) {
@@ -486,8 +562,14 @@ static int pm_dbg_open(struct inode *inode, struct file *file)
 		return single_open(file, pm_dbg_show_counters,
 			&inode->i_private);
 	case DEBUG_FILE_TIMERS:
-	default:
 		return single_open(file, pm_dbg_show_timers,
+			&inode->i_private);
+	case DEBUG_FILE_LAST_COUNTERS:
+		return single_open(file, pm_dbg_show_last_counters,
+			&inode->i_private);
+	case DEBUG_FILE_LAST_TIMERS:
+	default:
+		return single_open(file, pm_dbg_show_last_timers,
 			&inode->i_private);
 	};
 }
@@ -612,7 +694,7 @@ static int __init pwrdms_setup(struct powerdomain *pwrdm, void *dir)
 	t = sched_clock();
 
 	for (i = 0; i < 4; i++)
-		pwrdm->state_timer[i] = 0;
+		pwrdm->time.state[i] = 0;
 
 	pwrdm->timer = t;
 
@@ -700,6 +782,10 @@ static int __init pm_dbg_init(void)
 		d, (void *)DEBUG_FILE_COUNTERS, &debug_fops);
 	(void) debugfs_create_file("time", S_IRUGO,
 		d, (void *)DEBUG_FILE_TIMERS, &debug_fops);
+	(void) debugfs_create_file("last_count", S_IRUGO,
+		d, (void *)DEBUG_FILE_LAST_COUNTERS, &debug_fops);
+	(void) debugfs_create_file("last_time", S_IRUGO,
+		d, (void *)DEBUG_FILE_LAST_TIMERS, &debug_fops);
 
 	pwrdm_for_each(pwrdms_setup, (void *)d);
 
