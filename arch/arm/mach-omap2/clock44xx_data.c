@@ -3477,7 +3477,7 @@ static struct omap_clk omap44xx_clks[] = {
 	CLK(NULL,	"auxclkreq3_ck",		&auxclkreq3_ck,	CK_44XX),
 	CLK(NULL,	"auxclkreq4_ck",		&auxclkreq4_ck,	CK_44XX),
 	CLK(NULL,	"auxclkreq5_ck",		&auxclkreq5_ck,	CK_44XX),
-	CLK(NULL,	"smp_twd",		&smp_twd,	CK_44XX),
+	CLK("smp_twd",		NULL,		&smp_twd,	CK_44XX),
 	CLK("omap_timer.1",	"32k_ck",	&sys_32k_ck,	CK_44XX),
 	CLK("omap_timer.2",	"32k_ck",	&sys_32k_ck,	CK_44XX),
 	CLK("omap_timer.3",	"32k_ck",	&sys_32k_ck,	CK_44XX),
