@@ -347,6 +347,49 @@ static int rproc_memory_map_index(const struct rproc *rproc, loff_t *off)
 	return -1;
 }
 
+ssize_t core_rproc_write(struct file *filp,
+		const char __user *buffer, size_t count, loff_t *off)
+{
+	char cmd[100];
+	int cmdlen;
+	struct core_rproc *d = filp->private_data;
+	struct rproc *rproc = d->rproc;
+
+	cmdlen = min(sizeof(cmd) - 1, count);
+	if (copy_from_user(cmd, buffer, cmdlen))
+		return -EFAULT;
+	cmd[cmdlen] = 0;
+
+	if (!strncmp(cmd, "enable", 6)) {
+		pr_info("remoteproc %s halt on crash ENABLED\n", rproc->name);
+		rproc->halt_on_crash = true;
+		goto done;
+	} else if (!strncmp(cmd, "disable", 7)) {
+		pr_info("remoteproc %s halt on crash DISABLED\n", rproc->name);
+		rproc->halt_on_crash = false;
+		/* If you disable halt-on-crashed after the remote processor
+		 * has already crashed, we will let it continue crashing (so it
+		 * can get handled otherwise) as well.
+		 */
+		if (rproc->state != RPROC_CRASHED)
+			goto done;
+	} else if (strncmp(cmd, "continue", 8)) {
+		pr_err("%s: invalid command: expecting \"enable\"," \
+				"\"disable\", or \"continue\"\n", __func__);
+		return -EINVAL;
+	}
+
+	if (rproc->state == RPROC_CRASHED) {
+		pr_info("remoteproc %s: resuming crash recovery\n",
+				rproc->name);
+		complete_remoteproc_crash(rproc);
+	}
+
+done:
+	*off += count;
+	return count;
+}
+
 static ssize_t core_rproc_read(struct file *filp,
 			char __user *userbuf, size_t count, loff_t *ppos)
 {
@@ -423,6 +466,7 @@ static ssize_t core_rproc_read(struct file *filp,
 
 static const struct file_operations core_rproc_ops = {
 	.read = core_rproc_read,
+	.write = core_rproc_write,
 	.open = core_rproc_open,
 	.release = core_rproc_release,
 	.llseek = generic_file_llseek,
@@ -525,9 +569,15 @@ static int rproc_mmu_fault_isr(struct rproc *rproc, u64 da, u32 flags)
 
 static int rproc_watchdog_isr(struct rproc *rproc)
 {
-	dev_err(rproc->dev, "Enter %s\n", __func__);
-	schedule_work(&rproc->error_work);
+	/* If the ducati is suspended in a crash, do nothing. */
+	if (rproc->state == RPROC_CRASHED) {
+		pr_info("remoteproc %s is already in the crashed state\n",
+			rproc->name);
+		return 0;
+	}
 
+	dev_err(rproc->dev, "%s\n", __func__);
+	schedule_work(&rproc->error_work);
 	return 0;
 }
 
@@ -581,6 +631,13 @@ static int _event_notify(struct rproc *rproc, int type, void *data)
 #endif
 	default:
 		return -EINVAL;
+	}
+
+	if (type == RPROC_ERROR) {
+		/* FIXME: send uevent here */
+		pr_info("remoteproc: %s has crashed (core dump available)\n",
+			rproc->name);
+		return 0;
 	}
 
 	return blocking_notifier_call_chain(nh, type, data);
