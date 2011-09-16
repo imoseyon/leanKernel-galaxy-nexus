@@ -102,6 +102,16 @@
 struct clockdomain;
 struct powerdomain;
 
+struct powerdomain_count_stats {
+	unsigned state[PWRDM_MAX_PWRSTS];
+	unsigned ret_logic_off;
+	unsigned ret_mem_off[PWRDM_MAX_MEM_BANKS];
+};
+
+struct powerdomain_time_stats {
+	s64 state[PWRDM_MAX_PWRSTS];
+};
+
 /**
  * struct powerdomain - OMAP powerdomain
  * @name: Powerdomain name
@@ -146,13 +156,11 @@ struct powerdomain {
 	struct list_head node;
 	struct list_head voltdm_node;
 	int state;
-	unsigned state_counter[PWRDM_MAX_PWRSTS];
-	unsigned ret_logic_off_counter;
-	unsigned ret_mem_off_counter[PWRDM_MAX_MEM_BANKS];
+	struct powerdomain_count_stats count;
 
 #ifdef CONFIG_PM_DEBUG
 	s64 timer;
-	s64 state_timer[PWRDM_MAX_PWRSTS];
+	struct powerdomain_time_stats time;
 #endif
 	const u32 wakeup_lat[PWRDM_MAX_FUNC_PWRSTS];
 	spinlock_t wakeuplat_lock;

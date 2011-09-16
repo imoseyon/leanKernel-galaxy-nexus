@@ -383,7 +383,7 @@ void pm_dbg_update_time(struct powerdomain *pwrdm, int prev)
 	/* Update timer for previous state */
 	t = sched_clock();
 
-	pwrdm->state_timer[prev] += t - pwrdm->timer;
+	pwrdm->time.state[prev] += t - pwrdm->timer;
 
 	pwrdm->timer = t;
 }
@@ -423,12 +423,12 @@ static int pwrdm_dbg_show_counter(struct powerdomain *pwrdm, void *user)
 			pwrdm_state_names[pwrdm->state]);
 	for (i = 0; i < PWRDM_MAX_PWRSTS; i++)
 		seq_printf(s, ",%s:%d", pwrdm_state_names[i],
-			pwrdm->state_counter[i]);
+			pwrdm->count.state[i]);
 
-	seq_printf(s, ",RET-LOGIC-OFF:%d", pwrdm->ret_logic_off_counter);
+	seq_printf(s, ",RET-LOGIC-OFF:%d", pwrdm->count.ret_logic_off);
 	for (i = 0; i < pwrdm->banks; i++)
 		seq_printf(s, ",RET-MEMBANK%d-OFF:%d", i + 1,
-				pwrdm->ret_mem_off_counter[i]);
+				pwrdm->count.ret_mem_off[i]);
 
 	seq_printf(s, "\n");
 
@@ -452,12 +452,12 @@ static int pwrdm_dbg_show_timer(struct powerdomain *pwrdm, void *user)
 		pwrdm_state_names[pwrdm->state]);
 
 	for (i = 0; i < 4; i++)
-		total += pwrdm->state_timer[i];
+		total += pwrdm->time.state[i];
 
 	for (i = 0; i < 4; i++)
 		seq_printf(s, ",%s:%lld (%lld%%)", pwrdm_state_names[i],
-			pwrdm->state_timer[i],
-			total ? div64_u64(pwrdm->state_timer[i] * 100, total) : 0);
+			pwrdm->time.state[i],
+			total ? div64_u64(pwrdm->time.state[i] * 100, total) : 0);
 
 	seq_printf(s, "\n");
 	return 0;
@@ -612,7 +612,7 @@ static int __init pwrdms_setup(struct powerdomain *pwrdm, void *dir)
 	t = sched_clock();
 
 	for (i = 0; i < 4; i++)
-		pwrdm->state_timer[i] = 0;
+		pwrdm->time.state[i] = 0;
 
 	pwrdm->timer = t;
 
