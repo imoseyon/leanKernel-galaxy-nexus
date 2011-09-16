@@ -66,7 +66,7 @@ enum {
 static bool mms_force_reflash = false;
 module_param_named(force_reflash, mms_force_reflash, bool, S_IWUSR | S_IRUGO);
 
-static bool mms_flash_from_probe = true;
+static bool mms_flash_from_probe;
 module_param_named(flash_from_probe, mms_flash_from_probe, bool,
 		   S_IWUSR | S_IRUGO);
 
