@@ -99,7 +99,6 @@ pvrsrvkm-y := \
 	sgx/pb.o
 
 pvrsrvkm-$(CONFIG_ION_OMAP) += ion.o
-pvrsrvkm-$(CONFIG_DEBUG_FS) += omap4/pvr_debugfs.o
 
 omaplfb-y := \
 	omaplfb/omaplfb_displayclass.o \

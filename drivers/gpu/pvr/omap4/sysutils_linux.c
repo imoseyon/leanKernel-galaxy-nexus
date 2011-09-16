@@ -65,13 +65,6 @@
 extern struct platform_device *gpsPVRLDMDev;
 #endif
 
-#if defined(CONFIG_DEBUG_FS)
-extern u32 curr_sgx_freq_index;
-extern bool sgx_freq_locked;
-extern u32 freq_transition_counter;
-extern SYS_SPECIFIC_DATA *gpsSysSpecData;
-#endif
-
 static PVRSRV_ERROR PowerLockWrap(SYS_SPECIFIC_DATA *psSysSpecData, IMG_BOOL bTryLock)
 {
 	if (!in_interrupt())
@@ -170,7 +163,7 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 #if !defined(NO_HARDWARE)
 	SYS_SPECIFIC_DATA *psSysSpecData = (SYS_SPECIFIC_DATA *) psSysData->pvSysSpecificData;
 
-
+	
 	if (atomic_read(&psSysSpecData->sSGXClocksEnabled) != 0)
 	{
 		return PVRSRV_OK;
@@ -186,20 +179,14 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 
 		pdata = (struct gpu_platform_data *)gpsPVRLDMDev->dev.platform_data;
 		max_freq_index = psSysSpecData->ui32SGXFreqListSize - 2;
-#if defined(CONFIG_DEBUG_FS)
-		freq_transition_counter++;
-#endif
+
 		/**
 		 * Request maximum frequency from DVFS layer if not already set. DVFS may
 		 * report busy if early in initialization, but all other errors are
 		 * considered serious. Upon any error we proceed assuming our safe frequency
 		 * value to be in use as indicated by the "unknown" index.
 		 */
-#if defined(CONFIG_DEBUG_FS)
-		if (psSysSpecData->ui32SGXFreqListIndex != max_freq_index && !sgx_freq_locked)
-#else
 		if (psSysSpecData->ui32SGXFreqListIndex != max_freq_index)
-#endif
 		{
 			PVR_ASSERT(pdata->device_scale != IMG_NULL);
 			res = pdata->device_scale(&gpsPVRLDMDev->dev,
@@ -218,10 +205,6 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 				PVR_DPF((PVR_DBG_ERROR, "EnableSGXClocks: Unable to scale SGX frequency (%d)", res));
 				psSysSpecData->ui32SGXFreqListIndex = psSysSpecData->ui32SGXFreqListSize - 1;
 			}
-
-#if defined(CONFIG_DEBUG_FS)
-			curr_sgx_freq_index = (u32) psSysSpecData->ui32SGXFreqListIndex;
-#endif
 		}
 
 		res = pm_runtime_get_sync(&gpsPVRLDMDev->dev);
@@ -249,7 +232,7 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 #if !defined(NO_HARDWARE)
 	SYS_SPECIFIC_DATA *psSysSpecData = (SYS_SPECIFIC_DATA *) psSysData->pvSysSpecificData;
 
-
+	
 	if (atomic_read(&psSysSpecData->sSGXClocksEnabled) == 0)
 	{
 		return;
@@ -271,20 +254,14 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 		}
 
 		pdata = (struct gpu_platform_data *)gpsPVRLDMDev->dev.platform_data;
-#if defined(CONFIG_DEBUG_FS)
-		freq_transition_counter--;
-#endif
+
 		/**
 		 * Request minimum frequency (list index 0) from DVFS layer if not already
 		 * set. DVFS may report busy if early in initialization, but all other errors
 		 * are considered serious. Upon any error we proceed assuming our safe frequency
 		 * value to be in use as indicated by the "unknown" index.
 		 */
-#if defined(CONFIG_DEBUG_FS)
-		if (psSysSpecData->ui32SGXFreqListIndex != 0 && !sgx_freq_locked)
-#else
 		if (psSysSpecData->ui32SGXFreqListIndex != 0)
-#endif
 		{
 			PVR_ASSERT(pdata->device_scale != IMG_NULL);
 			res = pdata->device_scale(&gpsPVRLDMDev->dev,
@@ -303,10 +280,6 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 				PVR_DPF((PVR_DBG_ERROR, "DisableSGXClocks: Unable to scale SGX frequency (%d)", res));
 				psSysSpecData->ui32SGXFreqListIndex = psSysSpecData->ui32SGXFreqListSize - 1;
 			}
-
-#if defined(CONFIG_DEBUG_FS)
-			curr_sgx_freq_index = (u32) psSysSpecData->ui32SGXFreqListIndex;
-#endif
 		}
 	}
 #endif
@@ -607,9 +580,6 @@ PVRSRV_ERROR SysDvfsInitialize(SYS_SPECIFIC_DATA *psSysSpecificData)
 	IMG_UINT32 i, *freq_list;
 	struct opp *opp;
 	unsigned long freq;
-#if defined(CONFIG_DEBUG_FS)
-	gpsSysSpecData = psSysSpecificData;
-#endif
 
 	/**
 	 * We query and store the list of SGX frequencies just this once under the
