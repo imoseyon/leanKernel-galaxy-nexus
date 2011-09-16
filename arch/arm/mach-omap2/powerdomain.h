@@ -156,11 +156,14 @@ struct powerdomain {
 	struct list_head node;
 	struct list_head voltdm_node;
 	int state;
+
 	struct powerdomain_count_stats count;
+	struct powerdomain_count_stats last_count;
 
 #ifdef CONFIG_PM_DEBUG
 	s64 timer;
 	struct powerdomain_time_stats time;
+	struct powerdomain_time_stats last_time;
 #endif
 	const u32 wakeup_lat[PWRDM_MAX_FUNC_PWRSTS];
 	spinlock_t wakeuplat_lock;
