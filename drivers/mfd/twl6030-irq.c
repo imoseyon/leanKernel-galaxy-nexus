@@ -92,6 +92,8 @@ static struct task_struct *task;
 static struct completion irq_event;
 static atomic_t twl6030_wakeirqs = ATOMIC_INIT(0);
 
+static u8 vbatmin_hi_threshold;
+
 static int twl6030_irq_pm_notifier(struct notifier_block *notifier,
 				   unsigned long pm_event, void *unused)
 {
@@ -223,8 +225,16 @@ static irqreturn_t handle_twl6030_pih(int irq, void *devid)
  */
 static irqreturn_t handle_twl6030_vlow(int irq, void *unused)
 {
-	pr_info("handle_twl6030_vlow: kernel_power_off()\n");
+	pr_err("twl6030: BAT_VLOW interrupt; threshold=%dmV (0x%x)\n",
+	       2300 + (vbatmin_hi_threshold * 50), vbatmin_hi_threshold);
+
+#if 1 /* temporary */
+	pr_err("%s: disabling BAT_VLOW interrupt\n", __func__);
+	disable_irq_nosync(twl6030_irq_base + TWL_VLOW_INTR_OFFSET);
+#else
+	pr_emerg("handle_twl6030_vlow: kernel_power_off()\n");
 	kernel_power_off();
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -406,6 +416,9 @@ int twl6030_vlow_init(int vlow_irq)
 				status);
 		return status;
 	}
+
+	twl_i2c_read_u8(TWL_MODULE_PM_MASTER, &vbatmin_hi_threshold,
+			TWL6030_VBATMIN_HI_THRESHOLD);
 
 	/* install an irq handler for vlow */
 	status = request_threaded_irq(vlow_irq, NULL, handle_twl6030_vlow,
