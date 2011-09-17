@@ -78,7 +78,6 @@ static struct powerdomain *_pwrdm_lookup(const char *name)
  */
 static int _pwrdm_register(struct powerdomain *pwrdm)
 {
-	int i;
 	struct voltagedomain *voltdm;
 
 	if (!pwrdm || !pwrdm->name)
@@ -120,16 +119,14 @@ static int _pwrdm_register(struct powerdomain *pwrdm)
 	pwrdm_set_next_pwrst(pwrdm, PWRDM_POWER_ON);
 
 	/* Initialize the powerdomain's state counter */
-	for (i = 0; i < PWRDM_MAX_PWRSTS; i++)
-		pwrdm->state_counter[i] = 0;
-
-	pwrdm->ret_logic_off_counter = 0;
-	for (i = 0; i < pwrdm->banks; i++)
-		pwrdm->ret_mem_off_counter[i] = 0;
+	memset(&pwrdm->count, 0, sizeof(pwrdm->count));
+	memset(&pwrdm->last_count, 0, sizeof(pwrdm->last_count));
+	memset(&pwrdm->time, 0, sizeof(pwrdm->time));
+	memset(&pwrdm->last_time, 0, sizeof(pwrdm->last_time));
 
 	pwrdm_wait_transition(pwrdm);
 	pwrdm->state = pwrdm_read_pwrst(pwrdm);
-	pwrdm->state_counter[pwrdm->state] = 1;
+	pwrdm->count.state[pwrdm->state] = 1;
 
 	/* Initialize priority ordered list for wakeup latency constraint */
 	spin_lock_init(&pwrdm->wakeuplat_lock);
@@ -153,14 +150,14 @@ static void _update_logic_membank_counters(struct powerdomain *pwrdm)
 	/* Fake logic off counter */
 	if ((pwrdm->pwrsts_logic_ret == PWRSTS_OFF_RET) &&
 		(pwrdm_read_logic_retst(pwrdm) == PWRDM_POWER_OFF))
-		pwrdm->ret_logic_off_counter++;
+		pwrdm->count.ret_logic_off++;
 
 	for (i = 0; i < pwrdm->banks; i++) {
 		prev_mem_pwrst = pwrdm_read_prev_mem_pwrst(pwrdm, i);
 
 		if ((pwrdm->pwrsts_mem_ret[i] == PWRSTS_OFF_RET) &&
 		    (prev_mem_pwrst == PWRDM_POWER_OFF))
-			pwrdm->ret_mem_off_counter[i]++;
+			pwrdm->count.ret_mem_off[i]++;
 	}
 }
 
@@ -181,7 +178,7 @@ static int _pwrdm_state_switch(struct powerdomain *pwrdm, int flag)
 	case PWRDM_STATE_PREV:
 		prev = pwrdm_read_prev_pwrst(pwrdm);
 		if (pwrdm->state != prev)
-			pwrdm->state_counter[prev]++;
+			pwrdm->count.state[prev]++;
 		if (prev == PWRDM_POWER_RET)
 			_update_logic_membank_counters(pwrdm);
 		/*
@@ -201,7 +198,7 @@ static int _pwrdm_state_switch(struct powerdomain *pwrdm, int flag)
 	}
 
 	if (state != prev)
-		pwrdm->state_counter[state]++;
+		pwrdm->count.state[state]++;
 
 	pm_dbg_update_time(pwrdm, prev);
 
@@ -992,11 +989,11 @@ int pwrdm_get_context_loss_count(struct powerdomain *pwrdm)
 		return -ENODEV;
 	}
 
-	count = pwrdm->state_counter[PWRDM_POWER_OFF];
-	count += pwrdm->ret_logic_off_counter;
+	count = pwrdm->count.state[PWRDM_POWER_OFF];
+	count += pwrdm->count.ret_logic_off;
 
 	for (i = 0; i < pwrdm->banks; i++)
-		count += pwrdm->ret_mem_off_counter[i];
+		count += pwrdm->count.ret_mem_off[i];
 
 	/*
 	 * Context loss count has to be a non-negative value. Clear the sign
