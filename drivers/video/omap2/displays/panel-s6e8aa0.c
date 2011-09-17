@@ -164,6 +164,9 @@ struct s6e8aa0_data {
 	struct omap_video_timings *timings;
 
 	struct panel_s6e8aa0_data *pdata;
+
+	unsigned int acl_cur;
+	bool acl_enable;
 };
 
 const u8 s6e8aa0_mtp_unlock[] = {
@@ -805,6 +808,52 @@ static void s6e8aa0_setup_gamma_regs(struct s6e8aa0_data *s6, u8 gamma_regs[],
 	}
 }
 
+static int s6e8aa0_update_acl_set(struct omap_dss_device *dssdev)
+{
+	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
+	struct panel_s6e8aa0_data *pdata = s6->pdata;
+	int i;
+	unsigned int cd;
+	unsigned int max_cd = 0;
+	const struct s6e8aa0_acl_parameters *acl;
+
+	if (!pdata->acl_table_size)
+		return 0;
+
+	max_cd = pdata->acl_table[pdata->acl_table_size - 1].cd;
+
+	cd = s6->bl * max_cd / 255;
+	if (cd > max_cd)
+		cd = max_cd;
+
+	if (s6->acl_enable) {
+		for (i = 0; i < pdata->acl_table_size; i++)
+			if (cd <= pdata->acl_table[i].cd)
+				break;
+
+		if (i == pdata->acl_table_size)
+			i = pdata->acl_table_size - 1;
+
+		acl = &pdata->acl_table[i];
+		if (s6->acl_cur != acl->acl_val) {
+			s6e8aa0_write_block_nosync(dssdev, acl->regs,
+				sizeof(acl->regs));
+			s6->acl_cur = acl->acl_val;
+		}
+
+		if (s6->bl < pdata->bl_acl_off)
+			s6e8aa0_write_reg(dssdev, 0xC0, 0x00); /* ACL OFF */
+		else
+			s6e8aa0_write_reg(dssdev, 0xC0, 0x01); /* ACL ON */
+	} else {
+		s6->acl_cur = 0;
+		s6e8aa0_write_reg(dssdev, 0xC0, 0x00);
+	}
+	pr_debug("%s : cur_acl=%d, %d\n", __func__, s6->acl_cur,
+		s6->acl_enable);
+	return 0;
+}
+
 static int s6e8aa0_update_brightness(struct omap_dss_device *dssdev)
 {
 	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
@@ -825,6 +874,11 @@ static int s6e8aa0_update_brightness(struct omap_dss_device *dssdev)
 	s6e8aa0_write_block_nosync(dssdev, dy_regs[2], sizeof(dy_regs[2]));
 	s6e8aa0_write_reg(dssdev, 0xF7, 0x01);
 
+	ret = s6e8aa0_update_acl_set(dssdev);
+	if (ret != 0) {
+		pr_err("%s - s6e8aa0_update_acl_set() failed\n", __func__);
+		return -1;
+	}
 	return ret;
 }
 
@@ -1364,7 +1418,7 @@ static int s6e8aa0_probe(struct omap_dss_device *dssdev)
 	s6->bl = props.brightness;
 
 	if (!s6->pdata->seq_display_set || !s6->pdata->seq_etc_set
-		|| !s6->pdata->gamma_table) {
+		|| !s6->pdata->gamma_table || !s6->pdata->acl_table) {
 		dev_err(&dssdev->dev, "Invalid platform data\n");
 		ret = -EINVAL;
 		goto err;
@@ -1403,6 +1457,9 @@ static int s6e8aa0_probe(struct omap_dss_device *dssdev)
 		debugfs_create_file("gamma_correction", S_IRUGO | S_IWUSR,
 			s6->debug_dir, s6, &s6e8aa0_gamma_correction_fops);
 	}
+
+	s6->acl_enable = true;
+	s6->acl_cur = 0;
 
 	if (cpu_is_omap44xx())
 		s6->force_update = true;

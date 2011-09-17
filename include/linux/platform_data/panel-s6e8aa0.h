@@ -80,6 +80,12 @@ struct s6e8aa0_factory_calibration_info {
 	struct s6e8aa0_color_adj color_adj;
 };
 
+struct s6e8aa0_acl_parameters {
+	unsigned int cd;
+	unsigned int acl_val;
+	u8 regs[29];
+};
+
 struct panel_s6e8aa0_data {
 	int	reset_gpio;
 	void	(* set_power)(bool enable);
@@ -94,6 +100,10 @@ struct panel_s6e8aa0_data {
 	const struct s6e8aa0_gamma_adj_points *gamma_adj_points;
 	const struct s6e8aa0_gamma_entry *gamma_table;
 	int gamma_table_size;
+
+	const struct s6e8aa0_acl_parameters *acl_table;
+	unsigned int acl_table_size;
+	unsigned int bl_acl_off;
 };
 
 #endif
