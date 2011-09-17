@@ -55,6 +55,14 @@ struct rfs_hdr {
 	u8 id;
 } __attribute__ ((packed));
 
+static const char const *modem_state_name[] = {
+	[STATE_OFFLINE]     = "OFFLINE",
+	[STATE_CRASH_RESET] = "CRASH_RESET (silent)",
+	[STATE_CRASH_EXIT]  = "CRASH_EXIT (ramdump)",
+	[STATE_BOOTING]     = "BOOTING",
+	[STATE_ONLINE]      = "ONLINE",
+};
+
 static int rx_iodev_skb(struct io_device *iod);
 
 static int get_header_size(struct io_device *iod)
@@ -564,7 +572,7 @@ static void io_dev_modem_state_changed(struct io_device *iod,
 			enum modem_state state)
 {
 	iod->mc->phone_state = state;
-	pr_info("[MODEM_IF] Got modem state changed. state : %d\n", state);
+	pr_info("[MODEM_IF] %s state changed: %s\n", iod->name, modem_state_name[state]);
 
 	if ((state == STATE_CRASH_RESET) || (state == STATE_CRASH_EXIT))
 		wake_up(&iod->wq);

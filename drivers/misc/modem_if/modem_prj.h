@@ -45,16 +45,6 @@
 #define IOCTL_MODEM_DUMP_UPDATE	_IO('o', 0x33)
 #define IOCTL_MODEM_FORCE_CRASH_EXIT _IO('o', 0x34)
 
-/* modem status */
-#define MODEM_OFF	0
-#define MODEM_CRASHED	1
-#define MODEM_RAMDUMP	2
-#define MODEM_POWER_ON	3
-#define MODEM_BOOTING_NORMAL	4
-#define MODEM_BOOTING_RAMDUMP	5
-#define MODEM_DUMPING	6
-#define MODEM_RUNNING	7
-
 #define IPC_HEADER_MAX_SIZE	6 /* fmt 3, raw 6, rfs 6 */
 
 #define PSD_DATA_CHID_BEGIN	0x2A
