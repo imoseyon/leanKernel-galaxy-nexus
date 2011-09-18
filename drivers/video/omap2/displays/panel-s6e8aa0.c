@@ -1371,6 +1371,48 @@ err:
 	return ret;
 }
 
+static ssize_t acl_enable_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct omap_dss_device *dssdev = to_dss_device(dev);
+	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
+
+	snprintf(buf, PAGE_SIZE, "%d\n", s6->acl_enable);
+
+	return strlen(buf);
+}
+
+static ssize_t acl_enable_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct omap_dss_device *dssdev = to_dss_device(dev);
+	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
+	long value;
+	bool enable;
+	int rc;
+
+	rc = strict_strtol(buf, 0, &value);
+
+	if (rc < 0)
+		return rc;
+
+	enable = value;
+
+	mutex_lock(&s6->lock);
+	if (s6->acl_enable != enable) {
+		dsi_bus_lock(dssdev);
+
+		s6->acl_enable = enable;
+		s6e8aa0_update_acl_set(dssdev);
+
+		dsi_bus_unlock(dssdev);
+	}
+	mutex_unlock(&s6->lock);
+	return size;
+}
+
+static DEVICE_ATTR(acl_set, 0664, acl_enable_show, acl_enable_store);
+
 static const struct file_operations s6e8aa0_current_gamma_fops = {
 	.open = s6e8aa0_current_gamma_open,
 	.read = seq_read,
@@ -1460,6 +1502,12 @@ static int s6e8aa0_probe(struct omap_dss_device *dssdev)
 
 	s6->acl_enable = true;
 	s6->acl_cur = 0;
+
+	ret = device_create_file(&dssdev->dev, &dev_attr_acl_set);
+	if (ret < 0) {
+		dev_err(&dssdev->dev, "failed to add 'acl_set' sysfs entry\n");
+		goto err_backlight_device_register;
+	}
 
 	if (cpu_is_omap44xx())
 		s6->force_update = true;
