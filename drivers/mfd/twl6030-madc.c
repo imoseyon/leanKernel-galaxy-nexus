@@ -99,10 +99,16 @@ static int twl6030_madc_wait_conversion_ready(struct twl6030_madc_data *madc,
 					      u8 status_reg)
 {
 	unsigned long timeout;
+	unsigned long delta;
 	u8 reg;
 	int ret;
 
-	timeout = jiffies + msecs_to_jiffies(timeout_ms);
+	delta = msecs_to_jiffies(timeout_ms);
+
+	if (delta < 2)
+		delta = 2;
+
+	timeout = jiffies + delta;
 	do {
 		ret = twl_i2c_read_u8(TWL6030_MODULE_MADC, &reg, status_reg);
 		if (ret) {
