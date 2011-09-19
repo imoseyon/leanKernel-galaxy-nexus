@@ -146,6 +146,7 @@ struct fsa9480_usbsw {
 	u32				curr_dev;
 	struct mutex			lock;
 	u16				intr_mask;
+	u8				timing;
 
 	int				num_notifiers;
 	struct usbsw_nb_info		notifiers[0];
@@ -291,17 +292,7 @@ static int fsa9480_reg_init(struct fsa9480_usbsw *usbsw)
 	struct i2c_client *client = usbsw->client;
 	unsigned int ctrl = CON_MASK;
 	s32 ret;
-	u8 i;
 
-	/* soft reset to re-initialize the fsa, and re-do detection */
-	ret = i2c_smbus_write_byte_data(client, FSA9480_REG_MANOVERRIDE1, 1);
-	if (ret < 0) {
-		dev_err(&client->dev, "cannot soft reset,  err %d\n", ret);
-		return ret;
-	}
-
-	/* mask interrupts (unmask attach/detach only) */
-	usbsw->intr_mask = 0x1ffc;
 	ret = i2c_smbus_write_word_data(client, FSA9480_REG_INT1_MASK,
 			usbsw->intr_mask);
 	if (ret < 0) {
@@ -317,30 +308,19 @@ static int fsa9480_reg_init(struct fsa9480_usbsw *usbsw)
 		return ret;
 	}
 
-	/* Reconcile the requested ADC detect time with the available settings
-	 * on the FSA9480.
-	 */
-	for (i = 0; i < ARRAY_SIZE(adc_timing); i++) {
-		if (usbsw->pdata->detect_time <= adc_timing[i])
-			break;
-	}
-
-	if (i == ARRAY_SIZE(adc_timing))
-		return -ERANGE;
-
-	ret = i2c_smbus_write_byte_data(client, FSA9480_REG_TIMING1, i);
+	ret = i2c_smbus_write_byte_data(client, FSA9480_REG_TIMING1,
+			usbsw->timing);
 	if (ret < 0) {
 		dev_err(&client->dev, "%s: err %d\n", __func__, ret);
 		return ret;
 	}
 
-	ret = i2c_smbus_read_byte_data(client, FSA9480_REG_MANSW1);
+	ret = i2c_smbus_write_byte_data(client, FSA9480_REG_MANSW1,
+			usbsw->mansw);
 	if (ret < 0) {
 		dev_err(&client->dev, "%s: err %d\n", __func__, ret);
 		return ret;
 	}
-
-	usbsw->mansw = ret;
 
 	if (usbsw->mansw)
 		ctrl &= ~CON_MANUAL_SW;	/* Manual Switching Mode */
@@ -351,6 +331,20 @@ static int fsa9480_reg_init(struct fsa9480_usbsw *usbsw)
 		return ret;
 	}
 
+	return 0;
+}
+
+static int fsa9480_reset(struct fsa9480_usbsw *usbsw)
+{
+	struct i2c_client *client = usbsw->client;
+	s32 ret;
+
+	/* soft reset to re-initialize the fsa, and re-do detection */
+	ret = i2c_smbus_write_byte_data(client, FSA9480_REG_MANOVERRIDE1, 1);
+	if (ret < 0) {
+		dev_err(&client->dev, "cannot soft reset,  err %d\n", ret);
+		return ret;
+	}
 	return 0;
 }
 
@@ -511,11 +505,10 @@ static irqreturn_t fsa9480_irq_thread(int irq, void *data)
 		dev_err(&client->dev, "%s: err %d\n", __func__, intr);
 	} else if (intr == 0) {
 		/* When the FSA9480 triggers an interrupt with no status bits
-		 * set I have observed that the previous interrupt mask has
-		 * been lost and needs to be rewritten.
+		 * set the FSA9480 may have reset and the registers need to be
+		 * reinitialized.
 		 */
-		i2c_smbus_write_word_data(client, FSA9480_REG_INT1_MASK,
-				usbsw->intr_mask);
+		fsa9480_reg_init(usbsw);
 		dev_warn(&client->dev, "irq fired, but nothing happened\n");
 	} else {
 		dev_dbg(&client->dev, "got irq 0x%x\n", intr);
@@ -588,6 +581,27 @@ static int __devinit fsa9480_probe(struct i2c_client *client,
 		goto err_en_wake;
 	}
 
+	/* Reconcile the requested ADC detect time with the available settings
+	 * on the FSA9480.
+	 */
+	for (i = 0; i < ARRAY_SIZE(adc_timing); i++) {
+		if (usbsw->pdata->detect_time <= adc_timing[i]) {
+			usbsw->timing = i;
+			break;
+		}
+	}
+
+	if (i == ARRAY_SIZE(adc_timing)) {
+		ret = -ERANGE;
+		goto err_timing;
+	}
+
+	/* mask interrupts (unmask attach/detach only) */
+	usbsw->intr_mask = 0x1ffc;
+	ret = fsa9480_reset(usbsw);
+	if (ret < 0)
+		goto err_reset;
+
 	ret = fsa9480_reg_init(usbsw);
 	if (ret)
 		goto err_reg_init;
@@ -624,6 +638,8 @@ err_reg_notifiers:
 		otg_id_unregister_notifier(&usbsw->notifiers[i].otg_id_nb);
 	sysfs_remove_group(&client->dev.kobj, &fsa9480_group);
 err_sys_create:
+err_reset:
+err_timing:
 err_reg_init:
 	if (client->irq)
 		disable_irq_wake(client->irq);
