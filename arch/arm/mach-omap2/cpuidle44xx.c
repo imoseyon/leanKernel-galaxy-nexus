@@ -138,6 +138,27 @@ static void omap4_update_actual_state(struct cpuidle_device *dev,
 }
 
 /**
+ * omap4_wfi_until_interrupt
+ *
+ * wfi can sometimes return with no interrupts pending, for example on a
+ * broadcast cache flush or tlb op.  This function will call wfi repeatedly
+ * until an interrupt is actually pending.  Returning without looping would
+ * cause very short idle times to be reported to the idle governor, messing
+ * with repeating interrupt detection, and causing deep idle states to be
+ * avoided.
+ */
+static void omap4_wfi_until_interrupt(void)
+{
+	void __iomem *gic_cpu = omap4_get_gic_cpu_base();
+
+retry:
+	omap_do_wfi();
+
+	if (__raw_readl(gic_cpu + GIC_CPU_HIGHPRI) == 0x3FF)
+		goto retry;
+}
+
+/**
  * omap4_idle_wait
  *
  * similar to WFE, but can be woken by an interrupt even though interrupts
@@ -155,8 +176,7 @@ static bool omap4_idle_wait(void)
 	/* Unmask the "event" interrupt */
 	__raw_writel(bit, gic_dist + GIC_DIST_ENABLE_SET + reg);
 
-	dsb();
-	__asm__ volatile ("wfi");
+	omap4_wfi_until_interrupt();
 
 	/* Read the "event" interrupt pending bit */
 	poked = __raw_readl(gic_dist + GIC_DIST_PENDING_SET + reg) & bit;
@@ -204,7 +224,7 @@ static int omap4_enter_idle_wfi(struct cpuidle_device *dev,
 
 	preidle = ktime_get();
 
-	omap_do_wfi();
+	omap4_wfi_until_interrupt();
 
 	postidle = ktime_get();
 
