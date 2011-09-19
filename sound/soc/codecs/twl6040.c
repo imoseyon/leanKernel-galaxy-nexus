@@ -523,6 +523,8 @@ static inline int twl6040_hf_ramp_step(struct snd_soc_codec *codec,
 			reg &= ~TWL6040_HF_VOL_MASK;
 			twl6040_write(codec, TWL6040_REG_HFRGAIN,
 						reg | (0x1D - val));
+		} else {
+			right_complete = 1;
 		}
 	}
 

@@ -3186,9 +3186,17 @@ static struct clk auxclkreq5_ck = {
 	.recalc		= &omap2_clksel_recalc,
 };
 
-static struct clk smp_twd = {
+static struct clk smp_twd_443x = {
 	.name		= "smp_twd",
 	.parent		= &dpll_mpu_ck,
+	.ops		= &clkops_null,
+	.fixed_div	= 2,
+	.recalc		= &omap_fixed_divisor_recalc,
+};
+
+static struct clk smp_twd_446x = {
+	.name		= "smp_twd",
+	.parent		= &virt_dpll_mpu_ck,
 	.ops		= &clkops_null,
 	.fixed_div	= 2,
 	.recalc		= &omap_fixed_divisor_recalc,
@@ -3477,7 +3485,8 @@ static struct omap_clk omap44xx_clks[] = {
 	CLK(NULL,	"auxclkreq3_ck",		&auxclkreq3_ck,	CK_44XX),
 	CLK(NULL,	"auxclkreq4_ck",		&auxclkreq4_ck,	CK_44XX),
 	CLK(NULL,	"auxclkreq5_ck",		&auxclkreq5_ck,	CK_44XX),
-	CLK(NULL,	"smp_twd",		&smp_twd,	CK_44XX),
+	CLK("smp_twd",		NULL,		&smp_twd_443x,	CK_443X),
+	CLK("smp_twd",		NULL,		&smp_twd_446x,	CK_446X),
 	CLK("omap_timer.1",	"32k_ck",	&sys_32k_ck,	CK_44XX),
 	CLK("omap_timer.2",	"32k_ck",	&sys_32k_ck,	CK_44XX),
 	CLK("omap_timer.3",	"32k_ck",	&sys_32k_ck,	CK_44XX),
