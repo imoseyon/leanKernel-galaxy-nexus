@@ -1121,7 +1121,7 @@ static const struct soc_enum twl6040_hf_enum[] = {
 static const char *twl6040_ep_texts[] = {"Off", "HS DAC"};
 
 static const struct soc_enum twl6040_virt_enum =
-	SOC_ENUM_SINGLE(TWL6040_REG_SW_SHADOW, 0, 2, twl6040_ep_texts);
+	SOC_ENUM_SINGLE(SND_SOC_NOPM, 0, 2, twl6040_ep_texts);
 
 static const struct snd_kcontrol_new amicl_control =
 	SOC_DAPM_ENUM("Route", twl6040_enum[0]);
@@ -1138,7 +1138,7 @@ static const struct snd_kcontrol_new hsr_mux_controls =
 
 /* EP playback virtual mux */
 static const struct snd_kcontrol_new ep_virt_mux_controls =
-	SOC_DAPM_ENUM("Route", twl6040_virt_enum);
+	SOC_DAPM_ENUM_VIRT("Route", twl6040_virt_enum);
 
 /* Handsfree DAC playback switches */
 static const struct snd_kcontrol_new hfl_mux_controls =
