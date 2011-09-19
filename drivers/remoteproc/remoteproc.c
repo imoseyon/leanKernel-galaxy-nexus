@@ -38,6 +38,8 @@
 #include <linux/pm_runtime.h>
 #include <linux/uaccess.h>
 #include <linux/elf.h>
+#include <linux/elfcore.h>
+#include <plat/remoteproc.h>
 
 /* list of available remote processors on this board */
 static LIST_HEAD(rprocs);
@@ -122,19 +124,27 @@ static const struct file_operations name ##_rproc_ops = {		\
 };
 
 #ifdef CONFIG_REMOTEPROC_CORE_DUMP
+
+/* + 1 for the notes segment */
+#define NUM_PHDR (RPROC_MAX_MEM_ENTRIES + 1)
+
+#define CORE_STR "CORE"
+
 /* Intermediate core-dump-file format */
 struct core_rproc {
 	struct rproc *rproc;
 	/* ELF state */
 	Elf_Half e_phnum;
-	union {
+
+	struct core {
+		struct elfhdr elf;
+		struct elf_phdr phdr[NUM_PHDR];
 		struct {
-			struct elfhdr elf;
-			struct elf_phdr phdr[RPROC_MAX_MEM_ENTRIES];
-		} __packed;
-		u8 header[sizeof(struct elfhdr) +
-			  sizeof(struct elf_phdr) * RPROC_MAX_MEM_ENTRIES];
-	};
+			struct elf_note note_prstatus;
+			char name[sizeof(CORE_STR)];
+			struct elf_prstatus prstatus __aligned(4);
+		} core_note __packed __aligned(4);
+	} core __packed;
 
 	loff_t offset;
 };
@@ -185,7 +195,7 @@ static void fill_elf_header(struct elfhdr *elf, int segs,
 	return;
 }
 
-static int fill_elf_segment_headers(struct core_rproc *d)
+static void fill_elf_segment_headers(struct core_rproc *d)
 {
 	int i = 0;
 	int hi = 0;
@@ -199,54 +209,81 @@ static int fill_elf_segment_headers(struct core_rproc *d)
 		if (!d->rproc->memory_maps[i].core)
 			continue;
 
-		BUG_ON(hi >= d->e_phnum);
+		BUG_ON(hi >= d->e_phnum - 1);
 
-		d->phdr[hi].p_type = PT_LOAD;
-		d->phdr[hi].p_offset = offset;
-		d->phdr[hi].p_vaddr = d->rproc->memory_maps[i].da;
-		d->phdr[hi].p_paddr = d->rproc->memory_maps[i].pa;
-		d->phdr[hi].p_filesz = size;
-		d->phdr[hi].p_memsz = size;
+		d->core.phdr[hi].p_type = PT_LOAD;
+		d->core.phdr[hi].p_offset = offset;
+		d->core.phdr[hi].p_vaddr = d->rproc->memory_maps[i].da;
+		d->core.phdr[hi].p_paddr = d->rproc->memory_maps[i].pa;
+		d->core.phdr[hi].p_filesz = size;
+		d->core.phdr[hi].p_memsz = size;
 		/* FIXME: get these from the Ducati */
-		d->phdr[hi].p_flags = PF_R | PF_W | PF_X;
+		d->core.phdr[hi].p_flags = PF_R | PF_W | PF_X;
 
 		pr_debug("%s: phdr type %d f_off %08x va %08x pa %08x fl %x\n",
 			__func__,
-			d->phdr[hi].p_type,
-			d->phdr[hi].p_offset,
-			d->phdr[hi].p_vaddr,
-			d->phdr[hi].p_paddr,
-			d->phdr[hi].p_flags);
+			d->core.phdr[hi].p_type,
+			d->core.phdr[hi].p_offset,
+			d->core.phdr[hi].p_vaddr,
+			d->core.phdr[hi].p_paddr,
+			d->core.phdr[hi].p_flags);
 
 		offset += size;
 		hi++;
 	}
-
-	return 0;
 }
 
 static int setup_rproc_elf_core_dump(struct core_rproc *d)
 {
 	short __phnum;
+	struct elf_phdr *nphdr;
+	struct exc_regs *xregs = d->rproc->cdump_buf1;
+	struct pt_regs *regs =
+		(struct pt_regs *)&d->core.core_note.prstatus.pr_reg;
 
-	memset(&d->elf, 0, sizeof(d->elf));
+	memset(&d->core.elf, 0, sizeof(d->core.elf));
 
 	__phnum = rproc_core_map_count(d->rproc);
-	if (__phnum < 0 || __phnum > ARRAY_SIZE(d->phdr))
+	if (__phnum < 0 || __phnum > ARRAY_SIZE(d->core.phdr))
 		return -EIO;
-	d->e_phnum = __phnum;
+	d->e_phnum = __phnum + 1; /* + 1 for notes */
 
-	pr_info("%s: number of segments: %d\n", __func__, d->e_phnum);
+	pr_info("number of segments: %d\n", d->e_phnum);
 
-	fill_elf_header(&d->elf, d->e_phnum, EM_ARM,
+	fill_elf_header(&d->core.elf, d->e_phnum, EM_ARM,
 		EF_ARM_EABI_VER2,
 		ELFOSABI_DUCATI);
 
-	d->offset += sizeof(struct elfhdr);
-	d->offset += RPROC_MAX_MEM_ENTRIES * sizeof(struct elf_phdr);
-	d->offset = roundup(d->offset, PAGE_SIZE);
+	nphdr = d->core.phdr + __phnum;
+	nphdr->p_type    = PT_NOTE;
+	nphdr->p_offset  = 0;
+	nphdr->p_vaddr   = 0;
+	nphdr->p_paddr   = 0;
+	nphdr->p_filesz  = 0;
+	nphdr->p_memsz   = 0;
+	nphdr->p_flags   = 0;
+	nphdr->p_align   = 0;
 
-	return fill_elf_segment_headers(d);
+	/* The notes start right after the phdr array. Adjust p_filesz
+	 * accordingly if you add more notes
+	 */
+	nphdr->p_filesz = sizeof(d->core.core_note);
+	nphdr->p_offset = offsetof(struct core, core_note);
+
+	d->core.core_note.note_prstatus.n_namesz = sizeof(CORE_STR);
+	d->core.core_note.note_prstatus.n_descsz =
+		sizeof(struct elf_prstatus);
+	d->core.core_note.note_prstatus.n_type = NT_PRSTATUS;
+	memcpy(d->core.core_note.name, CORE_STR, sizeof(CORE_STR));
+
+	remoteproc_fill_pt_regs(regs, xregs);
+
+	/* We ignore the NVIC registers for now */
+
+	d->offset = sizeof(struct core);
+	d->offset = roundup(d->offset, PAGE_SIZE);
+	fill_elf_segment_headers(d);
+	return 0;
 }
 
 static int core_rproc_open(struct inode *inode, struct file *filp)
@@ -323,7 +360,7 @@ static ssize_t core_rproc_read(struct file *filp,
 	/* copy the ELF and segment header first */
 	if (*ppos < d->offset) {
 		copied = simple_read_from_buffer(userbuf, count,
-					ppos, d->header, d->offset);
+					ppos, &d->core, d->offset);
 		if (copied < 0) {
 			pr_err("%s: could not copy ELF header\n", __func__);
 			return -EIO;
@@ -459,7 +496,8 @@ rproc_da_to_pa(const struct rproc_mem_entry *maps, u64 da, phys_addr_t *pa)
 
 		if (da >= me->da && da < (me->da + me->size)) {
 			offset = da - me->da;
-			pr_debug("%s: matched mem entry no. %d\n", __func__, i);
+			pr_debug("%s: matched mem entry no. %d\n",
+				__func__, i);
 			*pa = me->pa + offset;
 			return 0;
 		}
@@ -468,11 +506,18 @@ rproc_da_to_pa(const struct rproc_mem_entry *maps, u64 da, phys_addr_t *pa)
 	return -EINVAL;
 }
 
+static void dump_remoteproc_regs(const char *name, struct exc_regs *xregs)
+{
+	struct pt_regs regs;
+	remoteproc_fill_pt_regs(&regs, xregs);
+	pr_info("remoteproc %s: register dump\n", name);
+	__show_regs(&regs);
+}
+
 static int rproc_mmu_fault_isr(struct rproc *rproc, u64 da, u32 flags)
 {
 	dev_err(rproc->dev, "%s\n", __func__);
 	schedule_work(&rproc->error_work);
-
 	return -EIO;
 }
 
@@ -504,6 +549,8 @@ static int _event_notify(struct rproc *rproc, int type, void *data)
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 		pm_runtime_dont_use_autosuspend(rproc->dev);
 #endif
+		dump_remoteproc_regs(rproc->name,
+				(struct exc_regs *)rproc->cdump_buf1);
 		break;
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	case RPROC_PRE_SUSPEND:
