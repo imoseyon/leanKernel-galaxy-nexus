@@ -26,9 +26,9 @@
 #define IF_USB_RFS_EP		2
 
 #define AUTOSUSPEND_DELAY_MS		500
-#define HOST_WAKEUP_TIMEOUT_MS		2000
+#define HOST_WAKEUP_TIMEOUT_MS		500
 
-#define MAX_RETRY	3
+#define MAX_RETRY	2
 
 enum RESUME_STATUS {
 	CP_INITIATED_RESUME,
@@ -56,7 +56,9 @@ struct usb_link_device {
 	/*USB SPECIFIC LINK DEVICE*/
 	struct usb_device	*usbdev;
 	struct if_usb_devdata	devdata[IF_USB_DEVNUM_MAX];
+
 	struct delayed_work	runtime_pm_work;
+	struct work_struct	disconnect_work;
 
 	struct wake_lock	gpiolock;
 	struct wake_lock	susplock;
@@ -72,8 +74,6 @@ struct usb_link_device {
 	unsigned gpio_host_wakeup;
 	unsigned gpio_host_active;
 	int irq_host_wakeup;
-	struct delayed_work dwork;
-	struct work_struct resume_work;
 	int cpcrash_flag;
 	wait_queue_head_t l2_wait;
 

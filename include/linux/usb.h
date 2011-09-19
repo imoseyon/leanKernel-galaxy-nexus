@@ -1425,6 +1425,8 @@ extern void usb_reset_endpoint(struct usb_device *dev, unsigned int epaddr);
 /* this request isn't really synchronous, but it belongs with the others */
 extern int usb_driver_set_configuration(struct usb_device *udev, int config);
 
+extern void usb_force_reenumeration(struct usb_device *udev);
+
 /*
  * timeouts, in milliseconds, used for sending/receiving control messages
  * they typically complete within a few frames (msec) after they're issued
