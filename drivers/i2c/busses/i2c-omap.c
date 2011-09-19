@@ -198,7 +198,6 @@ struct omap_i2c_dev {
 						 * if set, should be trsh+1
 						 */
 	u8			rev;
-	unsigned		use_ardy_polling:1;
 	unsigned		b_hw:1;		/* bad h/w fixes */
 	unsigned		idle:1;
 	u16			iestate;	/* Saved interrupt register */
@@ -209,7 +208,6 @@ struct omap_i2c_dev {
 	u16			syscstate;
 	u16			westate;
 	u16			errata;
-	bool			first_transfer;
 };
 
 const static u8 reg_map[] = {
@@ -341,7 +339,6 @@ static void omap_i2c_unidle(struct omap_i2c_dev *dev)
 		omap_i2c_write_reg(dev, OMAP_I2C_CON_REG, OMAP_I2C_CON_EN);
 	}
 	dev->idle = 0;
-	dev->first_transfer = true;
 
 	if (dev->rev >= OMAP_I2C_REV_ON_4430) {
 		omap_i2c_write_reg(dev, OMAP_I2C_IRQENABLE_CLR,0x6FFF);
@@ -369,10 +366,6 @@ static void omap_i2c_idle(struct omap_i2c_dev *dev)
 
 	if (dev->rev < OMAP_I2C_REV_2) {
 		iv = omap_i2c_read_reg(dev, OMAP_I2C_IV_REG); /* Read clears */
-	} else if (!dev->use_ardy_polling) {
-		omap_i2c_write_reg(dev, OMAP_I2C_STAT_REG, dev->iestate);
-		/* Flush posted write before the dev->idle store occurs */
-		omap_i2c_read_reg(dev, OMAP_I2C_STAT_REG);
 	}
 	dev->idle = 1;
 
@@ -387,8 +380,6 @@ static int omap_i2c_init(struct omap_i2c_dev *dev)
 	unsigned long timeout;
 	unsigned long internal_clk = 0;
 	struct clk *fclk;
-
-	dev->first_transfer = true;
 
 	if (dev->rev >= OMAP_I2C_REV_2) {
 		/* Disable I2C controller before soft reset */
@@ -572,36 +563,6 @@ static int omap_i2c_wait_for_bb(struct omap_i2c_dev *dev)
 }
 
 /*
- * Waiting on ARDY set
- * Its strange that reset value of ARDY bit is not 1 == Access Ready
- * Hence have to introduce a first_transfer flag
- */
-static int omap_i2c_wait_for_ardy(struct omap_i2c_dev *dev)
-{
-	unsigned long timeout;
-
-	if (dev->first_transfer) {
-		dev->first_transfer = false;
-		goto done;
-	}
-
-	timeout = jiffies + OMAP_I2C_TIMEOUT;
-	while (!(omap_i2c_read_reg(dev, OMAP_I2C_IRQSTATUS_RAW) & OMAP_I2C_STAT_ARDY)) {
-		if (time_after(jiffies, timeout)) {
-			dev_warn(dev->dev, "timeout waiting for Module ready\n");
-			return -ETIMEDOUT;
-		}
-		msleep(1);
-	}
-
-done:
-	/* Clear all pending status */
-	omap_i2c_write_reg(dev, OMAP_I2C_IRQSTATUS, 0x7FFF);
-
-	return 0;
-}
-
-/*
  * Low level master read/write transaction.
  */
 static int omap_i2c_xfer_msg(struct i2c_adapter *adap,
@@ -740,12 +701,6 @@ omap_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 		pm_qos_update_request(dev->pm_qos, dev->latency);
 
 	for (i = 0; i < num; i++) {
-
-		if (dev->use_ardy_polling) {
-			r = omap_i2c_wait_for_ardy(dev);
-			if (r < 0)
-				break;
-		}
 		r = omap_i2c_xfer_msg(adap, &msgs[i], (i == (num - 1)));
 		if (r != 0)
 			break;
@@ -904,7 +859,7 @@ static irqreturn_t
 omap_i2c_isr(int this_irq, void *dev_id)
 {
 	struct omap_i2c_dev *dev = dev_id;
-	u16 stat, w, bits;
+	u16 stat, w;
 	int err, count = 0;
 
 	if (dev->idle)
@@ -937,25 +892,15 @@ complete:
 			dev_err(dev->dev, "Arbitration lost\n");
 			err |= OMAP_I2C_STAT_AL;
 		}
-
 		/*
 		 * ProDB0017052: Clear ARDY bit twice
 		 */
-		bits = OMAP_I2C_STAT_ARDY | OMAP_I2C_STAT_NACK
-			| OMAP_I2C_STAT_AL;
-		if (dev->use_ardy_polling)
-			bits &= ~(OMAP_I2C_STAT_ARDY);
-
-		if (stat & bits) {
-done:
-			bits =	OMAP_I2C_STAT_RRDY | OMAP_I2C_STAT_RDR |
+		if (stat & (OMAP_I2C_STAT_ARDY | OMAP_I2C_STAT_NACK |
+					OMAP_I2C_STAT_AL)) {
+			omap_i2c_ack_stat(dev, stat &
+				(OMAP_I2C_STAT_RRDY | OMAP_I2C_STAT_RDR |
 				OMAP_I2C_STAT_XRDY | OMAP_I2C_STAT_XDR |
-				OMAP_I2C_STAT_ARDY;
-
-			if (dev->use_ardy_polling)
-				bits &= ~(OMAP_I2C_STAT_ARDY);
-
-			omap_i2c_ack_stat(dev, stat & bits);
+				OMAP_I2C_STAT_ARDY));
 			omap_i2c_complete_cmd(dev, err);
 			return IRQ_HANDLED;
 		}
@@ -1002,11 +947,6 @@ done:
 					break;
 				}
 			}
-
-			if (dev->use_ardy_polling &&
-				((stat & OMAP_I2C_STAT_RDR) || !dev->buf_len))
-				goto done;
-
 			omap_i2c_ack_stat(dev,
 				stat & (OMAP_I2C_STAT_RRDY | OMAP_I2C_STAT_RDR));
 			continue;
@@ -1056,10 +996,6 @@ done:
 
 				omap_i2c_write_reg(dev, OMAP_I2C_DATA_REG, w);
 			}
-			if (dev->use_ardy_polling &&
-				((stat & OMAP_I2C_STAT_XDR) || !dev->buf_len))
-				goto done;
-
 			omap_i2c_ack_stat(dev,
 				stat & (OMAP_I2C_STAT_XRDY | OMAP_I2C_STAT_XDR));
 			continue;
@@ -1165,9 +1101,6 @@ omap_i2c_probe(struct platform_device *pdev)
 	if (dev->rev <= OMAP_I2C_REV_ON_3430)
 		dev->errata |= I2C_OMAP3_1P153;
 
-	if (dev->rev >= OMAP_I2C_REV_ON_4430)
-		dev->use_ardy_polling = 1;
-
 	if (!(cpu_class_is_omap1() || cpu_is_omap2420())) {
 		u16 s;
 
@@ -1200,8 +1133,6 @@ omap_i2c_probe(struct platform_device *pdev)
 			OMAP_I2C_IE_ARDY | OMAP_I2C_IE_NACK |
 			OMAP_I2C_IE_AL)  | ((dev->fifo_size) ?
 				(OMAP_I2C_IE_RDR | OMAP_I2C_IE_XDR) : 0);
-	if (dev->use_ardy_polling)
-		dev->iestate &= ~(OMAP_I2C_STAT_ARDY);
 
 	isr = (dev->rev < OMAP_I2C_REV_2) ? omap_i2c_rev1_isr : omap_i2c_isr;
 	r = request_irq(dev->irq, isr, 0, pdev->name, dev);
