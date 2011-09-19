@@ -77,11 +77,11 @@ static inline int twl6030_madc_start_conversion(struct twl6030_madc_data *madc)
 		return ret;
 	}
 
-	ret = twl_i2c_write_u8(TWL_MODULE_MADC, TWL6030_MADC_SP2,
-				TWL6030_MADC_CTRL_P2);
+	ret = twl_i2c_write_u8(TWL_MODULE_MADC, TWL6030_MADC_SP1,
+				TWL6030_MADC_CTRL_P1);
 	if (ret) {
 		dev_err(madc->dev, "unable to write register 0x%X\n",
-			TWL6030_MADC_CTRL_P2);
+			TWL6030_MADC_CTRL_P1);
 		return ret;
 	}
 	return 0;
@@ -99,12 +99,11 @@ static int twl6030_madc_wait_conversion_ready(struct twl6030_madc_data *madc,
 					      u8 status_reg)
 {
 	unsigned long timeout;
+	u8 reg;
 	int ret;
 
 	timeout = jiffies + msecs_to_jiffies(timeout_ms);
 	do {
-		u8 reg;
-
 		ret = twl_i2c_read_u8(TWL6030_MODULE_MADC, &reg, status_reg);
 		if (ret) {
 			dev_err(madc->dev,
@@ -116,8 +115,8 @@ static int twl6030_madc_wait_conversion_ready(struct twl6030_madc_data *madc,
 			return 0;
 		usleep_range(500, 2000);
 	} while (!time_after(jiffies, timeout));
-	dev_err(madc->dev, "conversion timeout!\n");
 
+	dev_err(madc->dev, "conversion timeout, ctrl_px=0x%08x\n", reg);
 	return -EAGAIN;
 }
 
@@ -132,28 +131,12 @@ static int twl6030_madc_channel_raw_read(struct twl6030_madc_data *madc,
 {
 	u8 msb, lsb;
 	int ret;
-	u8 ctrl_p1;
 
 	mutex_lock(&madc->lock);
-	ret = twl_i2c_read_u8(TWL6030_MODULE_MADC, &ctrl_p1,
-			TWL6030_MADC_CTRL_P1);
-	if (ret) {
-		dev_err(madc->dev, "unable to read control register.");
+	ret = twl6030_madc_start_conversion(twl6030_madc);
+	if (ret)
 		goto unlock;
-	}
 
-	if ((ctrl_p1 & TWL6030_MADC_CTRL_P1) != TWL6030_MADC_CTRL_P1) {
-		ctrl_p1 |= TWL6030_MADC_SP1;
-		ret = twl_i2c_write_u8(TWL6030_MODULE_MADC, ctrl_p1,
-				TWL6030_MADC_CTRL_P1);
-		if (ret) {
-			dev_err(madc->dev,
-				"unable to write control register.");
-			goto unlock;
-		}
-	}
-
-	(void)twl6030_madc_start_conversion(twl6030_madc);
 	ret = twl6030_madc_wait_conversion_ready(twl6030_madc, 5,
 						TWL6030_MADC_CTRL_P1);
 	if (ret)
