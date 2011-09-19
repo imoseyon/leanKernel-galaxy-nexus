@@ -135,7 +135,7 @@ DEBUGFS_READONLY_FILE(cdump0, rproc->cdump_buf0, rproc->cdump_len0);
 DEBUGFS_READONLY_FILE(cdump1, rproc->cdump_buf1, rproc->cdump_len1);
 
 #define DEBUGFS_ADD(name)						\
-	debugfs_create_file(#name, 0400, rproc->dbg_dir,		\
+	debugfs_create_file(#name, 0444, rproc->dbg_dir,		\
 			rproc, &name## _rproc_ops)
 
 /**
