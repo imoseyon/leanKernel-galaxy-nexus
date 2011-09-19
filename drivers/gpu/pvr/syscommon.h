@@ -132,6 +132,10 @@ PVRSRV_ERROR SysDevicePostPowerState(IMG_UINT32 ui32DeviceIndex,
 									 PVRSRV_DEV_POWER_STATE eNewPowerState,
 									 PVRSRV_DEV_POWER_STATE eCurrentPowerState);
 
+#if defined(SYS_SUPPORTS_SGX_IDLE_CALLBACK)
+IMG_VOID SysSGXIdleTransition(IMG_BOOL bSGXIdle);
+#endif 
+
 #if defined(SYS_CUSTOM_POWERLOCK_WRAP)
 PVRSRV_ERROR SysPowerLockWrap(IMG_BOOL bTryLock);
 IMG_VOID SysPowerLockUnwrap(IMG_VOID);
