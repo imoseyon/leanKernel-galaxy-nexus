@@ -1024,6 +1024,12 @@ static ssize_t tuna_soc_prod_id_show(struct kobject *kobj,
 	return sprintf(buf, "%08X-%08X\n", oid.id_1, oid.id_0);
 }
 
+static ssize_t tuna_soc_msv_show(struct kobject *kobj,
+				 struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%08X\n", omap_ctrl_readl(0x013c));
+}
+
 static const char *omap_types[] = {
 	[OMAP2_DEVICE_TYPE_TEST]	= "TST",
 	[OMAP2_DEVICE_TYPE_EMU]		= "EMU",
@@ -1047,6 +1053,7 @@ static TUNA_ATTR_RO(soc, revision, tuna_soc_revision_show);
 static TUNA_ATTR_RO(soc, type, tuna_soc_type_show);
 static TUNA_ATTR_RO(soc, die_id, tuna_soc_die_id_show);
 static TUNA_ATTR_RO(soc, production_id, tuna_soc_prod_id_show);
+static TUNA_ATTR_RO(soc, msv, tuna_soc_msv_show);
 
 static struct attribute *tuna_soc_prop_attrs[] = {
 	&tuna_soc_prop_attr_family.attr,
@@ -1054,6 +1061,7 @@ static struct attribute *tuna_soc_prop_attrs[] = {
 	&tuna_soc_prop_attr_type.attr,
 	&tuna_soc_prop_attr_die_id.attr,
 	&tuna_soc_prop_attr_production_id.attr,
+	&tuna_soc_prop_attr_msv.attr,
 	NULL,
 };
 
