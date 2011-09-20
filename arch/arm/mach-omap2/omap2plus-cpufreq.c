@@ -60,6 +60,7 @@ static DEFINE_MUTEX(omap_cpufreq_lock);
 static unsigned int max_thermal;
 static unsigned int max_freq;
 static unsigned int current_target_freq;
+static bool omap_cpufreq_ready;
 
 static unsigned int omap_getspeed(unsigned int cpu)
 {
@@ -159,6 +160,12 @@ void omap_thermal_throttle(void)
 {
 	unsigned int cur;
 
+	if (!omap_cpufreq_ready) {
+		pr_warn_once("%s: Thermal throttle prior to CPUFREQ ready\n",
+			     __func__);
+		return;
+	}
+
 	mutex_lock(&omap_cpufreq_lock);
 
 	max_thermal = omap_thermal_lower_speed();
@@ -176,6 +183,9 @@ void omap_thermal_throttle(void)
 void omap_thermal_unthrottle(void)
 {
 	unsigned int cur;
+
+	if (!omap_cpufreq_ready)
+		return;
 
 	mutex_lock(&omap_cpufreq_lock);
 
@@ -328,6 +338,8 @@ static struct cpufreq_driver omap_driver = {
 
 static int __init omap_cpufreq_init(void)
 {
+	int ret;
+
 	if (cpu_is_omap24xx())
 		mpu_clk_name = "virt_prcm_set";
 	else if (cpu_is_omap34xx())
@@ -348,7 +360,9 @@ static int __init omap_cpufreq_init(void)
 		return -EINVAL;
 	}
 
-	return cpufreq_register_driver(&omap_driver);
+	ret = cpufreq_register_driver(&omap_driver);
+	omap_cpufreq_ready = !ret;
+	return ret;
 }
 
 static void __exit omap_cpufreq_exit(void)
