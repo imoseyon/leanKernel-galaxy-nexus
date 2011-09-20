@@ -16,6 +16,10 @@
 #include "control.h"
 #include "pm.h"
 
+#define OMAP4_DPLL_MPU_TRIMMED_VAL_2P4	(0x1 << 18)
+#define OMAP4_DPLL_MPU_TRIMMED_VAL_3P0	(0x3 << 18)
+#define OMAP4_DPLL_MPU_TRIMMED_MASK	(BIT(19) | BIT(18))
+
 static bool bgap_trim_sw_overide;
 static bool dpll_trim_override;
 
@@ -67,6 +71,46 @@ int omap4_ldo_trim_configure(void)
 	return 0;
 }
 
+/**
+ * omap4460_mpu_dpll_trim_override() - provide a selective s/w trim overide
+ */
+static __init void omap4460_mpu_dpll_trim_override(void)
+{
+	u32 val;
+
+	val = omap_ctrl_readl(OMAP4_CTRL_MODULE_CORE_STD_FUSE_OPP_DPLL_1) &
+			OMAP4_DPLL_MPU_TRIMMED_MASK;
+	switch (val) {
+	case OMAP4_DPLL_MPU_TRIMMED_VAL_3P0:
+		/* all ok.. */
+		break;
+	case OMAP4_DPLL_MPU_TRIMMED_VAL_2P4:
+		/* Cross check! */
+		if (omap4_has_mpu_1_5ghz()) {
+			WARN(1, "%s: OMAP is 1.5GHz capable, trimmed=1.2GHz!\n",
+				__func__);
+		}
+		break;
+	default:
+		WARN(1, "%s: UNKNOWN TRIM:0x%08x, using s/w override\n",
+			__func__, val);
+		/* fall through and use override */
+	case 0:
+		/*
+		 * For PRE_RTP devices: Not trimmed, use s/w override!
+		 * We only support unto 1.2GHz with s/w override,
+		 * so just give a gentle warning if higher opp is attempted
+		 */
+		dpll_trim_override = true;
+		/* Confirm */
+		if (omap4_has_mpu_1_5ghz()) {
+			pr_err("%s: OMAP is 1.5GHz capable, s/w trim=1.2GHz!\n",
+				__func__);
+		}
+		break;
+	}
+}
+
 static __init int omap4_ldo_trim_init(void)
 {
 	u32 bgap_trimmed = 0;
@@ -93,9 +137,9 @@ static __init int omap4_ldo_trim_init(void)
 	if (!bgap_trimmed)
 		bgap_trim_sw_overide = true;
 
-	/* Required for DPLL_MPU to lock at 2.4 GHz */
+	/* If not already trimmed, use s/w override */
 	if (cpu_is_omap446x())
-		dpll_trim_override = true;
+		omap4460_mpu_dpll_trim_override();
 
 	return omap4_ldo_trim_configure();
 }
