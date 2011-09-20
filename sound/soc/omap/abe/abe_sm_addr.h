@@ -353,3 +353,11 @@
 #define OMAP_ABE_S_SRC_44P1_MULFAC1_SIZE                   0x8
 #define OMAP_ABE_S_SATURATION_EQ_ADDR                      0x4C68
 #define OMAP_ABE_S_SATURATION_EQ_SIZE                      0x8
+#define OMAP_ABE_S_BT_DL_48_8_LP_NEW_DATA_ADDR             0x4C70
+#define OMAP_ABE_S_BT_DL_48_8_LP_NEW_DATA_SIZE             0x88
+#define OMAP_ABE_S_BT_DL_8_48_OSR_LP_DATA_ADDR             0x4CF8
+#define OMAP_ABE_S_BT_DL_8_48_OSR_LP_DATA_SIZE             0x3C8
+#define OMAP_ABE_S_VX_UL_48_8_LP_NEW_DATA_ADDR             0x50C0
+#define OMAP_ABE_S_VX_UL_48_8_LP_NEW_DATA_SIZE             0x88
+#define OMAP_ABE_S_VX_UL_8_48_OSR_LP_DATA_ADDR             0x5148
+#define OMAP_ABE_S_VX_UL_8_48_OSR_LP_DATA_SIZE             0x3C8

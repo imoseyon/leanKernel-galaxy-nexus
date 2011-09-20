@@ -996,6 +996,25 @@ void omap_mcbsp_start(unsigned int id, int tx, int rx)
 		MCBSP_WRITE(mcbsp, RCCR, w);
 	}
 
+	/*Disable and Re-enable transmitter if ready */
+	if (tx && (MCBSP_READ(mcbsp, SPCR2) & XRDY)) {
+		MCBSP_WRITE(mcbsp, SPCR2,
+				MCBSP_READ_CACHE(mcbsp, SPCR2) &
+				(~XRST));
+		MCBSP_WRITE(mcbsp, SPCR2,
+				MCBSP_READ_CACHE(mcbsp, SPCR2) |
+				(XRST));
+	}
+	/*Disable and Re-enable receiver if ready */
+	if (rx && (MCBSP_READ(mcbsp, SPCR1) & RRDY)) {
+		MCBSP_WRITE(mcbsp, SPCR1,
+			MCBSP_READ_CACHE(mcbsp, SPCR1) &
+				(~RRST));
+		MCBSP_WRITE(mcbsp, SPCR1,
+			MCBSP_READ_CACHE(mcbsp, SPCR1) |
+				(RRST));
+	}
+
 	/* Dump McBSP Regs */
 	omap_mcbsp_dump_reg(id);
 }

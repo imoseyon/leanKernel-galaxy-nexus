@@ -92,7 +92,9 @@
 #define C_ABE_FW_FUNCTION_SRC44P1_1211                      29
 #define C_ABE_FW_FUNCTION_SRC44P1_PP                        30
 #define C_ABE_FW_FUNCTION_SRC44P1_1211_PP                   31
-#define C_ABE_FW_FUNCTION_CHECK_IIR                         32
+#define C_ABE_FW_FUNCTION_CHECK_IIR_LEFT                    32
+#define C_ABE_FW_FUNCTION_CHECK_IIR_RIGHT                   33
+#define C_ABE_FW_FUNCTION_FIR12_2                           34
 /*
  *    COPY function ID definitions
  */
