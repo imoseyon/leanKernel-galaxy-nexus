@@ -714,12 +714,13 @@ static int __devinit mms_ts_config(struct mms_ts_info *info, bool nowait)
 {
 	struct i2c_client *client = info->client;
 	int ret = 0;
+	const char *filename = info->pdata->fw_name ?: "mms144_ts.fw";
 
 	mms_pwr_on_reset(info);
 
 	if (nowait) {
 		const struct firmware *fw;
-		info->fw_name = kstrdup("melfas/mms144_ts.fw", GFP_KERNEL);
+		info->fw_name = kasprintf(GFP_KERNEL, "melfas/%s", filename);
 		ret = request_firmware(&fw, info->fw_name, &client->dev);
 		if (ret) {
 			dev_err(&client->dev,
@@ -728,7 +729,7 @@ static int __devinit mms_ts_config(struct mms_ts_info *info, bool nowait)
 		}
 		mms_ts_fw_load(fw, info);
 	} else {
-		info->fw_name = kstrdup("mms144_ts.fw", GFP_KERNEL);
+		info->fw_name = kstrdup(filename, GFP_KERNEL);
 		ret = request_firmware_nowait(THIS_MODULE, true, info->fw_name,
 					      &client->dev, GFP_KERNEL,
 					      info, mms_ts_fw_load);

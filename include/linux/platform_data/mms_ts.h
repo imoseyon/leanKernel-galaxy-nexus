@@ -28,6 +28,7 @@ struct mms_ts_platform_data {
 	int	gpio_vdd_en;
 
 	int	(*mux_fw_flash)(bool to_gpios);
+	const char	*fw_name;
 };
 
 #endif /* _LINUX_MMS_TOUCH_H */
