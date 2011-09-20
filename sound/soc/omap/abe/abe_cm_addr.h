@@ -215,3 +215,7 @@
 #define OMAP_ABE_C_SRC_TONES_44P1_STEP_SIZE                0x8
 #define OMAP_ABE_C_SRC_44P1_MULFAC2_ADDR                   0x1B78
 #define OMAP_ABE_C_SRC_44P1_MULFAC2_SIZE                   0x8
+#define OMAP_ABE_C_SRC_FIR12_LP_GAIN_COEFS_ADDR            0x1B80
+#define OMAP_ABE_C_SRC_FIR12_LP_GAIN_COEFS_SIZE            0x1E4
+#define OMAP_ABE_C_SRC_6_HP_NEW_COEFS_ADDR                 0x1D64
+#define OMAP_ABE_C_SRC_6_HP_NEW_COEFS_SIZE                 0x1C

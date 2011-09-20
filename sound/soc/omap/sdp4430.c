@@ -523,6 +523,24 @@ static int sdp4430_twl6040_dl2_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
+static int sdp4430_twl6040_fe_init(struct snd_soc_pcm_runtime *rtd)
+{
+
+	/* don't wait before switching of FE power */
+	rtd->pmdown_time = 0;
+
+	return 0;
+}
+
+static int sdp4430_bt_init(struct snd_soc_pcm_runtime *rtd)
+{
+
+	/* don't wait before switching of BT power */
+	rtd->pmdown_time = 0;
+
+	return 0;
+}
+
 static int sdp4430_stream_event(struct snd_soc_dapm_context *dapm)
 {
 	/*
@@ -637,6 +655,7 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 		.platform_name = "omap-pcm-audio",
 
 		.dynamic = 1, /* BE is dynamic */
+		.init = sdp4430_twl6040_fe_init,
 		.dsp_link = &fe_media,
 	},
 	{
@@ -693,6 +712,7 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 		.platform_name = "aess",
 
 		.dynamic = 1, /* BE is dynamic */
+		.init = sdp4430_twl6040_fe_init,
 		.dsp_link = &fe_modem,
 		.ops = &sdp4430_modem_ops,
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -865,6 +885,7 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 
 		.no_pcm = 1, /* don't create ALSA pcm for this */
 		.no_codec = 1, /* TODO: have a dummy CODEC */
+		.init = sdp4430_bt_init,
 		.be_hw_params_fixup = mcbsp_be_hw_params_fixup,
 		.ops = &sdp4430_mcbsp_ops,
 		.be_id = OMAP_ABE_DAI_BT_VX,
