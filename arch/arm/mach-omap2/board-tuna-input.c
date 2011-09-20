@@ -33,6 +33,8 @@
 #define GPIO_TOUCH_SCL	130
 #define GPIO_TOUCH_SDA	131
 
+static int mms_ts_panel_id;
+
 static struct gpio_event_direct_entry tuna_gpio_keypad_keys_map_high[] = {
 	{
 		.code	= KEY_POWER,
@@ -123,6 +125,13 @@ static int melfas_mux_fw_flash(bool to_gpios)
 	return 0;
 }
 
+static int __init mms_ts_panel_id_setup(char *str)
+{
+	mms_ts_panel_id = simple_strtol(str, NULL, 0);
+	return 1;
+}
+__setup("mms_ts.panel_id=", mms_ts_panel_id_setup);
+
 static struct mms_ts_platform_data mms_ts_pdata = {
 	.max_x		= 720,
 	.max_y		= 1280,
@@ -154,6 +163,14 @@ void __init omap4_tuna_input_init(void)
 	omap_mux_init_gpio(GPIO_TOUCH_EN, OMAP_PIN_OUTPUT);
 	gpio_request(GPIO_TOUCH_SCL, "ap_i2c3_scl");
 	gpio_request(GPIO_TOUCH_SDA, "ap_i2c3_sda");
+
+	/* 0x12 == FPCB 3.2
+	 * 0xa1 == FPCB 3.1
+	 */
+	if (mms_ts_panel_id == 0x12)
+		mms_ts_pdata.fw_name = "mms144_ts_rev32.fw";
+	else
+		mms_ts_pdata.fw_name = "mms144_ts_rev31.fw";
 
 	i2c_register_board_info(3, tuna_i2c3_boardinfo_final,
 		ARRAY_SIZE(tuna_i2c3_boardinfo_final));
