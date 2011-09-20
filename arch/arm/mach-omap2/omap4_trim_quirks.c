@@ -44,12 +44,6 @@ int omap4_ldo_trim_configure(void)
 			OMAP4_CTRL_MODULE_CORE_LDOSRAM_CORE_VOLTAGE_CTRL);
 		omap_ctrl_writel(val,
 			OMAP4_CTRL_MODULE_CORE_LDOSRAM_IVA_VOLTAGE_CTRL);
-
-		/* write value as per trim recomendation */
-		val =  0xc0 << OMAP4_AVDAC_TRIM_BYTE0_SHIFT;
-		val |=  0x01 << OMAP4_AVDAC_TRIM_BYTE1_SHIFT;
-		omap4_ctrl_pad_writel(val,
-			OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_EFUSE_1);
 	}
 
 	/* For all trimmed and untrimmed write value as per recomendation */
