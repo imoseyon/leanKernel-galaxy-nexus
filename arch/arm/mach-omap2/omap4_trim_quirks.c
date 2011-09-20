@@ -16,6 +16,9 @@
 #include "control.h"
 #include "pm.h"
 
+static bool bgap_trim_sw_overide;
+static bool dpll_trim_override;
+
 /**
  * omap4_ldo_trim_configure() - Handle device trim variance
  *
@@ -25,31 +28,10 @@
  */
 int omap4_ldo_trim_configure(void)
 {
-	u32 bgap_trimmed = 0;
 	u32 val;
 
-	/* Applicable only for OMAP4 */
-	if (!cpu_is_omap44xx())
-		return 0;
-
-	/*
-	 * Some ES2.2 efuse  values for BGAP and SLDO trim
-	 * are not programmed. For these units
-	 * 1. we can set overide mode for SLDO trim,
-	 * and program the max multiplication factor, to ensure
-	 * high enough voltage on SLDO output.
-	 * 2. trim VDAC value for TV output as per recomendation
-	 */
-
-	if (omap_rev() >= CHIP_IS_OMAP4430ES2_2)
-		bgap_trimmed = omap_ctrl_readl(
-			OMAP4_CTRL_MODULE_CORE_STD_FUSE_OPP_BGAP);
-
-	bgap_trimmed &= OMAP4_STD_FUSE_OPP_BGAP_MASK_LSB;
-
 	/* if not trimmed, we set force overide, insted of efuse. */
-	if (!bgap_trimmed) {
-		pr_err("%s: UNTRIMMED PART\n", __func__);
+	if (bgap_trim_sw_overide) {
 		/* Fill in recommended values */
 		val = 0x0f << OMAP4_LDOSRAMCORE_ACTMODE_VSET_OUT_SHIFT;
 		val |= OMAP4_LDOSRAMCORE_ACTMODE_MUX_CTRL_MASK;
@@ -85,9 +67,42 @@ int omap4_ldo_trim_configure(void)
 	omap4_ctrl_pad_writel(val, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_EFUSE_2);
 
 	/* Required for DPLL_MPU to lock at 2.4 GHz */
-	if (cpu_is_omap446x())
+	if (dpll_trim_override)
 		omap_ctrl_writel(0x29, OMAP4_CTRL_MODULE_CORE_DPLL_NWELL_TRIM_0);
 
 	return 0;
 }
-arch_initcall(omap4_ldo_trim_configure);
+
+static __init int omap4_ldo_trim_init(void)
+{
+	u32 bgap_trimmed = 0;
+
+	/* Applicable only for OMAP4 */
+	if (!cpu_is_omap44xx())
+		return 0;
+
+	/*
+	 * Some ES2.2 efuse  values for BGAP and SLDO trim
+	 * are not programmed. For these units
+	 * 1. we can set overide mode for SLDO trim,
+	 * and program the max multiplication factor, to ensure
+	 * high enough voltage on SLDO output.
+	 * 2. trim VDAC value for TV output as per recomendation
+	 */
+	if (omap_rev() >= CHIP_IS_OMAP4430ES2_2)
+		bgap_trimmed = omap_ctrl_readl(
+			OMAP4_CTRL_MODULE_CORE_STD_FUSE_OPP_BGAP);
+
+	bgap_trimmed &= OMAP4_STD_FUSE_OPP_BGAP_MASK_LSB;
+
+	/* if not trimmed, we set force overide, insted of efuse. */
+	if (!bgap_trimmed)
+		bgap_trim_sw_overide = true;
+
+	/* Required for DPLL_MPU to lock at 2.4 GHz */
+	if (cpu_is_omap446x())
+		dpll_trim_override = true;
+
+	return omap4_ldo_trim_configure();
+}
+arch_initcall(omap4_ldo_trim_init);
