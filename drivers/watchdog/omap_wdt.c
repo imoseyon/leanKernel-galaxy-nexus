@@ -466,28 +466,30 @@ static int __devexit omap_wdt_remove(struct platform_device *pdev)
  * may not play well enough with NOWAYOUT...
  */
 
-static int omap_wdt_suspend(struct platform_device *pdev, pm_message_t state)
+static int omap_wdt_suspend(struct device *dev)
 {
+	struct platform_device *pdev = to_platform_device(dev);
 	struct omap_wdt_dev *wdev = platform_get_drvdata(pdev);
 
 	if (wdev->omap_wdt_users) {
 		pm_runtime_get_sync(wdev->dev);
 		omap_wdt_disable(wdev);
-		pm_runtime_put_sync(wdev->dev);
+		pm_runtime_put_sync_suspend(wdev->dev);
 	}
 
 	return 0;
 }
 
-static int omap_wdt_resume(struct platform_device *pdev)
+static int omap_wdt_resume(struct device *dev)
 {
+	struct platform_device *pdev = to_platform_device(dev);
 	struct omap_wdt_dev *wdev = platform_get_drvdata(pdev);
 
 	if (wdev->omap_wdt_users) {
 		pm_runtime_get_sync(wdev->dev);
 		omap_wdt_enable(wdev);
 		omap_wdt_ping(wdev);
-		pm_runtime_put_sync(wdev->dev);
+		pm_runtime_put_sync_suspend(wdev->dev);
 	}
 
 	return 0;
@@ -498,15 +500,19 @@ static int omap_wdt_resume(struct platform_device *pdev)
 #define	omap_wdt_resume		NULL
 #endif
 
+static const struct dev_pm_ops omap_wdt_pm_ops = {
+	.suspend_noirq	= omap_wdt_suspend,
+	.resume_noirq	= omap_wdt_resume,
+};
+
 static struct platform_driver omap_wdt_driver = {
 	.probe		= omap_wdt_probe,
 	.remove		= __devexit_p(omap_wdt_remove),
 	.shutdown	= omap_wdt_shutdown,
-	.suspend	= omap_wdt_suspend,
-	.resume		= omap_wdt_resume,
 	.driver		= {
 		.owner	= THIS_MODULE,
 		.name	= "omap_wdt",
+		.pm	= &omap_wdt_pm_ops,
 	},
 };
 
