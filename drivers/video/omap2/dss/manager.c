@@ -588,6 +588,7 @@ struct manager_cache_data {
 
 	bool cpr_enable;
 	struct omap_dss_cpr_coefs cpr_coefs;
+	bool skip_init;
 };
 
 static struct {
@@ -694,6 +695,7 @@ static int dss_mgr_wait_for_vsync(struct omap_overlay_manager *mgr)
 {
 	unsigned long timeout = msecs_to_jiffies(500);
 	u32 irq;
+	int r;
 
 	if (mgr->device->type == OMAP_DISPLAY_TYPE_VENC) {
 		irq = DISPC_IRQ_EVSYNC_ODD;
@@ -705,7 +707,11 @@ static int dss_mgr_wait_for_vsync(struct omap_overlay_manager *mgr)
 		else
 			irq = DISPC_IRQ_VSYNC2;
 	}
-	return omap_dispc_wait_for_irq_interruptible_timeout(irq, timeout);
+	r = omap_dispc_wait_for_irq_interruptible_timeout(irq, timeout);
+	if(!r)
+		mgr->device->first_vsync = true;
+
+	return r;
 }
 
 static int dss_mgr_wait_for_go(struct omap_overlay_manager *mgr)
@@ -1201,8 +1207,12 @@ static int configure_dispc(void)
 		/* We don't need GO with manual update display. LCD iface will
 		 * always be turned off after frame, and new settings will be
 		 * taken in to use at next update */
-		if (!mc->manual_upd_display)
-			dispc_go(i);
+		if (!mc->manual_upd_display){
+			if(mc->skip_init)
+				mc->skip_init = false;
+			else
+				dispc_go(i);
+		}
 	}
 
 	if (busy)
@@ -1822,6 +1832,8 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 		dssdev->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE &&
 		dssdev->driver->get_update_mode(dssdev) !=
 			OMAP_DSS_UPDATE_AUTO;
+
+	mc->skip_init = dssdev->skip_init;
 
 skip_mgr:
 

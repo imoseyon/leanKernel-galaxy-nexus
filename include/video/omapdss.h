@@ -473,6 +473,8 @@ struct omap_dss_device {
 
 	enum omap_channel channel;
 
+	bool first_vsync;
+
 	union {
 		struct {
 			u8 data_lines;
@@ -559,6 +561,8 @@ struct omap_dss_device {
 
 	int reset_gpio;
 	int hpd_gpio;
+
+	bool skip_init;
 
 	int max_backlight_level;
 
