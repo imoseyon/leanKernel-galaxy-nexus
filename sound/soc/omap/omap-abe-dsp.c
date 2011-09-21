@@ -2288,7 +2288,6 @@ static int aess_close(struct snd_pcm_substream *substream)
 	struct snd_soc_dai *dai = rtd->cpu_dai;
 
 	mutex_lock(&abe->mutex);
-	aess_set_runtime_opp_level(abe);
 
 	dev_dbg(dai->dev, "%s: %s\n", __func__, dai->name);
 
@@ -2296,6 +2295,10 @@ static int aess_close(struct snd_pcm_substream *substream)
 		abe_disable_irq();
 		aess_save_context(abe);
 		abe_dsp_shutdown();
+	} else {
+		/* Only scale OPP level
+		 * if ABE is still active */
+		aess_set_runtime_opp_level(abe);
 	}
 
 	pm_runtime_put_sync(abe->dev);
