@@ -1094,7 +1094,10 @@ static int omap_sr_resume(struct device *dev)
 	return 0;
 }
 
-static SIMPLE_DEV_PM_OPS(omap_sr_dev_pm_ops, omap_sr_suspend, omap_sr_resume);
+const static struct dev_pm_ops omap_sr_dev_pm_ops = {
+	.suspend_noirq = omap_sr_suspend,
+	.resume_noirq = omap_sr_resume,
+};
 
 static struct platform_driver smartreflex_driver = {
 	.remove         = omap_sr_remove,
