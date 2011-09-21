@@ -86,6 +86,18 @@ struct s6e8aa0_acl_parameters {
 	u8 regs[29];
 };
 
+/**
+ * struct s6e8aa0_elvs_parameters -- elvss parameters
+ * @cd:         look up value. if the argument cd is <= this value,
+ *              then the elvss_val is added to byte 2 of the panel
+ *              id to generate the elvss value passed to the controller.
+ * @elvss_val:  Value to add to the elvss for this cd
+ */
+struct s6e8aa0_elvss_parameters {
+	unsigned int cd;
+	u8 elvss_val;
+};
+
 struct panel_s6e8aa0_data {
 	int	reset_gpio;
 	void	(* set_power)(bool enable);
@@ -104,6 +116,9 @@ struct panel_s6e8aa0_data {
 	const struct s6e8aa0_acl_parameters *acl_table;
 	unsigned int acl_table_size;
 	unsigned int bl_acl_off;
+
+	const struct s6e8aa0_elvss_parameters *elvss_table;
+	int elvss_table_size;
 };
 
 #endif
