@@ -114,9 +114,7 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData);
 #define	SYS_SPECIFIC_DATA_PM_DISABLE_SYSCLOCKS	0x00000400
 #define SYS_SPECIFIC_DATA_ENABLE_OCPREGS	0x00000800
 #define SYS_SPECIFIC_DATA_ENABLE_PM_RUNTIME	0x00001000
-#if defined(SGX_OCP_REGS_ENABLED) && defined(SGX_OCP_NO_INT_BYPASS)
 #define SYS_SPECIFIC_DATA_IRQ_ENABLED		0x00002000
-#endif
 #define SYS_SPECIFIC_DATA_DVFS_INIT			0x00004000
 
 #define	SYS_SPECIFIC_DATA_SET(psSysSpecData, flag) ((IMG_VOID)((psSysSpecData)->ui32SysSpecificData |= (flag)))
@@ -200,6 +198,22 @@ static INLINE PVRSRV_ERROR SysPMRuntimeRegister(void)
 #pragma inline(SysPMRuntimeUnregister)
 #endif
 static INLINE PVRSRV_ERROR SysPMRuntimeUnregister(void)
+{
+	return PVRSRV_OK;
+}
+
+#ifdef INLINE_IS_PRAGMA
+#pragma inline(SysDvfsInitialize)
+#endif
+static INLINE PVRSRV_ERROR SysDvfsInitialize(void)
+{
+	return PVRSRV_OK;
+}
+
+#ifdef INLINE_IS_PRAGMA
+#pragma inline(SysDvfsDeinitialize)
+#endif
+static INLINE PVRSRV_ERROR SysDvfsDeinitialize(void)
 {
 	return PVRSRV_OK;
 }
