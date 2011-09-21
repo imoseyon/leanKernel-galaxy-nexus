@@ -649,6 +649,7 @@ static void dpram_write_work(struct work_struct *work)
 			reschedule = true;
 			break;
 		}
+		dev_kfree_skb_any(skb);
 	}
 
 	device = &dpld->dev_map[RAW_IDX];
@@ -659,6 +660,7 @@ static void dpram_write_work(struct work_struct *work)
 			reschedule = true;
 			break;
 		}
+		dev_kfree_skb_any(skb);
 	}
 
 	if (reschedule)
@@ -669,6 +671,7 @@ static void dpram_write_work(struct work_struct *work)
 static int dpram_send(struct link_device *ld, struct io_device *iod,
 		      struct sk_buff *skb)
 {
+	int len = skb->len;
 	pr_debug("%s: iod->format = %d\n", __func__, iod->format);
 
 	switch (iod->format) {
@@ -683,11 +686,12 @@ static int dpram_send(struct link_device *ld, struct io_device *iod,
 	case IPC_BOOT:
 	case IPC_RFS:
 	default:
+		dev_kfree_skb_any(skb);
 		return 0;
 	}
 
 	schedule_delayed_work(&ld->tx_delayed_work, 0);
-	return skb->len;
+	return len;
 }
 
 static void dpram_table_init(struct dpram_link_device *dpld)
