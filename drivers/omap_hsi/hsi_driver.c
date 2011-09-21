@@ -925,7 +925,7 @@ static int __exit hsi_platform_device_remove(struct platform_device *pd)
 }
 
 #ifdef CONFIG_SUSPEND
-static int hsi_suspend_noirq(struct device *dev)
+static int hsi_pm_suspend(struct device *dev)
 {
 	struct hsi_platform_data *pdata = dev->platform_data;
 	struct platform_device *pd = to_platform_device(dev);
@@ -938,7 +938,7 @@ static int hsi_suspend_noirq(struct device *dev)
 	/* we don't want to re-enable it here. HSI interrupt shall be */
 	/* generated normally because HSI HW is ON. */
 	if (hsi_ctrl->clock_enabled) {
-		dev_info(dev, "Platform Suspend while HSI active\n");
+		dev_info(dev, "Platform suspend while HSI active\n");
 		return 0;
 	}
 
@@ -951,7 +951,25 @@ static int hsi_suspend_noirq(struct device *dev)
 	return 0;
 }
 
-static int hsi_resume_noirq(struct device *dev)
+/* This callback can be useful in case an HSI interrupt occured between */
+/* ->suspend() phase and ->suspend_noirq() phase */
+static int hsi_pm_suspend_noirq(struct device *dev)
+{
+	struct platform_device *pd = to_platform_device(dev);
+	struct hsi_dev *hsi_ctrl = platform_get_drvdata(pd);
+
+	dev_dbg(dev, "%s\n", __func__);
+
+	/* If HSI is busy, refuse the suspend */
+	if (hsi_ctrl->clock_enabled) {
+		dev_info(dev, "Platform suspend_noirq while HSI active\n");
+		return 0;
+	}
+
+	return 0;
+}
+
+static int hsi_pm_resume(struct device *dev)
 {
 	struct hsi_platform_data *pdata = dev->platform_data;
 	struct platform_device *pd = to_platform_device(dev);
@@ -965,7 +983,7 @@ static int hsi_resume_noirq(struct device *dev)
 	/* HSI IO checking in PRCM int handler is done when waking up from : */
 	/* - Device OFF mode (wake up from suspend) */
 	/* - L3INIT in RET (Idle mode) */
-	/* hsi_resume_noirq is called only when system wakes up from suspend. */
+	/* hsi_resume is called only when system wakes up from suspend. */
 	/* So HSI IO checking in PRCM int handler and hsi_resume_noirq are */
 	/* redundant. We need to choose which one will schedule the tasklet */
 	/* Since HSI IO checking in PRCM int handler covers more cases, it is */
@@ -1105,8 +1123,9 @@ MODULE_DEVICE_TABLE(platform, hsi_id_table);
 #ifdef CONFIG_PM
 static const struct dev_pm_ops hsi_driver_pm_ops = {
 #ifdef CONFIG_SUSPEND
-	.suspend_noirq = hsi_suspend_noirq,
-	.resume_noirq = hsi_resume_noirq,
+	.suspend = hsi_pm_suspend,
+	.suspend_noirq = hsi_pm_suspend_noirq,
+	.resume = hsi_pm_resume,
 #endif
 #ifdef CONFIG_PM_RUNTIME
 	.runtime_suspend = hsi_runtime_suspend,
