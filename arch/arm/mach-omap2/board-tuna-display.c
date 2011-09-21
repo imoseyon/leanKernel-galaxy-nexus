@@ -497,6 +497,11 @@ static struct omap_dss_device tuna_oled_device = {
 	},
 
 	.channel		= OMAP_DSS_CHANNEL_LCD,
+#ifdef CONFIG_FB_OMAP_BOOTLOADER_INIT
+	.skip_init              = true,
+#else
+	.skip_init              = false,
+#endif
 };
 
 static void tuna_hdmi_mux_init(void)
