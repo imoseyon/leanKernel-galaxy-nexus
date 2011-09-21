@@ -154,7 +154,7 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 #endif
 	for (i = 0; i < sz; i += FINGER_EVENT_SZ) {
 		u8 *tmp = &buf[i];
-		int id = tmp[0] & 0xf;
+		int id = (tmp[0] & 0xf) - 1;
 		int x = tmp[2] | ((tmp[1] & 0xf) << 8);
 		int y = tmp[3] | (((tmp[1] >> 4) & 0xf) << 8);
 
