@@ -893,7 +893,7 @@ PVRSRVMapDeviceMemoryBW(IMG_UINT32 ui32BridgeID,
 		BM_XProcWorkaroundUnsetShareIndex(psSrcKernelMemInfo->sShareMemWorkaround.ui32ShareIndex);
 		if(psMapDevMemOUT->eError != PVRSRV_OK)
 		{
-			PVR_DPF((PVR_DBG_ERROR, "lakjgfgewjlrgebhe"));
+			PVR_DPF((PVR_DBG_ERROR, "PVRSRVMapDeviceMemoryBW: Failed to create allocation for cross-process memory map"));
 			return 0;
 		}
 
