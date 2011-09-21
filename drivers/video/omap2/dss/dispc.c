@@ -3486,6 +3486,11 @@ static void dispc_error_worker(struct work_struct *work)
 			mgr = omap_dss_get_overlay_manager(i);
 
 			if (mgr->id == OMAP_DSS_CHANNEL_LCD) {
+				if(!mgr->device->first_vsync){
+					DSSERR("First SYNC_LOST.. ignoring \n");
+					break;
+				}
+
 				manager = mgr;
 				enable = mgr->device->state ==
 						OMAP_DSS_DISPLAY_ACTIVE;
@@ -3525,6 +3530,11 @@ static void dispc_error_worker(struct work_struct *work)
 			mgr = omap_dss_get_overlay_manager(i);
 
 			if (mgr->id == OMAP_DSS_CHANNEL_DIGIT) {
+				if(!mgr->device->first_vsync){
+					DSSERR("First SYNC_LOST.. ignoring \n");
+					break;
+				}
+
 				manager = mgr;
 				if (mgr->device->type == OMAP_DISPLAY_TYPE_HDMI) {
 					manager = NULL;
@@ -3568,6 +3578,11 @@ static void dispc_error_worker(struct work_struct *work)
 			mgr = omap_dss_get_overlay_manager(i);
 
 			if (mgr->id == OMAP_DSS_CHANNEL_LCD2) {
+				if(!mgr->device->first_vsync){
+					DSSERR("First SYNC_LOST.. ignoring \n");
+					break;
+				}
+
 				manager = mgr;
 				enable = mgr->device->state ==
 						OMAP_DSS_DISPLAY_ACTIVE;
