@@ -121,26 +121,6 @@ IMG_VOID UnwrapSystemPowerChange(SYS_SPECIFIC_DATA *psSysSpecData)
 {
 }
 
-static inline IMG_UINT32 scale_by_rate(IMG_UINT32 val, IMG_UINT32 rate1, IMG_UINT32 rate2)
-{
-	if (rate1 >= rate2)
-	{
-		return val * (rate1 / rate2);
-	}
-
-	return val / (rate2 / rate1);
-}
-
-static inline IMG_UINT32 scale_prop_to_SGX_clock(IMG_UINT32 val, IMG_UINT32 rate)
-{
-	return scale_by_rate(val, rate, SYS_SGX_CLOCK_SPEED);
-}
-
-static inline IMG_UINT32 scale_inv_prop_to_SGX_clock(IMG_UINT32 val, IMG_UINT32 rate)
-{
-	return scale_by_rate(val, SYS_SGX_CLOCK_SPEED, rate);
-}
-
 IMG_VOID SysGetSGXTimingInformation(SGX_TIMING_INFORMATION *psTimingInfo)
 {
 #if !defined(NO_HARDWARE)
