@@ -1565,6 +1565,9 @@ static int s6e8aa0_power_on(struct omap_dss_device *dssdev)
 	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
 	int ret = 0;
 
+	/* At power on the first vsync has not been received yet*/
+	dssdev->first_vsync = false;
+
 	if (s6->enabled != 1) {
 		if (s6->pdata->set_power)
 			s6->pdata->set_power(true);
