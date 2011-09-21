@@ -925,6 +925,22 @@ static int __exit hsi_platform_device_remove(struct platform_device *pd)
 }
 
 #ifdef CONFIG_SUSPEND
+static int hsi_pm_prepare(struct device *dev)
+{
+	struct platform_device *pd = to_platform_device(dev);
+	struct hsi_dev *hsi_ctrl = platform_get_drvdata(pd);
+
+	dev_dbg(dev, "%s\n", __func__);
+
+	/* If HSI is busy, refuse the suspend */
+	if (hsi_ctrl->clock_enabled) {
+		dev_info(dev, "Platform prepare while HSI active\n");
+		return -EBUSY;
+	}
+
+	return 0;
+}
+
 static int hsi_pm_suspend(struct device *dev)
 {
 	struct hsi_platform_data *pdata = dev->platform_data;
@@ -939,7 +955,7 @@ static int hsi_pm_suspend(struct device *dev)
 	/* generated normally because HSI HW is ON. */
 	if (hsi_ctrl->clock_enabled) {
 		dev_info(dev, "Platform suspend while HSI active\n");
-		return 0;
+		return -EBUSY;
 	}
 
 	/* Perform HSI board specific action before platform suspend */
@@ -963,7 +979,7 @@ static int hsi_pm_suspend_noirq(struct device *dev)
 	/* If HSI is busy, refuse the suspend */
 	if (hsi_ctrl->clock_enabled) {
 		dev_info(dev, "Platform suspend_noirq while HSI active\n");
-		return 0;
+		return -EBUSY;
 	}
 
 	return 0;
@@ -1123,6 +1139,7 @@ MODULE_DEVICE_TABLE(platform, hsi_id_table);
 #ifdef CONFIG_PM
 static const struct dev_pm_ops hsi_driver_pm_ops = {
 #ifdef CONFIG_SUSPEND
+	.prepare = hsi_pm_prepare,
 	.suspend = hsi_pm_suspend,
 	.suspend_noirq = hsi_pm_suspend_noirq,
 	.resume = hsi_pm_resume,
