@@ -36,6 +36,7 @@
 #include <linux/uaccess.h>
 #include <linux/proc_fs.h>
 #include <linux/spi/spi.h>
+#include <linux/spi/flash.h>
 #include <linux/platform_data/lte_modem_bootloader.h>
 #include <plat/mcspi.h>
 #include <linux/i2c-gpio.h>
@@ -812,6 +813,15 @@ static struct omap_board_mux board_mux[] __initdata = {
 	OMAP4_MUX(CSI21_DY3, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
 	OMAP4_MUX(CSI21_DX3, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
 	OMAP4_MUX(USBB2_HSIC_STROBE, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
+	/* fRom */
+	OMAP4_MUX(USBB2_ULPITLL_DAT4,
+		  OMAP_MUX_MODE4 | OMAP_PIN_INPUT), /* mcpsi3_somi */
+	OMAP4_MUX(USBB2_ULPITLL_DAT5,
+		  OMAP_MUX_MODE4 | OMAP_PIN_INPUT_PULLDOWN), /* mcpsi3_cs0 */
+	OMAP4_MUX(USBB2_ULPITLL_DAT6,
+		  OMAP_MUX_MODE4 | OMAP_PIN_INPUT), /* mcpsi3_simo */
+	OMAP4_MUX(USBB2_ULPITLL_DAT7,
+		  OMAP_MUX_MODE4 | OMAP_PIN_INPUT), /* mcpsi3_clk */
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 
@@ -934,6 +944,46 @@ static inline void __init board_serial_init(void)
 		ARRAY_SIZE(tuna_uart3_pads), NULL);
 	omap_serial_init_port_pads(3, tuna_uart4_pads,
 				   ARRAY_SIZE(tuna_uart4_pads), NULL);
+}
+
+/* SPI flash memory in camera module */
+#define F_ROM_SPI_BUS_NUM	3
+#define F_ROM_SPI_CS		0
+#define F_ROM_SPI_SPEED_HZ	24000000
+
+static const struct flash_platform_data w25q80_pdata = {
+	.name = "w25q80",
+	.type = "w25q80",
+};
+
+static struct omap2_mcspi_device_config f_rom_mcspi_config = {
+	.turbo_mode	= 0,
+	.single_channel	= 1,	/* 0: slave, 1: master */
+	.swap_datalines	= 1,
+};
+
+static struct spi_board_info tuna_f_rom[] __initdata = {
+	{
+		.modalias = "m25p80",
+		.controller_data = &f_rom_mcspi_config,
+		.platform_data = &w25q80_pdata,
+		.bus_num = F_ROM_SPI_BUS_NUM,
+		.chip_select = F_ROM_SPI_CS,
+		.max_speed_hz = F_ROM_SPI_SPEED_HZ,
+		.mode = SPI_MODE_0,
+	},
+};
+
+static void tuna_from_init(void)
+{
+	int err;
+
+	if (tuna_hw_rev >= 0x07)
+		f_rom_mcspi_config.swap_datalines = 0;
+
+	err = spi_register_board_info(tuna_f_rom, ARRAY_SIZE(tuna_f_rom));
+	if (err)
+		pr_err("failed to register SPI F-ROM\n");
 }
 
 /*SPI for LTE modem bootloader*/
@@ -1207,6 +1257,7 @@ static void __init tuna_init(void)
 		spi_register_board_info(tuna_lte_modem,
 				ARRAY_SIZE(tuna_lte_modem));
 	}
+	tuna_from_init();
 	omap_dmm_init();
 	omap4_tuna_display_init();
 	omap4_tuna_input_init();
