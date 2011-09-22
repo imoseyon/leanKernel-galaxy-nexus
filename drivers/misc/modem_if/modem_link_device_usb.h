@@ -26,7 +26,7 @@
 #define IF_USB_RFS_EP		2
 
 #define AUTOSUSPEND_DELAY_MS		500
-#define HOST_WAKEUP_TIMEOUT_MS		2000
+#define HOST_WAKEUP_TIMEOUT_JIFFIES	msecs_to_jiffies(500);
 
 #define MAX_RETRY	3
 

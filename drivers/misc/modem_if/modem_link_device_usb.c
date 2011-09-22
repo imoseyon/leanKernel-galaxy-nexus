@@ -215,6 +215,19 @@ static void usb_tx_complete(struct urb *urb)
 	dev_kfree_skb_any(skb);
 }
 
+static void
+usb_change_modem_state(struct usb_link_device *usb_ld, enum modem_state state)
+{
+	struct io_device *iod;
+
+	list_for_each_entry(iod, &usb_ld->list_of_io_devices, list) {
+		if (iod->format == IPC_FMT) {
+			iod->modem_state_changed(iod, state);
+			return;
+		}
+	}
+}
+
 static int usb_tx_urb_with_skb(struct usb_link_device *usb_ld,
 		struct sk_buff *skb, struct if_usb_devdata *pipe_data)
 {
@@ -235,12 +248,13 @@ static int usb_tx_urb_with_skb(struct usb_link_device *usb_ld,
 		while (!wait_event_interruptible_timeout(usb_ld->l2_wait,
 				usbdev->dev.power.runtime_status == RPM_ACTIVE ||
 				pipe_data->disconnected,
-				HOST_WAKEUP_TIMEOUT_MS)) {
+				HOST_WAKEUP_TIMEOUT_JIFFIES)) {
 
 			if (cnt == MAX_RETRY) {
 				pr_err("host wakeup timeout !!\n");
 				SET_SLAVE_WAKEUP(usb_ld->pdata, 0);
 				pm_runtime_put_autosuspend(&usbdev->dev);
+				usb_change_modem_state(usb_ld, STATE_CRASH_RESET);
 				return -1;
 			}
 			pr_err("host wakeup timeout ! retry..\n");
