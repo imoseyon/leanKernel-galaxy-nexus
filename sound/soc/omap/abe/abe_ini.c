@@ -155,10 +155,7 @@ int abe_load_fw_param(u32 *ABE_FW)
 			       smem_size);
 		omap_abe_mem_write(abe, OMAP_ABE_DMEM, 0, dmem_ptr,
 			       dmem_size);
-		omap_abe_mem_write(abe, OMAP_ABE_DMEM,
-				OMAP_ABE_D_FASTCOUNTER_ADDR,
-				&data,
-				OMAP_ABE_D_FASTCOUNTER_SIZE);
+
 		/* Restore the event Generator status */
 		omap_abe_start_event_generator(abe);
 	} else {
@@ -170,11 +167,22 @@ int abe_load_fw_param(u32 *ABE_FW)
 			       smem_size);
 		omap_abe_mem_write(abe, OMAP_ABE_DMEM, 0, dmem_ptr,
 			       dmem_size);
-		omap_abe_mem_write(abe, OMAP_ABE_DMEM,
-			       OMAP_ABE_D_FASTCOUNTER_ADDR,
-			       &data,
-			       OMAP_ABE_D_FASTCOUNTER_SIZE);
 	}
+	omap_abe_mem_write(abe, OMAP_ABE_DMEM,
+		       OMAP_ABE_D_FASTCOUNTER_ADDR,
+		       &data,
+		       OMAP_ABE_D_FASTCOUNTER_SIZE);
+
+	/* Update Saturation threshold */
+	data = 0x00700000;
+	omap_abe_mem_write(abe, OMAP_ABE_SMEM,
+		       OMAP_ABE_S_SATURATION_EQ_ADDR,
+		       &data, 4);
+	data = 0x00900000;
+	omap_abe_mem_write(abe, OMAP_ABE_SMEM,
+		       OMAP_ABE_S_SATURATION_EQ_ADDR + 4,
+		       &data, 4);
+
 	abe->warm_boot = 1;
 	return 0;
 }
