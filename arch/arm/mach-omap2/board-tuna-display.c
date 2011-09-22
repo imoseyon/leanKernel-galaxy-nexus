@@ -33,6 +33,11 @@
 
 #define TUNA_GPIO_MLCD_RST		23
 
+/* 4.65" Panel ID Info (D1h 1st Para) */
+#define M3		0xA1
+#define SM2		0x12
+
+static unsigned int panel_id;
 struct regulator *tuna_oled_reg;
 struct regulator *tuna_oled_reg_iovcc;
 
@@ -144,8 +149,33 @@ static const struct s6e8aa0_acl_parameters tuna_oled_acl[] = {
 	},
 };
 
-static const u8 tuna_oled_cmd_init_pre[] = {
+static const struct s6e8aa0_elvss_parameters tuna_oled_elvss[] = {
+	{
+		.cd = 100,
+		.elvss_val = 0x11,
+	},
+	{
+		.cd = 160,
+		.elvss_val = 0x0D,
+	},
+	{
+		.cd = 200,
+		.elvss_val = 0x08,
+	},
+	{
+		.cd = 300,
+		.elvss_val = 0x00,
+	},
+};
+
+static const u8 tuna_oled_cmd_init_pre0[] = {
 	0xF0,
+	0x5A,
+	0x5A,
+};
+
+static const u8 tuna_oled_cmd_init_pre1[] = {
+	0xF1,
 	0x5A,
 	0x5A,
 };
@@ -154,7 +184,7 @@ static const u8 tuna_oled_cmd_sleep_out[] = {
 	0x11,
 };
 
-static const u8 tuna_oled_cmd_init_panel[] = {
+static const u8 tuna_oled_cmd_init_panel_m3[] = {
 	0xF8, /* Panel Condition Set */
 	0x3D, /* DOTC[0:1], GTCON[2:4], SS, DOTC_H[6:7] */
 	0x35, /* FLTE[0:7] */
@@ -196,6 +226,48 @@ static const u8 tuna_oled_cmd_init_panel[] = {
 	0xC8, /* EM_INT2_CON[0:2], EM_INT1_CON[3:5], EM_INT2_DC, EM_INT1_DC */
 };
 
+static const u8 tuna_oled_cmd_init_panel_sm2[] = {
+	0xF8, /* Panel Condition Set */
+	0x3D, /* DOTC[0:1], GTCON[2:4], SS, DOTC_H[6:7] */
+	0x35, /* FLTE[0:7] */
+	0x00,
+	0x00,
+	0x00,
+	0x93, /* FLWE */
+	0x00,
+	0x3C, /* SCTE[0:7] */
+	0x7D, /* SCWE */
+	0x08, /* INTE */
+	0x27,
+	0x7D, /* INTE[0:7] */
+	0x3F, /* INWE[0:7] */
+	0x00, /* EMPS */
+	0x00,
+	0x00,
+	0x20,
+	0x04, /* E_FLWE_H[0:7] */
+	0x08, /* E_SCTE[0:7] */
+	0x6E, /* E_SCWE[0:7] */
+	0x00,
+	0x00,
+	0x00,
+	0x02,
+	0x08,
+	0x08,
+	0x23,
+	0x23,
+	0xC0,
+	0xC8, /* CLK2_CON[0:2], CLK1_CON[3:5], CLK2_DC, CLK1_DC */
+	0x08, /* INT2_CON[0:2], INT1_CON[3:5], INT2_DC, INT1_DC */
+	0x48, /* BICTLB_CON[0:2], BICTL_CON[3:5], BICTLB_DC, BICTL_DC */
+	0xC1,
+	0x00,
+	0xC1, /* EM_FLM_CON[0:2], ACL_FLM_CON[3:5], EM_FLM_DC, ACL_FLM_DC */
+	0xFF, /* EM_CLK1B_CON[0:2], EM_CLK1_CON[3:5], EM_CLK1B_DC, EM_CLK1_DC */
+	0xFF, /* EM_CLK2B_CON[0:2], EM_CLK2_CON[3:5], EM_CLK2B_DC, EM_CLK2_DC */
+	0xC8, /* EM_INT2_CON[0:2], EM_INT1_CON[3:5], EM_INT2_DC, EM_INT1_DC */
+};
+
 static const u8 tuna_oled_cmd_init_display[] = {
 	0xF2, /* Display Condition set */
 	0x80, /* Display area */
@@ -203,18 +275,41 @@ static const u8 tuna_oled_cmd_init_display[] = {
 	0x0D, /* VFP : 13HSYNC */
 };
 
-static const struct s6e8aa0_sequence_entry tuna_oled_seq_display_set[] = {
+static const struct s6e8aa0_sequence_entry tuna_oled_seq_display_set_m3[] = {
 	{
-		.cmd = tuna_oled_cmd_init_pre,
-		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_pre),
+		.cmd = tuna_oled_cmd_init_pre0,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_pre0),
 	},
 	{
 		.cmd = tuna_oled_cmd_sleep_out,
 		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_sleep_out),
 	},
 	{
-		.cmd = tuna_oled_cmd_init_panel,
-		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_panel),
+		.cmd = tuna_oled_cmd_init_panel_m3,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_panel_m3),
+	},
+	{
+		.cmd = tuna_oled_cmd_init_display,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_display),
+	},
+};
+
+static const struct s6e8aa0_sequence_entry tuna_oled_seq_display_set_sm2[] = {
+	{
+		.cmd = tuna_oled_cmd_init_pre0,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_pre0),
+	},
+	{
+		.cmd = tuna_oled_cmd_init_pre1,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_pre1),
+	},
+	{
+		.cmd = tuna_oled_cmd_sleep_out,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_sleep_out),
+	},
+	{
+		.cmd = tuna_oled_cmd_init_panel_sm2,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_panel_sm2),
 	},
 	{
 		.cmd = tuna_oled_cmd_init_display,
@@ -247,7 +342,7 @@ static const u8 tuna_oled_cmd_init_post1[] = {
 	0x00,
 };
 
-static const u8 tuna_oled_cmd_init_post2[] = {
+static const u8 tuna_oled_cmd_init_post2_m3[] = {
 	0xD9,
 	0x14,
 	0x40,
@@ -258,18 +353,58 @@ static const u8 tuna_oled_cmd_init_post2[] = {
 	0xC4,
 	0x07, /* COLUMN_CHOP, FRAME_CHOP, LINE_CHOP, CHOP_EN */
 	0x40,
-	0x40,
+	0x40, /* ELVSS_CON : 0 */
 	0xD0, /* ELVSS -4.9V */
 	0x00,
 	0x60,
 	0x19,
 };
 
+static const u8 tuna_oled_cmd_power_ctrl_m3[] = {
+	0xF4, /* Power Control */
+	0xCF,
+	0x0A,
+	0x0F, /* Vreg1 : 4.5V(default) */
+	0x10, /* VGH : 5.2v(default) */
+	0x19, /* VGL : -7.0v(default) */
+	0x33,
+	0x02,
+};
+
+static const u8 tuna_oled_cmd_init_post2_sm2[] = {
+	0xD9,
+	0x14,
+	0x40,
+	0x0C,
+	0xCB,
+	0xCE,
+	0x6E,
+	0xC4,
+	0x07, /* COLUMN_CHOP, FRAME_CHOP, LINE_CHOP, CHOP_EN */
+	0x40,
+	0x41, /* ELVSS_CON : 1 */
+	0xD0, /* ELVSS -4.9V */
+	0x00,
+	0x60,
+	0x19,
+};
+
+static const u8 tuna_oled_cmd_power_ctrl_sm2[] = {
+	0xF4, /* Power Control */
+	0xCF,
+	0x0A,
+	0x12, /* Vreg1 : 4.6V */
+	0x10, /* VGH : 5.2v(default) */
+	0x1E, /* VGL : -8.0v */
+	0x33,
+	0x02,
+};
+
 static const u8 tuna_oled_cmd_display_on[] = {
 	0x29,
 };
 
-static const struct s6e8aa0_sequence_entry tuna_oled_seq_etc_set[] = {
+static const struct s6e8aa0_sequence_entry tuna_oled_seq_etc_set_m3[] = {
 	{
 		.cmd = tuna_oled_cmd_gamma_ltps_update,
 		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_gamma_ltps_update),
@@ -283,8 +418,12 @@ static const struct s6e8aa0_sequence_entry tuna_oled_seq_etc_set[] = {
 		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_post1),
 	},
 	{
-		.cmd = tuna_oled_cmd_init_post2,
-		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_post2),
+		.cmd = tuna_oled_cmd_init_post2_m3,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_post2_m3),
+	},
+	{
+		.cmd = tuna_oled_cmd_power_ctrl_m3,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_power_ctrl_m3),
 		.msleep = 120,
 	},
 	{
@@ -293,7 +432,35 @@ static const struct s6e8aa0_sequence_entry tuna_oled_seq_etc_set[] = {
 	},
 };
 
-static const struct s6e8aa0_gamma_entry tuna_oled_gamma_table[] = {
+static const struct s6e8aa0_sequence_entry tuna_oled_seq_etc_set_sm2[] = {
+	{
+		.cmd = tuna_oled_cmd_gamma_ltps_update,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_gamma_ltps_update),
+	},
+	{
+		.cmd = tuna_oled_cmd_init_post0,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_post0),
+	},
+	{
+		.cmd = tuna_oled_cmd_init_post1,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_post1),
+	},
+	{
+		.cmd = tuna_oled_cmd_init_post2_sm2,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_init_post2_sm2),
+	},
+	{
+		.cmd = tuna_oled_cmd_power_ctrl_sm2,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_power_ctrl_sm2),
+		.msleep = 120,
+	},
+	{
+		.cmd = tuna_oled_cmd_display_on,
+		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_display_on),
+	},
+};
+
+static const struct s6e8aa0_gamma_entry tuna_oled_gamma_table_m3[] = {
 	{       BV_0, { 4500000, 4500000, 4500000, }, },
 	{ 0x00000001, { 4350000, 4350000, 4350000, }, },
 	{ 0x0001F8F0, { 4320166, 4338185, 4200000, }, },
@@ -351,6 +518,66 @@ static const struct s6e8aa0_gamma_entry tuna_oled_gamma_table[] = {
 	{ 0xB504F333, { 2472698, 2628531, 2215093, }, },
 	{ 0xD744FCCA, { 2375331, 2547389, 2121959, }, },
 	{ 0xFFFFFFFF, { 2266945, 2454682, 2022667, }, },
+};
+
+static const struct s6e8aa0_gamma_entry tuna_oled_gamma_table_sm2[] = {
+	{       BV_0, { 4600000, 4600000, 4600000, }, },
+	{ 0x00000001, { 4561667, 4561667, 4561667, }, },
+	{ 0x0001F8F0, { 3800149, 4334044, 3652290, }, },
+	{ 0x0002F71F, { 3762115, 4268988, 3628973, }, },
+	{ 0x00038485, { 3746112, 4241513, 3619148, }, },
+	{ 0x00053C55, { 3708693, 4177030, 3596143, }, },
+	{ 0x00060EEF, { 3694906, 4153187, 3587654, }, },
+	{ 0x00075444, { 3676870, 4121929, 3576542, }, },
+	{ 0x00095733, { 3653827, 4081879, 3562328, }, },
+	{ 0x000EC060, { 3610177, 4005669, 3535356, }, },
+	{ 0x00129EAB, { 3587817, 3966454, 3521516, }, },
+	{ 0x00179214, { 3565099, 3926491, 3507437, }, },
+	{ 0x001A47A0, { 3554589, 3907960, 3500918, }, },
+	{ 0x00260DFC, { 3518696, 3844480, 3478629, }, },
+	{ 0x002D413D, { 3503334, 3823491, 3462087, }, },
+	{ 0x0035D13F, { 3487649, 3802441, 3445099, }, },
+	{ 0x00400000, { 3471616, 3781252, 3427646, }, },
+	{ 0x004C1BF8, { 3455207, 3759861, 3409703, }, },
+	{ 0x005A827A, { 3438395, 3738208, 3391248, }, },
+	{ 0x006BA27E, { 3421153, 3716242, 3372254, }, },
+	{ 0x00800000, { 3403453, 3693916, 3352693, }, },
+	{ 0x009837F0, { 3385266, 3671183, 3332535, }, },
+	{ 0x00B504F3, { 3366560, 3648001, 3311748, }, },
+	{ 0x00D744FD, { 3347305, 3624327, 3290297, }, },
+	{ 0x01000000, { 3327465, 3600119, 3268145, }, },
+	{ 0x01306FE1, { 3307005, 3575334, 3245250, }, },
+	{ 0x016A09E6, { 3285884, 3549930, 3221568, }, },
+	{ 0x01AE89FA, { 3264061, 3523859, 3197051, }, },
+	{ 0x02000000, { 3241490, 3497076, 3171646, }, },
+	{ 0x0260DFC1, { 3218122, 3469529, 3145296, }, },
+	{ 0x02D413CD, { 3193903, 3441165, 3117937, }, },
+	{ 0x035D13F3, { 3168773, 3411926, 3089502, }, },
+	{ 0x04000000, { 3142668, 3381749, 3059912, }, },
+	{ 0x04C1BF83, { 3115517, 3350568, 3029085, }, },
+	{ 0x05A8279A, { 3087240, 3318306, 2996927, }, },
+	{ 0x06BA27E6, { 3057749, 3284882, 2963334, }, },
+	{ 0x08000000, { 3026948, 3250204, 2928191, }, },
+	{ 0x09837F05, { 2994727, 3214172, 2891368, }, },
+	{ 0x0B504F33, { 2960963, 3176672, 2852719, }, },
+	{ 0x0D744FCD, { 2925517, 3137575, 2812080, }, },
+	{ 0x10000000, { 2888233, 3096738, 2769264, }, },
+	{ 0x1306FE0A, { 2848931, 3053994, 2724058, }, },
+	{ 0x16A09E66, { 2807405, 3009155, 2676218, }, },
+	{ 0x1AE89F99, { 2763420, 2962003, 2625461, }, },
+	{ 0x20000000, { 2716699, 2912283, 2571460, }, },
+	{ 0x260DFC14, { 2666921, 2859698, 2513831, }, },
+	{ 0x2D413CCD, { 2613707, 2803893, 2452123, }, },
+	{ 0x35D13F32, { 2556604, 2744446, 2385796, }, },
+	{ 0x40000000, { 2495072, 2680847, 2314203, }, },
+	{ 0x4C1BF828, { 2428450, 2612467, 2236559, }, },
+	{ 0x5A82799A, { 2355928, 2538526, 2151894, }, },
+	{ 0x6BA27E65, { 2276497, 2458033, 2059001, }, },
+	{ 0x80000000, { 2188873, 2369708, 1956346, }, },
+	{ 0x9837F051, { 2091402, 2271855, 1841947, }, },
+	{ 0xB504F333, { 1981894, 2162157, 1713186, }, },
+	{ 0xD744FCCA, { 1857383, 2037330, 1566516, }, },
+	{ 0xFFFFFFFF, { 1713711, 1892506, 1396993, }, },
 };
 
 static struct s6e8aa0_factory_calibration_info tuna_oled_factory_info_old = {
@@ -440,18 +667,86 @@ static struct s6e8aa0_factory_calibration_info tuna_oled_factory_info_8500k = {
 	},
 };
 
-static struct panel_s6e8aa0_data tuna_oled_data = {
+static struct s6e8aa0_factory_calibration_info tuna_oled_factory_info_6500k = {
+	.regs = {
+		[1][0][0] = 0x7c, /* sRGB Gamma 300cd, 6500K */
+		[1][1][0] = 0x3c,
+		[1][2][0] = 0x87,
+
+		[1][0][1] = 0xbb,
+		[1][1][1] = 0xd4,
+		[1][2][1] = 0xa8,
+
+		[1][0][2] = 0xac,
+		[1][1][2] = 0xc0,
+		[1][2][2] = 0xa1,
+
+		[1][0][3] = 0xb8,
+		[1][1][3] = 0xc8,
+		[1][2][3] = 0xb2,
+
+		[1][0][4] = 0x8c,
+		[1][1][4] = 0x9f,
+		[1][2][4] = 0x84,
+
+		[1][0][5] = 0xa7,
+		[1][1][5] = 0xb2,
+		[1][2][5] = 0xa3,
+
+		[1][0][6] = 0x0d8,
+		[1][1][6] = 0x0bd,
+		[1][2][6] = 0x0f7,
+	},
+	.brightness = {
+		[1][1] = BV_15,		/* 1.43 cd/m2 */
+		[1][2] = BV_35,		/* 5.04 cd/m2 */
+		[1][3] = BV_59,		/* 13.12 cd/m2 */
+		[1][4] = BV_87,		/* 28.59 cd/m2 */
+		[1][5] = BV_171,	/* 122.17 cd/m2 */
+		[1][6] = BV_255,	/* 300 cd/m2 */
+	},
+	.color_adj = {
+		/*
+		 * These values are adjusted down by x 0.9333 to bring
+		 * maximum brightness down from 300 cd/m2 to 280.
+		 */
+		.mult = {
+			2004318071U,
+			2004318071U,
+			2004318071U,
+		},
+		.rshift = 31,
+	},
+};
+
+static struct panel_s6e8aa0_data tuna_oled_data_m3 = {
 	.reset_gpio	= TUNA_GPIO_MLCD_RST,
 	.set_power	= tuna_oled_set_power,
-	.seq_display_set = tuna_oled_seq_display_set,
-	.seq_display_set_size = ARRAY_SIZE(tuna_oled_seq_display_set),
-	.seq_etc_set = tuna_oled_seq_etc_set,
-	.seq_etc_set_size = ARRAY_SIZE(tuna_oled_seq_etc_set),
-	.gamma_table = tuna_oled_gamma_table,
-	.gamma_table_size = ARRAY_SIZE(tuna_oled_gamma_table),
+	.seq_display_set = tuna_oled_seq_display_set_m3,
+	.seq_display_set_size = ARRAY_SIZE(tuna_oled_seq_display_set_m3),
+	.seq_etc_set = tuna_oled_seq_etc_set_m3,
+	.seq_etc_set_size = ARRAY_SIZE(tuna_oled_seq_etc_set_m3),
+	.gamma_table = tuna_oled_gamma_table_m3,
+	.gamma_table_size = ARRAY_SIZE(tuna_oled_gamma_table_m3),
 	.factory_info = &tuna_oled_factory_info_8500k,
 	.acl_table = tuna_oled_acl,
 	.acl_table_size = ARRAY_SIZE(tuna_oled_acl),
+};
+
+static struct panel_s6e8aa0_data tuna_oled_data_sm2 = {
+	.reset_gpio	= TUNA_GPIO_MLCD_RST,
+	.set_power	= tuna_oled_set_power,
+	.seq_display_set = tuna_oled_seq_display_set_sm2,
+	.seq_display_set_size = ARRAY_SIZE(tuna_oled_seq_display_set_sm2),
+	.seq_etc_set = tuna_oled_seq_etc_set_sm2,
+	.seq_etc_set_size = ARRAY_SIZE(tuna_oled_seq_etc_set_sm2),
+	.gamma_table = tuna_oled_gamma_table_sm2,
+	.gamma_table_size = ARRAY_SIZE(tuna_oled_gamma_table_sm2),
+	.factory_info = &tuna_oled_factory_info_6500k,
+	.acl_table = tuna_oled_acl,
+	.acl_table_size = ARRAY_SIZE(tuna_oled_acl),
+	.elvss_table = tuna_oled_elvss,
+	.elvss_table_size = ARRAY_SIZE(tuna_oled_elvss),
 };
 
 /* width: 58mm */
@@ -460,7 +755,7 @@ static struct omap_dss_device tuna_oled_device = {
 	.name			= "lcd",
 	.driver_name		= "s6e8aa0",
 	.type			= OMAP_DISPLAY_TYPE_DSI,
-	.data			= &tuna_oled_data,
+	.data			= &tuna_oled_data_m3,
 	.phy.dsi		= {
 		.type		= OMAP_DSS_DSI_TYPE_VIDEO_MODE,
 		.clk_lane	= 1,
@@ -479,7 +774,8 @@ static struct omap_dss_device tuna_oled_device = {
 			.channel = {
 				.lck_div	= 1,	/* LCD */
 				.pck_div	= 2,	/* PCD */
-				.lcd_clk_src    = OMAP_DSS_CLK_SRC_DSI_PLL_HSDIV_DISPC,
+				.lcd_clk_src
+					= OMAP_DSS_CLK_SRC_DSI_PLL_HSDIV_DISPC,
 			},
 			.dispc_fclk_src = OMAP_DSS_CLK_SRC_FCK,
 		},
@@ -490,7 +786,9 @@ static struct omap_dss_device tuna_oled_device = {
 			.regm_dispc	= 6,	/* PLL_CLK1 (M4) */
 			.regm_dsi	= 6,	/* PLL_CLK2 (M5) */
 			.lp_clk_div	= 8,	/* LPDIV */
-			.offset_ddr_clk	= 122,	/* DDR PRE & DDR POST offset increase */
+			.offset_ddr_clk	= 122,	/* DDR PRE & DDR POST
+						 * offset increase
+						 */
 
 			.dsi_fclk_src   = OMAP_DSS_CLK_SRC_DSI_PLL_HSDIV_DSI,
 		},
@@ -567,11 +865,9 @@ static struct omapfb_platform_data tuna_fb_pdata = {
 	},
 };
 
-#define MUX_DISPLAY_OUT OMAP_PIN_OUTPUT | OMAP_MUX_MODE5
 void __init omap4_tuna_display_init(void)
 {
-	omap4_ctrl_pad_writel(0x1FF80000, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_DSIPHY);
-	omap_mux_init_gpio(tuna_oled_data.reset_gpio, OMAP_PIN_OUTPUT);
+	struct panel_s6e8aa0_data *panel;
 
 	if (omap4_tuna_get_revision() ==
 	    (omap4_tuna_get_type() == TUNA_TYPE_MAGURO ? 2 : 1)) {
@@ -582,14 +878,41 @@ void __init omap4_tuna_display_init(void)
 		 * values than they do using the same register values as the
 		 * newer devices.
 		 */
-		tuna_oled_data.factory_info = &tuna_oled_factory_info_m2t1;
+		tuna_oled_data_m3.factory_info = &tuna_oled_factory_info_m2t1;
 	} else if (omap4_tuna_get_revision() <= 1) {
-		tuna_oled_data.factory_info = &tuna_oled_factory_info_old;
+		tuna_oled_data_m3.factory_info = &tuna_oled_factory_info_old;
 	}
-	pr_info("Using %ps\n", tuna_oled_data.factory_info);
+
+	if (panel_id == SM2)
+		panel = &tuna_oled_data_sm2;
+	else
+		panel = &tuna_oled_data_m3;
+
+	tuna_oled_device.data = panel;
+
+	omap4_ctrl_pad_writel(0x1FF80000,
+			OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_DSIPHY);
+	omap_mux_init_gpio(panel->reset_gpio, OMAP_PIN_OUTPUT);
+
+	pr_info("Using %ps\n", panel->factory_info);
 
 	omap_vram_set_sdram_vram(TUNA_FB_RAM_SIZE, 0);
 	omapfb_set_platform_data(&tuna_fb_pdata);
 	tuna_hdmi_mux_init();
 	omap_display_init(&tuna_dss_data);
 }
+
+static int __init get_panel_id(char *str)
+{
+	long value;
+	int ret;
+
+	ret = strict_strtol(str, 0, &value);
+	if (ret < 0)
+		return ret;
+
+	panel_id = (unsigned int)value;
+	return 0;
+}
+__setup("mms_ts.panel_id=", get_panel_id);
+
