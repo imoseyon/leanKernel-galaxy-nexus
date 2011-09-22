@@ -700,6 +700,7 @@ int __init omap4_tuna_connector_init(void)
 
 	omap_mux_init_gpio(GPIO_IF_UART_SEL, OMAP_PIN_OUTPUT);
 	gpio_request(GPIO_IF_UART_SEL, "uart_sel");
+	gpio_direction_output(GPIO_IF_UART_SEL, IF_UART_SEL_DEFAULT);
 
 	omap_mux_init_gpio(GPIO_JACK_INT_N,
 			   OMAP_PIN_INPUT_PULLUP |
