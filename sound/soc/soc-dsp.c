@@ -1040,18 +1040,12 @@ static int dsp_run_update_startup(struct snd_soc_pcm_runtime *fe, int stream)
 				fe->cpu_dai->driver->capture.stream_name,
 				SNDRV_PCM_TRIGGER_START);
 
-	/* determine trigger command */
-	if (fe->dsp[stream].state == SND_SOC_DSP_STATE_START)
-		cmd = SNDRV_PCM_TRIGGER_START;
-	else
-		cmd = SNDRV_PCM_TRIGGER_STOP;
-
 	if (dsp_link->trigger[stream] == SND_SOC_DSP_TRIGGER_BESPOKE) {
 		/* call trigger on the frontend - FE takes care of all BE triggers */
 		dev_dbg(&fe->dev, "dsp: bespoke trigger FE %s cmd start\n",
 				fe->dai_link->name);
 
-		ret = soc_pcm_bespoke_trigger(substream, cmd);
+		ret = soc_pcm_bespoke_trigger(substream, SNDRV_PCM_TRIGGER_START);
 		if (ret < 0) {
 			dev_err(&fe->dev,"dsp: trigger FE failed %d\n", ret);
 			return ret;
