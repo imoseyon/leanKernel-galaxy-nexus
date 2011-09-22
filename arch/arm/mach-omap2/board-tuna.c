@@ -766,6 +766,8 @@ static struct i2c_board_info __initdata tuna_i2c4_boardinfo[] = {
 
 static int __init tuna_i2c_init(void)
 {
+	u32 r;
+
 	omap_mux_init_signal("sys_nirq1", OMAP_PIN_INPUT_PULLUP |
 						OMAP_WAKEUP_EN);
 	omap_mux_init_signal("i2c1_scl.i2c1_scl", OMAP_PIN_INPUT_PULLUP);
@@ -786,6 +788,14 @@ static int __init tuna_i2c_init(void)
 	omap_register_i2c_bus(2, 400, tuna_i2c2_boardinfo,
                               ARRAY_SIZE(tuna_i2c2_boardinfo));
 	omap_register_i2c_bus(3, 400, NULL, 0);
+
+	/* Disable internal pullup on i2c.4 line:
+	 * as external 2.2K is already present
+	 */
+	r = omap4_ctrl_pad_readl(OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_I2C_0);
+	r |= (1 << OMAP4_I2C4_SDA_PULLUPRESX_SHIFT);
+	omap4_ctrl_pad_writel(r, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_I2C_0);
+
 	omap_register_i2c_bus(4, 400, NULL, 0);
 
 	/*
