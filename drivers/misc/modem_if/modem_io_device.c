@@ -312,11 +312,8 @@ static int rx_iodev_skb_raw(struct io_device *iod)
 		else
 			skb->protocol = htons(ETH_P_IP);
 
-		if (iod->net_typ == UMTS_NETWORK)
-			err = netif_rx(skb);
-		else {
-			skb_push(skb, sizeof(struct ethhdr));
-			ehdr = (void *)skb->data;
+		if (iod->net_typ != UMTS_NETWORK) {
+			ehdr = (void *)skb_push(skb, sizeof(struct ethhdr));
 			memcpy(ehdr->h_dest, ndev->dev_addr, ETH_ALEN);
 			memcpy(ehdr->h_source, source, ETH_ALEN);
 			ehdr->h_proto = skb->protocol;
@@ -324,9 +321,9 @@ static int rx_iodev_skb_raw(struct io_device *iod)
 			skb_reset_mac_header(skb);
 
 			skb_pull(skb, sizeof(struct ethhdr));
-			err = netif_rx_ni(skb);
 		}
 
+		err = netif_rx_ni(skb);
 		if (err != NET_RX_SUCCESS)
 			dev_err(&ndev->dev, "rx error: %d\n", err);
 		return err;
