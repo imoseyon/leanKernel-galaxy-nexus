@@ -522,6 +522,10 @@ static struct regulator_init_data tuna_vaux2 = {
 		.valid_ops_mask	 = REGULATOR_CHANGE_VOLTAGE
 					| REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
+		.state_mem = {
+			.disabled	= true,
+		},
+		.initial_state		= PM_SUSPEND_MEM,
 	},
 };
 
@@ -571,6 +575,10 @@ static struct regulator_init_data tuna_vpp = {
 		.valid_ops_mask	 = REGULATOR_CHANGE_VOLTAGE
 					| REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
+		.state_mem = {
+			.disabled	= true,
+		},
+		.initial_state		= PM_SUSPEND_MEM,
 	},
 };
 
@@ -616,7 +624,7 @@ static struct regulator_init_data tuna_vcxio = {
 		.max_uV			= 1800000,
 		.valid_modes_mask	= REGULATOR_MODE_NORMAL
 					| REGULATOR_MODE_STANDBY,
-		.valid_ops_mask	 = REGULATOR_CHANGE_MODE
+		.valid_ops_mask		= REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
 	},
 	.num_consumer_supplies	= ARRAY_SIZE(tuna_vcxio_supply),
@@ -655,6 +663,10 @@ static struct regulator_init_data tuna_vusb = {
 					| REGULATOR_MODE_STANDBY,
 		.valid_ops_mask	 =	REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
+		.state_mem = {
+			.disabled	= true,
+		},
+		.initial_state		= PM_SUSPEND_MEM,
 	},
 	.num_consumer_supplies	= ARRAY_SIZE(tuna_vusb_supply),
 	.consumer_supplies	= tuna_vusb_supply,
@@ -690,6 +702,10 @@ static struct regulator_init_data tuna_clk32kaudio = {
 static struct regulator_init_data tuna_vdd3 = {
 	.constraints = {
 		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
+		.state_mem = {
+			.disabled	= true,
+		},
+		.initial_state		= PM_SUSPEND_MEM,
 	},
 };
 
@@ -700,6 +716,10 @@ static struct regulator_init_data tuna_vdd3 = {
 static struct regulator_init_data tuna_vmem = {
 	.constraints = {
 		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
+		.state_mem = {
+			.disabled	= true,
+		},
+		.initial_state		= PM_SUSPEND_MEM,
 	},
 };
 
