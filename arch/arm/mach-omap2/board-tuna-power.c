@@ -46,6 +46,16 @@
 
 #define CHARGE_FULL_ADC		203
 
+#define HIGH_BLOCK_TEMP_MAGURO 500
+#define HIGH_RECOVER_TEMP_MAGURO 420
+#define LOW_BLOCK_TEMP_MAGURO (-50)
+#define LOW_RECOVER_TEMP_MAGURO 0
+
+#define HIGH_BLOCK_TEMP_TORO 470
+#define HIGH_RECOVER_TEMP_TORO 400
+#define LOW_BLOCK_TEMP_TORO (-30)
+#define LOW_RECOVER_TEMP_TORO 0
+
 /**
 ** temp_adc_table_data
 ** @adc_value : thermistor adc value
@@ -59,7 +69,7 @@ struct temp_adc_table_data {
 static DEFINE_SPINLOCK(charge_en_lock);
 static int charger_state;
 
-static struct temp_adc_table_data temper_table[] = {
+static struct temp_adc_table_data temper_table_maguro[] = {
 	/* ADC, Temperature (C/10) */
 	{ 75,	700     },
 	{ 78,	690     },
@@ -144,6 +154,94 @@ static struct temp_adc_table_data temper_table[] = {
 	{ 798,	(-100)  },
 };
 
+static struct temp_adc_table_data temper_table_toro[] = {
+	/* ADC, Temperature (C/10) */
+	{ 63,	700     },
+	{ 66,	690     },
+	{ 67,	680     },
+	{ 71,	670     },
+	{ 73,	660     },
+	{ 75,	650     },
+	{ 79,	640     },
+	{ 81,	630     },
+	{ 83,	620     },
+	{ 86,	610     },
+	{ 89,	600     },
+	{ 92,	590     },
+	{ 95,	580     },
+	{ 98,	570     },
+	{ 102,	560     },
+	{ 106,	550     },
+	{ 110,	540     },
+	{ 114,	530     },
+	{ 118,	520     },
+	{ 122,	510     },
+	{ 126,	500     },
+	{ 130,	490     },
+	{ 134,	480     },
+	{ 139,	470     },
+	{ 144,	460     },
+	{ 150,	450     },
+	{ 155,	440     },
+	{ 160,	430     },
+	{ 165,	420     },
+	{ 171,	410     },
+	{ 176,	400     },
+	{ 185,	390     },
+	{ 191,	380     },
+	{ 198,	370     },
+	{ 205,	360     },
+	{ 211,	350     },
+	{ 218,	340     },
+	{ 225,	330     },
+	{ 232,	320     },
+	{ 240,	310     },
+	{ 248,	300     },
+	{ 256,	290     },
+	{ 265,	280     },
+	{ 274,	270     },
+	{ 283,	260     },
+	{ 292,	250     },
+	{ 302,	240     },
+	{ 313,	230     },
+	{ 323,	220     },
+	{ 334,	210     },
+	{ 344,	200     },
+	{ 354,	190     },
+	{ 365,	180     },
+	{ 375,	170     },
+	{ 386,	160     },
+	{ 396,	150     },
+	{ 410,	140     },
+	{ 423,	130     },
+	{ 436,	120     },
+	{ 449,	110     },
+	{ 462,	100     },
+	{ 473,	90      },
+	{ 484,	80      },
+	{ 495,	70      },
+	{ 506,	60      },
+	{ 517,	50      },
+	{ 530,	40      },
+	{ 543,	30      },
+	{ 557,	20      },
+	{ 570,	10      },
+	{ 582,	0       },
+	{ 596,	(-10)   },
+	{ 610,	(-20)   },
+	{ 623,	(-30)   },
+	{ 636,	(-40)   },
+	{ 650,	(-50)   },
+	{ 663,	(-60)   },
+	{ 676,	(-70)   },
+	{ 686,	(-80)   },
+	{ 696,	(-90)   },
+	{ 716,	(-100)  },
+};
+
+static struct temp_adc_table_data *temper_table = temper_table_maguro;
+static int temper_table_size = ARRAY_SIZE(temper_table_maguro);
+
 static bool enable_sr = true;
 module_param(enable_sr, bool, S_IRUSR | S_IRGRP | S_IROTH);
 
@@ -219,7 +317,7 @@ static bool check_charge_full(void)
 
 static int get_bat_temp_by_adc(void)
 {
-	int array_size = ARRAY_SIZE(temper_table);
+	int array_size = temper_table_size;
 	int temp_adc = temp_adc_value();
 	int mid;
 	int left_side = 0;
@@ -317,10 +415,10 @@ static struct max17040_platform_data max17043_pdata = {
 	.min_capacity = 3,
 	.is_full_charge = check_charge_full,
 	.get_bat_temp = get_bat_temp_by_adc,
-	.high_block_temp = 500,
-	.high_recover_temp = 420,
-	.low_block_temp = (-50),
-	.low_recover_temp = 0,
+	.high_block_temp = HIGH_BLOCK_TEMP_MAGURO,
+	.high_recover_temp = HIGH_RECOVER_TEMP_MAGURO,
+	.low_block_temp = LOW_BLOCK_TEMP_MAGURO,
+	.low_recover_temp = LOW_RECOVER_TEMP_MAGURO,
 	.fully_charged_vol = 4150000,
 	.recharge_vol = 4140000,
 	.limit_charging_time = 21600,  /* 6 hours */
@@ -356,6 +454,17 @@ void __init omap4_tuna_power_init(void)
 		/* make 4460 map usable for 4430 */
 		omap_twl_pmic_update("core", CHIP_IS_OMAP446X, CHIP_IS_OMAP443X);
 		omap_tps6236x_update("mpu", CHIP_IS_OMAP446X, CHIP_IS_OMAP443X);
+	}
+
+	/* Update temperature data from board type */
+	if (omap4_tuna_get_type() == TUNA_TYPE_TORO) {
+		temper_table = temper_table_toro;
+		temper_table_size = ARRAY_SIZE(temper_table_toro);
+
+		max17043_pdata.high_block_temp = HIGH_BLOCK_TEMP_TORO;
+		max17043_pdata.high_recover_temp = HIGH_RECOVER_TEMP_TORO;
+		max17043_pdata.low_block_temp = LOW_BLOCK_TEMP_TORO;
+		max17043_pdata.low_recover_temp = LOW_RECOVER_TEMP_TORO;
 	}
 
 	/* Update oscillator information */
