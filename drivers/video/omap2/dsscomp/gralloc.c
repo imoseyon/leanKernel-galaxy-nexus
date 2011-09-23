@@ -49,12 +49,14 @@ static void unpin_tiler_blocks(struct list_head *slots)
 
 	/* unpin any tiler memory */
 	list_for_each_entry(slot, slots, q) {
-		tiler_unpin_block(slot->slot);
+		/* FIXME do not unpin yet as it still may be displaying */
+		if (0)
+			tiler_unpin_block(slot->slot);
 		up(&free_slots_sem);
 	}
 
 	/* free tiler slots */
-	list_splice_init(slots, &free_slots);
+	list_splice_tail_init(slots, &free_slots);
 }
 
 static void dsscomp_gralloc_cb(void *data, int status)
@@ -320,6 +322,7 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 			}
 			mutex_lock(&mtx);
 			slot = list_first_entry(&free_slots, typeof(*slot), q);
+			tiler_unpin_block(slot->slot);
 			list_move(&slot->q, &gsync->slots);
 			mutex_unlock(&mtx);
 		}
