@@ -33,7 +33,7 @@
 #define HDLC_END	0x7E
 #define SIZE_OF_HDLC_START	1
 #define SIZE_OF_HDLC_END	1
-#define MAX_RXDATA_SIZE	0x1000	/* 4*1024 */
+#define MAX_RXDATA_SIZE		(4096 - 512)
 
 static const char hdlc_start[1] = { HDLC_START };
 static const char hdlc_end[1] = { HDLC_END };
@@ -235,17 +235,12 @@ static int rx_hdlc_data_check(struct io_device *iod, char *buf, unsigned rest)
 	int len;
 	int done_len = 0;
 	int rest_len = data_size - hdr->flag_len;
-	struct sk_buff *skb_new;
-
-	pr_debug("[MODEM_IF] head_size : %d, data_size : %d (%d)\n", head_size,
-				data_size, __LINE__);
 
 	/* first payload data - alloc skb */
 	if (!skb) {
 		switch (iod->format) {
 		case IPC_RFS:
-			alloc_size = min(data_size, (int)rest) + head_size;
-			alloc_size = min(alloc_size, MAX_RXDATA_SIZE);
+			alloc_size = min(data_size + head_size, MAX_RXDATA_SIZE);
 			skb = alloc_skb(alloc_size, GFP_ATOMIC);
 			if (unlikely(!skb))
 				return -ENOMEM;
@@ -275,39 +270,28 @@ static int rx_hdlc_data_check(struct io_device *iod, char *buf, unsigned rest)
 		iod->skb_recv = skb;
 	}
 
-	/* if recv packet size is larger than user space */
-	while ((rest_len > MAX_RXDATA_SIZE) && (rest > 0)) {
-		len = MAX_RXDATA_SIZE - skb->len;
-		len = min(len, (int)rest);
+	while (rest > 0) {
+		len = min(rest,  alloc_size - skb->len);
 		len = min(len, rest_len);
 		memcpy(skb_put(skb, len), buf, len);
 		buf += len;
 		done_len += len;
+		hdr->flag_len += len;
 		rest -= len;
 		rest_len -= len;
 
-		if (!rest_len)
+		if (!rest_len || !rest)
 			break;
 
 		rx_iodev_skb(iod);
 		iod->skb_recv =  NULL;
 
 		alloc_size = min(rest_len, MAX_RXDATA_SIZE);
-		skb_new = alloc_skb(alloc_size, GFP_ATOMIC);
-		if (unlikely(!skb_new))
+		skb = alloc_skb(alloc_size, GFP_ATOMIC);
+		if (unlikely(!skb))
 			return -ENOMEM;
-		skb = iod->skb_recv = skb_new;
+		iod->skb_recv = skb;
 	}
-
-	/* copy data to skb */
-	len = min(rest, alloc_size - skb->len);
-	len = min(len, rest_len);
-	pr_debug("[MODEM_IF] rest : %d, alloc_size : %d , len : %d (%d)\n",
-				rest, alloc_size, skb->len, __LINE__);
-
-	memcpy(skb_put(skb, len), buf, len);
-	done_len += len;
-	hdr->flag_len += done_len;
 
 	return done_len;
 }
@@ -507,15 +491,16 @@ data_check:
 exit:
 	/* free buffers. mipi-hsi re-use recv buf */
 
-	if (rest < 0)
+	if (rest < 0) {
 		err = -ERANGE;
-
-	if (err < 0 && iod->skb_recv) {
-		dev_kfree_skb_any(iod->skb_recv);
-		iod->skb_recv = NULL;
 
 		/* clear headers */
 		memset(&iod->h_data, 0x00, sizeof(struct header_data));
+
+		if (iod->skb_recv) {
+			dev_kfree_skb_any(iod->skb_recv);
+			iod->skb_recv = NULL;
+		}
 	}
 
 	return err;
