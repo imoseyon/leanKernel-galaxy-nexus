@@ -48,3 +48,13 @@ config REMOTEPROC_WATCHDOG
 	default y
 	help
 	  Say y to enable watchdog timer for remote cores
+
+config REMOTEPROC_CORE_DUMP
+	bool "Support for extracting a core dump from a remote processor"
+	depends on REMOTE_PROC
+	default y
+	help
+	  Say y to enable extracting a core dump from a running remote
+          processor at <debugfs>/remoteproc/<remoteproc>/core.  Extracting the
+	  core dump does not pause the remote processor--this must be
+	  implemented separately.

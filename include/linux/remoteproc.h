@@ -134,6 +134,7 @@ struct rproc_mem_entry {
 	u64 da;
 	phys_addr_t pa;
 	u32 size;
+	bool core;
 };
 
 enum rproc_constraint {
@@ -270,6 +271,7 @@ struct rproc {
 	struct mutex pm_lock;
 #endif
 	struct pm_qos_request_list *qos_request;
+	bool halt_on_crash;
 };
 
 struct rproc *rproc_get(const char *);
