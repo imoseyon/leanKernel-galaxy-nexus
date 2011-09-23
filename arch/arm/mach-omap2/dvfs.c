@@ -769,15 +769,6 @@ static int _dvfs_scale(struct device *req_dev, struct device *target_dev,
 		volt_scale_dir = DVFS_VOLT_SCALE_UP;
 	}
 
-	/* if we fail scale for dependent domains, go back to prev state */
-	ret = _dep_scan_domains(target_dev, vdd, new_volt);
-	if (ret) {
-		dev_err(target_dev,
-			"%s: Error in scan domains for vdd_%s\n",
-			__func__, voltdm->name);
-		goto fail;
-	}
-
 	/* unless we are moving down, scale dependents before we shift freq */
 	if (!(DVFS_VOLT_SCALE_DOWN == volt_scale_dir)) {
 		ret = _dep_scale_domains(target_dev, vdd);
@@ -943,6 +934,15 @@ int omap_device_scale(struct device *req_dev, struct device *target_dev,
 			__func__, dev_name(req_dev), ret, freq, volt);
 		_remove_freq_request(tdvfs_info, req_dev,
 			target_dev);
+		goto out;
+	}
+
+	/* Check for any dep domains and add the user request */
+	ret = _dep_scan_domains(target_dev, tdvfs_info->voltdm->vdd, volt);
+	if (ret) {
+		dev_err(target_dev,
+			"%s: Error in scan domains for vdd_%s\n",
+			__func__, tdvfs_info->voltdm->name);
 		goto out;
 	}
 
