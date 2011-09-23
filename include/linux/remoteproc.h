@@ -271,6 +271,7 @@ struct rproc {
 	struct mutex pm_lock;
 #endif
 	struct pm_qos_request_list *qos_request;
+	bool halt_on_crash;
 };
 
 struct rproc *rproc_get(const char *);

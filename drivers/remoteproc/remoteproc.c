@@ -48,6 +48,8 @@ static DEFINE_SPINLOCK(rprocs_lock);
 /* debugfs parent dir */
 static struct dentry *rproc_dbg;
 
+static void complete_remoteproc_crash(struct rproc *rproc);
+
 static ssize_t rproc_format_trace_buf(char __user *userbuf, size_t count,
 				    loff_t *ppos, const void *src, int size)
 {
@@ -529,6 +531,20 @@ static int rproc_watchdog_isr(struct rproc *rproc)
 	return 0;
 }
 
+static void complete_remoteproc_crash(struct rproc *rproc)
+{
+	/* reset the ducati */
+	if (rproc->trace_buf0 && rproc->last_trace_buf0)
+		memcpy(rproc->last_trace_buf0, rproc->trace_buf0,
+				rproc->last_trace_len0);
+	if (rproc->trace_buf1 && rproc->last_trace_buf1)
+		memcpy(rproc->last_trace_buf1, rproc->trace_buf1,
+				rproc->last_trace_len1);
+	pr_info("remoteproc: resetting %s...\n", rproc->name);
+	(void)blocking_notifier_call_chain(&rproc->nb_error,
+			RPROC_ERROR, NULL);
+}
+
 static int _event_notify(struct rproc *rproc, int type, void *data)
 {
 	struct blocking_notifier_head *nh;
@@ -540,12 +556,12 @@ static int _event_notify(struct rproc *rproc, int type, void *data)
 		init_completion(&rproc->error_comp);
 		rproc->state = RPROC_CRASHED;
 		mutex_unlock(&rproc->lock);
-		if (rproc->trace_buf0 && rproc->last_trace_buf0)
-			memcpy(rproc->last_trace_buf0, rproc->trace_buf0,
-					rproc->last_trace_len0);
-		if (rproc->trace_buf1 && rproc->last_trace_buf1)
-			memcpy(rproc->last_trace_buf1, rproc->trace_buf1,
-					rproc->last_trace_len1);
+		if (!rproc->halt_on_crash)
+			complete_remoteproc_crash(rproc);
+		else
+			pr_info("remoteproc %s: halt-on-crash enabled: " \
+				"deferring crash recovery\n",
+				rproc->name);
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 		pm_runtime_dont_use_autosuspend(rproc->dev);
 #endif
