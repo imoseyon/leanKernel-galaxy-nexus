@@ -471,9 +471,11 @@ int tf_rpc_execute(struct tf_comm *comm)
  * L4 SEC Clock domain handling
  *-------------------------------------------------------------------------- */
 
+static DEFINE_SPINLOCK(clk_lock);
 void tf_l4sec_clkdm_wakeup(bool wakelock)
 {
-	spin_lock(&tf_get_device()->sm.lock);
+	unsigned long flags;
+	spin_lock_irqsave(&clk_lock, flags);
 #ifdef CONFIG_HAS_WAKELOCK
 	if (wakelock) {
 		tf_wake_lock_count++;
@@ -482,7 +484,7 @@ void tf_l4sec_clkdm_wakeup(bool wakelock)
 #endif
 	smc_l4_sec_clkdm_use_count++;
 	clkdm_wakeup(smc_l4_sec_clkdm);
-	spin_unlock(&tf_get_device()->sm.lock);
+	spin_unlock_irqrestore(&clk_lock, flags);
 }
 
 void tf_l4sec_clkdm_allow_idle(bool wakeunlock)
@@ -496,7 +498,7 @@ void tf_l4sec_clkdm_allow_idle(bool wakeunlock)
 		if (tf_wake_lock_count-- == 0)
 			wake_unlock(&g_tf_wake_lock);
 #endif
-	spin_unlock(&tf_get_device()->sm.lock);
+	spin_unlock_irqrestore(&clk_lock, flags);
 }
 
 /*--------------------------------------------------------------------------
