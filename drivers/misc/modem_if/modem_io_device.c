@@ -34,7 +34,6 @@
 #define SIZE_OF_HDLC_START	1
 #define SIZE_OF_HDLC_END	1
 #define MAX_RXDATA_SIZE	0x1000	/* 4*1024 */
-#define MAX_TXDATA_SIZE	(PAGE_SIZE - 512)
 
 static const char hdlc_start[1] = { HDLC_START };
 static const char hdlc_end[1] = { HDLC_END };
@@ -686,19 +685,12 @@ static ssize_t misc_write(struct file *filp, const char __user * buf,
 	int frame_len = 0;
 	char frame_header_buf[sizeof(struct raw_hdr)];
 	struct sk_buff *skb;
-	int size = count;
-	int len;
-	int ret;
 
 	/* TODO - check here flow control for only raw data */
 
-	if (iod->format == IPC_BOOT || iod->format == IPC_RAMDUMP)
-		frame_len = MAX_TXDATA_SIZE;
-	else
-		frame_len = count + SIZE_OF_HDLC_START + get_header_size(iod)
+	frame_len = count + SIZE_OF_HDLC_START + get_header_size(iod)
 				+ SIZE_OF_HDLC_END;
-
-	skb = alloc_skb(frame_len, GFP_KERNEL);
+	skb = alloc_skb(frame_len, GFP_ATOMIC);
 	if (!skb) {
 		pr_err("[MODEM_IF] fail alloc skb (%d)\n", __LINE__);
 		return -ENOMEM;
@@ -707,35 +699,16 @@ static ssize_t misc_write(struct file *filp, const char __user * buf,
 	switch (iod->format) {
 	case IPC_BOOT:
 	case IPC_RAMDUMP:
-		while (true) {
-			len = min(size, frame_len);
-			if (copy_from_user(skb_put(skb, len),
-						buf + count - size, len)) {
-				dev_kfree_skb_any(skb);
-				return -EFAULT;
-			}
-
-			ret = iod->link->send(iod->link, iod, skb);
-			if (ret < 0)
-				return ret;
-
-			size -= len;
-			if (!size)
-				break;
-
-			skb = alloc_skb(frame_len, GFP_KERNEL);
-			if (!skb) {
-				pr_err("[MODEM_IF] fail alloc skb (%d)\n",
-								__LINE__);
-				return -ENOMEM;
-			}
+		if (copy_from_user(skb_put(skb, count), buf, count) != 0) {
+			dev_kfree_skb_any(skb);
+			return -EFAULT;
 		}
-		return count;
+		break;
 
 	case IPC_RFS:
 		memcpy(skb_put(skb, SIZE_OF_HDLC_START), hdlc_start,
 				SIZE_OF_HDLC_START);
-		if (copy_from_user(skb_put(skb, count), buf, count)) {
+		if (copy_from_user(skb_put(skb, count), buf, count) != 0) {
 			dev_kfree_skb_any(skb);
 			return -EFAULT;
 		}
@@ -749,7 +722,7 @@ static ssize_t misc_write(struct file *filp, const char __user * buf,
 		memcpy(skb_put(skb, get_header_size(iod)),
 			get_header(iod, count, frame_header_buf),
 			get_header_size(iod));
-		if (copy_from_user(skb_put(skb, count), buf, count)) {
+		if (copy_from_user(skb_put(skb, count), buf, count) != 0) {
 			dev_kfree_skb_any(skb);
 			return -EFAULT;
 		}
