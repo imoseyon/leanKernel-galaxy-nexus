@@ -115,7 +115,7 @@ struct panel_s6e8aa0_data {
 
 	const struct s6e8aa0_acl_parameters *acl_table;
 	unsigned int acl_table_size;
-	unsigned int bl_acl_off;
+	unsigned int acl_average;
 
 	const struct s6e8aa0_elvss_parameters *elvss_table;
 	int elvss_table_size;

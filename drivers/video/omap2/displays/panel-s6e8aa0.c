@@ -167,6 +167,7 @@ struct s6e8aa0_data {
 
 	unsigned int acl_cur;
 	bool acl_enable;
+	u8 acl_average;
 	unsigned int elvss_cur_i;
 	u8 panel_id[3];
 };
@@ -841,7 +842,8 @@ static void s6e8aa0_update_acl_set(struct omap_dss_device *dssdev)
 		if (s6->acl_cur != acl->acl_val) {
 			s6e8aa0_write_block_nosync(dssdev, acl->regs,
 				sizeof(acl->regs));
-			s6e8aa0_write_reg(dssdev, 0xC0, 0x01); /* ACL ON */
+			s6e8aa0_write_reg(dssdev, 0xC0,
+				0x01 | (s6->acl_average << 4)); /* ACL ON */
 
 			s6->acl_cur = acl->acl_val;
 		}
@@ -1430,7 +1432,7 @@ err:
 static ssize_t acl_enable_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct omap_dss_device *dssdev = to_dss_device(dev);
+	struct omap_dss_device *dssdev = dev_get_drvdata(dev);
 	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
 
 	snprintf(buf, PAGE_SIZE, "%d\n", s6->acl_enable);
@@ -1441,7 +1443,7 @@ static ssize_t acl_enable_show(struct device *dev,
 static ssize_t acl_enable_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
-	struct omap_dss_device *dssdev = to_dss_device(dev);
+	struct omap_dss_device *dssdev = dev_get_drvdata(dev);
 	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
 	long value;
 	bool enable;
@@ -1469,6 +1471,61 @@ static ssize_t acl_enable_store(struct device *dev,
 
 static DEVICE_ATTR(acl_set, S_IRUGO|S_IWUSR,
 		acl_enable_show, acl_enable_store);
+
+
+static ssize_t acl_average_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct omap_dss_device *dssdev = dev_get_drvdata(dev);
+	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
+
+	snprintf(buf, PAGE_SIZE, "%d\n", s6->acl_average);
+
+	return strlen(buf);
+}
+
+static ssize_t acl_average_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct omap_dss_device *dssdev = dev_get_drvdata(dev);
+	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
+	long value;
+	int rc;
+
+	rc = strict_strtol(buf, 0, &value);
+
+	if (rc < 0)
+		return rc;
+
+	if (value < 0 || value > 7)
+		return -EINVAL;
+
+	mutex_lock(&s6->lock);
+	if (s6->acl_average != value) {
+		dsi_bus_lock(dssdev);
+
+		s6->acl_average = value;
+		s6->acl_cur = 0;
+		s6e8aa0_update_acl_set(dssdev);
+
+		dsi_bus_unlock(dssdev);
+	}
+	mutex_unlock(&s6->lock);
+	return size;
+}
+
+static DEVICE_ATTR(acl_average, S_IRUGO|S_IWUSR,
+		acl_average_show, acl_average_store);
+
+static struct attribute *s6e8aa0_bl_attributes[] = {
+	&dev_attr_acl_set.attr,
+	&dev_attr_acl_average.attr,
+	NULL
+};
+
+static const struct attribute_group s6e8aa0_bl_attr_group = {
+	.attrs = s6e8aa0_bl_attributes,
+};
 
 static const struct file_operations s6e8aa0_current_gamma_fops = {
 	.open = s6e8aa0_current_gamma_open,
@@ -1559,11 +1616,12 @@ static int s6e8aa0_probe(struct omap_dss_device *dssdev)
 
 	s6->acl_enable = true;
 	s6->acl_cur = 0;
+	s6->acl_average = s6->pdata->acl_average;
 	s6->elvss_cur_i = ~0;
 
-	ret = device_create_file(&dssdev->dev, &dev_attr_acl_set);
+	ret = sysfs_create_group(&s6->bldev->dev.kobj, &s6e8aa0_bl_attr_group);
 	if (ret < 0) {
-		dev_err(&dssdev->dev, "failed to add 'acl_set' sysfs entry\n");
+		dev_err(&dssdev->dev, "failed to add sysfs entries\n");
 		goto err_backlight_device_register;
 	}
 
@@ -1585,6 +1643,7 @@ err:
 static void s6e8aa0_remove(struct omap_dss_device *dssdev)
 {
 	struct s6e8aa0_data *s6 = dev_get_drvdata(&dssdev->dev);
+	sysfs_remove_group(&s6->bldev->dev.kobj, &s6e8aa0_bl_attr_group);
 	debugfs_remove_recursive(s6->debug_dir);
 	backlight_device_unregister(s6->bldev);
 	mutex_destroy(&s6->lock);
