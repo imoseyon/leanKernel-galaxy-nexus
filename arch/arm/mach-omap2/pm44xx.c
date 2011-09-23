@@ -53,6 +53,7 @@
 #include "dvfs.h"
 #include "voltage.h"
 #include "vc.h"
+#include "control.h"
 
 struct power_state {
 	struct powerdomain *pwrdm;
@@ -675,6 +676,20 @@ static u32 __init _usec_to_val_scrm(unsigned long rate, u32 usec,
 
 }
 
+static void __init syscontrol_setup_regs(void)
+{
+	u32 v;
+
+	/* Disable LPDDR VREF manual control */
+	v = omap4_ctrl_pad_readl(OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO1_3);
+	v &= ~(OMAP4_LPDDR21_VREF_EN_CA_MASK | OMAP4_LPDDR21_VREF_EN_DQ_MASK);
+        omap4_ctrl_pad_writel(v, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO1_3);
+
+	v = omap4_ctrl_pad_readl(OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO2_3);
+	v &= ~(OMAP4_LPDDR21_VREF_EN_CA_MASK | OMAP4_LPDDR21_VREF_EN_DQ_MASK);
+        omap4_ctrl_pad_writel(v, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO2_3);
+}
+
 static void __init prcm_setup_regs(void)
 {
 	struct clk *clk32k = clk_get(NULL, "sys_32k_ck");
@@ -943,6 +958,7 @@ static int __init omap4_pm_init(void)
 	omap4_pm_setup_errata();
 
 	prcm_setup_regs();
+	syscontrol_setup_regs();
 
 	ret = request_irq(OMAP44XX_IRQ_PRCM,
 			  (irq_handler_t)prcm_interrupt_handler,
