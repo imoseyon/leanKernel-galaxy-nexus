@@ -23,6 +23,7 @@
 #include <linux/io.h>              /* ioremap() */
 #include <linux/errno.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 
 #include <mach/dmm.h>
 
@@ -38,6 +39,8 @@
 #else
 #define DEBUG(x, y)
 #endif
+
+static struct mutex dmm_mtx;
 
 static struct omap_dmm_platform_data *device_data;
 
@@ -68,19 +71,22 @@ static struct platform_driver dmm_driver_ldm = {
 
 s32 dmm_pat_refill(struct dmm *dmm, struct pat *pd, enum pat_mode mode)
 {
+	s32 ret = -EFAULT;
 	void __iomem *r;
-	u32 v;
+	u32 v, i;
 
 	/* Only manual refill supported */
 	if (mode != MANUAL)
-		return -EFAULT;
+		return ret;
+
+	mutex_lock(&dmm_mtx);
 
 	/* Check that the DMM_PAT_STATUS register has not reported an error */
 	r = dmm->base + DMM_PAT_STATUS__0;
 	v = __raw_readl(r);
-	if ((v & 0xFC00) != 0) {
-		while (1)
-			printk(KERN_ERR "dmm_pat_refill() error.\n");
+	if (WARN(v & 0xFC00, KERN_ERR "Abort dmm refill, bad status\n")) {
+		ret = -EIO;
+		goto refill_error;
 	}
 
 	/* Set "next" register to NULL */
@@ -113,10 +119,14 @@ s32 dmm_pat_refill(struct dmm *dmm, struct pat *pd, enum pat_mode mode)
 	wmb();
 
 	r = dmm->base + DMM_PAT_IRQSTATUS_RAW;
-	do {
-		v = __raw_readl(r);
-		DEBUG("DMM_PAT_IRQSTATUS_RAW", v);
-	} while (v != 0x0);
+	i = 1000;
+	while(__raw_readl(r) != 0) {
+		if (--i == 0) {
+			printk(KERN_ERR "Cannot clear status register\n");
+			goto refill_error;
+		}
+		udelay(1);
+	}
 
 	/* Fill data register */
 	r = dmm->base + DMM_PAT_DATA__0;
@@ -129,10 +139,14 @@ s32 dmm_pat_refill(struct dmm *dmm, struct pat *pd, enum pat_mode mode)
 	wmb();
 
 	/* Read back PAT_DATA__0 to see if write was successful */
-	do {
-		v = __raw_readl(r);
-		DEBUG("DMM_PAT_DATA__0", v);
-	} while (v != pd->data);
+	i = 1000;
+	while(__raw_readl(r) != pd->data) {
+		if (--i == 0) {
+			printk(KERN_ERR "Write failed to PAT_DATA__0\n");
+			goto refill_error;
+		}
+		udelay(1);
+	}
 
 	r = dmm->base + DMM_PAT_CTRL__0;
 	v = __raw_readl(r);
@@ -146,10 +160,14 @@ s32 dmm_pat_refill(struct dmm *dmm, struct pat *pd, enum pat_mode mode)
 
 	/* Check if PAT_IRQSTATUS_RAW is set after the PAT has been refilled */
 	r = dmm->base + DMM_PAT_IRQSTATUS_RAW;
-	do {
-		v = __raw_readl(r);
-		DEBUG("DMM_PAT_IRQSTATUS_RAW", v);
-	} while ((v & 0x3) != 0x3);
+	i = 1000;
+	while((__raw_readl(r) & 0x3) != 0x3) {
+		if (--i == 0) {
+			printk(KERN_ERR "Status check failed after PAT refill\n");
+			goto refill_error;
+		}
+		udelay(1);
+	}
 
 	/* Again, clear the DMM_PAT_IRQSTATUS register */
 	r = dmm->base + DMM_PAT_IRQSTATUS;
@@ -157,10 +175,14 @@ s32 dmm_pat_refill(struct dmm *dmm, struct pat *pd, enum pat_mode mode)
 	wmb();
 
 	r = dmm->base + DMM_PAT_IRQSTATUS_RAW;
-	do {
-		v = __raw_readl(r);
-		DEBUG("DMM_PAT_IRQSTATUS_RAW", v);
-	} while (v != 0x0);
+	i = 1000;
+	while (__raw_readl(r) != 0x0) {
+		if (--i == 0) {
+			printk(KERN_ERR "Failed to clear DMM PAT IRQSTATUS\n");
+			goto refill_error;
+		}
+		udelay(1);
+	}
 
 	/* Again, set "next" register to NULL to clear any PAT STATUS errors */
 	r = dmm->base + DMM_PAT_DESCR__0;
@@ -175,11 +197,16 @@ s32 dmm_pat_refill(struct dmm *dmm, struct pat *pd, enum pat_mode mode)
 	r = dmm->base + DMM_PAT_STATUS__0;
 	v = __raw_readl(r);
 	if ((v & 0xFC00) != 0) {
-		while (1)
-			printk(KERN_ERR "dmm_pat_refill() error.\n");
+		printk(KERN_ERR "Abort dmm refill.  Operation failed\n");
+		goto refill_error;
 	}
 
-	return 0;
+	ret = 0;
+
+refill_error:
+	mutex_unlock(&dmm_mtx);
+
+	return ret;
 }
 EXPORT_SYMBOL(dmm_pat_refill);
 
@@ -233,11 +260,13 @@ EXPORT_SYMBOL(dmm_pat_release);
 
 static s32 __init dmm_init(void)
 {
+	mutex_init(&dmm_mtx);
 	return platform_driver_register(&dmm_driver_ldm);
 }
 
 static void __exit dmm_exit(void)
 {
+	mutex_destroy(&dmm_mtx);
 	platform_driver_unregister(&dmm_driver_ldm);
 }
 
