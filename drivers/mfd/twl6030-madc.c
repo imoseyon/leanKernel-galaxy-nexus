@@ -46,6 +46,7 @@
 #include <linux/types.h>
 #include <linux/gfp.h>
 #include <linux/err.h>
+#include <linux/wakelock.h>
 
 #define GPADCS		(1 << 1)
 #define REG_TOGGLE1	0x90
@@ -62,6 +63,7 @@ struct twl6030_madc_data {
 	struct device *dev;
 	struct mutex lock;
 	struct dentry		*file;
+	struct wake_lock wakelock;
 };
 
 static struct twl6030_madc_data *twl6030_madc;
@@ -108,6 +110,7 @@ static int twl6030_madc_wait_conversion_ready(struct twl6030_madc_data *madc,
 	if (delta < 2)
 		delta = 2;
 
+	wake_lock(&madc->wakelock);
 	timeout = jiffies + delta;
 	do {
 		ret = twl_i2c_read_u8(TWL6030_MODULE_MADC, &reg, status_reg);
@@ -115,15 +118,21 @@ static int twl6030_madc_wait_conversion_ready(struct twl6030_madc_data *madc,
 			dev_err(madc->dev,
 				"unable to read status register 0x%X\n",
 				status_reg);
-			return ret;
+			goto unlock;
 		}
-		if (!(reg & TWL6030_MADC_BUSY) && (reg & TWL6030_MADC_EOCP1))
-			return 0;
+		if (!(reg & TWL6030_MADC_BUSY) && (reg & TWL6030_MADC_EOCP1)) {
+			ret = 0;
+			goto unlock;
+		}
 		usleep_range(500, 2000);
 	} while (!time_after(jiffies, timeout));
 
 	dev_err(madc->dev, "conversion timeout, ctrl_px=0x%08x\n", reg);
-	return -EAGAIN;
+	ret = -EAGAIN;
+
+unlock:
+	wake_unlock(&madc->wakelock);
+	return ret;
 }
 
 /*
@@ -244,6 +253,7 @@ static int __devinit twl6030_madc_probe(struct platform_device *pdev)
 	mutex_init(&madc->lock);
 	madc->file = debugfs_create_file(DRIVER_NAME, S_IRUGO, NULL,
 					madc, DEBUG_FOPS);
+	wake_lock_init(&madc->wakelock, WAKE_LOCK_SUSPEND, "twl6030 adc");
 	twl6030_madc = madc;
 	return 0;
 }
@@ -252,6 +262,7 @@ static int __devexit twl6030_madc_remove(struct platform_device *pdev)
 {
 	struct twl6030_madc_data *madc = platform_get_drvdata(pdev);
 
+	wake_lock_destroy(&madc->wakelock);
 	mutex_destroy(&madc->lock);
 	free_irq(platform_get_irq(pdev, 0), madc);
 	platform_set_drvdata(pdev, NULL);
