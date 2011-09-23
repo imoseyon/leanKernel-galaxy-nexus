@@ -36,6 +36,10 @@
 #include <linux/debugfs.h>
 #include <linux/remoteproc.h>
 #include <linux/pm_runtime.h>
+#include <linux/uaccess.h>
+#include <linux/elf.h>
+#include <linux/elfcore.h>
+#include <plat/remoteproc.h>
 
 /* list of available remote processors on this board */
 static LIST_HEAD(rprocs);
@@ -43,6 +47,8 @@ static DEFINE_SPINLOCK(rprocs_lock);
 
 /* debugfs parent dir */
 static struct dentry *rproc_dbg;
+
+static void complete_remoteproc_crash(struct rproc *rproc);
 
 static ssize_t rproc_format_trace_buf(char __user *userbuf, size_t count,
 				    loff_t *ppos, const void *src, int size)
@@ -119,6 +125,354 @@ static const struct file_operations name ##_rproc_ops = {		\
 	.llseek	= generic_file_llseek,					\
 };
 
+#ifdef CONFIG_REMOTEPROC_CORE_DUMP
+
+/* + 1 for the notes segment */
+#define NUM_PHDR (RPROC_MAX_MEM_ENTRIES + 1)
+
+#define CORE_STR "CORE"
+
+/* Intermediate core-dump-file format */
+struct core_rproc {
+	struct rproc *rproc;
+	/* ELF state */
+	Elf_Half e_phnum;
+
+	struct core {
+		struct elfhdr elf;
+		struct elf_phdr phdr[NUM_PHDR];
+		struct {
+			struct elf_note note_prstatus;
+			char name[sizeof(CORE_STR)];
+			struct elf_prstatus prstatus __aligned(4);
+		} core_note __packed __aligned(4);
+	} core __packed;
+
+	loff_t offset;
+};
+
+/* Return the number of segments to be written to the core file */
+static int rproc_core_map_count(const struct rproc *rproc)
+{
+	int i = 0;
+	int count = 0;
+	for (;; i++) {
+		if (!rproc->memory_maps[i].size)
+			break;
+		if (!rproc->memory_maps[i].core)
+			continue;
+		count++;
+	}
+
+	/* The Ducati has a low number of segments */
+	if (count > PN_XNUM)
+		return -1;
+
+	return count;
+}
+
+#define ELFOSABI_DUCATI ELFOSABI_NONE
+
+/* Copied from fs/binfmt_elf.c */
+static void fill_elf_header(struct elfhdr *elf, int segs,
+			    u16 machine, u32 flags, u8 osabi)
+{
+	memset(elf, 0, sizeof(*elf));
+
+	memcpy(elf->e_ident, ELFMAG, SELFMAG);
+	elf->e_ident[EI_CLASS] = ELF_CLASS;
+	elf->e_ident[EI_DATA] = ELF_DATA;
+	elf->e_ident[EI_VERSION] = EV_CURRENT;
+	elf->e_ident[EI_OSABI] = ELFOSABI_DUCATI;
+
+	elf->e_type = ET_CORE;
+	elf->e_machine = machine;
+	elf->e_version = EV_CURRENT;
+	elf->e_phoff = sizeof(struct elfhdr);
+	elf->e_flags = flags;
+	elf->e_ehsize = sizeof(struct elfhdr);
+	elf->e_phentsize = sizeof(struct elf_phdr);
+	elf->e_phnum = segs;
+
+	return;
+}
+
+static void fill_elf_segment_headers(struct core_rproc *d)
+{
+	int i = 0;
+	int hi = 0;
+	loff_t offset = d->offset;
+	for (;; i++) {
+		u32 size;
+
+		size = d->rproc->memory_maps[i].size;
+		if (!size)
+			break;
+		if (!d->rproc->memory_maps[i].core)
+			continue;
+
+		BUG_ON(hi >= d->e_phnum - 1);
+
+		d->core.phdr[hi].p_type = PT_LOAD;
+		d->core.phdr[hi].p_offset = offset;
+		d->core.phdr[hi].p_vaddr = d->rproc->memory_maps[i].da;
+		d->core.phdr[hi].p_paddr = d->rproc->memory_maps[i].pa;
+		d->core.phdr[hi].p_filesz = size;
+		d->core.phdr[hi].p_memsz = size;
+		/* FIXME: get these from the Ducati */
+		d->core.phdr[hi].p_flags = PF_R | PF_W | PF_X;
+
+		pr_debug("%s: phdr type %d f_off %08x va %08x pa %08x fl %x\n",
+			__func__,
+			d->core.phdr[hi].p_type,
+			d->core.phdr[hi].p_offset,
+			d->core.phdr[hi].p_vaddr,
+			d->core.phdr[hi].p_paddr,
+			d->core.phdr[hi].p_flags);
+
+		offset += size;
+		hi++;
+	}
+}
+
+static int setup_rproc_elf_core_dump(struct core_rproc *d)
+{
+	short __phnum;
+	struct elf_phdr *nphdr;
+	struct exc_regs *xregs = d->rproc->cdump_buf1;
+	struct pt_regs *regs =
+		(struct pt_regs *)&d->core.core_note.prstatus.pr_reg;
+
+	memset(&d->core.elf, 0, sizeof(d->core.elf));
+
+	__phnum = rproc_core_map_count(d->rproc);
+	if (__phnum < 0 || __phnum > ARRAY_SIZE(d->core.phdr))
+		return -EIO;
+	d->e_phnum = __phnum + 1; /* + 1 for notes */
+
+	pr_info("number of segments: %d\n", d->e_phnum);
+
+	fill_elf_header(&d->core.elf, d->e_phnum, EM_ARM,
+		EF_ARM_EABI_VER2,
+		ELFOSABI_DUCATI);
+
+	nphdr = d->core.phdr + __phnum;
+	nphdr->p_type    = PT_NOTE;
+	nphdr->p_offset  = 0;
+	nphdr->p_vaddr   = 0;
+	nphdr->p_paddr   = 0;
+	nphdr->p_filesz  = 0;
+	nphdr->p_memsz   = 0;
+	nphdr->p_flags   = 0;
+	nphdr->p_align   = 0;
+
+	/* The notes start right after the phdr array. Adjust p_filesz
+	 * accordingly if you add more notes
+	 */
+	nphdr->p_filesz = sizeof(d->core.core_note);
+	nphdr->p_offset = offsetof(struct core, core_note);
+
+	d->core.core_note.note_prstatus.n_namesz = sizeof(CORE_STR);
+	d->core.core_note.note_prstatus.n_descsz =
+		sizeof(struct elf_prstatus);
+	d->core.core_note.note_prstatus.n_type = NT_PRSTATUS;
+	memcpy(d->core.core_note.name, CORE_STR, sizeof(CORE_STR));
+
+	remoteproc_fill_pt_regs(regs, xregs);
+
+	/* We ignore the NVIC registers for now */
+
+	d->offset = sizeof(struct core);
+	d->offset = roundup(d->offset, PAGE_SIZE);
+	fill_elf_segment_headers(d);
+	return 0;
+}
+
+static int core_rproc_open(struct inode *inode, struct file *filp)
+{
+	int i;
+	struct core_rproc *d;
+
+	d = kzalloc(sizeof(*d), GFP_KERNEL);
+	if (!d)
+		return -ENOMEM;
+
+	d->rproc = inode->i_private;
+	filp->private_data = d;
+
+	setup_rproc_elf_core_dump(d);
+
+	if (0) {
+		const struct rproc *rproc;
+		rproc = d->rproc;
+		for (i = 0; rproc->memory_maps[i].size; i++) {
+			pr_info("%s: memory_map[%d] pa %08x sz %d core %d\n",
+				__func__,
+				i,
+				rproc->memory_maps[i].pa,
+				rproc->memory_maps[i].size,
+				rproc->memory_maps[i].core);
+		}
+	}
+
+	return 0;
+}
+
+static int core_rproc_release(struct inode *inode, struct file *filp)
+{
+	pr_info("%s\n", __func__);
+	kfree(filp->private_data);
+	return 0;
+}
+
+/* Given an offset to read from, return the index of the memory-map region to
+ * read from.
+ */
+static int rproc_memory_map_index(const struct rproc *rproc, loff_t *off)
+{
+	int i = 0;
+	for (;; i++) {
+		int size = rproc->memory_maps[i].size;
+
+		if (!size)
+			break;
+		if (!rproc->memory_maps[i].core)
+			continue;
+		if (*off < size)
+			return i;
+
+		*off -= size;
+	}
+
+	return -1;
+}
+
+ssize_t core_rproc_write(struct file *filp,
+		const char __user *buffer, size_t count, loff_t *off)
+{
+	char cmd[100];
+	int cmdlen;
+	struct core_rproc *d = filp->private_data;
+	struct rproc *rproc = d->rproc;
+
+	cmdlen = min(sizeof(cmd) - 1, count);
+	if (copy_from_user(cmd, buffer, cmdlen))
+		return -EFAULT;
+	cmd[cmdlen] = 0;
+
+	if (!strncmp(cmd, "enable", 6)) {
+		pr_info("remoteproc %s halt on crash ENABLED\n", rproc->name);
+		rproc->halt_on_crash = true;
+		goto done;
+	} else if (!strncmp(cmd, "disable", 7)) {
+		pr_info("remoteproc %s halt on crash DISABLED\n", rproc->name);
+		rproc->halt_on_crash = false;
+		/* If you disable halt-on-crashed after the remote processor
+		 * has already crashed, we will let it continue crashing (so it
+		 * can get handled otherwise) as well.
+		 */
+		if (rproc->state != RPROC_CRASHED)
+			goto done;
+	} else if (strncmp(cmd, "continue", 8)) {
+		pr_err("%s: invalid command: expecting \"enable\"," \
+				"\"disable\", or \"continue\"\n", __func__);
+		return -EINVAL;
+	}
+
+	if (rproc->state == RPROC_CRASHED) {
+		pr_info("remoteproc %s: resuming crash recovery\n",
+				rproc->name);
+		complete_remoteproc_crash(rproc);
+	}
+
+done:
+	*off += count;
+	return count;
+}
+
+static ssize_t core_rproc_read(struct file *filp,
+			char __user *userbuf, size_t count, loff_t *ppos)
+{
+	const struct core_rproc *d = filp->private_data;
+	const struct rproc *rproc = d->rproc;
+	int index;
+	loff_t pos;
+	size_t remaining = count;
+	ssize_t copied = 0;
+
+	pr_debug("%s count %d off %lld\n", __func__, count, *ppos);
+
+	/* copy the ELF and segment header first */
+	if (*ppos < d->offset) {
+		copied = simple_read_from_buffer(userbuf, count,
+					ppos, &d->core, d->offset);
+		if (copied < 0) {
+			pr_err("%s: could not copy ELF header\n", __func__);
+			return -EIO;
+		}
+
+		pr_debug("%s: copied %d/%lld from ELF header\n", __func__,
+			copied, d->offset);
+		remaining -= copied;
+	}
+
+	/* copy the data */
+	while (remaining) {
+		size_t remaining_in_region;
+		const struct rproc_mem_entry *r;
+		void __iomem *kvaddr;
+
+		pos = *ppos - d->offset;
+		index = rproc_memory_map_index(rproc, &pos);
+		if (index < 0) {
+			pr_info("%s: EOF at off %lld\n", __func__, *ppos);
+			break;
+		}
+
+		r = &rproc->memory_maps[index];
+
+		remaining_in_region = r->size - pos;
+		if (remaining_in_region > remaining)
+			remaining_in_region = remaining;
+
+		pr_debug("%s: iomap 0x%x size %d\n", __func__, r->pa, r->size);
+		kvaddr = ioremap(r->pa, r->size);
+		if (!kvaddr) {
+			pr_err("%s: iomap error: region %d (phys 0x%08x size %d)\n",
+				__func__, index, r->pa, r->size);
+			return -EIO;
+		}
+
+		pr_debug("%s: off %lld -> [%d](pa 0x%08x off %lld sz %d)\n",
+			__func__,
+			*ppos, index, r->pa, pos, r->size);
+
+		if (copy_to_user(userbuf + copied, kvaddr + pos,
+				remaining_in_region)) {
+			pr_err("%s: copy_to_user error\n", __func__);
+			return -EFAULT;
+		}
+
+		iounmap(kvaddr);
+
+		copied += remaining_in_region;
+		*ppos += remaining_in_region;
+		BUG_ON(remaining < remaining_in_region);
+		remaining -= remaining_in_region;
+	}
+
+	return copied;
+}
+
+static const struct file_operations core_rproc_ops = {
+	.read = core_rproc_read,
+	.write = core_rproc_write,
+	.open = core_rproc_open,
+	.release = core_rproc_release,
+	.llseek = generic_file_llseek,
+};
+#endif /* CONFIG_REMOTEPROC_CORE_DUMP */
+
 static const struct file_operations rproc_name_ops = {
 	.read = rproc_name_read,
 	.open = rproc_open_generic,
@@ -188,7 +542,8 @@ rproc_da_to_pa(const struct rproc_mem_entry *maps, u64 da, phys_addr_t *pa)
 
 		if (da >= me->da && da < (me->da + me->size)) {
 			offset = da - me->da;
-			pr_debug("%s: matched mem entry no. %d\n", __func__, i);
+			pr_debug("%s: matched mem entry no. %d\n",
+				__func__, i);
 			*pa = me->pa + offset;
 			return 0;
 		}
@@ -197,20 +552,47 @@ rproc_da_to_pa(const struct rproc_mem_entry *maps, u64 da, phys_addr_t *pa)
 	return -EINVAL;
 }
 
+static void dump_remoteproc_regs(const char *name, struct exc_regs *xregs)
+{
+	struct pt_regs regs;
+	remoteproc_fill_pt_regs(&regs, xregs);
+	pr_info("remoteproc %s: register dump\n", name);
+	__show_regs(&regs);
+}
+
 static int rproc_mmu_fault_isr(struct rproc *rproc, u64 da, u32 flags)
 {
 	dev_err(rproc->dev, "%s\n", __func__);
 	schedule_work(&rproc->error_work);
-
 	return -EIO;
 }
 
 static int rproc_watchdog_isr(struct rproc *rproc)
 {
-	dev_err(rproc->dev, "Enter %s\n", __func__);
-	schedule_work(&rproc->error_work);
+	/* If the ducati is suspended in a crash, do nothing. */
+	if (rproc->state == RPROC_CRASHED) {
+		pr_info("remoteproc %s is already in the crashed state\n",
+			rproc->name);
+		return 0;
+	}
 
+	dev_err(rproc->dev, "%s\n", __func__);
+	schedule_work(&rproc->error_work);
 	return 0;
+}
+
+static void complete_remoteproc_crash(struct rproc *rproc)
+{
+	/* reset the ducati */
+	if (rproc->trace_buf0 && rproc->last_trace_buf0)
+		memcpy(rproc->last_trace_buf0, rproc->trace_buf0,
+				rproc->last_trace_len0);
+	if (rproc->trace_buf1 && rproc->last_trace_buf1)
+		memcpy(rproc->last_trace_buf1, rproc->trace_buf1,
+				rproc->last_trace_len1);
+	pr_info("remoteproc: resetting %s...\n", rproc->name);
+	(void)blocking_notifier_call_chain(&rproc->nb_error,
+			RPROC_ERROR, NULL);
 }
 
 static int _event_notify(struct rproc *rproc, int type, void *data)
@@ -224,15 +606,17 @@ static int _event_notify(struct rproc *rproc, int type, void *data)
 		init_completion(&rproc->error_comp);
 		rproc->state = RPROC_CRASHED;
 		mutex_unlock(&rproc->lock);
-		if (rproc->trace_buf0 && rproc->last_trace_buf0)
-			memcpy(rproc->last_trace_buf0, rproc->trace_buf0,
-					rproc->last_trace_len0);
-		if (rproc->trace_buf1 && rproc->last_trace_buf1)
-			memcpy(rproc->last_trace_buf1, rproc->trace_buf1,
-					rproc->last_trace_len1);
+		if (!rproc->halt_on_crash)
+			complete_remoteproc_crash(rproc);
+		else
+			pr_info("remoteproc %s: halt-on-crash enabled: " \
+				"deferring crash recovery\n",
+				rproc->name);
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 		pm_runtime_dont_use_autosuspend(rproc->dev);
 #endif
+		dump_remoteproc_regs(rproc->name,
+				(struct exc_regs *)rproc->cdump_buf1);
 		break;
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	case RPROC_PRE_SUSPEND:
@@ -247,6 +631,13 @@ static int _event_notify(struct rproc *rproc, int type, void *data)
 #endif
 	default:
 		return -EINVAL;
+	}
+
+	if (type == RPROC_ERROR) {
+		/* FIXME: send uevent here */
+		pr_info("remoteproc: %s has crashed (core dump available)\n",
+			rproc->name);
+		return 0;
 	}
 
 	return blocking_notifier_call_chain(nh, type, data);
@@ -286,6 +677,11 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 			goto unlock_mutext;
 		}
 	}
+
+#ifdef CONFIG_REMOTEPROC_CORE_DUMP
+	debugfs_create_file("core", 0400, rproc->dbg_dir,
+			rproc, &core_rproc_ops);
+#endif
 
 	err = rproc->ops->start(rproc, bootaddr);
 	if (err) {
@@ -343,6 +739,15 @@ static int rproc_add_mem_entry(struct rproc *rproc, struct fw_resource *rsc)
 		me->da = rsc->da;
 		me->pa = (phys_addr_t)rsc->pa;
 		me->size = rsc->len;
+#ifdef CONFIG_REMOTEPROC_CORE_DUMP
+		/* FIXME: ION heaps are reported as RSC_CARVEOUT.  We need a
+		 * better way to understand which sections are for
+		 * code/stack/heap/static data, and which belong to the
+		 * carveouts we don't care about in a core dump.
+		 * Perhaps the ION carveout should be reported as RSC_DEVMEM.
+		 */
+		me->core = (rsc->type == RSC_CARVEOUT && rsc->pa != 0xba300000);
+#endif
 	}
 
 	return ret;
