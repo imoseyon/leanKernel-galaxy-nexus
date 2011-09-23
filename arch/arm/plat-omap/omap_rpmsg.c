@@ -316,6 +316,12 @@ static void omap_rpmsg_del_vqs(struct virtio_device *vdev)
 	rproc_event_unregister(rpdev->rproc, &rpdev->rproc_nb,
 				RPROC_PRE_SUSPEND);
 
+	rproc_event_unregister(rpdev->rproc, &rpdev->rproc_nb_pos_suspend,
+				RPROC_POS_SUSPEND);
+
+	rproc_event_unregister(rpdev->rproc, &rpdev->rproc_nb_resume,
+				RPROC_RESUME);
+
 	rproc_event_unregister(rpdev->rproc, &rpdev->rproc_nb_error,
 				RPROC_ERROR);
 
