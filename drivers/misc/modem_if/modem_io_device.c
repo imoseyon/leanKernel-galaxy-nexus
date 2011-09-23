@@ -690,7 +690,7 @@ static ssize_t misc_write(struct file *filp, const char __user * buf,
 
 	frame_len = count + SIZE_OF_HDLC_START + get_header_size(iod)
 				+ SIZE_OF_HDLC_END;
-	skb = alloc_skb(frame_len, GFP_ATOMIC);
+	skb = alloc_skb(frame_len, GFP_KERNEL);
 	if (!skb) {
 		pr_err("[MODEM_IF] fail alloc skb (%d)\n", __LINE__);
 		return -ENOMEM;
