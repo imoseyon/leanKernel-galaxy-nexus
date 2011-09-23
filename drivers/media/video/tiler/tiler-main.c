@@ -1308,24 +1308,16 @@ struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg)
 	 * space in order to be of use to us here.
 	 */
 	down_read(&mm->mmap_sem);
-	vma = find_vma(mm, usr_addr);
+	vma = find_vma(mm, usr_addr + (num_pg << PAGE_SHIFT));
 
-	/*
-	 * It is observed that under some circumstances, the user
-	 * buffer is spread across several vmas, so loop through
-	 * and check if the entire user buffer is covered.
-	 */
-	while ((vma) && (usr_addr + (num_pg << PAGE_SHIFT) > vma->vm_end)) {
-		/* jump to the next VMA region */
-		vma = find_vma(mm, vma->vm_end + 1);
-	}
-	if (!vma) {
-		printk(KERN_ERR "Failed to get the vma region for "
-			"user buffer.\n");
+	if (!vma || (usr_addr < vma->vm_start)) {
 		kfree(mem);
 		kfree(pa);
 		kfree(pages);
 		up_read(&mm->mmap_sem);
+		printk(KERN_ERR "Address is outside VMA: address start = %08x, "
+			"user end = %08x\n",
+			usr_addr, (usr_addr + (num_pg << PAGE_SHIFT)));
 		return ERR_PTR(-EFAULT);
 	}
 
