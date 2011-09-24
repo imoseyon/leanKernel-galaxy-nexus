@@ -235,6 +235,7 @@ static long tiler_ioctl(struct file *filp, u32 cmd, unsigned long arg)
 	struct tiler_buf_info buf_info = {0};
 	struct tiler_block_info block_info = {0};
 	struct mem_info *mi;
+	u32 phys_addr;
 
 	switch (cmd) {
 	/* allocate block */
@@ -289,7 +290,10 @@ static long tiler_ioctl(struct file *filp, u32 cmd, unsigned long arg)
 		break;
 	/* get physical address */
 	case TILIOC_GSSP:
-		return tiler_virt2phys(arg);
+		down_read(&current->mm->mmap_sem);
+		phys_addr = tiler_virt2phys(arg);
+		up_read(&current->mm->mmap_sem);
+		return phys_addr;
 		break;
 	/* map block */
 	case TILIOC_MBLK:
