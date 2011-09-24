@@ -731,6 +731,7 @@ static struct panel_s6e8aa0_data tuna_oled_data_m3 = {
 	.factory_info = &tuna_oled_factory_info_8500k,
 	.acl_table = tuna_oled_acl,
 	.acl_table_size = ARRAY_SIZE(tuna_oled_acl),
+	.acl_average = 6, /* use 20 frame Y average accumulation count */
 };
 
 static struct panel_s6e8aa0_data tuna_oled_data_sm2 = {
@@ -745,6 +746,7 @@ static struct panel_s6e8aa0_data tuna_oled_data_sm2 = {
 	.factory_info = &tuna_oled_factory_info_6500k,
 	.acl_table = tuna_oled_acl,
 	.acl_table_size = ARRAY_SIZE(tuna_oled_acl),
+	.acl_average = 6, /* use 20 frame Y average accumulation count */
 	.elvss_table = tuna_oled_elvss,
 	.elvss_table_size = ARRAY_SIZE(tuna_oled_elvss),
 };
