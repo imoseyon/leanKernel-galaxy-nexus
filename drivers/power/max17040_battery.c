@@ -162,9 +162,10 @@ static void max17040_get_vcell(struct i2c_client *client)
 	struct max17040_chip *chip = i2c_get_clientdata(client);
 	u16 val;
 
-	max17040_read_reg(client, MAX17040_VCELL_MSB, &val);
-
-	chip->vcell = (val >> 4) * 1250;
+	if (!max17040_read_reg(client, MAX17040_VCELL_MSB, &val))
+		chip->vcell = (val >> 4) * 1250;
+	else
+		dev_warn(&client->dev, "i2c error, not updating vcell\n");
 }
 
 #define TO_FIXED(a,b) (((a) << 8) + (b))
@@ -179,7 +180,10 @@ static void max17040_get_soc(struct i2c_client *client)
 	u32 fmin_cap = TO_FIXED(chip->pdata->min_capacity, 0);
 	u16 regval;
 
-	max17040_read_reg(client, MAX17040_SOC_MSB, &regval);
+	if (max17040_read_reg(client, MAX17040_SOC_MSB, &regval)) {
+		dev_warn(&client->dev, "i2c error, not updating soc\n");
+		return;
+	}
 
 	/* convert msb.lsb to Q8.8 */
 	val = TO_FIXED(regval >> 8, regval & 0xff);
@@ -198,10 +202,13 @@ static void max17040_get_version(struct i2c_client *client)
 	struct max17040_chip *chip = i2c_get_clientdata(client);
 	u16 val;
 
-	max17040_read_reg(client, MAX17040_VER_MSB, &val);
-	chip->ver = val;
-
-	dev_info(&client->dev, "MAX17040 Fuel-Gauge Ver %d\n", val);
+	if (!max17040_read_reg(client, MAX17040_VER_MSB, &val)) {
+		chip->ver = val;
+		dev_info(&client->dev, "MAX17040 Fuel-Gauge Ver %d\n", val);
+	} else {
+		dev_err(&client->dev,
+			"Error reading version, some features disabled\n");
+	}
 }
 
 static void max17040_get_online(struct i2c_client *client)
@@ -541,11 +548,15 @@ static int __devinit max17040_probe(struct i2c_client *client,
 
 	if (HAS_ALERT_INTERRUPT(chip->ver)) {
 		/* setting the low SOC alert threshold */
-		max17040_read_reg(client, MAX17040_RCOMP_MSB, &val);
-		athd = chip->pdata->min_capacity > 1 ?
-			chip->pdata->min_capacity - 1 : 0;
-		max17040_write_reg(client, MAX17040_RCOMP_MSB,
-				(val & ~0x1f) | (-athd & 0x1f));
+		if (!max17040_read_reg(client, MAX17040_RCOMP_MSB, &val)) {
+			athd = chip->pdata->min_capacity > 1 ?
+				chip->pdata->min_capacity - 1 : 0;
+			max17040_write_reg(client, MAX17040_RCOMP_MSB,
+					   (val & ~0x1f) | (-athd & 0x1f));
+		} else {
+			dev_err(&client->dev,
+				"Error setting battery alert threshold\n");
+		}
 
 		/* add alert irq handler */
 		ret = request_threaded_irq(client->irq, NULL, max17040_alert,
