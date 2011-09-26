@@ -134,8 +134,7 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 			mpu_next_state = PWRDM_POWER_INACTIVE;
 			pwrdm_set_next_pwrst(mpu_pwrdm, mpu_next_state);
 		} else {
-			if (!suspend)
-				omap_sr_disable_reset_volt(mpu_voltdm);
+			omap_sr_disable_reset_volt(mpu_voltdm);
 			omap_vc_set_auto_trans(mpu_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
 		}
@@ -153,10 +152,8 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 			core_next_state = PWRDM_POWER_ON;
 			pwrdm_set_next_pwrst(core_pwrdm, core_next_state);
 		} else {
-			if (!suspend) {
-				omap_sr_disable_reset_volt(iva_voltdm);
-				omap_sr_disable_reset_volt(core_voltdm);
-			}
+			omap_sr_disable_reset_volt(iva_voltdm);
+			omap_sr_disable_reset_volt(core_voltdm);
 			omap_vc_set_auto_trans(core_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
 			if (!is_pm44xx_erratum(IVA_AUTO_RET_iXXX)) {
@@ -212,10 +209,8 @@ abort_device_off:
 		}
 
 		omap_temp_sensor_resume_idle();
-		if (!suspend) {
-			omap_sr_enable(iva_voltdm);
-			omap_sr_enable(core_voltdm);
-		}
+		omap_sr_enable(iva_voltdm);
+		omap_sr_enable(core_voltdm);
 	}
 
 	if (omap4_device_prev_state_off()) {
@@ -241,8 +236,7 @@ abort_device_off:
 	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
 		omap_vc_set_auto_trans(mpu_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE);
-		if (!suspend)
-			omap_sr_enable(mpu_voltdm);
+		omap_sr_enable(mpu_voltdm);
 	}
 
 	return;
