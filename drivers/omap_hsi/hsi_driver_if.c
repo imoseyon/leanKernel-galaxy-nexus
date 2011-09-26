@@ -838,6 +838,7 @@ int hsi_ioctl(struct hsi_device *dev, unsigned int command, void *arg)
 		break;
 	case HSI_IOCTL_SET_ACREADY_NORMAL:
 		omap_writel(omap_readl(0x4A1000C8) & 0xFFFFFFF9, 0x4A1000C8);
+		break;
 	case HSI_IOCTL_SET_3WIRE_MODE:
 		omap_writel(0x30000, 0x4A058C08);
 		break;
