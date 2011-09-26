@@ -406,10 +406,6 @@ static int hsi_init_handshake(struct mipi_link_device *mipi_ld, int mode)
 			hsi_ioctl(mipi_ld->hsi_channles[i].dev,
 						HSI_IOCTL_SET_RX, &rx_config);
 			pr_debug("[MIPI-HSI] Set TX/RX MIPI-HSI\n");
-
-			hsi_ioctl(mipi_ld->hsi_channles[i].dev,
-				HSI_IOCTL_SET_ACREADY_NORMAL, NULL);
-			pr_debug("[MIPI-HSI] ACREADY_NORMAL\n");
 		}
 
 		if (mipi_ld->ld.com_state != COM_ONLINE)
@@ -477,9 +473,6 @@ static int hsi_init_handshake(struct mipi_link_device *mipi_ld, int mode)
 		if (ret)
 			pr_err("[MIPI-HSI] hsi_read fail : %d\n", ret);
 
-		hsi_ioctl(mipi_ld->hsi_channles[HSI_FLASHLESS_CHANNEL].dev,
-			HSI_IOCTL_SET_ACREADY_NORMAL, NULL);
-
 		pr_debug("[MIPI-HSI] hsi_init_handshake Done : FLASHLESS_BOOT\n");
 		return 0;
 
@@ -534,9 +527,6 @@ static int hsi_init_handshake(struct mipi_link_device *mipi_ld, int mode)
 		if (ret)
 			pr_err("[MIPI-HSI] hsi_read fail : %d\n", ret);
 
-		hsi_ioctl(mipi_ld->hsi_channles[HSI_CP_RAMDUMP_CHANNEL].dev,
-			HSI_IOCTL_SET_ACREADY_NORMAL, NULL);
-
 		pr_debug("[MIPI-HSI] hsi_init_handshake Done : RAMDUMP\n");
 		return 0;
 
@@ -579,10 +569,6 @@ static void hsi_conn_err_recovery(struct mipi_link_device *mipi_ld)
 		hsi_ioctl(mipi_ld->hsi_channles[i].dev,
 					HSI_IOCTL_SET_RX, &rx_config);
 		pr_debug("[MIPI-HSI] Set TX/RX MIPI-HSI\n");
-
-		hsi_ioctl(mipi_ld->hsi_channles[i].dev,
-			HSI_IOCTL_SET_ACREADY_NORMAL, NULL);
-		pr_debug("[MIPI-HSI] ACREADY_NORMAL\n");
 	}
 
 	ret = hsi_read(mipi_ld->hsi_channles[HSI_CONTROL_CHANNEL].dev,
