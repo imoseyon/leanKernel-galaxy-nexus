@@ -169,7 +169,9 @@ static void modem_shutdown(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct modem_ctl *mc = dev_get_drvdata(dev);
-	mc->ops.modem_off(mc);
+
+	if (mc && mc->ops.modem_off)
+		mc->ops.modem_off(mc);
 }
 
 static int modem_suspend(struct device *pdev)
