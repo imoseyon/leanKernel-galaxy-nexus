@@ -566,10 +566,6 @@
 	#else
 	#if SGX_CORE_REV == 112
 		#define FIX_HW_BRN_31272
- 		#define FIX_HW_BRN_31780
-		#if defined(SUPPORT_SGX_LOW_LATENCY_SCHEDULING) && defined(SGX_FEATURE_MP)
-			#define FIX_HW_BRN_33657
-		#endif
 		#define FIX_HW_BRN_33920
 	#else
 	#if SGX_CORE_REV == 114

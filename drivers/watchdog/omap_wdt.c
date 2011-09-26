@@ -45,6 +45,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/interrupt.h>
 #include <linux/workqueue.h>
+#include <linux/nmi.h>
 #include <mach/hardware.h>
 #include <plat/prcm.h>
 
@@ -70,6 +71,7 @@ struct omap_wdt_dev {
 	struct resource *mem;
 	struct miscdevice omap_wdt_miscdev;
 	int irq;
+	struct notifier_block nb;
 };
 
 static void omap_wdt_ping(struct omap_wdt_dev *wdev)
@@ -319,6 +321,17 @@ static const struct file_operations omap_wdt_fops = {
 	.llseek = no_llseek,
 };
 
+static int omap_wdt_nb_func(struct notifier_block *nb, unsigned long val,
+	void *v)
+{
+	struct omap_wdt_dev *wdev = container_of(nb, struct omap_wdt_dev, nb);
+	pm_runtime_get_sync(wdev->dev);
+	omap_wdt_ping(wdev);
+	pm_runtime_put_sync_suspend(wdev->dev);
+
+	return NOTIFY_OK;
+}
+
 static int __devinit omap_wdt_probe(struct platform_device *pdev)
 {
 	struct resource *res, *mem, *res_irq;
@@ -397,8 +410,12 @@ static int __devinit omap_wdt_probe(struct platform_device *pdev)
 
 	omap_wdt_dev = pdev;
 
-	if (kernelpet && wdev->irq)
+	if (kernelpet && wdev->irq) {
+		wdev->nb.notifier_call = omap_wdt_nb_func;
+		atomic_notifier_chain_register(&touch_watchdog_notifier_head,
+			&wdev->nb);
 		return omap_wdt_setup(wdev);
+	}
 
 	return 0;
 
@@ -449,6 +466,10 @@ static int __devexit omap_wdt_remove(struct platform_device *pdev)
 
 	if (wdev->irq)
 		free_irq(wdev->irq, wdev);
+
+	if (kernelpet && wdev->irq)
+		atomic_notifier_chain_unregister(&touch_watchdog_notifier_head,
+			&wdev->nb);
 
 	iounmap(wdev->base);
 
