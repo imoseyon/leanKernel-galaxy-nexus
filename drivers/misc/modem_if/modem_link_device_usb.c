@@ -382,8 +382,13 @@ static void runtime_pm_work(struct work_struct *work)
 {
 	struct usb_link_device *usb_ld =
 		container_of(work, struct usb_link_device, runtime_pm_work.work);
+	int ret;
 
-	pm_request_autosuspend(&usb_ld->usbdev->dev);
+	ret = pm_request_autosuspend(&usb_ld->usbdev->dev);
+
+	if (ret == -EAGAIN)
+		queue_delayed_work(system_nrt_wq, &usb_ld->runtime_pm_work,
+							msecs_to_jiffies(50));
 }
 
 static int if_usb_resume(struct usb_interface *intf)
