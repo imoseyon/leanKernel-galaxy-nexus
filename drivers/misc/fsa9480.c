@@ -33,6 +33,10 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/usb/otg_id.h>
+#include <linux/seq_file.h>
+#include <linux/debugfs.h>
+
+#define DEBUG_DUMP_REGISTERS
 
 /* FSA9480 I2C registers */
 #define FSA9480_REG_DEVID		0x01
@@ -55,7 +59,16 @@
 #define FSA9480_REG_CK_INTMASK2		0x12
 #define FSA9480_REG_MANSW1		0x13
 #define FSA9480_REG_MANSW2		0x14
+#define FSA9480_REG_ANALOG_TEST		0x15
+#define FSA9480_REG_SCAN_TEST		0x16
+#define FSA9480_REG_DAC_OVERRIDE_1	0x17
+#define FSA9480_REG_DAC_OVERRIDE_2	0x18
+#define FSA9480_REG_VIDEO_DETECT	0x19
+#define FSA9480_REG_CK_PULSE_WIDTH	0x1A
 #define FSA9480_REG_MANOVERRIDE1	0x1B
+#define FSA9480_REG_STATUS1		0x1C
+#define FSA9480_REG_STATUS2		0x1D
+#define FSA9480_REG_FUSE1		0x1E
 
 /* Control */
 #define CON_SWITCH_OPEN		(1 << 4)
@@ -147,11 +160,76 @@ struct fsa9480_usbsw {
 	struct mutex			lock;
 	u16				intr_mask;
 	u8				timing;
+#if defined(CONFIG_DEBUG_FS) && defined(DEBUG_DUMP_REGISTERS)
+	struct dentry			*debug_dir;
+#endif
 
 	int				num_notifiers;
 	struct usbsw_nb_info		notifiers[0];
 };
 #define xceiv_to_fsa(x)		container_of((x), struct fsa9480_usbsw, otg)
+
+#if defined(CONFIG_DEBUG_FS) && defined(DEBUG_DUMP_REGISTERS)
+
+#define DUMP_FSA9480_REG(client, m, x) ({				\
+	int __val;							\
+	__val = i2c_smbus_read_byte_data((client), FSA9480_REG_##x);	\
+	seq_printf((m), "%s = 0x%02x\n", #x, __val);			\
+	__val;								\
+})
+
+static int fsa9480_show_registers(struct seq_file *m, void *p)
+{
+	struct fsa9480_usbsw *usbsw = m->private;
+
+	DUMP_FSA9480_REG(usbsw->client, m, DEVID);
+	DUMP_FSA9480_REG(usbsw->client, m, CTRL);
+	DUMP_FSA9480_REG(usbsw->client, m, INT1);
+	DUMP_FSA9480_REG(usbsw->client, m, INT2);
+	DUMP_FSA9480_REG(usbsw->client, m, INT1_MASK);
+	DUMP_FSA9480_REG(usbsw->client, m, INT2_MASK);
+	DUMP_FSA9480_REG(usbsw->client, m, ADC);
+	DUMP_FSA9480_REG(usbsw->client, m, TIMING1);
+	DUMP_FSA9480_REG(usbsw->client, m, TIMING2);
+	DUMP_FSA9480_REG(usbsw->client, m, DEV_T1);
+	DUMP_FSA9480_REG(usbsw->client, m, DEV_T2);
+	DUMP_FSA9480_REG(usbsw->client, m, BTN1);
+	DUMP_FSA9480_REG(usbsw->client, m, BTN2);
+	DUMP_FSA9480_REG(usbsw->client, m, CK);
+	DUMP_FSA9480_REG(usbsw->client, m, CK_INT1);
+	DUMP_FSA9480_REG(usbsw->client, m, CK_INT2);
+	DUMP_FSA9480_REG(usbsw->client, m, CK_INTMASK1);
+	DUMP_FSA9480_REG(usbsw->client, m, CK_INTMASK2);
+	DUMP_FSA9480_REG(usbsw->client, m, MANSW1);
+	DUMP_FSA9480_REG(usbsw->client, m, MANSW2);
+	DUMP_FSA9480_REG(usbsw->client, m, BTN1);
+	DUMP_FSA9480_REG(usbsw->client, m, BTN2);
+	DUMP_FSA9480_REG(usbsw->client, m, ANALOG_TEST);
+	DUMP_FSA9480_REG(usbsw->client, m, SCAN_TEST);
+	DUMP_FSA9480_REG(usbsw->client, m, DAC_OVERRIDE_1);
+	DUMP_FSA9480_REG(usbsw->client, m, DAC_OVERRIDE_2);
+	DUMP_FSA9480_REG(usbsw->client, m, VIDEO_DETECT);
+	DUMP_FSA9480_REG(usbsw->client, m, CK_PULSE_WIDTH);
+	DUMP_FSA9480_REG(usbsw->client, m, MANOVERRIDE1);
+	DUMP_FSA9480_REG(usbsw->client, m, STATUS1);
+	DUMP_FSA9480_REG(usbsw->client, m, STATUS2);
+	DUMP_FSA9480_REG(usbsw->client, m, FUSE1);
+
+	return 0;
+}
+
+static int fsa9480_regs_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, fsa9480_show_registers, inode->i_private);
+}
+
+static const struct file_operations fsa9480_regs_fops = {
+	.open = fsa9480_regs_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
 
 static ssize_t fsa9480_show_control(struct device *dev,
 				   struct device_attribute *attr,
@@ -630,6 +708,13 @@ static int __devinit fsa9480_probe(struct i2c_client *client,
 			goto err_reg_notifiers;
 		}
 	}
+#if defined(CONFIG_DEBUG_FS) && defined(DEBUG_DUMP_REGISTERS)
+	usbsw->debug_dir = debugfs_create_dir("fsa9480", NULL);
+
+	if (usbsw->debug_dir)
+		debugfs_create_file("regs", S_IRUSR, usbsw->debug_dir, usbsw,
+				&fsa9480_regs_fops);
+#endif
 
 	return 0;
 
@@ -657,6 +742,11 @@ static int __devexit fsa9480_remove(struct i2c_client *client)
 {
 	struct fsa9480_usbsw *usbsw = i2c_get_clientdata(client);
 	int i;
+
+#if defined(CONFIG_DEBUG_FS) && defined(DEBUG_DUMP_REGISTERS)
+	if (usbsw->debug_dir)
+		debugfs_remove_recursive(usbsw->debug_dir);
+#endif
 
 	for (i = 0; i < usbsw->num_notifiers; i++)
 		otg_id_unregister_notifier(&usbsw->notifiers[i].otg_id_nb);
