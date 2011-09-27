@@ -431,6 +431,7 @@ static int max17040_pm_notifier(struct notifier_block *notifier,
 	switch (pm_event) {
 	case PM_SUSPEND_PREPARE:
 		if (!chip->pdata->charger_enable()) {
+			cancel_work_sync(&chip->work);
 			max17040_program_alarm(chip, SLOW_POLL);
 			chip->slow_poll = 1;
 		}
