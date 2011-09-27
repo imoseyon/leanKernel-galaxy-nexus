@@ -479,6 +479,9 @@ int omap_abe_set_opp_processing(struct omap_abe *abe, u32 opp)
 	omap_abe_mem_write(abe, OMAP_ABE_DMEM,
 		       OMAP_ABE_D_MAXTASKBYTESINSLOT_ADDR, &dOppMode32, sizeof(u32));
 
+#if 0
+	/* Disable BT / MM Ext ASRC dynamic switch */
+
 	sio_desc_address = OMAP_ABE_D_IODESCR_ADDR + (OMAP_ABE_MM_EXT_IN_PORT *
 				sizeof(struct ABE_SIODescriptor));
 	omap_abe_mem_read(abe, OMAP_ABE_DMEM, sio_desc_address,
@@ -561,6 +564,7 @@ int omap_abe_set_opp_processing(struct omap_abe *abe, u32 opp)
 		/* Init BT_VX_DL ASRC and enable its adaptation */
 		abe_init_asrc_bt_dl(-250);
 	}
+#endif
 	return 0;
 
 }

@@ -385,13 +385,14 @@ out:
  */
 static void throttle_delayed_work_fn(struct work_struct *work)
 {
-	u32 curr;
+	int curr;
 	struct omap_temp_sensor *temp_sensor =
 				container_of(work, struct omap_temp_sensor,
 					     throttle_work.work);
 	curr = omap_read_current_temp(temp_sensor);
 
 	if (curr >= BGAP_THRESHOLD_T_HOT || curr < 0) {
+		pr_warn("OMAP temp read %d exceeds the threshold\n", curr);
 		omap_thermal_throttle();
 		schedule_delayed_work(&temp_sensor->throttle_work,
 			msecs_to_jiffies(THROTTLE_DELAY_MS));

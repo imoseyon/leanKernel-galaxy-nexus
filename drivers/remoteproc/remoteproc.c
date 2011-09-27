@@ -171,25 +171,22 @@ static int rproc_core_map_count(const struct rproc *rproc)
 	return count;
 }
 
-#define ELFOSABI_DUCATI ELFOSABI_NONE
-
 /* Copied from fs/binfmt_elf.c */
-static void fill_elf_header(struct elfhdr *elf, int segs,
-			    u16 machine, u32 flags, u8 osabi)
+static void fill_elf_header(struct elfhdr *elf, int segs)
 {
 	memset(elf, 0, sizeof(*elf));
 
 	memcpy(elf->e_ident, ELFMAG, SELFMAG);
-	elf->e_ident[EI_CLASS] = ELF_CLASS;
-	elf->e_ident[EI_DATA] = ELF_DATA;
+	elf->e_ident[EI_CLASS] = ELFCLASS32;
+	elf->e_ident[EI_DATA] = ELFDATA2LSB;
 	elf->e_ident[EI_VERSION] = EV_CURRENT;
-	elf->e_ident[EI_OSABI] = ELFOSABI_DUCATI;
+	elf->e_ident[EI_OSABI] = ELFOSABI_NONE;
 
 	elf->e_type = ET_CORE;
-	elf->e_machine = machine;
+	elf->e_machine = EM_ARM;
 	elf->e_version = EV_CURRENT;
 	elf->e_phoff = sizeof(struct elfhdr);
-	elf->e_flags = flags;
+	elf->e_flags = EF_ARM_EABI_VER5;
 	elf->e_ehsize = sizeof(struct elfhdr);
 	elf->e_phentsize = sizeof(struct elf_phdr);
 	elf->e_phnum = segs;
@@ -252,9 +249,7 @@ static int setup_rproc_elf_core_dump(struct core_rproc *d)
 
 	pr_info("number of segments: %d\n", d->e_phnum);
 
-	fill_elf_header(&d->core.elf, d->e_phnum, EM_ARM,
-		EF_ARM_EABI_VER2,
-		ELFOSABI_DUCATI);
+	fill_elf_header(&d->core.elf, d->e_phnum);
 
 	nphdr = d->core.phdr + __phnum;
 	nphdr->p_type    = PT_NOTE;
