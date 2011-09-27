@@ -798,9 +798,15 @@ static void __exit if_usb_exit(void)
 
 static int lte_wake_resume(struct device *pdev)
 {
-	int ac_wake_gpio = (int)pdev->platform_data;
-	pr_debug("%s: > S-WUP 1\n", __func__);
-	gpio_set_value(ac_wake_gpio, 1);
+	struct modem_data *pdata = pdev->platform_data;
+	int val;
+
+	val = gpio_get_value(pdata->gpio_host_wakeup);
+	if (!val) {
+		pr_debug("%s: > S-WUP 1\n", __func__);
+		gpio_set_value(pdata->gpio_slave_wakeup, 1);
+	}
+
 	return 0;
 }
 

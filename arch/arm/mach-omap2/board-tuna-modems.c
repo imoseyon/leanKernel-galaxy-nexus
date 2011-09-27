@@ -709,8 +709,7 @@ static struct platform_device lte_modem = {
 /* lte_modem_wake must be registered before the ehci driver */
 void __init modem_toro_init(void)
 {
-	lte_modem_wake.dev.platform_data =
-				(void *)lte_modem_data.gpio_slave_wakeup;
+	lte_modem_wake.dev.platform_data = &lte_modem_data;
 	platform_device_register(&lte_modem_wake);
 }
 
