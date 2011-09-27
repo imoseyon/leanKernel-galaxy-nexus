@@ -395,6 +395,7 @@ int twl6040_disable(struct twl6040 *twl6040)
 	int ret = 0;
 
 	mutex_lock(&twl6040->mutex);
+	WARN(!twl6040->power_count, "TWL6040 is already disabled");
 	if (!--twl6040->power_count)
 		ret = twl6040_power(twl6040, 0);
 	mutex_unlock(&twl6040->mutex);

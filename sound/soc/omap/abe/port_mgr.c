@@ -189,6 +189,10 @@ int omap_abe_port_disable(struct abe *abe, struct omap_abe_port *port)
 			lport_name[port->logical_id], port->users);
 
 	spin_lock_irqsave(&abe->lock, flags);
+
+	WARN(!port->users, "port %s phy port %d is already disabled\n",
+		lport_name[port->logical_id], port->physical_id);
+
 	if (port->users == 1 && port_get_num_users(abe, port) == 1) {
 		/* disable the physical port */
 		pr_debug("port %s phy port %d disabled\n",
