@@ -138,6 +138,13 @@ static void omap4_update_actual_state(struct cpuidle_device *dev,
 	}
 }
 
+static bool omap4_gic_interrupt_pending(void)
+{
+	void __iomem *gic_cpu = omap4_get_gic_cpu_base();
+
+	return (__raw_readl(gic_cpu + GIC_CPU_HIGHPRI) != 0x3FF);
+}
+
 /**
  * omap4_wfi_until_interrupt
  *
@@ -150,12 +157,10 @@ static void omap4_update_actual_state(struct cpuidle_device *dev,
  */
 static void omap4_wfi_until_interrupt(void)
 {
-	void __iomem *gic_cpu = omap4_get_gic_cpu_base();
-
 retry:
 	omap_do_wfi();
 
-	if (__raw_readl(gic_cpu + GIC_CPU_HIGHPRI) == 0x3FF)
+	if (!omap4_gic_interrupt_pending())
 		goto retry;
 }
 
@@ -464,6 +469,19 @@ static int omap4_enter_idle(struct cpuidle_device *dev,
 		idle = false;
 
 	if (!idle) {
+		omap4_cpu_update_state(cpu, NULL);
+		spin_unlock(&omap4_idle_lock);
+		goto out;
+	}
+
+	/*
+	 * If we go to sleep with an IPI pending, we will lose it.  Once we
+	 * reach this point, the other cpu is either already idle or will
+	 * shortly abort idle.  If it is already idle it can't send us an IPI,
+	 * so it is safe to check for pending IPIs here.  If it aborts idle
+	 * we will abort as well, and any future IPIs will be processed.
+	 */
+	if (omap4_gic_interrupt_pending()) {
 		omap4_cpu_update_state(cpu, NULL);
 		spin_unlock(&omap4_idle_lock);
 		goto out;
