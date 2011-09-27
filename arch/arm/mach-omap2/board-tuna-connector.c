@@ -355,6 +355,8 @@ static void tuna_fsa_usb_detected(int device)
 
 		switch (old_device) {
 		case FSA9480_DETECT_JIG:
+			if (tuna_otg->uart_manual_mode == TUNA_MANUAL_UART_NONE)
+				tuna_ap_uart_actions(tuna_otg);
 			break;
 		case FSA9480_DETECT_USB:
 			if (tuna_otg->usb_manual_mode == TUNA_MANUAL_USB_MODEM)
@@ -371,15 +373,15 @@ static void tuna_fsa_usb_detected(int device)
 		break;
 	case FSA9480_DETECT_JIG:
 		switch (tuna_otg->uart_manual_mode) {
-		case TUNA_MANUAL_UART_MODEM:
-			tuna_cp_uart_actions(tuna_otg);
+		case TUNA_MANUAL_UART_AP:
+			tuna_ap_uart_actions(tuna_otg);
 			break;
 		case TUNA_MANUAL_UART_LTE:
 			tuna_lte_uart_actions(tuna_otg);
 			break;
-		case TUNA_MANUAL_UART_AP:
+		case TUNA_MANUAL_UART_MODEM:
 		default:
-			tuna_ap_uart_actions(tuna_otg);
+			tuna_cp_uart_actions(tuna_otg);
 			break;
 		};
 		break;
