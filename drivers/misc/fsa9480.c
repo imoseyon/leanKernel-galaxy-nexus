@@ -256,13 +256,13 @@ static ssize_t fsa9480_show_device_type(struct device *dev,
 	struct i2c_client *client = usbsw->client;
 	s32 value;
 
-	value = i2c_smbus_read_byte_data(client, FSA9480_REG_DEV_T1);
+	value = i2c_smbus_read_word_data(client, FSA9480_REG_DEV_T1);
 	if (value < 0) {
 		dev_err(&client->dev, "%s: err %d\n", __func__, value);
 		return (ssize_t)value;
 	}
 
-	return sprintf(buf, "%02x\n", value);
+	return sprintf(buf, "%04x\n", value);
 }
 
 static ssize_t fsa9480_show_manualsw(struct device *dev,
