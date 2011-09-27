@@ -117,9 +117,19 @@
 #define SW_AUTO			((0 << 5) | (0 << 2))
 
 /* Interrupt Mask */
+#define INT_STUCK_KEY_RCV	(1 << 12)
+#define INT_STUCK_KEY		(1 << 11)
+#define INT_ADC_CHANGE		(1 << 10)
+#define INT_RESERVE_ATTACH	(1 << 9)
+#define INT_AV_CHARGING		(1 << 8)
+#define INT_OVP_OCP_DIS		(1 << 7)
+#define INT_OCP_EN		(1 << 6)
+#define INT_OVP_EN		(1 << 5)
+#define INT_LKR			(1 << 4)
+#define INT_LKP			(1 << 3)
+#define INT_KP			(1 << 2)
 #define INT_DETACH		(1 << 1)
 #define INT_ATTACH		(1 << 0)
-#define INT_AV_CHARGING		(1 << 8)
 
 static const unsigned int adc_timing[] = {
 	50, /* ms */
@@ -592,6 +602,15 @@ static irqreturn_t fsa9480_irq_thread(int irq, void *data)
 		dev_dbg(&client->dev, "got irq 0x%x\n", intr);
 	}
 
+	if (intr & INT_OCP_EN)
+		dev_err(&client->dev, "entering over-current protection\n");
+
+	if (intr & INT_OVP_EN)
+		dev_err(&client->dev, "entering over-voltage protection\n");
+
+	if (intr & INT_OVP_OCP_DIS)
+		dev_err(&client->dev, "exiting protection mode\n");
+
 	disable_irq_nosync(client->irq);
 
 	mutex_lock(&usbsw->lock);
@@ -675,7 +694,8 @@ static int __devinit fsa9480_probe(struct i2c_client *client,
 	}
 
 	/* mask interrupts (unmask attach/detach only) */
-	usbsw->intr_mask = 0x1ffc;
+	usbsw->intr_mask = ~(INT_ATTACH | INT_DETACH | INT_OCP_EN | INT_OVP_EN |
+			INT_OVP_OCP_DIS);
 	ret = fsa9480_reset(usbsw);
 	if (ret < 0)
 		goto err_reset;
