@@ -1227,6 +1227,9 @@ void abe_init_io_tasks(u32 id, abe_data_format_t *format,
 				       OMAP_ABE_D_MAXTASKBYTESINSLOT_ADDR, &dOppMode32,
 				       sizeof(u32));
 
+			/* Disable BT ASRC */
+			dOppMode32 = DOPPMODE32_OPP50;
+
 			if (abe_port[id].format.f == 8000) {
 				if (dOppMode32 == DOPPMODE32_OPP100) {
 					abe->MultiFrame[TASK_BT_DL_48_8_SLT][TASK_BT_DL_48_8_IDX] =
@@ -1237,6 +1240,7 @@ void abe_init_io_tasks(u32 id, abe_data_format_t *format,
 						ABE_TASK_ID(C_ABE_FW_TASK_BT_DL_48_8_FIR);
 					smem1 = BT_DL_8k_labelID;
 				}
+#if 0
 				if ((abe_port[OMAP_ABE_BT_VX_DL_PORT].status ==
 					OMAP_ABE_PORT_ACTIVITY_IDLE) &&
 				    (abe_port[OMAP_ABE_BT_VX_UL_PORT].status ==
@@ -1251,6 +1255,7 @@ void abe_init_io_tasks(u32 id, abe_data_format_t *format,
 				} else {
 					/* Do nothing, Scheduling Table has already been patched */
 				}
+#endif
 			} else {
 				if (dOppMode32 == DOPPMODE32_OPP100) {
 					abe->MultiFrame[TASK_BT_DL_48_8_SLT][TASK_BT_DL_48_8_IDX] =
@@ -1261,6 +1266,7 @@ void abe_init_io_tasks(u32 id, abe_data_format_t *format,
 						ABE_TASK_ID(C_ABE_FW_TASK_BT_DL_48_16);
 					smem1 = BT_DL_16k_labelID;
 				}
+#if 0
 				if ((abe_port[OMAP_ABE_BT_VX_DL_PORT].status ==
 						OMAP_ABE_PORT_ACTIVITY_IDLE) &&
 				    (abe_port[OMAP_ABE_BT_VX_UL_PORT].status ==
@@ -1275,6 +1281,7 @@ void abe_init_io_tasks(u32 id, abe_data_format_t *format,
 				} else {
 					/* Do nothing, Scheduling Table has already been patched */
 				}
+#endif
 			}
 			break;
 		case OMAP_ABE_BT_VX_UL_PORT:
@@ -1283,6 +1290,9 @@ void abe_init_io_tasks(u32 id, abe_data_format_t *format,
 			omap_abe_mem_read(abe, OMAP_ABE_DMEM,
 				       OMAP_ABE_D_MAXTASKBYTESINSLOT_ADDR, &dOppMode32,
 				       sizeof(u32));
+
+			/* Disable BT ASRC */
+			dOppMode32 = DOPPMODE32_OPP50;
 
 			if (abe_port[id].format.f == 8000) {
 				abe->MultiFrame[TASK_BT_UL_8_48_SLT][TASK_BT_UL_8_48_IDX] =
@@ -1293,6 +1303,7 @@ void abe_init_io_tasks(u32 id, abe_data_format_t *format,
 				else
 					/* at OPP 50 without ASRC */
 					smem1 = BT_UL_8k_labelID;
+#if 0
 				if ((abe_port[OMAP_ABE_BT_VX_UL_PORT].status ==
 						OMAP_ABE_PORT_ACTIVITY_IDLE) &&
 				    (abe_port[OMAP_ABE_BT_VX_DL_PORT].status ==
@@ -1307,6 +1318,7 @@ void abe_init_io_tasks(u32 id, abe_data_format_t *format,
 				} else {
 					/* Do nothing, Scheduling Table has already been patched */
 				}
+#endif
 			} else {
 				abe->MultiFrame[TASK_BT_UL_8_48_SLT][TASK_BT_UL_8_48_IDX] =
 					ABE_TASK_ID(C_ABE_FW_TASK_BT_UL_16_48);
@@ -1316,6 +1328,7 @@ void abe_init_io_tasks(u32 id, abe_data_format_t *format,
 				else
 					/* at OPP 50 without ASRC */
 					smem1 = BT_UL_16k_labelID;
+#if 0
 				if ((abe_port[OMAP_ABE_BT_VX_UL_PORT].status ==
 						OMAP_ABE_PORT_ACTIVITY_IDLE) &&
 				    (abe_port[OMAP_ABE_BT_VX_DL_PORT].status ==
@@ -1330,6 +1343,7 @@ void abe_init_io_tasks(u32 id, abe_data_format_t *format,
 				} else {
 					/* Do nothing, Scheduling Table has already been patched */
 				}
+#endif
 			}
 			break;
 		case OMAP_ABE_MM_DL_PORT:
@@ -1341,6 +1355,10 @@ void abe_init_io_tasks(u32 id, abe_data_format_t *format,
 			omap_abe_mem_read(abe, OMAP_ABE_DMEM,
 				       OMAP_ABE_D_MAXTASKBYTESINSLOT_ADDR, &dOppMode32,
 				       sizeof(u32));
+
+			/* Disable MM EXT ASRC */
+			dOppMode32 = DOPPMODE32_OPP50;
+
 			if (dOppMode32 == DOPPMODE32_OPP100)
 				/* ASRC input buffer, size 40 */
 				smem1 = smem_mm_ext_in_opp100;
