@@ -333,7 +333,7 @@ void __init tf_allocate_workspace(void)
 	else
 		dev->workspace_addr = smc_address;
 
-	pr_info("SMC: Allocated workspace of %x Bytes at (0x%x)\n",
+	pr_info("SMC: Allocated workspace of 0x%x Bytes at (0x%x)\n",
 		dev->workspace_size,
 		dev->workspace_addr);
 }
