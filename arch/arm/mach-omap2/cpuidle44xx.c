@@ -18,6 +18,7 @@
 #include <linux/notifier.h>
 #include <linux/cpu.h>
 #include <linux/delay.h>
+#include <linux/cpu_pm.h>
 
 #include <asm/cacheflush.h>
 #include <asm/proc-fns.h>
@@ -295,6 +296,8 @@ static void omap4_enter_idle_primary(struct omap4_processor_cx *cx)
 
 	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu);
 
+	cpu_pm_enter();
+
 	if (!keep_mpu_on) {
 		pwrdm_set_logic_retst(mpu_pd, cx->mpu_logic_state);
 		omap_set_pwrdm_state(mpu_pd, cx->mpu_state);
@@ -355,6 +358,8 @@ wake_cpu1:
 	}
 
 out:
+	cpu_pm_exit();
+
 	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &cpu);
 }
 
@@ -367,6 +372,8 @@ out:
 static void omap4_enter_idle_secondary(int cpu)
 {
 	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu);
+
+	cpu_pm_enter();
 
 	pr_debug("%s: cpu1 down\n", __func__);
 	flush_cache_all();
@@ -383,6 +390,8 @@ static void omap4_enter_idle_secondary(int cpu)
 	gic_cpu_enable();
 
 	pr_debug("%s: cpu1 up\n", __func__);
+
+	cpu_pm_exit();
 
 	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &cpu);
 }
