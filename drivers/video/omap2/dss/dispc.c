@@ -3534,18 +3534,15 @@ static void dispc_error_worker(struct work_struct *work)
 
 			if (mgr->id == OMAP_DSS_CHANNEL_DIGIT) {
 				if(!mgr->device->first_vsync){
-					DSSERR("First SYNC_LOST.. ignoring \n");
-					break;
+					DSSERR("First SYNC_LOST..TV ignoring\n");
 				}
 
 				manager = mgr;
-				if (mgr->device->type == OMAP_DISPLAY_TYPE_HDMI) {
-					manager = NULL;
-					break;
-				}
 				enable = mgr->device->state ==
 						OMAP_DSS_DISPLAY_ACTIVE;
+				mgr->device->sync_lost_error = 1;
 				mgr->device->driver->disable(mgr->device);
+				mgr->device->sync_lost_error = 0;
 				break;
 			}
 		}
