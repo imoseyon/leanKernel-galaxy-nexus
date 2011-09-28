@@ -3057,8 +3057,6 @@ PVRSRVSwapToDCBuffer2BW(IMG_UINT32 ui32BridgeID,
 
 	if(psSwapDispClassBufferIN->ui32PrivDataLength > 0)
 	{
-		
-
 		if(OSAllocMem(PVRSRV_OS_PAGEABLE_HEAP,
 					  psSwapDispClassBufferIN->ui32PrivDataLength,
 					  (IMG_VOID **)&pvPrivData, IMG_NULL,
