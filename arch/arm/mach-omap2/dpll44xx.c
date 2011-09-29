@@ -162,7 +162,8 @@ int omap4_prcm_freq_update(void)
 	clkdm_allow_idle(l3_emif_clkdm);
 
 	if (i == MAX_FREQ_UPDATE_TIMEOUT) {
-		pr_err("%s: Frequency update failed\n", __func__);
+		pr_err("%s: Frequency update failed (call from %pF)\n",
+			__func__, (void *)_RET_IP_);
 		pr_err("CLKCTRL: EMIF_1=0x%x EMIF_2=0x%x DMM=0x%x\n",
 		       __raw_readl(OMAP4430_CM_MEMIF_EMIF_1_CLKCTRL),
 		       __raw_readl(OMAP4430_CM_MEMIF_EMIF_2_CLKCTRL),

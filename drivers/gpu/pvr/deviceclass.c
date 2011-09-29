@@ -1703,6 +1703,22 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 	psFlipCmd->ppvMemInfos = ppvMemInfos;
 	psFlipCmd->ui32NumMemInfos = ui32NumMemSyncInfos;
 
+	SysAcquireData(&psSysData);
+
+	
+	{
+		if(psSysData->ePendingCacheOpType == PVRSRV_MISC_INFO_CPUCACHEOP_FLUSH)
+		{
+			OSFlushCPUCacheKM();
+		}
+		else if(psSysData->ePendingCacheOpType == PVRSRV_MISC_INFO_CPUCACHEOP_CLEAN)
+		{
+			OSCleanCPUCacheKM();
+		}
+
+		psSysData->ePendingCacheOpType = PVRSRV_MISC_INFO_CPUCACHEOP_NONE;
+	}
+
 	
 	eError = PVRSRVSubmitCommandKM (psQueue, psCommand);
 	if (eError != PVRSRV_OK)
@@ -1716,8 +1732,7 @@ PVRSRV_ERROR PVRSRVSwapToDCBuffer2KM(IMG_HANDLE	hDeviceKM,
 
 	
 
-	SysAcquireData(&psSysData);
-    eError = OSScheduleMISR(psSysData);
+	eError = OSScheduleMISR(psSysData);
 
 	if (eError != PVRSRV_OK)
 	{
