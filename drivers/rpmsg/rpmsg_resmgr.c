@@ -423,6 +423,7 @@ static void rprm_sdma_release(struct rprm_sdma *obj)
 static int rprm_i2c_request(struct rprm_elem *e, struct rprm_i2c *obj)
 {
 	struct device *i2c_dev;
+	struct i2c_adapter *adapter;
 	char i2c_name[NAME_SIZE];
 	int ret = -EINVAL;
 
@@ -432,6 +433,14 @@ static int rprm_i2c_request(struct rprm_elem *e, struct rprm_i2c *obj)
 		pr_err("%s: unable to lookup %s\n", __func__, i2c_name);
 		return ret;
 	}
+
+	adapter = i2c_get_adapter(obj->id);
+	if (!adapter) {
+		pr_err("%s: could not get i2c%d adapter\n", __func__, obj->id);
+		return -EINVAL;
+	}
+	i2c_detect_ext_master(adapter);
+	i2c_put_adapter(adapter);
 
 	ret = pm_runtime_get_sync(i2c_dev);
 	if (!ret)

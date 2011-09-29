@@ -21,6 +21,8 @@ struct omap2_mcspi_device_config {
 
 	/* Do we want one channel enabled at the same time? */
 	unsigned single_channel:1;
+	/* Swap data lines */
+	unsigned swap_datalines;
 };
 
 #endif
