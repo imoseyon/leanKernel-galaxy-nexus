@@ -731,14 +731,13 @@ static void rxstate(struct musb *musb, struct musb_request *req)
 				csr |= MUSB_RXCSR_DMAENAB;
 				musb_writew(epio, MUSB_RXCSR, csr);
 
-				/* this special sequence (enabling and then
-				 * disabling MUSB_RXCSR_DMAMODE) is required
+				/* this special sequence is required
 				 * to get DMAReq to activate
 				 */
-				musb_writew(epio, MUSB_RXCSR,
-					csr | MUSB_RXCSR_DMAMODE);
+				csr |= MUSB_RXCSR_DMAMODE;
 				musb_writew(epio, MUSB_RXCSR, csr);
-
+				csr |= MUSB_RXCSR_DMAENAB;
+				musb_writew(epio, MUSB_RXCSR, csr);
 		} else {
 				if (!musb_ep->hb_mult &&
 					musb_ep->hw_ep->rx_double_buffered)
