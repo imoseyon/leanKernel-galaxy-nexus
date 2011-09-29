@@ -43,11 +43,11 @@ static int cbp71_on(struct modem_ctl *mc)
 		return -ENXIO;
 	}
 	gpio_set_value(mc->gpio_cp_reset, 0);
+	gpio_set_value(mc->gpio_cp_off, 1);
 	msleep(600);
 	gpio_set_value(mc->gpio_cp_reset, 1);
-	msleep(100);
-
 	gpio_set_value(mc->gpio_cp_off, 0);
+
 	msleep(300);
 	gpio_set_value(mc->gpio_pda_active, 1);
 
