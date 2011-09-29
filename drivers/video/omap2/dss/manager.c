@@ -1506,10 +1506,10 @@ static void dss_apply_irq_handler(void *data, u32 mask)
 	bool mgr_busy[MAX_DSS_MANAGERS];
 	u32 irq_mask;
 
+	spin_lock(&dss_cache.lock);
+
 	for (i = 0; i < num_mgrs; i++)
 		mgr_busy[i] = dispc_go_busy(i);
-
-	spin_lock(&dss_cache.lock);
 
 	for (i = 0; i < num_ovls; ++i) {
 		oc = &dss_cache.overlay_cache[i];
