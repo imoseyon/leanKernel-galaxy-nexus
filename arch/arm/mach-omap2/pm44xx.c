@@ -864,7 +864,8 @@ static void __init prcm_setup_regs(void)
 * when a SWakeup is asserted from HSI to MPU (and DSP) :
 *  - force a DSP SW wakeup
 *  - wait DSP module to be fully ON
-*  - force a DSP SW sleep
+*  - Configure a DSP CLK CTRL to HW_AUTO
+*  - Wait on DSP module to be OFF
 *
 *  Note : we detect a Swakeup is asserted to MPU by checking when an interrupt
 *         is received while HSI module is ON.
@@ -873,26 +874,54 @@ static void __init prcm_setup_regs(void)
 */
 static void omap_pm_clear_dsp_wake_up(void)
 {
+	int ret;
+	int timeout = 10;
+
 	if (!tesla_pwrdm || !tesla_clkdm) {
 		WARN_ONCE(1, "%s: unable to use tesla workaround\n", __func__);
 		return;
 	}
 
-	if (omap4_prminst_read_inst_reg(tesla_pwrdm->prcm_partition,
-				tesla_pwrdm->prcm_offs,
-				OMAP4_PM_PWSTST) & OMAP_INTRANSITION_MASK) {
+	ret = pwrdm_read_pwrst(tesla_pwrdm);
+	/* If Tesla power state in RET or OFF, then not hit by errata */
+	if (ret <= PWRDM_POWER_RET)
+		return;
 
-		if (clkdm_wakeup(tesla_clkdm))
-			pr_err("%s: Failed to force wakeup of %s\n", __func__,
-				tesla_clkdm->name);
+	if (clkdm_wakeup(tesla_clkdm))
+		pr_err("%s: Failed to force wakeup of %s\n", __func__,
+					tesla_clkdm->name);
 
-		/* This takes less than a few microseconds, hence in context */
+	/* This takes less than a few microseconds, hence in context */
+	pwrdm_wait_transition(tesla_pwrdm);
+
+	/*
+	 * Check current power state of Tesla after transition, to make sure
+	 * that Tesla is indeed turned ON.
+	 */
+	ret = pwrdm_read_pwrst(tesla_pwrdm);
+	do  {
 		pwrdm_wait_transition(tesla_pwrdm);
+		ret = pwrdm_read_pwrst(tesla_pwrdm);
+	} while ((ret < PWRDM_POWER_INACTIVE) && --timeout);
 
-		if (clkdm_sleep(tesla_clkdm))
-			pr_err("%s: Failed to force sleep of %s\n", __func__,
-				tesla_clkdm->name);
-	}
+	if (!timeout)
+		pr_err("%s: Tesla failed to transition to ON state!\n",
+					__func__);
+
+        timeout = 10;
+	clkdm_allow_idle(tesla_clkdm);
+
+	/* Ensure Tesla power state in OFF state */
+	ret = pwrdm_read_pwrst(tesla_pwrdm);
+	do {
+		pwrdm_wait_transition(tesla_pwrdm);
+		ret = pwrdm_read_pwrst(tesla_pwrdm);
+	} while ((ret >= PWRDM_POWER_INACTIVE) && --timeout);
+
+	if (!timeout)
+		pr_err("%s: Tesla failed to transition to OFF state\n",
+					__func__);
+
 }
 
 static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
