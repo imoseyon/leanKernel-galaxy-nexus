@@ -188,21 +188,6 @@ static int rx_hdlc_head_check(struct io_device *iod, char *buf, unsigned rest)
 		hdr->start = HDLC_START;
 		hdr->len = 0;
 
-		/* debug print */
-		switch (iod->format) {
-		case IPC_FMT:
-		case IPC_RAW:
-		case IPC_MULTI_RAW:
-		case IPC_RFS:
-			/* TODO: print buf...  */
-			break;
-
-		case IPC_CMD:
-		case IPC_BOOT:
-		case IPC_RAMDUMP:
-		default:
-			break;
-		}
 		buf += len;
 		done_len += len;
 		rest -= len; /* rest, call by value */
@@ -490,10 +475,10 @@ data_check:
 
 exit:
 	/* free buffers. mipi-hsi re-use recv buf */
-
-	if (rest < 0) {
+	if (rest < 0)
 		err = -ERANGE;
 
+	if (err < 0) {
 		/* clear headers */
 		memset(&iod->h_data, 0x00, sizeof(struct header_data));
 
