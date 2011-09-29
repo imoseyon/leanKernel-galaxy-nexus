@@ -253,19 +253,15 @@ static int sdp4430_mcbsp_hw_params(struct snd_pcm_substream *substream,
 	if (ret < 0)
 		printk(KERN_ERR "can't set McBSP cpu DAI clkdiv\n");
 
-	if (params != NULL) {
 	/*
 	 * Configure McBSP internal buffer threshold
 	 * for playback/record
 	 */
-		channels = params_channels(params);
-		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-			omap_mcbsp_set_rx_threshold(
-				cpu_dai->id, channels);
-		else
-			omap_mcbsp_set_tx_threshold(
-				cpu_dai->id, channels);
-	}
+	channels = params_channels(params);
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		omap_mcbsp_set_tx_threshold(cpu_dai->id, channels);
+	else
+		omap_mcbsp_set_rx_threshold(cpu_dai->id, channels);
 
 	return ret;
 }
