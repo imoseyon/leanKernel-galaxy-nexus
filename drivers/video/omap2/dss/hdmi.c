@@ -489,12 +489,12 @@ int omapdss_hdmi_display_set_mode(struct omap_dss_device *dssdev,
 {
 	int r1, r2;
 	/* turn the hdmi off and on to get new timings to use */
-	omapdss_hdmi_display_disable(dssdev);
+	dssdev->driver->disable(dssdev);
 	r1 = hdmi_set_timings(vm, false) ? 0 : -EINVAL;
 	hdmi.custom_set = 1;
 	hdmi.code = hdmi.cfg.cm.code;
 	hdmi.mode = hdmi.cfg.cm.mode;
-	r2 = omapdss_hdmi_display_enable(dssdev);
+	r2 = dssdev->driver->enable(dssdev);
 	return r1 ? : r2;
 }
 
