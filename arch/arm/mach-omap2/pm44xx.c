@@ -521,6 +521,17 @@ static int omap4_pm_suspend(void)
 	struct power_state *pwrst;
 	int state, ret = 0;
 
+	/*
+	 * If any device was in the middle of a scale operation
+	 * then abort, as we cannot predict which part of the scale
+	 * operation we interrupted.
+	 */
+	if (omap_dvfs_is_any_dev_scaling()) {
+		pr_err("%s: oops.. middle of scale op.. aborting suspend\n",
+			__func__);
+		return -EBUSY;
+	}
+
 	/* Wakeup timer from suspend */
 	if (wakeup_timer_seconds || wakeup_timer_milliseconds)
 		omap2_pm_wakeup_on_timer(wakeup_timer_seconds,
