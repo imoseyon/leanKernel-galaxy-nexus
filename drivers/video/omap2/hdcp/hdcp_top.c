@@ -38,7 +38,6 @@ struct hdcp_sha_in sha_input;
 /* State machine / workqueue */
 static void hdcp_wq_disable(void);
 static void hdcp_wq_start_authentication(void);
-static void hdcp_wq_restart_hdmi(void);
 static void hdcp_wq_check_r0(void);
 static void hdcp_wq_step2_authentication(void);
 static void hdcp_wq_authentication_failure(void);
@@ -136,17 +135,11 @@ static void hdcp_wq_start_authentication(void)
 
 	printk(KERN_INFO "HDCP: authentication start\n");
 
-	/* Load 3DES key */
-	if (hdcp_3des_load_key(hdcp.en_ctrl->key) != HDCP_OK) {
-		hdcp_wq_authentication_failure();
-		return;
-	}
-
 	/* Step 1 part 1 (until R0 calc delay) */
 	status = hdcp_lib_step1_start();
 
 	if (status == -HDCP_AKSV_ERROR) {
-		hdcp_wq_restart_hdmi();
+		hdcp_wq_authentication_failure();
 	} else if (status == -HDCP_CANCELLED_AUTH) {
 		DBG("Authentication step 1 cancelled.");
 		return;
@@ -157,41 +150,6 @@ static void hdcp_wq_start_authentication(void)
 		hdcp.auth_state = HDCP_STATE_AUTH_1ST_STEP;
 		hdcp.pending_wq_event = hdcp_submit_work(HDCP_R0_EXP_EVENT,
 							 HDCP_R0_DELAY);
-	}
-}
-
-/*-----------------------------------------------------------------------------
- * Function: hdcp_wq_restart_hdmi
- *-----------------------------------------------------------------------------
- */
-static void hdcp_wq_restart_hdmi(void)
-{
-	hdcp_cancel_work(&hdcp.pending_wq_event);
-	hdcp_lib_disable();
-	hdcp.pending_disable = 0;
-
-	if (hdcp.retry_cnt) {
-		if (hdcp.retry_cnt < HDCP_INFINITE_REAUTH) {
-			hdcp.retry_cnt--;
-			printk(KERN_INFO "HDCP: authentication failed - "
-					 "restarting HDMI, attempts=%d\n",
-					 hdcp.retry_cnt);
-		} else
-			printk(KERN_INFO "HDCP: authentication failed - "
-					 "restarting HDMI\n");
-
-		hdcp.hdmi_restart = 1;
-		omapdss_hdmi_restart();
-		hdcp.hdmi_restart = 0;
-		hdcp.hdcp_state = HDCP_ENABLE_PENDING;
-		hdcp.auth_state = HDCP_STATE_AUTH_FAIL_RESTARTING;
-	} else {
-		printk(KERN_INFO "HDCP: authentication failed - "
-				 "HDCP disabled\n");
-		hdcp.hdcp_state = HDCP_DISABLED;
-		hdcp.auth_state = HDCP_STATE_AUTH_FAILURE;
-		/* Notify user space exit */
-		hdcp_user_space_task(HDCP_EVENT_EXIT);
 	}
 }
 
@@ -438,8 +396,6 @@ static void hdcp_work_queue(struct work_struct *work)
 		break;
 	}
 
-exit_wq:
-
 	kfree(hdcp_w);
 
 	DBG("hdcp_work_queue() - END - %u hdmi=%d hdcp=%d auth=%d evt=%x %d ",
@@ -508,6 +464,26 @@ static void hdcp_cancel_work(struct delayed_work **work)
  * HDCP callbacks
  *****************************************************************************/
 
+/*-----------------------------------------------------------------------------
+ * Function: hdcp_3des_cb
+ *-----------------------------------------------------------------------------
+ */
+static void hdcp_3des_cb(void)
+{
+	DBG("hdcp_3des_cb() %u", jiffies_to_msecs(jiffies));
+
+	if (!hdcp.hdcp_keys_loaded) {
+		DBG("%s: hdcp_keys not loaded = %d",
+		    __func__, hdcp.hdcp_keys_loaded);
+		return;
+	}
+
+	/* Load 3DES key */
+	if (hdcp_3des_load_key(hdcp.en_ctrl->key) != HDCP_OK) {
+		printk(KERN_ERR "Error Loading  HDCP keys\n");
+		return;
+	}
+}
 
 /*-----------------------------------------------------------------------------
  * Function: hdcp_start_frame_cb
@@ -516,6 +492,12 @@ static void hdcp_cancel_work(struct delayed_work **work)
 static void hdcp_start_frame_cb(void)
 {
 	DBG("hdcp_start_frame_cb() %u", jiffies_to_msecs(jiffies));
+
+	if (!hdcp.hdcp_keys_loaded) {
+		DBG("%s: hdcp_keys not loaded = %d",
+		    __func__, hdcp.hdcp_keys_loaded);
+		return;
+	}
 
 	/* Cancel any pending work */
 	hdcp_cancel_work(&hdcp.pending_start);
@@ -534,6 +516,12 @@ static void hdcp_start_frame_cb(void)
 static void hdcp_irq_cb(int status)
 {
 	DBG("hdcp_irq_cb() status=%x", status);
+
+	if (!hdcp.hdcp_keys_loaded) {
+		DBG("%s: hdcp_keys not loaded = %d",
+		    __func__, hdcp.hdcp_keys_loaded);
+		return;
+	}
 
 	/* Disable auto Ri/BCAPS immediately */
 	if (((status & HDMI_RI_ERR) ||
@@ -904,8 +892,8 @@ static void hdcp_load_keys_cb(const struct firmware *fw, void *context)
 	hdcp.en_ctrl = en_ctrl;
 	hdcp.retry_cnt = hdcp.en_ctrl->nb_retry;
 	hdcp.hdcp_state = HDCP_ENABLE_PENDING;
+	hdcp.hdcp_keys_loaded = true;
 	pr_info("HDCP: loaded keys\n");
-
 }
 
 static int hdcp_load_keys(void)
@@ -917,6 +905,7 @@ static int hdcp_load_keys(void)
 				      &hdcp, hdcp_load_keys_cb);
 	if (ret < 0) {
 		pr_err("HDCP: request_firmware_nowait failed: %d\n", ret);
+		hdcp.hdcp_keys_loaded = false;
 		return ret;
 	}
 
@@ -974,7 +963,6 @@ static int __init hdcp_init(void)
 	hdcp.hdcp_down_event = 0;
 	hdcp_wait_re_entrance = 0;
 	hdcp.hpd_low = 0;
-	hdcp.hdmi_restart = 0;
 
 	spin_lock_init(&hdcp.spinlock);
 
@@ -988,7 +976,8 @@ static int __init hdcp_init(void)
 
 	/* Register HDCP callbacks to HDMI library */
 	if (omapdss_hdmi_register_hdcp_callbacks(&hdcp_start_frame_cb,
-					 &hdcp_irq_cb))
+						 &hdcp_irq_cb,
+						 &hdcp_3des_cb))
 		hdcp.hdmi_state = HDMI_STARTED;
 	else
 		hdcp.hdmi_state = HDMI_STOPPED;
@@ -1030,7 +1019,7 @@ static void __exit hdcp_exit(void)
 	hdcp_request_dss();
 
 	/* Un-register HDCP callbacks to HDMI library */
-	omapdss_hdmi_register_hdcp_callbacks(0, 0);
+	omapdss_hdmi_register_hdcp_callbacks(0, 0, 0);
 
 	hdcp_release_dss();
 

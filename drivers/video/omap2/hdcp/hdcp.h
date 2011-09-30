@@ -322,6 +322,7 @@ struct hdcp {
 	struct workqueue_struct *workqueue;
 	int hdcp_up_event;
 	int hdcp_down_event;
+	bool hdcp_keys_loaded;
 };
 
 extern struct hdcp hdcp;

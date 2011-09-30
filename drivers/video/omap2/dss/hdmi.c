@@ -86,6 +86,7 @@ static struct {
 
 	void (*hdmi_start_frame_cb)(void);
 	void (*hdmi_irq_cb)(int);
+	void (*hdmi_power_on_cb)(void);
 } hdmi;
 
 static const u8 edid_header[8] = {0x0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0};
@@ -436,9 +437,17 @@ static void hdmi_power_off(struct omap_dss_device *dssdev)
 	dispc_enable_channel(OMAP_DSS_CHANNEL_DIGIT, dssdev->type, 0);
 	hdmi_ti_4xxx_phy_off(&hdmi.hdmi_data, hdmi.set_mode);
 	hdmi_ti_4xxx_set_pll_pwr(&hdmi.hdmi_data, HDMI_PLLPWRCMD_ALLOFF);
-	hdmi_ti_4xxx_set_wait_soft_reset(&hdmi.hdmi_data);
 	hdmi_runtime_put();
 	hdmi.deep_color = HDMI_DEEP_COLOR_24BIT;
+}
+
+void hdmi_load_hdcp_keys(struct omap_dss_device *dssdev)
+{
+	/* load the keys and reset the wrapper to populate the AKSV registers*/
+	if (hdmi.hdmi_power_on_cb) {
+		hdmi.hdmi_power_on_cb();
+		hdmi_ti_4xxx_set_wait_soft_reset(&hdmi.hdmi_data);
+	}
 }
 
 int omapdss_hdmi_get_pixel_clock(void)
@@ -452,10 +461,12 @@ int omapdss_hdmi_get_mode(void)
 }
 
 int omapdss_hdmi_register_hdcp_callbacks(void (*hdmi_start_frame_cb)(void),
-					 void (*hdmi_irq_cb)(int status))
+					 void (*hdmi_irq_cb)(int status),
+					 void (*hdmi_power_on_cb)(void))
 {
 	hdmi.hdmi_start_frame_cb = hdmi_start_frame_cb;
 	hdmi.hdmi_irq_cb = hdmi_irq_cb;
+	hdmi.hdmi_power_on_cb = hdmi_power_on_cb;
 
 	return hdmi_ti_4xxx_wp_get_video_state(&hdmi.hdmi_data);
 }
@@ -481,13 +492,8 @@ static irqreturn_t hpd_irq_handler(int irq, void *ptr)
 	int hpd = hdmi_get_current_hpd();
 	pr_info("hpd %d\n", hpd);
 
-	if (hpd) {
-		if (hdmi.hdmi_irq_cb)
-			hdmi.hdmi_irq_cb(HDMI_HPD_HIGH);
-	} else {
-		if (hdmi.hdmi_irq_cb)
-			hdmi.hdmi_irq_cb(HDMI_HPD_LOW);
-	}
+	if (!hpd && hdmi.hdmi_irq_cb)
+		hdmi.hdmi_irq_cb(HDMI_HPD_LOW);
 	hdmi_panel_hpd_handler(hpd);
 
 	return IRQ_HANDLED;
@@ -679,27 +685,6 @@ static void hdmi_put_clocks(void)
 	if (hdmi.hdmi_clk)
 		clk_put(hdmi.hdmi_clk);
 }
-
-void omapdss_hdmi_restart(void)
-{
-	struct omap_dss_device *dssdev = NULL;
-
-	int match(struct omap_dss_device *dssdev, void *arg)
-	{
-		return sysfs_streq(dssdev->name , "hdmi");
-	}
-
-	DSSDBG("Enter omapdss_hdmi_restart\n");
-
-	dssdev = omap_dss_find_device(NULL, match);
-
-	if (dssdev == NULL)
-		return;
-
-	hdmi_power_off(dssdev);
-	hdmi_power_on(dssdev);
-}
-EXPORT_SYMBOL(omapdss_hdmi_restart);
 
 /* HDMI HW IP initialisation */
 static int omapdss_hdmihw_probe(struct platform_device *pdev)
