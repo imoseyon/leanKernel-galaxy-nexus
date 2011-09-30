@@ -53,6 +53,7 @@
 #include "dvfs.h"
 #include "voltage.h"
 #include "vc.h"
+#include "control.h"
 
 struct power_state {
 	struct powerdomain *pwrdm;
@@ -133,8 +134,7 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 			mpu_next_state = PWRDM_POWER_INACTIVE;
 			pwrdm_set_next_pwrst(mpu_pwrdm, mpu_next_state);
 		} else {
-			if (!suspend)
-				omap_sr_disable_reset_volt(mpu_voltdm);
+			omap_sr_disable_reset_volt(mpu_voltdm);
 			omap_vc_set_auto_trans(mpu_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
 		}
@@ -152,10 +152,8 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 			core_next_state = PWRDM_POWER_ON;
 			pwrdm_set_next_pwrst(core_pwrdm, core_next_state);
 		} else {
-			if (!suspend) {
-				omap_sr_disable_reset_volt(iva_voltdm);
-				omap_sr_disable_reset_volt(core_voltdm);
-			}
+			omap_sr_disable_reset_volt(iva_voltdm);
+			omap_sr_disable_reset_volt(core_voltdm);
 			omap_vc_set_auto_trans(core_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
 			if (!is_pm44xx_erratum(IVA_AUTO_RET_iXXX)) {
@@ -211,10 +209,8 @@ abort_device_off:
 		}
 
 		omap_temp_sensor_resume_idle();
-		if (!suspend) {
-			omap_sr_enable(iva_voltdm);
-			omap_sr_enable(core_voltdm);
-		}
+		omap_sr_enable(iva_voltdm);
+		omap_sr_enable(core_voltdm);
 	}
 
 	if (omap4_device_prev_state_off()) {
@@ -240,8 +236,7 @@ abort_device_off:
 	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
 		omap_vc_set_auto_trans(mpu_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE);
-		if (!suspend)
-			omap_sr_enable(mpu_voltdm);
+		omap_sr_enable(mpu_voltdm);
 	}
 
 	return;
@@ -675,6 +670,31 @@ static u32 __init _usec_to_val_scrm(unsigned long rate, u32 usec,
 
 }
 
+static void __init syscontrol_setup_regs(void)
+{
+	u32 v;
+
+	/* Disable LPDDR VREF manual control */
+	v = omap4_ctrl_pad_readl(OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO1_3);
+	v &= ~(OMAP4_LPDDR21_VREF_EN_CA_MASK | OMAP4_LPDDR21_VREF_EN_DQ_MASK);
+        omap4_ctrl_pad_writel(v, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO1_3);
+
+	v = omap4_ctrl_pad_readl(OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO2_3);
+	v &= ~(OMAP4_LPDDR21_VREF_EN_CA_MASK | OMAP4_LPDDR21_VREF_EN_DQ_MASK);
+        omap4_ctrl_pad_writel(v, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO2_3);
+
+	/*
+	 * Workaround for CK differential IO PADn, PADp values due to bug in
+	 * EMIF CMD phy.
+	 */
+	v = omap4_ctrl_pad_readl(OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO1_2);
+	v &= ~OMAP4_LPDDR2IO1_GR10_WD_MASK;
+	omap4_ctrl_pad_writel(v, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO1_2);
+	v = omap4_ctrl_pad_readl(OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO2_2);
+	v &= ~OMAP4_LPDDR2IO2_GR10_WD_MASK;
+	omap4_ctrl_pad_writel(v, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO2_2);
+}
+
 static void __init prcm_setup_regs(void)
 {
 	struct clk *clk32k = clk_get(NULL, "sys_32k_ck");
@@ -711,6 +731,19 @@ static void __init prcm_setup_regs(void)
 	omap4_prminst_rmw_inst_reg_bits(OMAP4430_DISABLE_RTA_EXPORT_MASK,
 		0x1 << OMAP4430_DISABLE_RTA_EXPORT_SHIFT,
 		OMAP4430_PRM_PARTITION, OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_LDO_SRAM_IVA_SETUP_OFFSET);
+
+	/* Allow SRAM LDO to enter RET during  low power state*/
+	if (cpu_is_omap446x()) {
+		omap4_prminst_rmw_inst_reg_bits(OMAP4430_RETMODE_ENABLE_MASK,
+				0x1 << OMAP4430_RETMODE_ENABLE_SHIFT, OMAP4430_PRM_PARTITION,
+				OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_LDO_SRAM_CORE_CTRL_OFFSET);
+		omap4_prminst_rmw_inst_reg_bits(OMAP4430_RETMODE_ENABLE_MASK,
+				0x1 << OMAP4430_RETMODE_ENABLE_SHIFT, OMAP4430_PRM_PARTITION,
+				OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_LDO_SRAM_MPU_CTRL_OFFSET);
+		omap4_prminst_rmw_inst_reg_bits(OMAP4430_RETMODE_ENABLE_MASK,
+				0x1 << OMAP4430_RETMODE_ENABLE_SHIFT, OMAP4430_PRM_PARTITION,
+				OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_LDO_SRAM_IVA_CTRL_OFFSET);
+	}
 	/* Toggle CLKREQ in RET and OFF states */
 	omap4_prminst_write_inst_reg(0x2, OMAP4430_PRM_PARTITION,
 		OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_CLKREQCTRL_OFFSET);
@@ -746,7 +779,6 @@ static void __init prcm_setup_regs(void)
 		omap4_prminst_write_inst_reg(val, OMAP4430_SCRM_PARTITION, 0x0,
 				OMAP4_SCRM_PMICSETUPTIME_OFFSET);
 	}
-
 }
 
 
@@ -943,6 +975,7 @@ static int __init omap4_pm_init(void)
 	omap4_pm_setup_errata();
 
 	prcm_setup_regs();
+	syscontrol_setup_regs();
 
 	ret = request_irq(OMAP44XX_IRQ_PRCM,
 			  (irq_handler_t)prcm_interrupt_handler,
