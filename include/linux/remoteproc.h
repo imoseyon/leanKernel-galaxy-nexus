@@ -266,15 +266,12 @@ struct rproc {
 	int cdump_len0, cdump_len1;
 	struct completion firmware_loading_complete;
 	struct work_struct error_work;
-	struct blocking_notifier_head nb_error;
+	struct blocking_notifier_head nbh;
 	struct completion error_comp;
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	unsigned sus_timeout;
 	bool force_suspend;
 	bool need_resume;
-	struct blocking_notifier_head nb_presus;
-	struct blocking_notifier_head nb_possus;
-	struct blocking_notifier_head nb_resume;
 	struct mutex pm_lock;
 #endif
 	struct pm_qos_request_list *qos_request;
@@ -288,8 +285,8 @@ struct rproc {
 int rproc_set_secure(const char *, bool);
 struct rproc *rproc_get(const char *);
 void rproc_put(struct rproc *);
-int rproc_event_register(struct rproc *, struct notifier_block *, int);
-int rproc_event_unregister(struct rproc *, struct notifier_block *, int);
+int rproc_event_register(struct rproc *, struct notifier_block *);
+int rproc_event_unregister(struct rproc *, struct notifier_block *);
 int rproc_register(struct device *, const char *, const struct rproc_ops *,
 		const char *, struct rproc_mem_pool *, struct module *,
 		unsigned int timeout);
