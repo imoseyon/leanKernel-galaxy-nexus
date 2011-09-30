@@ -690,6 +690,7 @@ static irqreturn_t usb_resume_irq(int irq, void *data)
 		if (usb_ld->resume_status == AP_INITIATED_RESUME)
 			wake_up(&usb_ld->l2_wait);
 		usb_ld->resume_status = CP_INITIATED_RESUME;
+		pm_runtime_mark_last_busy(&usb_ld->usbdev->dev);
 		pm_runtime_put_autosuspend(&usb_ld->usbdev->dev);
 	}
 
