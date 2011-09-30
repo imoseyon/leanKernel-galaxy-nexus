@@ -309,6 +309,13 @@ static struct modem_io_t cdma_io_devices[] = {
 		.io_type = IODEV_MISC,
 		.link = LINKDEV_DPRAM,
 	},
+	[10] = {
+		.name = "cdma_rmnet6", /* AT CMD io-device */
+		.id = 0x31,
+		.format = IPC_RAW,
+		.io_type = IODEV_MISC,
+		.link = LINKDEV_DPRAM,
+	},
 };
 
 /* cdma target platform data */
