@@ -563,15 +563,13 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 				data_desc->endpoint[0].desc.bEndpointAddress);
 			pipe->tx_pipe = usb_sndbulkpipe(usbdev,
 				data_desc->endpoint[1].desc.bEndpointAddress);
-			pipe->rx_buf_size = le16_to_cpu(
-				data_desc->endpoint[0].desc.wMaxPacketSize);
+			pipe->rx_buf_size = 1024*4;
 		} else {
 			pipe->rx_pipe = usb_rcvbulkpipe(usbdev,
 				data_desc->endpoint[1].desc.bEndpointAddress);
 			pipe->tx_pipe = usb_sndbulkpipe(usbdev,
 				data_desc->endpoint[0].desc.bEndpointAddress);
-			pipe->rx_buf_size = le16_to_cpu(
-				data_desc->endpoint[1].desc.wMaxPacketSize);
+			pipe->rx_buf_size = 1024*4;
 		}
 
 		if (i == 0) {
