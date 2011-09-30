@@ -24,6 +24,7 @@
 #include <linux/ip.h>
 #include <linux/if_ether.h>
 #include <linux/etherdevice.h>
+#include <linux/ratelimit.h>
 
 #include <linux/platform_data/modem.h>
 #include "modem_prj.h"
@@ -177,7 +178,8 @@ static int rx_hdlc_head_check(struct io_device *iod, char *buf, unsigned rest)
 	if (!hdr->start) {
 		len = rx_hdlc_head_start_check(buf);
 		if (len < 0) {
-			pr_err("[MODEM_IF] Wrong HDLC start: 0x%x\n", *buf);
+			pr_err("[MODEM_IF] Wrong HDLC start: 0x%x(%s)\n",
+						*buf, iod->name);
 			return len; /*Wrong hdlc start*/
 		}
 
@@ -448,7 +450,8 @@ data_check:
 
 	err = len = rx_hdlc_tail_check(buf);
 	if (err < 0) {
-		pr_err("[MODEM_IF] Wrong HDLC end: 0x%x\n", *buf);
+		pr_err("[MODEM_IF] Wrong HDLC end: 0x%x(%s)\n",
+					*buf, iod->name);
 		goto exit;
 	}
 	pr_debug("[MODEM_IF] check len : %d, rest : %d (%d)\n", len, rest,
@@ -713,7 +716,9 @@ static ssize_t misc_read(struct file *filp, char *buf, size_t count,
 
 	skb = skb_dequeue(&iod->sk_rx_q);
 	if (!skb) {
-		pr_err("[MODEM_IF] no data from sk_rx_q\n");
+		printk_ratelimited(KERN_ERR "[MODEM_IF] no data from sk_rx_q, "
+			"modem_state : %s(%s)\n",
+			modem_state_name[iod->mc->phone_state], iod->name);
 		return 0;
 	}
 
@@ -721,13 +726,13 @@ static ssize_t misc_read(struct file *filp, char *buf, size_t count,
 		pr_err("[MODEM_IF] skb len is too big = %d,%d!(%d)\n",
 				count, skb->len, __LINE__);
 		dev_kfree_skb_any(skb);
-		return -EFAULT;
+		return -EIO;
 	}
 	pr_debug("[MODEM_IF] skb len : %d\n", skb->len);
 
 	pktsize = skb->len;
 	if (copy_to_user(buf, skb->data, pktsize) != 0)
-		return -EFAULT;
+		return -EIO;
 	dev_kfree_skb_any(skb);
 
 	pr_debug("[MODEM_IF] copy to user : %d\n", pktsize);
