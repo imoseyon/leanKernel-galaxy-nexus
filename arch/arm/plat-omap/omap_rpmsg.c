@@ -50,9 +50,6 @@ struct omap_rpmsg_vproc {
 	struct rproc *rproc;
 	struct notifier_block nb;
 	struct notifier_block rproc_nb;
-	struct notifier_block rproc_nb_pos_suspend;
-	struct notifier_block rproc_nb_resume;
-	struct notifier_block rproc_nb_error;
 	struct work_struct reset_work;
 	bool slave_reset;
 	struct omap_rpmsg_vproc *slave_next;
@@ -210,12 +207,8 @@ static void rpmsg_reset_devices(struct omap_rpmsg_vproc *rpdev)
 	schedule_work(&rpdev->reset_work);
 }
 
-static int rpmsg_rproc_error(struct notifier_block *this,
-				unsigned long type, void *data)
+static int rpmsg_rproc_error(struct omap_rpmsg_vproc *rpdev)
 {
-	struct omap_rpmsg_vproc *rpdev =
-		container_of(this, struct omap_rpmsg_vproc, rproc_nb_error);
-
 	pr_err("Fatal error in %s\n", rpdev->rproc_name);
 #ifdef CONFIG_OMAP_RPMSG_RECOVERY
 	if (rpdev->slave_reset)
@@ -226,25 +219,15 @@ static int rpmsg_rproc_error(struct notifier_block *this,
 	return NOTIFY_DONE;
 }
 
-static int rpmsg_rproc_suspend(struct notifier_block *this,
-				unsigned long type, void *data)
+static int rpmsg_rproc_suspend(struct omap_rpmsg_vproc *rpdev)
 {
-	struct omap_rpmsg_vproc *rpdev =
-			container_of(this, struct omap_rpmsg_vproc, rproc_nb);
-
 	if (virtqueue_more_used(rpdev->vq[0]))
 		return NOTIFY_BAD;
 	return NOTIFY_DONE;
 }
 
-static int rpmsg_rproc_pos_suspend(struct notifier_block *this,
-				unsigned long type, void *data)
+static int rpmsg_rproc_pos_suspend(struct omap_rpmsg_vproc *rpdev)
 {
-	struct omap_rpmsg_vproc *rpdev =
-			container_of(this,
-				     struct omap_rpmsg_vproc,
-				     rproc_nb_pos_suspend);
-
 	if (rpdev->mbox) {
 		omap_mbox_put(rpdev->mbox, &rpdev->nb);
 		rpdev->mbox = NULL;
@@ -253,19 +236,33 @@ static int rpmsg_rproc_pos_suspend(struct notifier_block *this,
 	return NOTIFY_DONE;
 }
 
-static int rpmsg_rproc_resume(struct notifier_block *this,
-				unsigned long type, void *data)
+static int rpmsg_rproc_resume(struct omap_rpmsg_vproc *rpdev)
 {
-	struct omap_rpmsg_vproc *rpdev =
-			container_of(this,
-				     struct omap_rpmsg_vproc,
-				     rproc_nb_resume);
-
 	if (!rpdev->mbox)
 		rpdev->mbox = omap_mbox_get(rpdev->mbox_name, &rpdev->nb);
 
 	return NOTIFY_DONE;
 }
+
+static int rpmsg_rproc_events(struct notifier_block *this,
+				unsigned long type, void *data)
+{
+	struct omap_rpmsg_vproc *rpdev = container_of(this,
+				struct omap_rpmsg_vproc, rproc_nb);
+
+	switch (type) {
+	case RPROC_ERROR:
+		return rpmsg_rproc_error(rpdev);
+	case RPROC_PRE_SUSPEND:
+		return rpmsg_rproc_suspend(rpdev);
+	case RPROC_POS_SUSPEND:
+		return rpmsg_rproc_pos_suspend(rpdev);
+	case RPROC_RESUME:
+		return rpmsg_rproc_resume(rpdev);
+	}
+	return NOTIFY_DONE;
+}
+
 static struct virtqueue *rp_find_vq(struct virtio_device *vdev,
 				    unsigned index,
 				    void (*callback)(struct virtqueue *vq),
@@ -322,17 +319,7 @@ static void omap_rpmsg_del_vqs(struct virtio_device *vdev)
 	struct virtqueue *vq, *n;
 	struct omap_rpmsg_vproc *rpdev = to_omap_rpdev(vdev);
 
-	rproc_event_unregister(rpdev->rproc, &rpdev->rproc_nb,
-				RPROC_PRE_SUSPEND);
-
-	rproc_event_unregister(rpdev->rproc, &rpdev->rproc_nb_pos_suspend,
-				RPROC_POS_SUSPEND);
-
-	rproc_event_unregister(rpdev->rproc, &rpdev->rproc_nb_resume,
-				RPROC_RESUME);
-
-	rproc_event_unregister(rpdev->rproc, &rpdev->rproc_nb_error,
-				RPROC_ERROR);
+	rproc_event_unregister(rpdev->rproc, &rpdev->rproc_nb);
 
 	list_for_each_entry_safe(vq, n, &vdev->vqs, list) {
 		struct omap_rpmsg_vq_info *rpvq = vq->priv;
@@ -422,24 +409,9 @@ static int omap_rpmsg_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 		err = -EINVAL;
 		goto put_mbox;
 	}
-	/* register for remoteproc pre-suspend */
-	rpdev->rproc_nb.notifier_call = rpmsg_rproc_suspend;
-	rproc_event_register(rpdev->rproc, &rpdev->rproc_nb, RPROC_PRE_SUSPEND);
-
-	/* register for remoteproc post-suspend */
-	rpdev->rproc_nb_pos_suspend.notifier_call = rpmsg_rproc_pos_suspend;
-	rproc_event_register(rpdev->rproc,
-			     &rpdev->rproc_nb_pos_suspend, RPROC_POS_SUSPEND);
-
-	/* register for remoteproc resume */
-	rpdev->rproc_nb_resume.notifier_call = rpmsg_rproc_resume;
-	rproc_event_register(rpdev->rproc,
-			     &rpdev->rproc_nb_resume, RPROC_RESUME);
-
-	/* register for fatal errors */
-	INIT_WORK(&rpdev->reset_work, rpmsg_reset_work);
-	rpdev->rproc_nb_error.notifier_call = rpmsg_rproc_error;
-	rproc_event_register(rpdev->rproc, &rpdev->rproc_nb_error, RPROC_ERROR);
+	/* register for remoteproc events */
+	rpdev->rproc_nb.notifier_call = rpmsg_rproc_events;
+	rproc_event_register(rpdev->rproc, &rpdev->rproc_nb);
 
 	return 0;
 
@@ -579,6 +551,7 @@ static int __init omap_rpmsg_ini(void)
 		rpdev->buf_size = RPMSG_BUFS_SPACE;
 		rpdev->vring[0] = paddr + RPMSG_BUFS_SPACE;
 		rpdev->vring[1] = paddr + RPMSG_BUFS_SPACE + RPMSG_RING_SIZE;
+		INIT_WORK(&rpdev->reset_work, rpmsg_reset_work);
 
 		paddr += RPMSG_IPC_MEM;
 		psize -= RPMSG_IPC_MEM;
