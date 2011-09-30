@@ -796,6 +796,8 @@ static int __init setup_emif_interrupts(u32 emif_nr)
 {
 	u32 temp;
 	void __iomem *base = emif[emif_nr].base;
+	int r;
+
 	/* Clear any pendining interrupts */
 	__raw_writel(0xFFFFFFFF, base + OMAP44XX_EMIF_IRQSTATUS_SYS);
 	__raw_writel(0xFFFFFFFF, base + OMAP44XX_EMIF_IRQSTATUS_LL);
@@ -809,11 +811,30 @@ static int __init setup_emif_interrupts(u32 emif_nr)
 	__raw_readl(base + OMAP44XX_EMIF_IRQENABLE_SET_LL);
 
 	/* setup IRQ handlers */
-	return request_threaded_irq(emif[emif_nr].irq,
+	r = request_threaded_irq(emif[emif_nr].irq,
 				    emif_interrupt_handler,
 				    emif_threaded_isr,
 				    IRQF_SHARED, emif[emif_nr].pdev->name,
 				    emif[emif_nr].pdev);
+	if (r) {
+		pr_err("%s: Failed: request_irq emif[%d] IRQ%d:%d\n",
+			__func__, emif_nr, emif[emif_nr].irq, r);
+		return r;
+	}
+
+	/*
+	 * Even if we fail to make the irq  wakeup capable, we are at risk only
+	 * while going to suspend where the device is cooler, we might lose a
+	 * bit of power due to pending interrupt preventing core from hitting
+	 * low power state but we can continue to handle events in active use
+	 * cases. So don't free interrupt on failure of marking wakeup capable,
+	 * just warn and continue.
+	 */
+	if (enable_irq_wake(emif[emif_nr].irq))
+		pr_err("%s: Failed: wakeupen emif[%d] IRQ%d\n", __func__,
+			emif_nr, emif[emif_nr].irq);
+
+	return 0;
 }
 
 static ssize_t emif_temperature_show(struct device *dev,
