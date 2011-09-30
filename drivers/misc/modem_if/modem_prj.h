@@ -57,8 +57,8 @@
 /* Does modem ctl structure will use state ? or status defined below ?*/
 enum modem_state {
 	STATE_OFFLINE,
-	STATE_CRASH_RESET, /* silent reset */
-	STATE_CRASH_EXIT, /* cp ramdump */
+	__UNUSED__,
+	STATE_CRASH_EXIT,
 	STATE_BOOTING,
 	STATE_ONLINE,
 };

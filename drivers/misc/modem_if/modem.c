@@ -170,9 +170,12 @@ static void modem_shutdown(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct modem_ctl *mc = dev_get_drvdata(dev);
 
+	if (!mc)
+		return;
+
 	free_irq(mc->irq_phone_active, mc);
 
-	if (mc && mc->ops.modem_off)
+	if (mc->ops.modem_off)
 		mc->ops.modem_off(mc);
 }
 

@@ -979,7 +979,7 @@ retry_send:
 						list) {
 				if (iod->format == IPC_FMT) {
 					iod->modem_state_changed(iod,
-						STATE_CRASH_RESET);
+						STATE_CRASH_EXIT);
 					break;
 				}
 			}

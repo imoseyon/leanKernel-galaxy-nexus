@@ -58,8 +58,7 @@ struct rfs_hdr {
 
 static const char const *modem_state_name[] = {
 	[STATE_OFFLINE]     = "OFFLINE",
-	[STATE_CRASH_RESET] = "CRASH_RESET (silent)",
-	[STATE_CRASH_EXIT]  = "CRASH_EXIT (ramdump)",
+	[STATE_CRASH_EXIT]  = "CRASH_EXIT",
 	[STATE_BOOTING]     = "BOOTING",
 	[STATE_ONLINE]      = "ONLINE",
 };
@@ -544,7 +543,7 @@ static void io_dev_modem_state_changed(struct io_device *iod,
 	iod->mc->phone_state = state;
 	pr_info("[MODEM_IF] %s state changed: %s\n", iod->name, modem_state_name[state]);
 
-	if ((state == STATE_CRASH_RESET) || (state == STATE_CRASH_EXIT))
+	if (state == STATE_CRASH_EXIT)
 		wake_up(&iod->wq);
 }
 
@@ -580,8 +579,7 @@ static unsigned int misc_poll(struct file *filp, struct poll_table_struct *wait)
 	if ((!skb_queue_empty(&iod->sk_rx_q))
 				&& (iod->mc->phone_state != STATE_OFFLINE))
 		return POLLIN | POLLRDNORM;
-	else if ((iod->mc->phone_state == STATE_CRASH_RESET) ||
-			(iod->mc->phone_state == STATE_CRASH_EXIT))
+	else if (iod->mc->phone_state == STATE_CRASH_EXIT)
 		return POLLHUP;
 	else
 		return 0;

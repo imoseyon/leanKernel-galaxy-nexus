@@ -254,7 +254,7 @@ static int usb_tx_urb_with_skb(struct usb_link_device *usb_ld,
 				pr_err("host wakeup timeout !!\n");
 				SET_SLAVE_WAKEUP(usb_ld->pdata, 0);
 				pm_runtime_put_autosuspend(&usbdev->dev);
-				usb_change_modem_state(usb_ld, STATE_CRASH_RESET);
+				usb_change_modem_state(usb_ld, STATE_CRASH_EXIT);
 				return -1;
 			}
 			pr_err("host wakeup timeout ! retry..\n");
