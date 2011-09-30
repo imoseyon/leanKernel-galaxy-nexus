@@ -491,6 +491,10 @@ static void omap4_configure_pwdm_suspend(bool is_off_mode)
 
 	list_for_each_entry(pwrst, &pwrst_list, node) {
 		bool parent_power_domain = false;
+
+		pwrst->saved_state = pwrdm_read_next_pwrst(pwrst->pwrdm);
+		pwrst->saved_logic_state = pwrdm_read_logic_retst(pwrst->pwrdm);
+
 		if ((!strcmp(pwrst->pwrdm->name, "cpu0_pwrdm")) ||
 			(!strcmp(pwrst->pwrdm->name, "cpu1_pwrdm")))
 				continue;
@@ -540,12 +544,6 @@ static int omap4_pm_suspend(void)
 	if (wakeup_timer_seconds || wakeup_timer_milliseconds)
 		omap2_pm_wakeup_on_timer(wakeup_timer_seconds,
 					 wakeup_timer_milliseconds);
-
-	/* Save current powerdomain state */
-	list_for_each_entry(pwrst, &pwrst_list, node) {
-		pwrst->saved_state = pwrdm_read_next_pwrst(pwrst->pwrdm);
-		pwrst->saved_logic_state = pwrdm_read_logic_retst(pwrst->pwrdm);
-	}
 
 	omap4_configure_pwdm_suspend(off_mode_enabled);
 
