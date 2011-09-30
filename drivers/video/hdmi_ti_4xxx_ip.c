@@ -301,7 +301,7 @@ static int hdmi_core_ddc_edid(struct hdmi_ip_data *ip_data,
 	 * right shifted values( The behavior is not consistent and seen only
 	 * with some TV's)
 	 */
-	usleep_range(800, 1000);
+	msleep(300);
 
 	if (!ext) {
 		/* Clk SCL Devices */
@@ -520,6 +520,8 @@ static void hdmi_core_video_config(struct hdmi_ip_data *ip_data,
 	r = FLD_MOD(r, HDMI_CORE_CTRL1_HEN_FOLLOWHSYNC, 4, 4);
 	r = FLD_MOD(r, HDMI_CORE_CTRL1_BSEL_24BITBUS, 2, 2);
 	r = FLD_MOD(r, HDMI_CORE_CTRL1_EDGE_RISINGEDGE, 1, 1);
+	/* PD bit has to be written to recieve the interrupts */
+	r = FLD_MOD(r, HDMI_CORE_CTRL1_POWER_DOWN, 0, 0);
 	hdmi_write_reg(hdmi_core_sys_base(ip_data), HDMI_CORE_CTRL1, r);
 
 	REG_FLD_MOD(hdmi_core_sys_base(ip_data),
@@ -681,6 +683,29 @@ int hdmi_ti_4xxx_wp_get_video_state(struct hdmi_ip_data *ip_data)
 	return (status & 0x80000000) ? 1 : 0;
 }
 
+int hdmi_ti_4xxx_set_wait_soft_reset(struct hdmi_ip_data *ip_data)
+{
+	u8 count = 0;
+
+	/* reset W1 */
+	REG_FLD_MOD(hdmi_wp_base(ip_data), HDMI_WP_SYSCONFIG, 0x1, 0, 0);
+
+	/* wait till SOFTRESET == 0 */
+	while (hdmi_wait_for_bit_change(hdmi_wp_base(ip_data),
+					HDMI_WP_SYSCONFIG, 0, 0, 0) != 0) {
+		if (count++ > 10) {
+			pr_err("SYSCONFIG[SOFTRESET] bit not set to 0\n");
+			return -ETIMEDOUT;
+		}
+	}
+
+	/* Make madule smart and wakeup capable*/
+	REG_FLD_MOD(hdmi_wp_base(ip_data), HDMI_WP_SYSCONFIG, 0x3, 3, 2);
+
+	return 0;
+}
+
+
 static void hdmi_wp_video_init_format(struct hdmi_video_format *video_fmt,
 	struct omap_video_timings *timings, struct hdmi_config *param)
 {
@@ -738,6 +763,16 @@ static void hdmi_wp_video_config_timing(struct hdmi_ip_data *ip_data,
 	hdmi_write_reg(hdmi_wp_base(ip_data), HDMI_WP_VIDEO_TIMING_V, timing_v);
 }
 
+static void hdmi_wp_core_interrupt_set(struct hdmi_ip_data *ip_data, u32 val)
+{
+	u32	irqStatus;
+	irqStatus = hdmi_read_reg(hdmi_wp_base(ip_data), HDMI_WP_IRQENABLE_SET);
+	pr_debug("[HDMI] WP_IRQENABLE_SET..currently reads as:%x\n", irqStatus);
+	irqStatus = irqStatus | val;
+	hdmi_write_reg(hdmi_wp_base(ip_data), HDMI_WP_IRQENABLE_SET, irqStatus);
+	pr_debug("[HDMI]WP_IRQENABLE_SET..changed to :%x\n", irqStatus);
+}
+
 void hdmi_ti_4xxx_basic_configure(struct hdmi_ip_data *ip_data,
 			struct hdmi_config *cfg)
 {
@@ -756,6 +791,8 @@ void hdmi_ti_4xxx_basic_configure(struct hdmi_ip_data *ip_data,
 	hdmi_core_init(cfg->deep_color, &v_core_cfg,
 		&avi_cfg,
 		&repeat_cfg);
+
+	hdmi_wp_core_interrupt_set(ip_data, HDMI_WP_IRQENABLE_CORE);
 
 	hdmi_wp_video_init_format(&video_format, &video_timing, cfg);
 
@@ -830,6 +867,53 @@ void hdmi_ti_4xxx_basic_configure(struct hdmi_ip_data *ip_data,
 	hdmi_core_av_packet_config(ip_data, repeat_cfg);
 }
 EXPORT_SYMBOL(hdmi_ti_4xxx_basic_configure);
+
+u32 hdmi_ti_4xxx_irq_handler(struct hdmi_ip_data *ip_data)
+{
+	u32 val, sys_stat = 0, core_state = 0;
+	u32 intr2 = 0, intr3 = 0, r = 0;
+	void __iomem *wp_base = hdmi_wp_base(ip_data);
+	void __iomem *core_base = hdmi_core_sys_base(ip_data);
+
+	pr_debug("Enter hdmi_ti_4xxx_irq_handler\n");
+
+	val = hdmi_read_reg(wp_base, HDMI_WP_IRQSTATUS);
+	if (val & HDMI_WP_IRQSTATUS_CORE) {
+		core_state = hdmi_read_reg(core_base, HDMI_CORE_SYS_INTR_STATE);
+		if (core_state & 0x1) {
+			sys_stat = hdmi_read_reg(core_base,
+						 HDMI_CORE_SYS_SYS_STAT);
+			intr2 = hdmi_read_reg(core_base, HDMI_CORE_SYS_INTR2);
+			intr3 = hdmi_read_reg(core_base, HDMI_CORE_SYS_INTR3);
+
+			pr_debug("HDMI_CORE_SYS_SYS_STAT = 0x%x\n", sys_stat);
+			pr_debug("HDMI_CORE_SYS_INTR2 = 0x%x\n", intr2);
+			pr_debug("HDMI_CORE_SYS_INTR3 = 0x%x\n", intr3);
+
+			hdmi_write_reg(core_base, HDMI_CORE_SYS_INTR2, intr2);
+			hdmi_write_reg(core_base, HDMI_CORE_SYS_INTR3, intr3);
+
+			hdmi_read_reg(core_base, HDMI_CORE_SYS_INTR2);
+			hdmi_read_reg(core_base, HDMI_CORE_SYS_INTR3);
+		}
+	}
+
+	pr_debug("HDMI_WP_IRQSTATUS = 0x%x\n", val);
+	pr_debug("HDMI_CORE_SYS_INTR_STATE = 0x%x\n", core_state);
+
+	if (intr2 & HDMI_CORE_SYSTEM_INTR2__BCAP)
+		r |= HDMI_BCAP;
+
+	if (intr3 & HDMI_CORE_SYSTEM_INTR3__RI_ERR)
+		r |= HDMI_RI_ERR;
+
+	/* Ack other interrupts if any */
+	hdmi_write_reg(wp_base, HDMI_WP_IRQSTATUS, val);
+	/* flush posted write */
+	hdmi_read_reg(wp_base, HDMI_WP_IRQSTATUS);
+	return r;
+}
+EXPORT_SYMBOL(hdmi_ti_4xxx_irq_handler);
 
 void hdmi_ti_4xxx_dump_regs(struct hdmi_ip_data *ip_data, struct seq_file *s)
 {

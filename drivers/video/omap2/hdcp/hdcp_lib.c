@@ -622,6 +622,8 @@ void hdcp_lib_auto_bcaps_rdy_check(bool state)
 		  HDMI_IP_CORE_SYSTEM__RI_CMD);
 
 	spin_unlock_irqrestore(&hdcp.spinlock, flags);
+
+	DBG("hdcp_lib_auto_bcaps_rdy_check() Done\n");
 }
 
 /*-----------------------------------------------------------------------------
@@ -697,6 +699,8 @@ int hdcp_lib_step1_r0_check(void)
 			printk(KERN_ERR "HDCP: User space error %d\n", status);
 			return -HDCP_AUTH_FAILURE;
 		}
+
+		DBG("hdcp_lib_set_encryption() %u", jiffies_to_msecs(jiffies));
 
 		/* Enable encryption */
 		hdcp_lib_set_encryption(HDCP_ENC_ON);
