@@ -364,6 +364,8 @@ static void tuna_fsa_usb_detected(int device)
 			else
 				tuna_ap_usb_detach(tuna_otg);
 			break;
+		case FSA9480_DETECT_UART:
+			break;
 		case FSA9480_DETECT_USB_HOST:
 		case FSA9480_DETECT_CHARGER:
 		default:
@@ -384,6 +386,8 @@ static void tuna_fsa_usb_detected(int device)
 			tuna_cp_uart_actions(tuna_otg);
 			break;
 		};
+		break;
+	case FSA9480_DETECT_UART:
 		break;
 	}
 
