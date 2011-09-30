@@ -564,6 +564,17 @@ static int omap4_restore_pwdms_after_suspend(void)
 			(!strcmp(pwrst->pwrdm->name, "cpu1_pwrdm")))
 				continue;
 
+		/*
+		 * Skip pd program if saved state higher than current state
+		 * Since we would have already returned if the state
+		 * was ON, if the current state is yet another low power
+		 * state, the PRCM specification clearly states that
+		 * transition from a lower LP state to a higher LP state
+		 * is forbidden.
+		 */
+		if (pwrst->saved_state > cstate)
+			continue;
+
 		if (pwrst->pwrdm->pwrsts)
 			omap_set_pwrdm_state(pwrst->pwrdm, pwrst->saved_state);
 
