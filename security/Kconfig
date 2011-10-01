@@ -187,6 +187,7 @@ source security/tomoyo/Kconfig
 source security/apparmor/Kconfig
 
 source security/integrity/ima/Kconfig
+source security/smc/Kconfig
 
 choice
 	prompt "Default security module"
