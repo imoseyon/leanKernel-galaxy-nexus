@@ -536,18 +536,24 @@ static void omap4_configure_pwdm_suspend(bool is_off_mode)
 static int omap4_restore_pwdms_after_suspend(void)
 {
 	struct power_state *pwrst;
-	int state, ret = 0;
+	int cstate, pstate, ret = 0;
 
 	/* Restore next powerdomain state */
 	list_for_each_entry(pwrst, &pwrst_list, node) {
-		state = pwrdm_read_prev_pwrst(pwrst->pwrdm);
-		if (state > pwrst->next_state) {
+		cstate = pwrdm_read_pwrst(pwrst->pwrdm);
+		pstate = pwrdm_read_prev_pwrst(pwrst->pwrdm);
+		if (pstate > pwrst->next_state) {
 			pr_info("Powerdomain (%s) didn't enter "
-			       "target state %d Vs achieved state %d\n",
+			       "target state %d Vs achieved state %d. "
+			       "current state %d\n",
 			       pwrst->pwrdm->name, pwrst->next_state,
-			       state);
+			       pstate, cstate);
 			ret = -1;
 		}
+
+		/* If state already ON due to h/w dep, don't do anything */
+		if (cstate == PWRDM_POWER_ON)
+			continue;
 
 		/* mpuss code takes care of this */
 		if ((!strcmp(pwrst->pwrdm->name, "cpu0_pwrdm")) ||
