@@ -555,6 +555,10 @@ static int omap4_restore_pwdms_after_suspend(void)
 		if (cstate == PWRDM_POWER_ON)
 			continue;
 
+		/* If we have already achieved saved state, nothing to do */
+		if (cstate == pwrst->saved_state)
+			continue;
+
 		/* mpuss code takes care of this */
 		if ((!strcmp(pwrst->pwrdm->name, "cpu0_pwrdm")) ||
 			(!strcmp(pwrst->pwrdm->name, "cpu1_pwrdm")))
