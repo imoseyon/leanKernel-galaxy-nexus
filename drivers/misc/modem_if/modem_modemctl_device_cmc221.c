@@ -69,11 +69,29 @@ static int cmc221_force_crash_exit(struct modem_ctl *mc)
 	pr_info("[MODEM_IF] %s()\n", __func__);
 
 	mc->phone_state = STATE_CRASH_EXIT;/* DUMP START */
-	gpio_set_value(mc->gpio_host_active, 0);
-	mc->cpcrash_flag = 1;
 
 	if (mc->iod && mc->iod->modem_state_changed)
 		mc->iod->modem_state_changed(mc->iod, mc->phone_state);
+
+	return 0;
+}
+
+static int cmc221_dump_reset(struct modem_ctl *mc)
+{
+	pr_info("[MODEM_IF] %s()\n", __func__);
+
+	if (!mc->gpio_cp_reset)
+		return -ENXIO;
+
+	gpio_set_value(mc->gpio_host_active, 0);
+	mc->cpcrash_flag = 1;
+
+	gpio_set_value(mc->gpio_cp_reset, 0);
+	msleep(100);
+	gpio_set_value(mc->gpio_cp_reset, 1);
+	msleep(300);
+
+	mc->phone_state = STATE_BOOTING;
 
 	return 0;
 }
@@ -85,18 +103,11 @@ static int cmc221_reset(struct modem_ctl *mc)
 	if (!mc->gpio_cp_reset)
 		return -ENXIO;
 
-	if (mc->phone_state != STATE_CRASH_EXIT) {
-		if (cmc221_off(mc))
-			return -ENXIO;
-		msleep(100);
-		if (cmc221_on(mc))
-			return -ENXIO;
-	} else {
-		gpio_set_value(mc->gpio_cp_reset, 0);
-		msleep(100);
-		gpio_set_value(mc->gpio_cp_reset, 1);
-		msleep(300);
-	}
+	if (cmc221_off(mc))
+		return -ENXIO;
+	msleep(100);
+	if (cmc221_on(mc))
+		return -ENXIO;
 
 	mc->phone_state = STATE_BOOTING;
 
@@ -157,9 +168,6 @@ static void mc_work(struct work_struct *work_arg)
 		pr_info("[MODEM_CTRL][%s]%d, LTE CRASHED!!! LTE DUMP START !!!\n",
 				__func__, __LINE__);
 		mc->phone_state = STATE_CRASH_EXIT;
-		gpio_set_value(mc->gpio_host_active, 0);
-		mc->cpcrash_flag = 1;
-
 		if (mc->iod && mc->iod->modem_state_changed)
 			mc->iod->modem_state_changed(mc->iod, mc->phone_state);
 	} else {
@@ -168,6 +176,7 @@ static void mc_work(struct work_struct *work_arg)
 				__func__, __LINE__);
 	}
 }
+
 
 
 static irqreturn_t phone_active_irq_handler(int irq, void *_mc)
@@ -187,6 +196,7 @@ static void cmc221_get_ops(struct modem_ctl *mc)
 	mc->ops.modem_boot_on = cmc221_boot_on;
 	mc->ops.modem_boot_off = cmc221_boot_off;
 	mc->ops.modem_force_crash_exit = cmc221_force_crash_exit;
+	mc->ops.modem_dump_reset = cmc221_dump_reset;
 }
 
 int cmc221_init_modemctl_device(struct modem_ctl *mc,

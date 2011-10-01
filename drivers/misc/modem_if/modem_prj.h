@@ -44,6 +44,7 @@
 #define IOCTL_MODEM_DUMP_START	_IO('o', 0x32)
 #define IOCTL_MODEM_DUMP_UPDATE	_IO('o', 0x33)
 #define IOCTL_MODEM_FORCE_CRASH_EXIT _IO('o', 0x34)
+#define IOCTL_MODEM_DUMP_RESET _IO('o', 0x35)
 
 #define IPC_HEADER_MAX_SIZE	6 /* fmt 3, raw 6, rfs 6 */
 
@@ -183,6 +184,7 @@ struct modemctl_ops {
 	int (*modem_boot_on) (struct modem_ctl *);
 	int (*modem_boot_off) (struct modem_ctl *);
 	int (*modem_force_crash_exit) (struct modem_ctl *);
+	int (*modem_dump_reset) (struct modem_ctl *);
 };
 
 struct modem_ctl {
