@@ -524,10 +524,39 @@ static void omap4_configure_pwdm_suspend(bool is_off_mode)
 	}
 }
 
-static int omap4_pm_suspend(void)
+/**
+ * omap4_restore_pwdms_after_suspend() - Restore powerdomains after suspend
+ *
+ * Re-program all powerdomains to saved power domain states.
+ *
+ * returns 0 if all power domains hit targeted power state, -1 if any domain
+ * failed to hit targeted power state (status related to the actual restore
+ * is not returned).
+ */
+static int omap4_restore_pwdms_after_suspend(void)
 {
 	struct power_state *pwrst;
 	int state, ret = 0;
+
+	/* Restore next powerdomain state */
+	list_for_each_entry(pwrst, &pwrst_list, node) {
+		state = pwrdm_read_prev_pwrst(pwrst->pwrdm);
+		if (state > pwrst->next_state) {
+			pr_info("Powerdomain (%s) didn't enter "
+			       "target state %d\n",
+			       pwrst->pwrdm->name, pwrst->next_state);
+			ret = -1;
+		}
+		omap_set_pwrdm_state(pwrst->pwrdm, pwrst->saved_state);
+		pwrdm_set_logic_retst(pwrst->pwrdm, pwrst->saved_logic_state);
+	}
+
+	return ret;
+}
+
+static int omap4_pm_suspend(void)
+{
+	int ret = 0;
 
 	/*
 	 * If any device was in the middle of a scale operation
@@ -569,18 +598,8 @@ static int omap4_pm_suspend(void)
 	if (off_mode_enabled)
 		omap4_device_set_state_off(0);
 
-	/* Restore next powerdomain state */
-	list_for_each_entry(pwrst, &pwrst_list, node) {
-		state = pwrdm_read_prev_pwrst(pwrst->pwrdm);
-		if (state > pwrst->next_state) {
-			pr_info("Powerdomain (%s) didn't enter "
-			       "target state %d\n",
-			       pwrst->pwrdm->name, pwrst->next_state);
-			ret = -1;
-		}
-		omap_set_pwrdm_state(pwrst->pwrdm, pwrst->saved_state);
-		pwrdm_set_logic_retst(pwrst->pwrdm, pwrst->saved_logic_state);
-	}
+	ret = omap4_restore_pwdms_after_suspend();
+
 	if (ret)
 		pr_err("Could not enter target state in pm_suspend\n");
 	else
