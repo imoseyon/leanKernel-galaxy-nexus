@@ -548,6 +548,12 @@ static int omap4_restore_pwdms_after_suspend(void)
 			       state);
 			ret = -1;
 		}
+
+		/* mpuss code takes care of this */
+		if ((!strcmp(pwrst->pwrdm->name, "cpu0_pwrdm")) ||
+			(!strcmp(pwrst->pwrdm->name, "cpu1_pwrdm")))
+				continue;
+
 		omap_set_pwrdm_state(pwrst->pwrdm, pwrst->saved_state);
 		pwrdm_set_logic_retst(pwrst->pwrdm, pwrst->saved_logic_state);
 	}
