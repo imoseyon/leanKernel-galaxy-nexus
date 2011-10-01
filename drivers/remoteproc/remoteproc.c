@@ -601,17 +601,17 @@ static int _event_notify(struct rproc *rproc, int type, void *data)
 		init_completion(&rproc->error_comp);
 		rproc->state = RPROC_CRASHED;
 		mutex_unlock(&rproc->lock);
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+		pm_runtime_dont_use_autosuspend(rproc->dev);
+#endif
+		dump_remoteproc_regs(rproc->name,
+				(struct exc_regs *)rproc->cdump_buf1);
 		if (!rproc->halt_on_crash)
 			complete_remoteproc_crash(rproc);
 		else
 			pr_info("remoteproc %s: halt-on-crash enabled: " \
 				"deferring crash recovery\n",
 				rproc->name);
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
-		pm_runtime_dont_use_autosuspend(rproc->dev);
-#endif
-		dump_remoteproc_regs(rproc->name,
-				(struct exc_regs *)rproc->cdump_buf1);
 		break;
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	case RPROC_PRE_SUSPEND:
