@@ -206,7 +206,7 @@ static void umts_modem_cfg_gpio(void)
 
 	if (gpio_flm_uart_sel) {
 		gpio_request(gpio_flm_uart_sel, "GPS_UART_SEL");
-		gpio_direction_output(gpio_reset_req_n, 1);
+		gpio_direction_output(gpio_flm_uart_sel, 1);
 	}
 
 	if (gpio_phone_active)
