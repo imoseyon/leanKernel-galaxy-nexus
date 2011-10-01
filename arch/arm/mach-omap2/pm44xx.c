@@ -543,8 +543,9 @@ static int omap4_restore_pwdms_after_suspend(void)
 		state = pwrdm_read_prev_pwrst(pwrst->pwrdm);
 		if (state > pwrst->next_state) {
 			pr_info("Powerdomain (%s) didn't enter "
-			       "target state %d\n",
-			       pwrst->pwrdm->name, pwrst->next_state);
+			       "target state %d Vs achieved state %d\n",
+			       pwrst->pwrdm->name, pwrst->next_state,
+			       state);
 			ret = -1;
 		}
 		omap_set_pwrdm_state(pwrst->pwrdm, pwrst->saved_state);
