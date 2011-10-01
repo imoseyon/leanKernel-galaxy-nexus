@@ -48,8 +48,6 @@ static DEFINE_SPINLOCK(rprocs_lock);
 /* debugfs parent dir */
 static struct dentry *rproc_dbg;
 
-static void complete_remoteproc_crash(struct rproc *rproc);
-
 static ssize_t rproc_format_trace_buf(char __user *userbuf, size_t count,
 				    loff_t *ppos, const void *src, int size)
 {
@@ -376,8 +374,8 @@ ssize_t core_rproc_write(struct file *filp,
 
 	if (rproc->state == RPROC_CRASHED) {
 		pr_info("remoteproc %s: resuming crash recovery\n",
-				rproc->name);
-		complete_remoteproc_crash(rproc);
+			rproc->name);
+		blocking_notifier_call_chain(&rproc->nbh, RPROC_ERROR, NULL);
 	}
 
 done:
@@ -556,57 +554,50 @@ static int rproc_mmu_fault_isr(struct rproc *rproc, u64 da, u32 flags)
 
 static int rproc_watchdog_isr(struct rproc *rproc)
 {
-	/* If the ducati is suspended in a crash, do nothing. */
-	if (rproc->state == RPROC_CRASHED) {
-		pr_info("remoteproc %s is already in the crashed state\n",
-			rproc->name);
-		return 0;
-	}
-
 	dev_err(rproc->dev, "%s\n", __func__);
 	schedule_work(&rproc->error_work);
 	return 0;
 }
 
-static void complete_remoteproc_crash(struct rproc *rproc)
+static int rproc_crash(struct rproc *rproc)
 {
-	/* reset the ducati */
+	init_completion(&rproc->error_comp);
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+	pm_runtime_dont_use_autosuspend(rproc->dev);
+#endif
+	if (rproc->ops->dump_registers)
+		rproc->ops->dump_registers(rproc);
+
 	if (rproc->trace_buf0 && rproc->last_trace_buf0)
 		memcpy(rproc->last_trace_buf0, rproc->trace_buf0,
 				rproc->last_trace_len0);
 	if (rproc->trace_buf1 && rproc->last_trace_buf1)
 		memcpy(rproc->last_trace_buf1, rproc->trace_buf1,
 				rproc->last_trace_len1);
-	pr_info("remoteproc: resetting %s...\n", rproc->name);
-	(void)blocking_notifier_call_chain(&rproc->nbh,
-			RPROC_ERROR, NULL);
+	rproc->state = RPROC_CRASHED;
+
+	return 0;
 }
 
 static int _event_notify(struct rproc *rproc, int type, void *data)
 {
 	if (type == RPROC_ERROR) {
 		mutex_lock(&rproc->lock);
-		init_completion(&rproc->error_comp);
-		rproc->state = RPROC_CRASHED;
-		mutex_unlock(&rproc->lock);
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
-		pm_runtime_dont_use_autosuspend(rproc->dev);
-#endif
-		if (rproc->ops->dump_registers)
-			rproc->ops->dump_registers(rproc);
-
-		if (!rproc->halt_on_crash) {
-			complete_remoteproc_crash(rproc);
+		/* only notify first crash */
+		if (rproc->state == RPROC_CRASHED) {
+			mutex_unlock(&rproc->lock);
 			return 0;
-		} else {
-			pr_info("remoteproc %s: halt-on-crash enabled: " \
-				"deferring crash recovery\n",
-				rproc->name);
 		}
-		/* FIXME: send uevent here */
-		pr_info("remoteproc: %s has crashed (core dump available)\n",
-			rproc->name);
-		return 0;
+		rproc_crash(rproc);
+		mutex_unlock(&rproc->lock);
+		/* If halt_on_crash do not notify the error */
+		pr_info("remoteproc: %s has crashed\n", rproc->name);
+		if (rproc->halt_on_crash) {
+			/* FIXME: send uevent here */
+			pr_info("remoteproc: %s: halt-on-crash enabled: "
+				"deferring crash recovery\n", rproc->name);
+			return 0;
+		}
 	}
 
 	return blocking_notifier_call_chain(&rproc->nbh, type, data);
