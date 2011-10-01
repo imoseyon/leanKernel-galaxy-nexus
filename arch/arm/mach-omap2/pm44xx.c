@@ -193,6 +193,8 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 	omap4_enter_lowpower(cpu, power_state);
 
 	if (omap4_device_prev_state_off()) {
+		/* Reconfigure the trim settings as well */
+		omap4_ldo_trim_configure();
 		omap4_dpll_resume_off();
 		omap4_cm_resume_off();
 #ifdef CONFIG_PM_DEBUG
@@ -218,8 +220,6 @@ abort_device_off:
 	if (omap4_device_prev_state_off()) {
 		omap_dma_global_context_restore();
 		omap_gpmc_restore_context();
-		/* Reconfigure the trim settings as well */
-		omap4_ldo_trim_configure();
 	}
 
 	if (omap4_device_next_state_off()) {
