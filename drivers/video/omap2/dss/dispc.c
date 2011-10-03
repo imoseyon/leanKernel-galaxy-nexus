@@ -65,20 +65,12 @@ struct omap_dispc_isr_data {
 	u32			mask;
 };
 
-struct dispc_h_coef {
-	s8 hc4;
-	s8 hc3;
-	u8 hc2;
-	s8 hc1;
-	s8 hc0;
-};
-
-struct dispc_v_coef {
-	s8 vc22;
-	s8 vc2;
-	u8 vc1;
-	s8 vc0;
-	s8 vc00;
+struct dispc_hv_coef {
+	s8 hc0_vc00;
+	s8 hc1_vc0;
+	u8 hc2_vc1;
+	s8 hc3_vc2;
+	s8 hc4_vc22;
 };
 
 #define REG_GET(idx, start, end) \
@@ -618,105 +610,217 @@ static void _dispc_write_firv2_reg(enum omap_plane plane, int reg, u32 value)
 	dispc_write_reg(DISPC_OVL_FIR_COEF_V2(plane, reg), value);
 }
 
-static void _dispc_set_scale_coef(enum omap_plane plane, int hscaleup,
-				  int vscaleup, int five_taps,
+static const struct dispc_hv_coef *
+dispc_get_scaling_coef(u32 inc, bool five_taps)
+{
+	static const struct dispc_hv_coef coef3_M8[8] = {
+		{    0,    0,  128,    0,    0 },
+		{    0,    2,  123,    3,    0 },
+		{    0,    5,  111,   12,    0 },
+		{    0,    7,   89,   32,    0 },
+		{    0,   64,   64,    0,    0 },
+		{    0,   32,   89,    7,    0 },
+		{    0,   12,  111,    5,    0 },
+		{    0,    3,  123,    2,    0 },
+	};
+
+	static const struct dispc_hv_coef coef3_M16[8] = {
+		{    0,   36,   56,   36,    0 },
+		{    0,   31,   57,   40,    0 },
+		{    0,   27,   56,   45,    0 },
+		{    0,   23,   55,   50,    0 },
+		{    0,   55,   55,   18,    0 },
+		{    0,   50,   55,   23,    0 },
+		{    0,   45,   56,   27,    0 },
+		{    0,   40,   57,   31,    0 },
+	};
+
+	static const struct dispc_hv_coef coef_M8[8] = {
+		{    0,    0,  128,    0,    0 },
+		{    0,   -8,  124,   13,   -1 },
+		{   -1,  -11,  112,   30,   -2 },
+		{   -2,  -11,   95,   51,   -5 },
+		{   -9,   73,   73,   -9,    0 },
+		{   -5,   51,   95,  -11,   -2 },
+		{   -2,   30,  112,  -11,   -1 },
+		{   -1,   13,  124,   -8,    0 },
+	};
+
+	static const struct dispc_hv_coef coef_M9[8] = {
+		{    8,   -8,  128,   -8,    8 },
+		{   14,  -21,  126,    8,    1 },
+		{   17,  -27,  117,   30,   -9 },
+		{   17,  -30,  103,   56,  -18 },
+		{  -26,   83,   83,  -26,   14 },
+		{  -18,   56,  103,  -30,   17 },
+		{   -9,   30,  117,  -27,   17 },
+		{    1,    8,  126,  -21,   14 },
+	};
+
+	static const struct dispc_hv_coef coef_M10[8] = {
+		{   -2,    2,  128,    2,   -2 },
+		{    5,  -12,  125,   20,  -10 },
+		{   11,  -22,  116,   41,  -18 },
+		{   15,  -27,  102,   62,  -24 },
+		{  -28,   83,   83,  -28,   18 },
+		{  -24,   62,  102,  -27,   15 },
+		{  -18,   41,  116,  -22,   11 },
+		{  -10,   20,  125,  -12,    5 },
+	};
+
+	static const struct dispc_hv_coef coef_M11[8] = {
+		{  -12,   12,  128,   12,  -12 },
+		{   -4,   -3,  124,   30,  -19 },
+		{    3,  -15,  115,   49,  -24 },
+		{    9,  -22,  101,   67,  -27 },
+		{  -26,   83,   83,  -26,   14 },
+		{  -27,   67,  101,  -22,    9 },
+		{  -24,   49,  115,  -15,    3 },
+		{  -19,   30,  124,   -3,   -4 },
+	};
+
+	static const struct dispc_hv_coef coef_M12[8] = {
+		{  -19,   21,  124,   21,  -19 },
+		{  -12,    6,  120,   38,  -24 },
+		{   -6,   -7,  112,   55,  -26 },
+		{    1,  -16,   98,   70,  -25 },
+		{  -21,   82,   82,  -21,    6 },
+		{  -25,   70,   98,  -16,    1 },
+		{  -26,   55,  112,   -7,   -6 },
+		{  -24,   38,  120,    6,  -12 },
+	};
+
+	static const struct dispc_hv_coef coef_M13[8] = {
+		{  -22,   27,  118,   27,  -22 },
+		{  -18,   13,  115,   43,  -25 },
+		{  -12,    0,  107,   58,  -25 },
+		{   -6,  -10,   95,   71,  -22 },
+		{  -17,   81,   81,  -17,    0 },
+		{  -22,   71,   95,  -10,   -6 },
+		{  -25,   58,  107,    0,  -12 },
+		{  -25,   43,  115,   13,  -18 },
+	};
+
+	static const struct dispc_hv_coef coef_M14[8] = {
+		{  -23,   32,  110,   32,  -23 },
+		{  -20,   18,  108,   46,  -24 },
+		{  -16,    6,  101,   59,  -22 },
+		{  -11,   -4,   91,   70,  -18 },
+		{  -11,   78,   78,  -11,   -6 },
+		{  -18,   70,   91,   -4,  -11 },
+		{  -22,   59,  101,    6,  -16 },
+		{  -24,   46,  108,   18,  -20 },
+	};
+
+	static const struct dispc_hv_coef coef_M16[8] = {
+		{  -20,   37,   94,   37,  -20 },
+		{  -21,   26,   93,   48,  -18 },
+		{  -19,   15,   88,   58,  -14 },
+		{  -17,    6,   82,   66,   -9 },
+		{   -2,   73,   73,   -2,  -14 },
+		{   -9,   66,   82,    6,  -17 },
+		{  -14,   58,   88,   15,  -19 },
+		{  -18,   48,   93,   26,  -21 },
+	};
+
+	static const struct dispc_hv_coef coef_M19[8] = {
+		{  -12,   38,   76,   38,  -12 },
+		{  -14,   31,   72,   47,   -8 },
+		{  -16,   22,   73,   53,   -4 },
+		{  -16,   15,   69,   59,    1 },
+		{    8,   64,   64,    8,  -16 },
+		{    1,   59,   69,   15,  -16 },
+		{   -4,   53,   73,   22,  -16 },
+		{   -9,   47,   72,   31,  -13 },
+	};
+
+	static const struct dispc_hv_coef coef_M22[8] = {
+		{   -6,   37,   66,   37,   -6 },
+		{   -8,   32,   61,   44,   -1 },
+		{  -11,   25,   63,   48,    3 },
+		{  -13,   19,   61,   53,    8 },
+		{   13,   58,   58,   13,  -14 },
+		{    8,   53,   61,   19,  -13 },
+		{    3,   48,   63,   25,  -11 },
+		{   -2,   44,   61,   32,   -7 },
+	};
+
+	static const struct dispc_hv_coef coef_M26[8] = {
+		{    1,   36,   54,   36,    1 },
+		{   -2,   31,   55,   40,    4 },
+		{   -5,   27,   54,   44,    8 },
+		{   -8,   22,   53,   48,   13 },
+		{   18,   51,   51,   18,  -10 },
+		{   13,   48,   53,   22,   -8 },
+		{    8,   44,   54,   27,   -5 },
+		{    4,   40,   55,   31,   -2 },
+	};
+
+	static const struct dispc_hv_coef coef_M32[8] = {
+		{    7,   34,   46,   34,    7 },
+		{    4,   31,   46,   37,   10 },
+		{    1,   27,   46,   39,   14 },
+		{   -1,   24,   46,   42,   17 },
+		{   21,   45,   45,   21,   -4 },
+		{   17,   42,   46,   24,   -1 },
+		{   14,   39,   46,   28,    1 },
+		{   10,   37,   46,   31,    4 },
+	};
+
+	inc >>= 7;	/* /= 128 */
+	if (five_taps) {
+		if (inc > 26)
+			return coef_M32;
+		if (inc > 22)
+			return coef_M26;
+		if (inc > 19)
+			return coef_M22;
+		if (inc > 16)
+			return coef_M19;
+		if (inc > 14)
+			return coef_M16;
+		if (inc > 13)
+			return coef_M14;
+		if (inc > 12)
+			return coef_M13;
+		if (inc > 11)
+			return coef_M12;
+		if (inc > 10)
+			return coef_M11;
+		if (inc > 9)
+			return coef_M10;
+		if (inc > 8)
+			return coef_M9;
+		return coef_M8;
+	} else {
+		if (inc > 14)
+			return coef3_M16;
+		return coef3_M8;
+	}
+}
+
+static void _dispc_set_scale_coef(enum omap_plane plane, int hinc,
+				  int vinc, bool five_taps,
 				  enum omap_color_component color_comp)
 {
-	/* Coefficients for horizontal up-sampling */
-	static const struct dispc_h_coef coef_hup[8] = {
-		{  0,   0, 128,   0,  0 },
-		{ -1,  13, 124,  -8,  0 },
-		{ -2,  30, 112, -11, -1 },
-		{ -5,  51,  95, -11, -2 },
-		{  0,  -9,  73,  73, -9 },
-		{ -2, -11,  95,  51, -5 },
-		{ -1, -11, 112,  30, -2 },
-		{  0,  -8, 124,  13, -1 },
-	};
-
-	/* Coefficients for vertical up-sampling */
-	static const struct dispc_v_coef coef_vup_3tap[8] = {
-		{ 0,  0, 128,  0, 0 },
-		{ 0,  3, 123,  2, 0 },
-		{ 0, 12, 111,  5, 0 },
-		{ 0, 32,  89,  7, 0 },
-		{ 0,  0,  64, 64, 0 },
-		{ 0,  7,  89, 32, 0 },
-		{ 0,  5, 111, 12, 0 },
-		{ 0,  2, 123,  3, 0 },
-	};
-
-	static const struct dispc_v_coef coef_vup_5tap[8] = {
-		{  0,   0, 128,   0,  0 },
-		{ -1,  13, 124,  -8,  0 },
-		{ -2,  30, 112, -11, -1 },
-		{ -5,  51,  95, -11, -2 },
-		{  0,  -9,  73,  73, -9 },
-		{ -2, -11,  95,  51, -5 },
-		{ -1, -11, 112,  30, -2 },
-		{  0,  -8, 124,  13, -1 },
-	};
-
-	/* Coefficients for horizontal down-sampling */
-	static const struct dispc_h_coef coef_hdown[8] = {
-		{   0, 36, 56, 36,  0 },
-		{   4, 40, 55, 31, -2 },
-		{   8, 44, 54, 27, -5 },
-		{  12, 48, 53, 22, -7 },
-		{  -9, 17, 52, 51, 17 },
-		{  -7, 22, 53, 48, 12 },
-		{  -5, 27, 54, 44,  8 },
-		{  -2, 31, 55, 40,  4 },
-	};
-
-	/* Coefficients for vertical down-sampling */
-	static const struct dispc_v_coef coef_vdown_3tap[8] = {
-		{ 0, 36, 56, 36, 0 },
-		{ 0, 40, 57, 31, 0 },
-		{ 0, 45, 56, 27, 0 },
-		{ 0, 50, 55, 23, 0 },
-		{ 0, 18, 55, 55, 0 },
-		{ 0, 23, 55, 50, 0 },
-		{ 0, 27, 56, 45, 0 },
-		{ 0, 31, 57, 40, 0 },
-	};
-
-	static const struct dispc_v_coef coef_vdown_5tap[8] = {
-		{   0, 36, 56, 36,  0 },
-		{   4, 40, 55, 31, -2 },
-		{   8, 44, 54, 27, -5 },
-		{  12, 48, 53, 22, -7 },
-		{  -9, 17, 52, 51, 17 },
-		{  -7, 22, 53, 48, 12 },
-		{  -5, 27, 54, 44,  8 },
-		{  -2, 31, 55, 40,  4 },
-	};
-
-	const struct dispc_h_coef *h_coef;
-	const struct dispc_v_coef *v_coef;
+	const struct dispc_hv_coef *h_coef;
+	const struct dispc_hv_coef *v_coef;
 	int i;
 
-	if (hscaleup)
-		h_coef = coef_hup;
-	else
-		h_coef = coef_hdown;
-
-	if (vscaleup)
-		v_coef = five_taps ? coef_vup_5tap : coef_vup_3tap;
-	else
-		v_coef = five_taps ? coef_vdown_5tap : coef_vdown_3tap;
+	h_coef = dispc_get_scaling_coef(hinc, true);
+	v_coef = dispc_get_scaling_coef(vinc, five_taps);
 
 	for (i = 0; i < 8; i++) {
 		u32 h, hv;
 
-		h = FLD_VAL(h_coef[i].hc0, 7, 0)
-			| FLD_VAL(h_coef[i].hc1, 15, 8)
-			| FLD_VAL(h_coef[i].hc2, 23, 16)
-			| FLD_VAL(h_coef[i].hc3, 31, 24);
-		hv = FLD_VAL(h_coef[i].hc4, 7, 0)
-			| FLD_VAL(v_coef[i].vc0, 15, 8)
-			| FLD_VAL(v_coef[i].vc1, 23, 16)
-			| FLD_VAL(v_coef[i].vc2, 31, 24);
+		h = FLD_VAL(h_coef[i].hc0_vc00, 7, 0)
+			| FLD_VAL(h_coef[i].hc1_vc0, 15, 8)
+			| FLD_VAL(h_coef[i].hc2_vc1, 23, 16)
+			| FLD_VAL(h_coef[i].hc3_vc2, 31, 24);
+		hv = FLD_VAL(h_coef[i].hc4_vc22, 7, 0)
+			| FLD_VAL(v_coef[i].hc1_vc0, 15, 8)
+			| FLD_VAL(v_coef[i].hc2_vc1, 23, 16)
+			| FLD_VAL(v_coef[i].hc3_vc2, 31, 24);
 
 		if (color_comp == DISPC_COLOR_COMPONENT_RGB_Y) {
 			_dispc_write_firh_reg(plane, i, h);
@@ -725,14 +829,13 @@ static void _dispc_set_scale_coef(enum omap_plane plane, int hscaleup,
 			_dispc_write_firh2_reg(plane, i, h);
 			_dispc_write_firhv2_reg(plane, i, hv);
 		}
-
 	}
 
 	if (five_taps) {
 		for (i = 0; i < 8; i++) {
 			u32 v;
-			v = FLD_VAL(v_coef[i].vc00, 7, 0)
-				| FLD_VAL(v_coef[i].vc22, 15, 8);
+			v = FLD_VAL(v_coef[i].hc0_vc00, 7, 0)
+				| FLD_VAL(v_coef[i].hc4_vc22, 15, 8);
 			if (color_comp == DISPC_COLOR_COMPONENT_RGB_Y)
 				_dispc_write_firv_reg(plane, i, v);
 			else
