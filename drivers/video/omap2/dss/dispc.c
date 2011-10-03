@@ -461,6 +461,69 @@ static void dispc_restore_context(void)
 #undef SR
 #undef RR
 
+static u32 dispc_calculate_threshold(enum omap_plane plane, u32 paddr,
+				u32 puv_addr, u16 width, u16 height,
+				s32 row_inc, s32 pix_inc)
+{
+	int shift;
+	u32 channel_no = plane;
+	u32 val, burstsize, doublestride;
+	u32 rotation, bursttype, color_mode;
+	struct dispc_config dispc_reg_config;
+
+	if (width >= 1920)
+		return 1500;
+
+	/* Get the burst size */
+	shift = (plane == OMAP_DSS_GFX) ? 6 : 14;
+	val = dispc_read_reg(DISPC_OVL_ATTRIBUTES(plane));
+	burstsize = FLD_GET(val, shift + 1, shift);
+	doublestride = FLD_GET(val, 22, 22);
+	rotation = FLD_GET(val, 13, 12);
+	bursttype = FLD_GET(val, 29, 29);
+	color_mode = FLD_GET(val, 4, 1);
+
+	/* base address for frame (Luma frame in case of YUV420) */
+	dispc_reg_config.ba = paddr;
+	/* base address for Chroma frame in case of YUV420 */
+	dispc_reg_config.bacbcr = puv_addr;
+	/* OrgSizeX for frame */
+	dispc_reg_config.sizex = width;
+	/* OrgSizeY for frame */
+	dispc_reg_config.sizey = height;
+	/* burst size */
+	dispc_reg_config.burstsize = burstsize;
+	/* pixel increment */
+	dispc_reg_config.pixelinc = pix_inc;
+	/* row increment */
+	dispc_reg_config.rowinc  = row_inc;
+	/* burst type: 1D/2D */
+	dispc_reg_config.bursttype = bursttype;
+	/* chroma DoubleStride when in YUV420 format */
+	dispc_reg_config.doublestride = doublestride;
+	/* Pixcel format of the frame.*/
+	dispc_reg_config.format = color_mode;
+	/* Rotation of frame */
+	dispc_reg_config.rotation = rotation;
+
+	/* DMA buffer allications - assuming reset values */
+	dispc_reg_config.gfx_top_buffer = 0;
+	dispc_reg_config.gfx_bottom_buffer = 0;
+	dispc_reg_config.vid1_top_buffer = 1;
+	dispc_reg_config.vid1_bottom_buffer = 1;
+	dispc_reg_config.vid2_top_buffer = 2;
+	dispc_reg_config.vid2_bottom_buffer = 2;
+	dispc_reg_config.vid3_top_buffer = 3;
+	dispc_reg_config.vid3_bottom_buffer = 3;
+	dispc_reg_config.wb_top_buffer = 4;
+	dispc_reg_config.wb_bottom_buffer = 4;
+
+	/* antiFlicker is off */
+	dispc_reg_config.antiflicker = 0;
+
+	return sa_calc_wrap(&dispc_reg_config, channel_no);
+}
+
 int dispc_runtime_get(void)
 {
 	int r;
@@ -2026,6 +2089,7 @@ int dispc_setup_plane(enum omap_plane plane,
 	int pixpg = (color_mode &
 		(OMAP_DSS_COLOR_YUV2 | OMAP_DSS_COLOR_UYVY)) ? 2 : 1;
 	unsigned long tiler_width, tiler_height;
+	u32 fifo_high, fifo_low;
 
 	DSSDBG("dispc_setup_plane %d, pa %x, sw %d, %d,%d, %d/%dx%d/%d -> "
 	       "%dx%d, ilace %d, cmode %x, rot %d, mir %d chan %d %dtap\n",
@@ -2211,6 +2275,15 @@ int dispc_setup_plane(enum omap_plane plane,
 
 	_dispc_set_pre_mult_alpha(plane, pre_mult_alpha);
 	_dispc_setup_global_alpha(plane, global_alpha);
+
+	if (cpu_is_omap44xx()) {
+		fifo_low = dispc_calculate_threshold(plane, paddr + offset0,
+				   puv_addr + offset0, width, height,
+				   row_inc, pix_inc);
+		fifo_high = dispc_get_plane_fifo_size(plane) - 1;
+		dispc_setup_plane_fifo(plane, fifo_low, fifo_high);
+	}
+
 	return 0;
 }
 
@@ -3765,6 +3838,8 @@ static void _omap_dispc_initial_config(void)
 	/* FUNCGATED */
 	if (dss_has_feature(FEAT_FUNCGATED))
 		REG_FLD_MOD(DISPC_CONFIG, 1, 9, 9);
+
+	REG_FLD_MOD(DISPC_CONFIG, 1, 17, 17);
 
 	/* L3 firewall setting: enable access to OCM RAM */
 	/* XXX this should be somewhere in plat-omap */
