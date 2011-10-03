@@ -2046,9 +2046,6 @@ int dispc_scaling_decision(u16 width, u16 height,
 		else
 			*five_taps = true;
 
-		/* Also use 3-tap if downscaling by 2 or less */
-		*five_taps &= out_height * 2 < in_height;
-
 		/*
 		 * Predecimation on OMAP4 still fetches the whole lines
 		 * :TODO: How does it affect the required clock speed?
@@ -2062,9 +2059,6 @@ int dispc_scaling_decision(u16 width, u16 height,
 		DSSDBG("%d*%d,%d*%d->%d,%d requires %lu(3T), %lu(5T) Hz\n",
 			in_width, x, in_height, y, out_width, out_height,
 			fclk, fclk5);
-
-		/* Use 3-tap if 5-tap clock requirement is too high */
-		*five_taps &= fclk5 <= fclk_max;
 
 		/* for now we always use 5-tap unless 3-tap is required */
 		if (*five_taps)
