@@ -117,6 +117,7 @@ static void usb_rx_complete(struct urb *urb)
 
 	switch (urb->status) {
 	case 0:
+	case -ENOENT:
 		if (!urb->actual_length)
 			goto re_submit;
 		/* call iod recv */
@@ -158,10 +159,11 @@ static void usb_rx_complete(struct urb *urb)
 			}
 		}
 re_submit:
+		if (urb->status)
+			break;
 		usb_rx_submit(pipe_data, urb, GFP_ATOMIC);
 		return;
 	case -ESHUTDOWN:
-	case -ENOENT:
 	case -EPROTO:
 		break;
 	case -EOVERFLOW:
