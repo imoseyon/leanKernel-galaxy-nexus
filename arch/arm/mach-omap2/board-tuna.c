@@ -58,6 +58,8 @@
 #include <plat/remoteproc.h>
 #include <plat/omap-serial.h>
 
+#include <mach/omap_fiq_debugger.h>
+
 #include <mach/id.h>
 #include "timer-gp.h"
 
@@ -986,11 +988,18 @@ static inline void __init board_serial_init(void)
 	omap_serial_init_port_pads(0, uart1_pads, uart1_pads_sz, NULL);
 	omap_serial_init_port_pads(1, tuna_uart2_pads,
 		ARRAY_SIZE(tuna_uart2_pads), &tuna_uart2_info);
-	omap_serial_init_port_pads(2, tuna_uart3_pads,
-		ARRAY_SIZE(tuna_uart3_pads), NULL);
 	omap_serial_init_port_pads(3, tuna_uart4_pads,
 				   ARRAY_SIZE(tuna_uart4_pads), NULL);
 }
+
+/* fiq_debugger initializes really early but OMAP resource mgmt
+ * is not yet ready @ arch_init, so init the serial debugger later */
+static int __init board_serial_debug_init(void)
+{
+	return omap_serial_debug_init(2, false, true,
+			tuna_uart3_pads, ARRAY_SIZE(tuna_uart3_pads));
+}
+device_initcall(board_serial_debug_init);
 
 /* SPI flash memory in camera module */
 #define F_ROM_SPI_BUS_NUM	3
