@@ -31,6 +31,27 @@
 
 #define NUM_OF_L3_MASTERS ARRAY_SIZE(l3_masters)
 
+static void l3_dump_targ_context(u32 baseaddr)
+{
+	pr_err("COREREG      : 0x%08x\n", readl(baseaddr + L3_COREREG));
+	pr_err("VERSIONREG   : 0x%08x\n", readl(baseaddr + L3_VERSIONREG));
+	pr_err("MAINCTLREG   : 0x%08x\n", readl(baseaddr + L3_MAINCTLREG));
+	pr_err("NTTPADDR_0   : 0x%08x\n", readl(baseaddr + L3_NTTPADDR_0));
+	pr_err("SVRTSTDLVL   : 0x%08x\n", readl(baseaddr + L3_SVRTSTDLVL));
+	pr_err("SVRTCUSTOMLVL: 0x%08x\n", readl(baseaddr + L3_SVRTCUSTOMLVL));
+	pr_err("MAIN         : 0x%08x\n", readl(baseaddr + L3_MAIN));
+	pr_err("HDR          : 0x%08x\n", readl(baseaddr + L3_HDR));
+	pr_err("MSTADDR      : 0x%08x\n", readl(baseaddr + L3_MSTADDR));
+	pr_err("SLVADDR      : 0x%08x\n", readl(baseaddr + L3_SLVADDR));
+	pr_err("INFO         : 0x%08x\n", readl(baseaddr + L3_INFO));
+	pr_err("SLVOFSLSB    : 0x%08x\n", readl(baseaddr + L3_SLVOFSLSB));
+	pr_err("SLVOFSMSB    : 0x%08x\n", readl(baseaddr + L3_SLVOFSMSB));
+	pr_err("CUSTOMINFO_INFO   : 0x%08x\n", readl(baseaddr + L3_CUSTOMINFO_INFO));
+	pr_err("CUSTOMINFO_MSTADDR: 0x%08x\n", readl(baseaddr + L3_CUSTOMINFO_MSTADDR));
+	pr_err("CUSTOMINFO_OPCODE : 0x%08x\n", readl(baseaddr + L3_CUSTOMINFO_OPCODE));
+	pr_err("ADDRSPACESIZELOG  : 0x%08x\n", readl(baseaddr + L3_ADDRSPACESIZELOG));
+}
+
 /*
  * Interrupt Handler for L3 error detection.
  *	1) Identify the L3 clockdomain partition to which the error belongs to.
@@ -90,11 +111,16 @@ static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 			case STANDARD_ERROR:
 				source_name =
 				l3_targ_stderrlog_main_name[i][err_src];
+				regoffset = targ_reg_offset[i][err_src];
 
 				slave_addr = std_err_main_addr +
 						L3_SLAVE_ADDRESS_OFFSET;
+
 				WARN(true, "L3 standard error: SOURCE:%s at address 0x%x\n",
 					source_name, readl(slave_addr));
+
+				l3_dump_targ_context(base + regoffset);
+
 				/* clear the std error log*/
 				clear = std_err_main | CLEAR_STDERR_LOG;
 				writel(clear, std_err_main_addr);
