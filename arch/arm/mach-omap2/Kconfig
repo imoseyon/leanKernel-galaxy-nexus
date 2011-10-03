@@ -356,6 +356,13 @@ config OMAP_ALLOW_OSWR
 	  Which means the Logic of power domains can be lost now
 	  unlike the CSWR wherein the logic is retained
 
+config OMAP_FIQ_DEBUGGER
+	bool "Enable the serial FIQ debugger on OMAP"
+	default y
+	select FIQ_DEBUGGER
+	help
+	  Enables the serial FIQ debugger on OMAP"
+
 endmenu
 
 endif
