@@ -513,13 +513,18 @@ static void omap4_configure_pwdm_suspend(bool is_off_mode)
 			als =
 			   get_achievable_state(pwrst->pwrdm->pwrsts_logic_ret,
 					logic_state, parent_power_domain);
-			pwrdm_set_logic_retst(pwrst->pwrdm, als);
+			if (als < pwrst->saved_logic_state)
+				pwrdm_set_logic_retst(pwrst->pwrdm, als);
 		}
 		if (pwrst->pwrdm->pwrsts) {
 			pwrst->next_state =
 			   get_achievable_state(pwrst->pwrdm->pwrsts, state,
 							parent_power_domain);
-			omap_set_pwrdm_state(pwrst->pwrdm, pwrst->next_state);
+			if (pwrst->next_state < pwrst->saved_state)
+				omap_set_pwrdm_state(pwrst->pwrdm,
+						     pwrst->next_state);
+			else
+				pwrst->next_state = pwrst->saved_state;
 		}
 	}
 }
