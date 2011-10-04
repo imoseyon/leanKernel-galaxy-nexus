@@ -455,6 +455,15 @@ int hsi_do_cawake_process(struct hsi_port *pport)
 		spin_unlock(&hsi_ctrl->lock);
 		hsi_port_event_handler(pport, HSI_EVENT_CAWAKE_UP, NULL);
 		spin_lock(&hsi_ctrl->lock);
+
+		/*
+		 * HSI - OMAP4430-2.2BUG00055:
+		 * HSI: DSP Swakeup generated is the same than MPU Swakeup.
+		 * System can’t enter in off mode due to the DSP.
+		 */
+		if (IS_HSI_PM44XX_ERRATUM(OMAP4_PM_ERRATUM_HSI_SWAKEUP_iXXX))
+			omap_pm_clear_dsp_wake_up();
+
 	} else {
 		dev_dbg(hsi_ctrl->dev, "CAWAKE falling edge detected\n");
 
