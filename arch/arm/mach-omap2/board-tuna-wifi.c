@@ -125,6 +125,7 @@ static struct embedded_sdio_data tuna_wifi_emb_data = {
 static int tuna_wifi_cd = 0; /* WIFI virtual 'card detect' status */
 static void (*wifi_status_cb)(int card_present, void *dev_id);
 static void *wifi_status_cb_devid;
+static struct regulator *clk32kaudio_reg;
 
 static int tuna_wifi_status_register(
 		void (*callback)(int card_present, void *dev_id),
@@ -206,10 +207,16 @@ static struct platform_device omap_vwlan_device = {
 
 static int tuna_wifi_power(int on)
 {
+	if (clk32kaudio_reg && on && !tuna_wifi_power_state)
+		regulator_enable(clk32kaudio_reg);
+
 	pr_debug("%s: %d\n", __func__, on);
 	mdelay(100);
 	gpio_set_value(GPIO_WLAN_PMENA, on);
 	mdelay(200);
+
+	if (clk32kaudio_reg && !on && tuna_wifi_power_state)
+		regulator_disable(clk32kaudio_reg);
 
 	tuna_wifi_power_state = on;
 	return 0;
@@ -396,6 +403,13 @@ static void __init tuna_wlan_gpio(void)
 int __init tuna_wlan_init(void)
 {
 	pr_debug("%s: start\n", __func__);
+
+	clk32kaudio_reg = regulator_get(0, "clk32kaudio");
+	if (IS_ERR(clk32kaudio_reg)) {
+		pr_err("clk32kaudio reg not found!\n");
+		clk32kaudio_reg = NULL;
+	}
+
 	tuna_wlan_gpio();
 	tuna_init_wifi_mem();
 	platform_device_register(&omap_vwlan_device);

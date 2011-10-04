@@ -651,9 +651,25 @@ static struct regulator_init_data tuna_vusb = {
 static struct regulator_init_data tuna_clk32kg = {
 	.constraints = {
 		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
-		.always_on	= true,
+		.always_on		= true,
 	},
 };
+
+static struct regulator_consumer_supply tuna_clk32kaudio_supply[] = {
+	{
+		.supply = "clk32kaudio",
+	}
+};
+
+static struct regulator_init_data tuna_clk32kaudio = {
+	.constraints = {
+		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
+		.boot_on                = true,
+	},
+	.num_consumer_supplies  = ARRAY_SIZE(tuna_clk32kaudio_supply),
+	.consumer_supplies      = tuna_clk32kaudio_supply,
+};
+
 
 static struct regulator_init_data tuna_vdd3 = {
 	.constraints = {
@@ -714,6 +730,7 @@ static struct twl4030_platform_data tuna_twldata = {
 	.vaux2		= &tuna_vaux2,
 	.vaux3		= &tuna_vaux3,
 	.clk32kg	= &tuna_clk32kg,
+	.clk32kaudio	= &tuna_clk32kaudio,
 
 	/* children */
 	.codec		= &twl6040_codec,
