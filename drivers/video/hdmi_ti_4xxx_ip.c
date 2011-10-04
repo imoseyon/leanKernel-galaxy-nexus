@@ -165,10 +165,11 @@ static int hdmi_wait_for_audio_stop(struct hdmi_ip_data *ip_data)
 }
 
 /* PHY_PWR_CMD */
-static int hdmi_set_phy_pwr(struct hdmi_ip_data *ip_data, enum hdmi_phy_pwr val)
+static int hdmi_set_phy_pwr(struct hdmi_ip_data *ip_data,
+				enum hdmi_phy_pwr val, bool set_mode)
 {
 	/* FIXME audio driver should have already stopped, but not yet */
-	if (val == HDMI_PHYPWRCMD_OFF)
+	if (val == HDMI_PHYPWRCMD_OFF && !set_mode)
 		hdmi_wait_for_audio_stop(ip_data);
 
 	/* Command for power control of HDMI PHY */
@@ -247,11 +248,11 @@ int hdmi_ti_4xxx_phy_init(struct hdmi_ip_data *ip_data)
 {
 	u16 r = 0;
 
-	r = hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_LDOON);
+	r = hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_LDOON, false);
 	if (r)
 		return r;
 
-	r = hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_TXON);
+	r = hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_TXON, false);
 	if (r)
 		return r;
 
@@ -278,9 +279,9 @@ int hdmi_ti_4xxx_phy_init(struct hdmi_ip_data *ip_data)
 	return 0;
 }
 
-void hdmi_ti_4xxx_phy_off(struct hdmi_ip_data *ip_data)
+void hdmi_ti_4xxx_phy_off(struct hdmi_ip_data *ip_data, bool set_mode)
 {
-	hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_OFF);
+	hdmi_set_phy_pwr(ip_data, HDMI_PHYPWRCMD_OFF, set_mode);
 }
 EXPORT_SYMBOL(hdmi_ti_4xxx_phy_init);
 EXPORT_SYMBOL(hdmi_ti_4xxx_phy_off);

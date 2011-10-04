@@ -353,7 +353,7 @@ enum hdmi_core_infoframe {
 
 
 int hdmi_ti_4xxx_phy_init(struct hdmi_ip_data *ip_data);
-void hdmi_ti_4xxx_phy_off(struct hdmi_ip_data *ip_data);
+void hdmi_ti_4xxx_phy_off(struct hdmi_ip_data *ip_data, bool set_mode);
 int read_ti_4xxx_edid(struct hdmi_ip_data *ip_data, u8 *pedid, u16 max_length);
 void hdmi_ti_4xxx_wp_video_start(struct hdmi_ip_data *ip_data, bool start);
 int hdmi_ti_4xxx_pll_program(struct hdmi_ip_data *ip_data,
