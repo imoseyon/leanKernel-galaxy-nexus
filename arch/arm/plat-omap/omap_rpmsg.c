@@ -165,8 +165,6 @@ static int omap_rpmsg_mbox_callback(struct notifier_block *this,
 
 	pr_debug("mbox msg: 0x%x\n", msg);
 
-	rproc_last_busy(rpdev->rproc);
-
 	switch (msg) {
 	case RP_MBOX_CRASH:
 		pr_err("%s has just crashed !\n", rpdev->rproc_name);
