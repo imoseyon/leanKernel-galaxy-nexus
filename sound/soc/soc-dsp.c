@@ -1013,7 +1013,7 @@ static int dsp_run_update_startup(struct snd_soc_pcm_runtime *fe, int stream)
 {
 	struct snd_soc_dsp_link *dsp_link = fe->dai_link->dsp_link;
 	struct snd_pcm_substream *substream = snd_soc_dsp_get_substream(fe, stream);
-	int ret, cmd;
+	int ret;
 
 	dev_dbg(&fe->dev, "runtime %s open on FE %s\n",
 			stream ? "capture" : "playback", fe->dai_link->name);
@@ -1054,7 +1054,8 @@ static int dsp_run_update_startup(struct snd_soc_pcm_runtime *fe, int stream)
 		dev_dbg(&fe->dev, "dsp: trigger FE %s cmd start\n",
 			fe->dai_link->name);
 
-		ret = soc_dsp_be_dai_trigger(fe, stream, cmd);
+		ret = soc_dsp_be_dai_trigger(fe, stream,
+					SNDRV_PCM_TRIGGER_START);
 		if (ret < 0)
 			return ret;
 	}
