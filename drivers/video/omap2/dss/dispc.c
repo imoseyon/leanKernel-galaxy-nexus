@@ -791,11 +791,21 @@ dispc_get_scaling_coef(u32 inc, bool five_taps)
 			return coef_M10;
 		if (inc > 8)
 			return coef_M9;
-		return coef_M8;
+		/* reduce blockiness when upscaling much */
+		if (inc > 3)
+			return coef_M8;
+		if (inc > 2)
+			return coef_M11;
+		if (inc > 1)
+			return coef_M16;
+		return coef_M19;
 	} else {
 		if (inc > 14)
 			return coef3_M16;
-		return coef3_M8;
+		/* reduce blockiness when upscaling much */
+		if (inc > 3)
+			return coef3_M8;
+		return coef3_M16;
 	}
 }
 
