@@ -64,6 +64,7 @@ static struct gpio_event_direct_entry tuna_gpio_keypad_keys_map_low[] = {
 
 static struct gpio_event_input_info tuna_gpio_keypad_keys_info_low = {
 	.info.func = gpio_event_input_func,
+	.info.no_suspend = true,
 	.type = EV_KEY,
 	.keymap = tuna_gpio_keypad_keys_map_low,
 	.keymap_size = ARRAY_SIZE(tuna_gpio_keypad_keys_map_low),
