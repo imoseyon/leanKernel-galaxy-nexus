@@ -784,8 +784,6 @@ static struct panel_s6e8aa0_data tuna_oled_data_sm2 = {
 	.elvss_table_size = ARRAY_SIZE(tuna_oled_elvss),
 };
 
-/* width: 58mm */
-/* height: 102mm */
 static struct omap_dss_device tuna_oled_device = {
 	.name			= "lcd",
 	.driver_name		= "s6e8aa0",
@@ -803,6 +801,10 @@ static struct omap_dss_device tuna_oled_device = {
 		.data3_pol	= 0,
 		.data4_lane	= 5,
 		.data4_pol	= 0,
+	},
+	.panel = {
+		.width_in_um	= 58000,
+		.height_in_um	= 102000,
 	},
 	.clocks = {
 		.dispc		= {
