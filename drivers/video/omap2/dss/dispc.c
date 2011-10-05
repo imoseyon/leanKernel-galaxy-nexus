@@ -2906,13 +2906,23 @@ unsigned long dispc_pclk_rate(enum omap_channel channel)
 	unsigned long r;
 	u32 l;
 
-	l = dispc_read_reg(DISPC_DIVISORo(channel));
+	if (channel == OMAP_DSS_CHANNEL_LCD ||
+	    channel == OMAP_DSS_CHANNEL_LCD2) {
+		l = dispc_read_reg(DISPC_DIVISORo(channel));
 
-	pcd = FLD_GET(l, 7, 0);
+		pcd = FLD_GET(l, 7, 0);
 
-	r = dispc_lclk_rate(channel);
+		r = dispc_lclk_rate(channel);
 
-	return r / pcd;
+		return r / pcd;
+	} else {
+		struct omap_overlay_manager *mgr;
+		mgr = omap_dss_get_overlay_manager(channel);
+		if (!mgr || !mgr->device)
+			return 0;
+
+		return mgr->device->panel.timings.pixel_clock * 1000;
+	}
 }
 
 void dispc_dump_clocks(struct seq_file *s)
