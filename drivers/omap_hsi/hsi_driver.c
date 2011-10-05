@@ -754,6 +754,7 @@ static int __init hsi_controller_init(struct hsi_dev *hsi_ctrl,
 	}
 	hsi_ctrl->max_p = pdata->num_ports;
 	hsi_ctrl->clock_enabled = false;
+	hsi_ctrl->clock_rate = 0;
 	hsi_ctrl->in_dma_tasklet = false;
 	hsi_ctrl->fifo_mapping_strategy = pdata->fifo_mapping_strategy;
 	hsi_ctrl->dev = &pd->dev;
@@ -861,19 +862,31 @@ static int __init hsi_platform_device_probe(struct platform_device *pd)
 	/* Allow HSI to wake up the platform */
 	device_init_wakeup(hsi_ctrl->dev, true);
 
-#ifdef K3_0_PORTING_HSI_MISSING_FEATURE
 	/* Set the HSI FCLK to default. */
-	err = omap_device_set_rate(hsi_ctrl->dev, hsi_ctrl->dev,
-					pdata->default_hsi_fclk);
-	if (err)
-		dev_err(&pd->dev, "Cannot set HSI FClk to default value: %ld\n",
+	if (!pdata->device_scale) {
+		dev_err(&pd->dev, "%s: No platform device_scale function\n",
+			__func__);
+		err = -ENXIO;
+		goto rollback3;
+	}
+	err = pdata->device_scale(hsi_ctrl->dev, hsi_ctrl->dev,
+				  pdata->default_hsi_fclk);
+	if (err == -EBUSY) {
+		dev_warn(&pd->dev, "Cannot set HSI FClk to default value: %ld. "
+			"Will retry on next open\n",
 			pdata->default_hsi_fclk);
-#endif
+	} else if (err) {
+		dev_err(&pd->dev, "%s: Error %d setting HSI FClk to %ld.\n",
+				__func__, err, pdata->default_hsi_fclk);
+		goto rollback3;
+	} else {
+		hsi_ctrl->clock_rate = pdata->default_hsi_fclk;
+	}
 
 	/* From here no need for HSI HW access */
 	hsi_clocks_disable(hsi_ctrl->dev, __func__);
 
-	return err;
+	return 0;
 
 rollback3:
 	hsi_debug_remove_ctrl(hsi_ctrl);

@@ -34,6 +34,7 @@
 #include "mux.h"
 #include "control.h"
 #include "pm.h"
+#include "dvfs.h"
 
 static int omap_hsi_wakeup_enable(int hsi_port);
 static int omap_hsi_wakeup_disable(int hsi_port);
@@ -120,6 +121,7 @@ static struct hsi_platform_data omap_hsi_platform_data = {
 	.device_enable = omap_device_enable,
 	.device_idle = omap_device_idle,
 	.device_shutdown = omap_device_shutdown,
+	.device_scale = omap_device_scale,
 	.wakeup_enable = omap_hsi_wakeup_enable,
 	.wakeup_disable = omap_hsi_wakeup_disable,
 	.wakeup_is_from_hsi = omap_hsi_is_io_wakeup_from_hsi,

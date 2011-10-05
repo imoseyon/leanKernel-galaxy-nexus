@@ -260,6 +260,7 @@ int hsi_open(struct hsi_device *dev)
 	struct hsi_channel *ch;
 	struct hsi_port *port;
 	struct hsi_dev *hsi_ctrl;
+	int err;
 
 	if (!dev || !dev->ch) {
 		pr_err(LOG_NAME "Wrong HSI device %p\n", dev);
@@ -283,7 +284,45 @@ int hsi_open(struct hsi_device *dev)
 
 	port = ch->hsi_port;
 	hsi_ctrl = port->hsi_controller;
+	if (!hsi_ctrl) {
+		dev_err(dev->device.parent,
+			"%s: Port %d Channel %d has no hsi controller?\n",
+			__func__, dev->n_p, dev->n_ch);
+		return -EINVAL;
+	}
 
+	if (hsi_ctrl->clock_rate == 0) {
+		struct hsi_platform_data *pdata;
+
+		pdata = dev_get_platdata(hsi_ctrl->dev);
+		if (!pdata) {
+			dev_err(dev->device.parent,
+				"%s: Port %d Channel %d has no pdata\n",
+				__func__, dev->n_p, dev->n_ch);
+			return -EINVAL;
+		}
+		if (!pdata->device_scale) {
+			dev_err(dev->device.parent,
+			       "%s: Undefined platform device_scale function\n",
+			       __func__);
+			return -ENXIO;
+		}
+
+		/* Retry to set the HSI FCLK to default. */
+		err = pdata->device_scale(hsi_ctrl->dev, hsi_ctrl->dev,
+					  pdata->default_hsi_fclk);
+		if (err) {
+			dev_err(dev->device.parent,
+				"%s: Error %d setting HSI FClk to %ld. "
+				"Will retry on next open\n",
+				__func__, err, pdata->default_hsi_fclk);
+			return err;
+		} else {
+			dev_info(dev->device.parent, "HSI clock is now %ld\n",
+				 pdata->default_hsi_fclk);
+			hsi_ctrl->clock_rate = pdata->default_hsi_fclk;
+		}
+	}
 	spin_lock_bh(&hsi_ctrl->lock);
 	hsi_clocks_enable_channel(dev->device.parent, ch->channel_number,
 				__func__);

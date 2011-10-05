@@ -172,6 +172,7 @@ struct hsi_port {
  * @phy_base: HSI registers base physical address
  * @lock: Serializes access to internal data and regs
  * @clock_enabled: Indicates if HSI Clocks are ON
+ * @clock_rate: Indicates current HSI Fclock speed
  * @gdd_irq: GDD (DMA) irq number
  * @fifo_mapping_strategy: Selected strategy for fifo to ports/channels mapping
  * @gdd_usecount: Holds the number of ongoning DMA transfers
@@ -194,6 +195,7 @@ struct hsi_dev { /* HSI_TODO:  should be later renamed into hsi_controller*/
 	unsigned long phy_base;
 	spinlock_t lock; /* Serializes access to internal data and regs */
 	bool clock_enabled;
+	unsigned long clock_rate;
 	int gdd_irq;
 	unsigned int fifo_mapping_strategy;
 	unsigned int gdd_usecount;
@@ -219,6 +221,8 @@ struct hsi_platform_data {
 	int (*device_enable) (struct platform_device *pdev);
 	int (*device_shutdown) (struct platform_device *pdev);
 	int (*device_idle) (struct platform_device *pdev);
+	int (*device_scale) (struct device *req_dev, struct device *target_dev,
+			unsigned long rate);
 	int (*wakeup_enable) (int hsi_port);
 	int (*wakeup_disable) (int hsi_port);
 	int (*wakeup_is_from_hsi) (int *hsi_port);
