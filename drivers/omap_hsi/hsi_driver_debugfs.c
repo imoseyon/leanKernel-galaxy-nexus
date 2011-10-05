@@ -464,7 +464,7 @@ int __init hsi_debug_add_ctrl(struct hsi_dev *hsi_ctrl)
 		debugfs_create_file("regs", S_IRUGO, dir,
 				    &hsi_ctrl->hsi_port[port],
 				    &hsi_port_regs_fops);
-		debugfs_create_file("counters", S_IRUGO | S_IWUGO, dir,
+		debugfs_create_file("counters", S_IRUGO | S_IWUSR, dir,
 				    &hsi_ctrl->hsi_port[port],
 				    &hsi_port_counters_fops);
 	}
