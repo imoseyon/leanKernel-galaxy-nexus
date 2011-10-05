@@ -541,11 +541,6 @@ static int omap_mcasp_hw_params(struct snd_pcm_substream *substream,
 
 	mcasp_stop_tx(mcasp);
 
-	if ((params_format(params)) != SNDRV_PCM_FORMAT_S16_LE) {
-		printk(KERN_WARNING "omap-mcasp: unsupported PCM format");
-		return -EINVAL;
-	}
-
 	if (omap_hw_dit_param(mcasp, params_rate(params)) < 0)
 		return -EPERM;
 
