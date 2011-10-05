@@ -225,8 +225,8 @@ static irqreturn_t handle_twl6030_pih(int irq, void *devid)
  */
 static irqreturn_t handle_twl6030_vlow(int irq, void *unused)
 {
-	pr_err("twl6030: BAT_VLOW interrupt; threshold=%dmV (0x%x)\n",
-	       2300 + (vbatmin_hi_threshold * 50), vbatmin_hi_threshold);
+	pr_err("twl6030: BAT_VLOW interrupt; threshold=%dmV\n",
+	       2300 + (vbatmin_hi_threshold - 0b110) * 50);
 
 #if 1 /* temporary */
 	pr_err("%s: disabling BAT_VLOW interrupt\n", __func__);
