@@ -658,6 +658,9 @@ static struct regulator_init_data tuna_clk32kg = {
 static struct regulator_consumer_supply tuna_clk32kaudio_supply[] = {
 	{
 		.supply = "clk32kaudio",
+	},
+	{
+		.supply = "twl6040_clk32k",
 	}
 };
 
