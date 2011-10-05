@@ -660,8 +660,12 @@ static ssize_t misc_write(struct file *filp, const char __user * buf,
 
 	/* TODO - check here flow control for only raw data */
 
-	frame_len = count + SIZE_OF_HDLC_START + get_header_size(iod)
-				+ SIZE_OF_HDLC_END;
+	if (iod->format == IPC_BOOT || iod->format == IPC_RAMDUMP)
+		frame_len = count + get_header_size(iod);
+	else
+		frame_len = count + SIZE_OF_HDLC_START + get_header_size(iod)
+					+ SIZE_OF_HDLC_END;
+
 	skb = alloc_skb(frame_len, GFP_KERNEL);
 	if (!skb) {
 		pr_err("[MODEM_IF] fail alloc skb (%d)\n", __LINE__);
