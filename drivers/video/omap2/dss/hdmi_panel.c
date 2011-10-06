@@ -220,6 +220,10 @@ static void hdmi_hotplug_detect_worker(struct work_struct *work)
 			pr_info("panel size %d by %d\n",
 					dssdev->panel.monspecs.max_x,
 					dssdev->panel.monspecs.max_y);
+			dssdev->panel.width_in_um =
+					dssdev->panel.monspecs.max_x * 10000;
+			dssdev->panel.height_in_um =
+					dssdev->panel.monspecs.max_y * 10000;
 			switch_set_state(&hdmi.hpd_switch, 1);
 			goto done;
 		} else if (state == HPD_STATE_EDID_TRYLAST){
