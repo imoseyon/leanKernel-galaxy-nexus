@@ -427,6 +427,7 @@ static void omap_dss_driver_disable(struct omap_dss_device *dssdev)
 		blocking_notifier_call_chain(&dssdev->state_notifiers,
 					OMAP_DSS_DISPLAY_DISABLED, dssdev);
 	dssdev->driver->disable_orig(dssdev);
+	dssdev->first_vsync = false;
 }
 
 static int omap_dss_driver_enable(struct omap_dss_device *dssdev)
