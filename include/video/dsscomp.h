@@ -334,7 +334,7 @@ struct dss2_ovl_cfg {
 	struct omap_dss_cconv_coefs cconv;
 	struct dss2_vc1_range_map_info vc1;
 
-	__u8 ix;		/* ovl index same as sysfs/overlay# */
+	__u8 ix;	/* ovl index same as sysfs/overlay# */
 	__u8 zorder;	/* 0..3 */
 	__u8 enabled;	/* bool */
 	__u8 zonly;	/* only set zorder and enabled bit */
@@ -349,25 +349,36 @@ enum omapdss_buffer_type {
 	OMAP_DSS_BUFTYPE_TILER_PAGE,
 };
 
+enum omapdss_buffer_addressing_type {
+	OMAP_DSS_BUFADDR_DIRECT,	/* using direct addresses */
+	OMAP_DSS_BUFADDR_BYTYPE,	/* using buffer types */
+	OMAP_DSS_BUFADDR_ION,		/* using ion handle(s) */
+	OMAP_DSS_BUFADDR_GRALLOC,	/* using gralloc handle */
+};
+
 struct dss2_ovl_info {
 	struct dss2_ovl_cfg cfg;
+
+	enum omapdss_buffer_addressing_type addressing;
 
 	union {
 		/* user-space interfaces */
 		struct {
-			void *address;	/* main buffer address */
+			void *address;		/* main buffer address */
+			void *uv_address;	/* uv buffer */
+		};
 
-			/*
-			 * For DSSCIOC_CHECK_OVL we allow specifying just the
-			 * type of each buffer. This is used if we need to
-			 * check whether DSS will be able to display a buffer
-			 * if using a particular memory type before spending
-			 * time to map/copy the buffer into that type of
-			 * memory.  Default value of 0 uses the address to
-			 * determine the type.
-			 */
-			__u16 ba_type;
-			__u16 uv_type;
+		/*
+		 * For DSSCIOC_CHECK_OVL we allow specifying just the
+		 * type of each buffer. This is used if we need to
+		 * check whether DSS will be able to display a buffer
+		 * if using a particular memory type before spending
+		 * time to map/copy the buffer into that type of
+		 * memory.
+		 */
+		struct {
+			enum omapdss_buffer_type ba_type;
+			enum omapdss_buffer_type uv_type;
 		};
 
 		/* kernel-space interfaces */
