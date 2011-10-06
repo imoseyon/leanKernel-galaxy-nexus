@@ -30,6 +30,7 @@
 #include <asm/mach-types.h>
 #include <plat/serial.h>
 #include <plat/board-tuna-bluetooth.h>
+#include <linux/regulator/driver.h>
 
 #define BT_REG_GPIO 103
 #define BT_RESET_GPIO 42
@@ -38,6 +39,8 @@
 #define BT_HOST_WAKE_GPIO 177
 
 static struct rfkill *bt_rfkill;
+static struct regulator *clk32kaudio_reg;
+static bool bt_enabled;
 
 struct bcm_bt_lpm {
 	int wake;
@@ -56,13 +59,20 @@ static int bcm4330_bt_rfkill_set_power(void *data, bool blocked)
 {
 	// rfkill_ops callback. Turn transmitter on when blocked is false
 	if (!blocked) {
+		if (clk32kaudio_reg && !bt_enabled)
+			regulator_enable(clk32kaudio_reg);
+
 		gpio_set_value(BT_REG_GPIO, 1);
 		gpio_set_value(BT_RESET_GPIO, 1);
 
 	} else {
 		gpio_set_value(BT_RESET_GPIO, 0);
 		gpio_set_value(BT_REG_GPIO, 0);
+		if (clk32kaudio_reg && bt_enabled)
+			regulator_disable(clk32kaudio_reg);
 	}
+
+	bt_enabled = !blocked;
 
 	return 0;
 }
@@ -208,6 +218,12 @@ static int bcm4330_bluetooth_probe(struct platform_device *pdev)
 		return rc;
 	}
 
+	clk32kaudio_reg = regulator_get(0, "clk32kaudio");
+	if (IS_ERR(clk32kaudio_reg)) {
+		pr_err("clk32kaudio reg not found!\n");
+		clk32kaudio_reg = NULL;
+	}
+
 	gpio_direction_output(BT_REG_GPIO, 1);
 	gpio_direction_output(BT_RESET_GPIO, 1);
 
@@ -254,6 +270,7 @@ static int bcm4330_bluetooth_remove(struct platform_device *pdev)
 	gpio_free(BT_RESET_GPIO);
 	gpio_free(BT_WAKE_GPIO);
 	gpio_free(BT_HOST_WAKE_GPIO);
+	regulator_put(clk32kaudio_reg);
 
 	wake_lock_destroy(&bt_lpm.wake_lock);
 	return 0;
@@ -270,6 +287,7 @@ static struct platform_driver bcm4330_bluetooth_platform_driver = {
 
 static int __init bcm4330_bluetooth_init(void)
 {
+	bt_enabled = false;
 	return platform_driver_register(&bcm4330_bluetooth_platform_driver);
 }
 
