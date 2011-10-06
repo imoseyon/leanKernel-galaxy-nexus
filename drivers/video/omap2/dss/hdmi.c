@@ -587,14 +587,13 @@ void omapdss_hdmi_display_disable(struct omap_dss_device *dssdev)
 	hdmi.enabled = false;
 
 	hdmi_power_off(dssdev);
-
-	if (dssdev->state != OMAP_DSS_DISPLAY_SUSPENDED) {
-		/* clear EDID and mode on disable only */
-		hdmi.edid_set = false;
-		hdmi.custom_set = 0;
-		pr_info("hdmi: clearing EDID info\n");
-	}
-
+	if (dssdev->sync_lost_error == 0)
+		if (dssdev->state != OMAP_DSS_DISPLAY_SUSPENDED) {
+			/* clear EDID and mode on disable only */
+			hdmi.edid_set = false;
+			hdmi.custom_set = 0;
+			pr_info("hdmi: clearing EDID info\n");
+		}
 	regulator_disable(hdmi.hdmi_reg);
 
 	regulator_put(hdmi.hdmi_reg);
