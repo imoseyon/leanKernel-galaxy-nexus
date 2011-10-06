@@ -308,6 +308,17 @@ void omap_vp_disable(struct voltagedomain *voltdm)
 		return;
 	}
 
+	/*
+	 * Wait for VP idle Typical latency is <2us. Maximum latency is ~100us
+	 * Depending on if we catch VP in the middle of an SR operation.
+	 */
+	omap_test_timeout((voltdm->read(vp->vstatus)),
+			  VP_IDLE_TIMEOUT, timeout);
+
+	if (timeout >= VP_IDLE_TIMEOUT)
+		pr_warning("%s: vdd_%s idle timedout before disable\n",
+			__func__, voltdm->name);
+
 	/* Disable VP */
 	vpconfig = voltdm->read(vp->vpconfig);
 	vpconfig &= ~vp->common->vpconfig_vpenable;
@@ -320,7 +331,7 @@ void omap_vp_disable(struct voltagedomain *voltdm)
 			  VP_IDLE_TIMEOUT, timeout);
 
 	if (timeout >= VP_IDLE_TIMEOUT)
-		pr_warning("%s: vdd_%s idle timedout\n",
+		pr_warning("%s: vdd_%s idle timedout after disable\n",
 			__func__, voltdm->name);
 
 	vp->enabled = false;
