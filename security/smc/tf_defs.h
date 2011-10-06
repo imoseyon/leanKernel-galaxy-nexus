@@ -36,6 +36,11 @@
 
 #include "tf_protocol.h"
 
+#ifdef CONFIG_TF_ION
+#include <linux/ion.h>
+#include <linux/omap_ion.h>
+#endif
+
 /*----------------------------------------------------------------------------*/
 
 #define SIZE_1KB 0x400
@@ -496,6 +501,10 @@ struct tf_connection {
 
 	/* Lock to protect concurrent accesses to shortcut_list */
 	spinlock_t shortcut_list_lock;
+#endif
+
+#ifdef CONFIG_TF_ION
+	struct ion_client *ion_client;
 #endif
 };
 

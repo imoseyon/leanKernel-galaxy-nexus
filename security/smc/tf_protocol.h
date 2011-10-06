@@ -233,6 +233,7 @@ union tf_answer_param {
 #define TF_PARAM_TYPE_MEMREF_TEMP_INPUT  0x5
 #define TF_PARAM_TYPE_MEMREF_TEMP_OUTPUT 0x6
 #define TF_PARAM_TYPE_MEMREF_TEMP_INOUT  0x7
+#define TF_PARAM_TYPE_MEMREF_ION_HANDLE  0xB
 #define TF_PARAM_TYPE_MEMREF_INPUT       0xD
 #define TF_PARAM_TYPE_MEMREF_OUTPUT      0xE
 #define TF_PARAM_TYPE_MEMREF_INOUT       0xF
@@ -665,5 +666,9 @@ struct tf_version_information_buffer {
 #define IOCTL_TF_EXCHANGE        _IOWR('z', 1, union tf_command)
 #define IOCTL_TF_GET_DESCRIPTION _IOR('z', 2, \
 	struct tf_version_information_buffer)
+#ifdef CONFIG_TF_ION
+#define IOCTL_TF_ION_REGISTER    _IOR('z', 254, int)
+#define IOCTL_TF_ION_UNREGISTER  _IOR('z', 255, int)
+#endif
 
 #endif  /* !defined(__TF_PROTOCOL_H__) */

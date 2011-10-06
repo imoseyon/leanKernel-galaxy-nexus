@@ -25,6 +25,7 @@ endif
 EXTRA_CFLAGS += -Iarch/arm/mach-omap2
 EXTRA_CFLAGS += -Iarch/arm/plat-omap/include/plat
 EXTRA_CFLAGS += -DCONFIG_TF_TEEC
+EXTRA_CFLAGS += -DCONFIG_TF_ION
 
 tf_driver-objs += tf_util.o
 tf_driver-objs += tf_conn.o
