@@ -303,7 +303,8 @@ static void max17040_charger_update(struct max17040_chip *chip)
 			chip->is_timer_flag = true;
 			chip->chg_limit_time = 0;
 			chip->pdata->allow_charging(0);
-		} else if (chip->bat_health != POWER_SUPPLY_HEALTH_GOOD) {
+		} else if (chip->bat_health == POWER_SUPPLY_HEALTH_OVERHEAT ||
+			   chip->bat_health == POWER_SUPPLY_HEALTH_COLD) {
 			chip->charger_status = STATUS_ABNORMAL_TEMP;
 			chip->chg_limit_time = 0;
 			chip->pdata->allow_charging(0);
