@@ -739,7 +739,7 @@ ehci_hub_descriptor (
 #define OMAP_UHH_HOSTCONFIG 0x4a064040
 
 /*-------------------------------------------------------------------------*/
-void uhh_omap_reset(struct ehci_hcd *ehci)
+void uhh_omap_reset_restart_resume(struct ehci_hcd *ehci)
 {
 	u32 usbcmd_backup;
 	u32 usbintr_backup;
@@ -780,6 +780,11 @@ void uhh_omap_reset(struct ehci_hcd *ehci)
 
 	/* RESETB line to PHY: active */
 	gpio_set_value(159, 1);
+	/* Pass a RESUME signalling on the port:
+	 * Modem seems to not like a reset while in suspend
+	 */
+	ehci_writel(ehci, PORT_POWER | PORT_RESUME, &ehci->regs->port_status[0]); /* PP, Clear PortOwner */
+	mdelay(20);
 }
 
 static int ehci_hub_control (
@@ -961,10 +966,13 @@ static int ehci_hub_control (
 			/* resume completed? */
 			else if (time_after_eq(jiffies,
 					ehci->reset_done[wIndex])) {
+				bool first_time;
+
 				clear_bit(wIndex, &ehci->suspended_ports);
 				set_bit(wIndex, &ehci->port_c_suspend);
 				ehci->reset_done[wIndex] = 0;
-
+				first_time = true;
+clear_resume:
 				/* stop resume signaling */
 				temp = ehci_readl(ehci, status_reg);
 				ehci_writel(ehci,
@@ -976,10 +984,16 @@ static int ehci_hub_control (
 					ehci_err(ehci,
 						"port %d resume error %d\n",
 						wIndex + 1, retval);
-
-					uhh_omap_reset(ehci);
-
-					goto error;
+					/* Reset EHCI and PHY and start RESUME signalling */
+					uhh_omap_reset_restart_resume(ehci);
+					if (first_time) {
+						/* Try not to re-enumerate */
+						first_time = false;
+						goto clear_resume;
+					} else {
+						/* Re-enumerate and assign new address */
+						goto error;
+					}
 				}
 				temp &= ~(PORT_SUSPEND|PORT_RESUME|(3<<10));
 			}
