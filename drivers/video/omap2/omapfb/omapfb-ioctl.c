@@ -883,6 +883,7 @@ int omapfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 
 	case OMAPFB_GET_DISPLAY_INFO: {
 		u16 xres, yres;
+		u32 w, h;
 
 		DBG("ioctl GET_DISPLAY_INFO\n");
 
@@ -896,15 +897,9 @@ int omapfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 		p.display_info.xres = xres;
 		p.display_info.yres = yres;
 
-		if (display->driver->get_dimensions) {
-			u32 w, h;
-			display->driver->get_dimensions(display, &w, &h);
-			p.display_info.width = w;
-			p.display_info.height = h;
-		} else {
-			p.display_info.width = 0;
-			p.display_info.height = 0;
-		}
+		omapdss_display_get_dimensions(display, &w, &h);
+		p.display_info.width = w;
+		p.display_info.height = h;
 
 		if (copy_to_user((void __user *)arg, &p.display_info,
 					sizeof(p.display_info)))

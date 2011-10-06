@@ -306,9 +306,8 @@ static long query_display(struct dsscomp_dev *cdev,
 	dis->state = dev->state;
 	dis->timings = dev->panel.timings;
 
-	/* for now LCD panels don't have width and height */
-	dis->width_in_mm = dev->panel.monspecs.max_x * 10;
-	dis->height_in_mm = dev->panel.monspecs.max_y * 10;
+	dis->width_in_mm = DIV_ROUND_CLOSEST(dev->panel.width_in_um, 1000);
+	dis->height_in_mm = DIV_ROUND_CLOSEST(dev->panel.height_in_um, 1000);
 
 	/* find all overlays available for/owned by this display */
 	for (i = 0; i < cdev->num_ovls && dis->enabled; i++) {

@@ -339,6 +339,18 @@ void default_get_overlay_fifo_thresholds(enum omap_plane plane,
 	*fifo_low = fifo_size - burst_size_bytes;
 }
 
+void omapdss_display_get_dimensions(struct omap_dss_device *dssdev,
+				u32 *width_in_um, u32 *height_in_um)
+{
+	if (dssdev->driver->get_dimensions) {
+		dssdev->driver->get_dimensions(dssdev,
+						width_in_um, width_in_um);
+	} else {
+		*width_in_um = dssdev->panel.width_in_um;
+		*height_in_um = dssdev->panel.height_in_um;
+	}
+}
+
 int omapdss_default_get_recommended_bpp(struct omap_dss_device *dssdev)
 {
 	switch (dssdev->type) {
