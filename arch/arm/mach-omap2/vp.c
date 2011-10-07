@@ -126,6 +126,18 @@ int omap_vp_forceupdate_scale(struct voltagedomain *voltdm,
 	u8 target_vsel, current_vsel;
 	int ret, timeout = 0;
 
+	/*
+	 * Wait for VP idle Typical latency is <2us. Maximum latency is ~100us
+	 * This is an additional allowance to ensure we are in proper state
+	 * to enter into forceupdate state transition.
+	 */
+	omap_test_timeout((voltdm->read(vp->vstatus)), VP_IDLE_TIMEOUT,
+			timeout);
+
+	if (timeout >= VP_IDLE_TIMEOUT)
+		pr_warning("%s: vdd_%s idle timedout forceupdate(v=%ld)\n",
+			__func__, voltdm->name, target_volt);
+
 	ret = omap_vc_pre_scale(voltdm, target_volt, &target_vsel, &current_vsel);
 	if (ret)
 		return ret;
