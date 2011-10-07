@@ -1,20 +1,15 @@
 /*
- * Copyright (c) 2011 Texas Instruments Inc
+ * Copyright (c) 2011 Texas Instruments, Inc.
  * Copyright (c) 2011 Trusted Logic S.A.
- * All Rights Reserved.
  *
- * This software is the confidential and proprietary information of
- * Trusted Logic S.A. ("Confidential Information"). You shall not
- * disclose such Confidential Information and shall use it only in
- * accordance with the terms of the license agreement you entered
- * into with Trusted Logic S.A.
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2 as published by the Free Software Foundation.
  *
- * TRUSTED LOGIC S.A. MAKES NO REPRESENTATIONS OR WARRANTIES ABOUT THE
- * SUITABILITY OF THE SOFTWARE, EITHER EXPRESS OR IMPLIED, INCLUDING
- * BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS
- * FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT. TRUSTED LOGIC S.A. SHALL
- * NOT BE LIABLE FOR ANY DAMAGES SUFFERED BY LICENSEE AS A RESULT OF USING,
- * MODIFYING OR DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 /*
@@ -82,10 +77,6 @@ static TEEC_Result _rproc_drm_invoke_secure_service(bool enable)
 	if (result != TEEC_SUCCESS)
 		goto out;
 
-	/*
-	 * TODO: Check with security team if we need to pass a parameter to get
-	 * the result of the service, or the actual return value is enough
-	 */
 	operation.paramTypes = TEEC_PARAM_TYPES(TEEC_NONE, TEEC_NONE,
 						TEEC_NONE, TEEC_NONE);
 	command = (enable ? WVDRM_ENTER_SECURE_PLAYBACK :
@@ -100,10 +91,6 @@ int rproc_drm_invoke_service(bool enable)
 {
 	int ret;
 
-	/*
-	 * TODO: Need to analyze if we get different errors for
-	 * failures in authentication or firewalling
-	 */
 	if ((s_state == RPROC_DRM_SECURE_ENTER && enable) ||
 		(s_state == RPROC_DRM_SECURE_LEAVE && !enable))
 		return 0;
