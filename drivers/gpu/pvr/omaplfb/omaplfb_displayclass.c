@@ -1101,6 +1101,7 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 	OMAPLFBPrintInfo(psDevInfo);
 
 	/* hijack LINFB */
+#if defined(CONFIG_ION_OMAP)
 	if(1)
 	{
 		/* for some reason we need at least 3 buffers in the swap chain */
@@ -1178,6 +1179,7 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 		}
 	}
 	else
+#endif
 	{
 		psPVRFBInfo->sSysAddr.uiAddr = psLINFBInfo->fix.smem_start;
 		psPVRFBInfo->sCPUVAddr = psLINFBInfo->screen_base;
