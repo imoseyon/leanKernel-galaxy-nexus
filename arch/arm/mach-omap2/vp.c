@@ -154,7 +154,10 @@ int omap_vp_forceupdate_scale(struct voltagedomain *voltdm,
 	}
 	if (timeout >= VP_TRANXDONE_TIMEOUT) {
 		pr_warning("%s: vdd_%s TRANXDONE timeout exceeded."
-			"Voltage change aborted", __func__, voltdm->name);
+			"Voltage change aborted target volt=%ld,"
+			"target vsel=0x%02x, current_vsel=0x%02x\n",
+			__func__, voltdm->name, target_volt,
+			target_vsel, current_vsel);
 		return -ETIMEDOUT;
 	}
 
@@ -183,9 +186,12 @@ int omap_vp_forceupdate_scale(struct voltagedomain *voltdm,
 	omap_test_timeout(vp->common->ops->check_txdone(vp->id),
 			  VP_TRANXDONE_TIMEOUT, timeout);
 	if (timeout >= VP_TRANXDONE_TIMEOUT)
-		pr_err("%s: vdd_%s TRANXDONE timeout exceeded."
-			"TRANXDONE never got set after the voltage update\n",
-			__func__, voltdm->name);
+		pr_err("%s: vdd_%s TRANXDONE timeout exceeded. "
+			"TRANXDONE never got set after the voltage update. "
+			"target volt=%ld, target vsel=0x%02x, "
+			"current_vsel=0x%02x\n",
+			__func__, voltdm->name, target_volt,
+			target_vsel, current_vsel);
 
 	omap_vc_post_scale(voltdm, target_volt, target_vsel, current_vsel);
 
@@ -203,8 +209,10 @@ int omap_vp_forceupdate_scale(struct voltagedomain *voltdm,
 
 	if (timeout >= VP_TRANXDONE_TIMEOUT)
 		pr_warning("%s: vdd_%s TRANXDONE timeout exceeded while trying"
-			"to clear the TRANXDONE status\n",
-			__func__, voltdm->name);
+			"to clear the TRANXDONE status. target volt=%ld, "
+			"target vsel=0x%02x, current_vsel=0x%02x\n",
+			__func__, voltdm->name, target_volt,
+			target_vsel, current_vsel);
 
 	vpconfig = voltdm->read(vp->vpconfig);
 	/* Clear initVDD copy trigger bit */
