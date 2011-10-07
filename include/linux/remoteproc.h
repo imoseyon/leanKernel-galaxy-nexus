@@ -82,6 +82,8 @@ enum fw_section_type {
 	FW_RESOURCE	= 0,
 	FW_TEXT		= 1,
 	FW_DATA		= 2,
+	FW_MMU		= 3,
+	FW_SIGNATURE	= 4,
 };
 
 struct fw_resource {
@@ -210,7 +212,7 @@ enum rproc_event {
  * struct rproc - a physical remote processor device
  *
  * @next: next rproc entry in the list
- * @name: human readable name of the rproc, cannot exceed RPROC_MAN_NAME bytes
+ * @name: human readable name of the rproc, cannot exceed RPROC_MAX_NAME bytes
  * @memory_maps: table of da-to-pa memory maps (relevant if device is behind
  *               an iommu)
  * @memory_pool: platform-specific contiguous memory pool data (relevant for
@@ -236,6 +238,10 @@ enum rproc_event {
  * @mmufault_work: work in charge of notifing mmufault
  * @nb_error: notify block for fatal errors
  * @error_comp: completion used when an error happens
+ * @secure_ttb: private data for configuring iommu in secure mode
+ * @secure_restart: completion event notifier for the secure restart process
+ * @secure_mode: flag to dictate whether to enable secure loading
+ * @secure_ok: restart status flag to be looked up upon the event's completion
  */
 struct rproc {
 	struct list_head next;
@@ -271,9 +277,14 @@ struct rproc {
 	struct mutex pm_lock;
 #endif
 	struct pm_qos_request_list *qos_request;
+	void *secure_ttb;
+	struct completion secure_restart;
+	bool secure_mode;
+	bool secure_ok;
 	bool halt_on_crash;
 };
 
+int rproc_set_secure(const char *, bool);
 struct rproc *rproc_get(const char *);
 void rproc_put(struct rproc *);
 int rproc_event_register(struct rproc *, struct notifier_block *, int);

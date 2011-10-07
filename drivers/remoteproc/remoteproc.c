@@ -601,17 +601,17 @@ static int _event_notify(struct rproc *rproc, int type, void *data)
 		init_completion(&rproc->error_comp);
 		rproc->state = RPROC_CRASHED;
 		mutex_unlock(&rproc->lock);
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
+		pm_runtime_dont_use_autosuspend(rproc->dev);
+#endif
+		dump_remoteproc_regs(rproc->name,
+				(struct exc_regs *)rproc->cdump_buf1);
 		if (!rproc->halt_on_crash)
 			complete_remoteproc_crash(rproc);
 		else
 			pr_info("remoteproc %s: halt-on-crash enabled: " \
 				"deferring crash recovery\n",
 				rproc->name);
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
-		pm_runtime_dont_use_autosuspend(rproc->dev);
-#endif
-		dump_remoteproc_regs(rproc->name,
-				(struct exc_regs *)rproc->cdump_buf1);
 		break;
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	case RPROC_PRE_SUSPEND:
@@ -660,7 +660,7 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 		err = rproc->ops->iommu_init(rproc, rproc_mmu_fault_isr);
 		if (err) {
 			dev_err(dev, "can't configure iommu %d\n", err);
-			goto unlock_mutext;
+			goto unlock_mutex;
 		}
 	}
 
@@ -669,7 +669,7 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 		if (err) {
 			dev_err(dev, "can't configure watchdog timer %d\n",
 				err);
-			goto unlock_mutext;
+			goto unlock_mutex;
 		}
 	}
 
@@ -681,7 +681,7 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 	err = rproc->ops->start(rproc, bootaddr);
 	if (err) {
 		dev_err(dev, "can't start rproc %s: %d\n", rproc->name, err);
-		goto unlock_mutext;
+		goto unlock_mutex;
 	}
 
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
@@ -698,7 +698,14 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 
 	dev_info(dev, "remote processor %s is now up\n", rproc->name);
 
-unlock_mutext:
+unlock_mutex:
+	/*
+	 * signal always, as we would need a notification in both the
+	 * normal->secure & secure->normal mode transitions, otherwise
+	 * we would have to introduce one more variable.
+	 */
+	rproc->secure_ok = !err;
+	complete_all(&rproc->secure_restart);
 	mutex_unlock(&rproc->lock);
 }
 
@@ -1000,6 +1007,7 @@ static int rproc_process_fw(struct rproc *rproc, struct fw_section *section,
 	u64 da;
 	int ret = 0;
 	void *ptr;
+	bool copy;
 
 	/* first section should be FW_RESOURCE section */
 	if (section->type != FW_RESOURCE) {
@@ -1013,6 +1021,7 @@ static int rproc_process_fw(struct rproc *rproc, struct fw_section *section,
 		da = section->da;
 		len = section->len;
 		type = section->type;
+		copy = true;
 
 		dev_dbg(dev, "section: type %d da 0x%llx len 0x%x\n",
 								type, da, len);
@@ -1034,26 +1043,35 @@ static int rproc_process_fw(struct rproc *rproc, struct fw_section *section,
 			}
 		}
 
-		ret = rproc_da_to_pa(rproc->memory_maps, da, &pa);
-		if (ret) {
-			dev_err(dev, "rproc_da_to_pa failed: %d\n", ret);
-			break;
-		}
+		if (section->type <= FW_DATA) {
+			ret = rproc_da_to_pa(rproc->memory_maps, da, &pa);
+			if (ret) {
+				dev_err(dev, "rproc_da_to_pa failed:%d\n", ret);
+				break;
+			}
+		} else if (rproc->secure_mode) {
+			pa = da;
+			if (section->type == FW_MMU)
+				rproc->secure_ttb = (void *)pa;
+		} else
+			copy = false;
 
 		dev_dbg(dev, "da 0x%llx pa 0x%x len 0x%x\n", da, pa, len);
 
-		/* ioremaping normal memory, so make sparse happy */
-		ptr = (__force void *) ioremap_nocache(pa, len);
-		if (!ptr) {
-			dev_err(dev, "can't ioremap 0x%x\n", pa);
-			ret = -ENOMEM;
-			break;
+		if (copy) {
+			/* ioremaping normal memory, so make sparse happy */
+			ptr = (__force void *) ioremap_nocache(pa, len);
+			if (!ptr) {
+				dev_err(dev, "can't ioremap 0x%x\n", pa);
+				ret = -ENOMEM;
+				break;
+			}
+
+			memcpy(ptr, section->content, len);
+
+			/* iounmap normal memory, so make sparse happy */
+			iounmap((__force void __iomem *) ptr);
 		}
-
-		memcpy(ptr, section->content, len);
-
-		/* iounmap normal memory, so make sparse happy */
-		iounmap((__force void __iomem *) ptr);
 
 		section = (struct fw_section *)(section->content + len);
 		left -= len;
@@ -1145,6 +1163,41 @@ static int rproc_loader(struct rproc *rproc)
 
 	return 0;
 }
+
+int rproc_set_secure(const char *name, bool enable)
+{
+	struct rproc *rproc;
+
+	rproc = __find_rproc_by_name(name);
+	if (!rproc) {
+		pr_err("can't find remote processor %s\n", name);
+		return -ENODEV;
+	}
+
+	/*
+	 * set the secure_mode here, the secure_ttb will be filled up during
+	 * the reload process.
+	 */
+	rproc->secure_mode = enable;
+	rproc->secure_ttb = NULL;
+	rproc->secure_ok = false;
+	init_completion(&rproc->secure_restart);
+
+	/*
+	 * restart the processor, the mode will dictate regular load or
+	 * secure load
+	 */
+	_event_notify(rproc, RPROC_ERROR, NULL);
+
+	/* block until the restart is complete */
+	if (wait_for_completion_interruptible(&rproc->secure_restart)) {
+		pr_err("error waiting restart completion\n");
+		return -EINTR;
+	}
+
+	return rproc->secure_ok ? 0 : -EACCES;
+}
+EXPORT_SYMBOL(rproc_set_secure);
 
 int rproc_error_notify(struct rproc *rproc)
 {
@@ -1637,6 +1690,10 @@ int rproc_register(struct device *dev, const char *name,
 	pm_qos_add_request(rproc->qos_request, PM_QOS_CPU_DMA_LATENCY,
 				PM_QOS_DEFAULT_VALUE);
 
+	rproc->secure_mode = false;
+	rproc->secure_ttb = NULL;
+	init_completion(&rproc->secure_restart);
+
 	spin_lock(&rprocs_lock);
 	list_add_tail(&rproc->next, &rprocs);
 	spin_unlock(&rprocs_lock);
@@ -1687,6 +1744,8 @@ int rproc_unregister(const char *name)
 	list_del(&rproc->next);
 	spin_unlock(&rprocs_lock);
 
+	rproc->secure_mode = false;
+	rproc->secure_ttb = NULL;
 	pm_qos_remove_request(rproc->qos_request);
 	kfree(rproc->qos_request);
 	kfree(rproc->last_trace_buf0);
