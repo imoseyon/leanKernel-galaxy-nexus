@@ -246,6 +246,8 @@ static int omap_rproc_iommu_init(struct rproc *rproc,
 		return -ENOMEM;
 
 	iommu_set_isr(pdata->iommu_name, omap_rproc_iommu_isr, rproc);
+	iommu_set_secure(pdata->iommu_name, rproc->secure_mode,
+						rproc->secure_ttb);
 	iommu = iommu_get(pdata->iommu_name);
 	if (IS_ERR(iommu)) {
 		ret = PTR_ERR(iommu);
@@ -257,17 +259,23 @@ static int omap_rproc_iommu_init(struct rproc *rproc,
 	rpp->iommu_cb = callback;
 	rproc->priv = rpp;
 
-	for (i = 0; rproc->memory_maps[i].size; i++) {
-		const struct rproc_mem_entry *me = &rproc->memory_maps[i];
+	if (!rproc->secure_mode) {
+		for (i = 0; rproc->memory_maps[i].size; i++) {
+			const struct rproc_mem_entry *me =
+							&rproc->memory_maps[i];
 
-		ret = omap_rproc_map(dev, iommu, me->da, me->pa, me->size);
-		if (ret)
-			goto err_map;
+			ret = omap_rproc_map(dev, iommu, me->da, me->pa,
+								 me->size);
+			if (ret)
+				goto err_map;
+		}
 	}
 	return 0;
+
 err_map:
 	iommu_put(iommu);
 err_mmu:
+	iommu_set_secure(pdata->iommu_name, false, NULL);
 	kfree(rpp);
 	return ret;
 }
@@ -381,7 +389,15 @@ static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct omap_rproc_pdata *pdata = dev->platform_data;
 	struct omap_rproc_timers_info *timers = pdata->timers;
-	int ret, i;
+	int i;
+	int ret = 0;
+
+	if (rproc->secure_mode) {
+		pr_err("TODO: Call secure service to authenticate\n");
+		if (ret)
+			return -ENXIO;
+	}
+
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	_init_pm_flags(rproc);
 #endif
