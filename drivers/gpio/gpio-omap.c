@@ -44,6 +44,8 @@ struct gpio_regs {
 	u32 dataout;
 	u32 debounce;
 	u32 debounce_en;
+	u32 edge_falling;
+	u32 edge_rising;
 };
 
 struct gpio_bank {
@@ -86,6 +88,27 @@ static void omap_gpio_mod_init(struct gpio_bank *bank);
 #define GPIO_INDEX(bank, gpio) (gpio % bank->width)
 #define GPIO_BIT(bank, gpio) (1 << GPIO_INDEX(bank, gpio))
 #define GPIO_MOD_CTRL_BIT	BIT(0)
+static void _set_gpio_waken(struct gpio_bank *bank, int gpio)
+{
+	if (bank->regs->wkup_set != bank->regs->wkup_clear) {
+		__raw_writel((1 << gpio), bank->base + bank->regs->wkup_set);
+	} else {
+		u32 val =  __raw_readl(bank->base + bank->regs->wkup_set);
+		val |= 1 << gpio;
+		__raw_writel(val, bank->base + bank->regs->wkup_set);
+	}
+}
+static void _clear_gpio_waken(struct gpio_bank *bank, int gpio)
+{
+	if (bank->regs->wkup_set != bank->regs->wkup_clear) {
+		__raw_writel((1 << gpio), bank->base + bank->regs->wkup_clear);
+	} else {
+		u32 val =  __raw_readl(bank->base + bank->regs->wkup_clear);
+		val &= ~(1 << gpio);
+		__raw_writel(val, bank->base + bank->regs->wkup_clear);
+	}
+
+}
 
 static void _set_gpio_direction(struct gpio_bank *bank, int gpio, int is_input)
 {
@@ -224,11 +247,9 @@ static inline void set_gpio_trigger(struct gpio_bank *bank, int gpio,
 			 * transitions
 			 */
 			if (trigger & IRQ_TYPE_EDGE_BOTH)
-				__raw_writel(1 << gpio, bank->base
-					+ bank->regs->wkup_set);
+				_set_gpio_waken(bank, gpio);
 			else
-				__raw_writel(1 << gpio, bank->base
-					+ bank->regs->wkup_clear);
+				_clear_gpio_waken(bank, gpio);
 		}
 	}
 	/* This part needs to be executed always for OMAP{34xx, 44xx} */
@@ -314,11 +335,9 @@ static int _set_gpio_triggering(struct gpio_bank *bank, int gpio, int trigger)
 
 		if (trigger)
 			/* Enable wake-up during idle for dynamic tick */
-			__raw_writel(1 << gpio, bank->base
-						+ bank->regs->wkup_set);
+			_set_gpio_waken(bank, gpio);
 		else
-			__raw_writel(1 << gpio, bank->base
-						+ bank->regs->wkup_clear);
+			_clear_gpio_waken(bank, gpio);
 
 		__raw_writel(l, reg);
 	}
@@ -553,7 +572,7 @@ static void omap_gpio_free(struct gpio_chip *chip, unsigned offset)
 
 	if (bank->regs->wkup_clear)
 		/* Disable wake-up during idle for dynamic tick */
-		__raw_writel(1 << offset, bank->base + bank->regs->wkup_clear);
+		_clear_gpio_waken(bank, offset);
 
 	bank->mod_usage &= ~(1 << offset);
 
@@ -1366,6 +1385,51 @@ static int omap_gpio_pm_runtime_resume(struct device *dev)
 }
 
 #ifdef CONFIG_ARCH_OMAP2PLUS
+void omap2_gpio_set_edge_wakeup(void)
+{
+	struct gpio_bank *bank;
+
+	list_for_each_entry(bank, &omap_gpio_list, node) {
+		u32 level_low = 0;
+		u32 level_high = 0;
+		u32 wkup_status = 0;
+
+		level_low = __raw_readl(bank->base +
+				bank->regs->leveldetect0);
+		level_high = __raw_readl(bank->base +
+				bank->regs->leveldetect1);
+		wkup_status = __raw_readl(bank->base +
+				bank->regs->wkup_status);
+		bank->context.edge_falling = __raw_readl(bank->base +
+				bank->regs->fallingdetect);
+		bank->context.edge_rising = __raw_readl(bank->base +
+				bank->regs->risingdetect);
+
+		/*
+		 * Set edge trigger for all gpio's that are
+		 * expected to produce wakeup from low power.
+		 * even if they are set for level detection only.
+		 */
+		__raw_writel((bank->context.edge_falling | level_low) & wkup_status,
+			(bank->base + bank->regs->fallingdetect));
+		__raw_writel((bank->context.edge_rising | level_high) & wkup_status,
+			(bank->base + bank->regs->risingdetect));
+
+	}
+}
+
+void omap2_gpio_restore_edge_wakeup(void)
+{
+	struct gpio_bank *bank;
+
+	list_for_each_entry(bank, &omap_gpio_list, node) {
+		/* restore edge setting */
+		__raw_writel(bank->context.edge_falling,
+			(bank->base + bank->regs->fallingdetect));
+		__raw_writel(bank->context.edge_rising,
+			(bank->base + bank->regs->risingdetect));
+	}
+}
 
 void omap2_gpio_prepare_for_idle(int off_mode)
 {
