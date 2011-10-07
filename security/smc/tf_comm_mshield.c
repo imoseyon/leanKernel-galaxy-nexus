@@ -491,12 +491,15 @@ void tf_l4sec_clkdm_allow_idle(bool wakeunlock)
 {
 	unsigned long flags;
 	spin_lock_irqsave(&clk_lock, flags);
-	if (smc_l4_sec_clkdm_use_count-- == 0)
+	smc_l4_sec_clkdm_use_count--;
+	if (smc_l4_sec_clkdm_use_count == 0)
 		clkdm_allow_idle(smc_l4_sec_clkdm);
 #ifdef CONFIG_HAS_WAKELOCK
-	if (wakeunlock)
-		if (tf_wake_lock_count-- == 0)
+	if (wakeunlock){
+		tf_wake_lock_count--;
+		if (tf_wake_lock_count == 0)
 			wake_unlock(&g_tf_wake_lock);
+	}
 #endif
 	spin_unlock_irqrestore(&clk_lock, flags);
 }
