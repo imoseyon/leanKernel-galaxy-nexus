@@ -165,6 +165,8 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 		}
 	}
 
+	omap2_gpio_set_edge_wakeup();
+
 	if (omap4_device_next_state_off()) {
 		omap2_gpio_prepare_for_idle(true);
 		omap_gpmc_save_context();
@@ -191,6 +193,8 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 	omap4_enter_lowpower(cpu, power_state);
 
 	if (omap4_device_prev_state_off()) {
+		/* Reconfigure the trim settings as well */
+		omap4_ldo_trim_configure();
 		omap4_dpll_resume_off();
 		omap4_cm_resume_off();
 #ifdef CONFIG_PM_DEBUG
@@ -216,8 +220,6 @@ abort_device_off:
 	if (omap4_device_prev_state_off()) {
 		omap_dma_global_context_restore();
 		omap_gpmc_restore_context();
-		/* Reconfigure the trim settings as well */
-		omap4_ldo_trim_configure();
 	}
 
 	if (omap4_device_next_state_off()) {
@@ -232,6 +234,8 @@ abort_device_off:
 			0, OMAP4430_PRM_PARTITION,
 			OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_IO_PMCTRL_OFFSET);
 	}
+
+	omap2_gpio_restore_edge_wakeup();
 
 	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
 		omap_vc_set_auto_trans(mpu_voltdm,
@@ -487,6 +491,10 @@ static void omap4_configure_pwdm_suspend(bool is_off_mode)
 
 	list_for_each_entry(pwrst, &pwrst_list, node) {
 		bool parent_power_domain = false;
+
+		pwrst->saved_state = pwrdm_read_next_pwrst(pwrst->pwrdm);
+		pwrst->saved_logic_state = pwrdm_read_logic_retst(pwrst->pwrdm);
+
 		if ((!strcmp(pwrst->pwrdm->name, "cpu0_pwrdm")) ||
 			(!strcmp(pwrst->pwrdm->name, "cpu1_pwrdm")))
 				continue;
@@ -505,21 +513,87 @@ static void omap4_configure_pwdm_suspend(bool is_off_mode)
 			als =
 			   get_achievable_state(pwrst->pwrdm->pwrsts_logic_ret,
 					logic_state, parent_power_domain);
-			pwrdm_set_logic_retst(pwrst->pwrdm, als);
+			if (als < pwrst->saved_logic_state)
+				pwrdm_set_logic_retst(pwrst->pwrdm, als);
 		}
 		if (pwrst->pwrdm->pwrsts) {
 			pwrst->next_state =
 			   get_achievable_state(pwrst->pwrdm->pwrsts, state,
 							parent_power_domain);
-			omap_set_pwrdm_state(pwrst->pwrdm, pwrst->next_state);
+			if (pwrst->next_state < pwrst->saved_state)
+				omap_set_pwrdm_state(pwrst->pwrdm,
+						     pwrst->next_state);
+			else
+				pwrst->next_state = pwrst->saved_state;
 		}
 	}
 }
 
-static int omap4_pm_suspend(void)
+/**
+ * omap4_restore_pwdms_after_suspend() - Restore powerdomains after suspend
+ *
+ * Re-program all powerdomains to saved power domain states.
+ *
+ * returns 0 if all power domains hit targeted power state, -1 if any domain
+ * failed to hit targeted power state (status related to the actual restore
+ * is not returned).
+ */
+static int omap4_restore_pwdms_after_suspend(void)
 {
 	struct power_state *pwrst;
-	int state, ret = 0;
+	int cstate, pstate, ret = 0;
+
+	/* Restore next powerdomain state */
+	list_for_each_entry(pwrst, &pwrst_list, node) {
+		cstate = pwrdm_read_pwrst(pwrst->pwrdm);
+		pstate = pwrdm_read_prev_pwrst(pwrst->pwrdm);
+		if (pstate > pwrst->next_state) {
+			pr_info("Powerdomain (%s) didn't enter "
+			       "target state %d Vs achieved state %d. "
+			       "current state %d\n",
+			       pwrst->pwrdm->name, pwrst->next_state,
+			       pstate, cstate);
+			ret = -1;
+		}
+
+		/* If state already ON due to h/w dep, don't do anything */
+		if (cstate == PWRDM_POWER_ON)
+			continue;
+
+		/* If we have already achieved saved state, nothing to do */
+		if (cstate == pwrst->saved_state)
+			continue;
+
+		/* mpuss code takes care of this */
+		if ((!strcmp(pwrst->pwrdm->name, "cpu0_pwrdm")) ||
+			(!strcmp(pwrst->pwrdm->name, "cpu1_pwrdm")))
+				continue;
+
+		/*
+		 * Skip pd program if saved state higher than current state
+		 * Since we would have already returned if the state
+		 * was ON, if the current state is yet another low power
+		 * state, the PRCM specification clearly states that
+		 * transition from a lower LP state to a higher LP state
+		 * is forbidden.
+		 */
+		if (pwrst->saved_state > cstate)
+			continue;
+
+		if (pwrst->pwrdm->pwrsts)
+			omap_set_pwrdm_state(pwrst->pwrdm, pwrst->saved_state);
+
+		if (pwrst->pwrdm->pwrsts_logic_ret)
+			pwrdm_set_logic_retst(pwrst->pwrdm,
+						pwrst->saved_logic_state);
+	}
+
+	return ret;
+}
+
+static int omap4_pm_suspend(void)
+{
+	int ret = 0;
 
 	/*
 	 * If any device was in the middle of a scale operation
@@ -536,12 +610,6 @@ static int omap4_pm_suspend(void)
 	if (wakeup_timer_seconds || wakeup_timer_milliseconds)
 		omap2_pm_wakeup_on_timer(wakeup_timer_seconds,
 					 wakeup_timer_milliseconds);
-
-	/* Save current powerdomain state */
-	list_for_each_entry(pwrst, &pwrst_list, node) {
-		pwrst->saved_state = pwrdm_read_next_pwrst(pwrst->pwrdm);
-		pwrst->saved_logic_state = pwrdm_read_logic_retst(pwrst->pwrdm);
-	}
 
 	omap4_configure_pwdm_suspend(off_mode_enabled);
 
@@ -567,18 +635,8 @@ static int omap4_pm_suspend(void)
 	if (off_mode_enabled)
 		omap4_device_set_state_off(0);
 
-	/* Restore next powerdomain state */
-	list_for_each_entry(pwrst, &pwrst_list, node) {
-		state = pwrdm_read_prev_pwrst(pwrst->pwrdm);
-		if (state > pwrst->next_state) {
-			pr_info("Powerdomain (%s) didn't enter "
-			       "target state %d\n",
-			       pwrst->pwrdm->name, pwrst->next_state);
-			ret = -1;
-		}
-		omap_set_pwrdm_state(pwrst->pwrdm, pwrst->saved_state);
-		pwrdm_set_logic_retst(pwrst->pwrdm, pwrst->saved_logic_state);
-	}
+	ret = omap4_restore_pwdms_after_suspend();
+
 	if (ret)
 		pr_err("Could not enter target state in pm_suspend\n");
 	else
@@ -806,7 +864,8 @@ static void __init prcm_setup_regs(void)
 * when a SWakeup is asserted from HSI to MPU (and DSP) :
 *  - force a DSP SW wakeup
 *  - wait DSP module to be fully ON
-*  - force a DSP SW sleep
+*  - Configure a DSP CLK CTRL to HW_AUTO
+*  - Wait on DSP module to be OFF
 *
 *  Note : we detect a Swakeup is asserted to MPU by checking when an interrupt
 *         is received while HSI module is ON.
@@ -815,26 +874,54 @@ static void __init prcm_setup_regs(void)
 */
 static void omap_pm_clear_dsp_wake_up(void)
 {
+	int ret;
+	int timeout = 10;
+
 	if (!tesla_pwrdm || !tesla_clkdm) {
 		WARN_ONCE(1, "%s: unable to use tesla workaround\n", __func__);
 		return;
 	}
 
-	if (omap4_prminst_read_inst_reg(tesla_pwrdm->prcm_partition,
-				tesla_pwrdm->prcm_offs,
-				OMAP4_PM_PWSTST) & OMAP_INTRANSITION_MASK) {
+	ret = pwrdm_read_pwrst(tesla_pwrdm);
+	/* If Tesla power state in RET or OFF, then not hit by errata */
+	if (ret <= PWRDM_POWER_RET)
+		return;
 
-		if (clkdm_wakeup(tesla_clkdm))
-			pr_err("%s: Failed to force wakeup of %s\n", __func__,
-				tesla_clkdm->name);
+	if (clkdm_wakeup(tesla_clkdm))
+		pr_err("%s: Failed to force wakeup of %s\n", __func__,
+					tesla_clkdm->name);
 
-		/* This takes less than a few microseconds, hence in context */
+	/* This takes less than a few microseconds, hence in context */
+	pwrdm_wait_transition(tesla_pwrdm);
+
+	/*
+	 * Check current power state of Tesla after transition, to make sure
+	 * that Tesla is indeed turned ON.
+	 */
+	ret = pwrdm_read_pwrst(tesla_pwrdm);
+	do  {
 		pwrdm_wait_transition(tesla_pwrdm);
+		ret = pwrdm_read_pwrst(tesla_pwrdm);
+	} while ((ret < PWRDM_POWER_INACTIVE) && --timeout);
 
-		if (clkdm_sleep(tesla_clkdm))
-			pr_err("%s: Failed to force sleep of %s\n", __func__,
-				tesla_clkdm->name);
-	}
+	if (!timeout)
+		pr_err("%s: Tesla failed to transition to ON state!\n",
+					__func__);
+
+        timeout = 10;
+	clkdm_allow_idle(tesla_clkdm);
+
+	/* Ensure Tesla power state in OFF state */
+	ret = pwrdm_read_pwrst(tesla_pwrdm);
+	do {
+		pwrdm_wait_transition(tesla_pwrdm);
+		ret = pwrdm_read_pwrst(tesla_pwrdm);
+	} while ((ret >= PWRDM_POWER_INACTIVE) && --timeout);
+
+	if (!timeout)
+		pr_err("%s: Tesla failed to transition to OFF state\n",
+					__func__);
+
 }
 
 static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
