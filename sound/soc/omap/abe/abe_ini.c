@@ -221,14 +221,7 @@ int omap_abe_reload_fw(struct omap_abe *abe, u32 *firmware)
 			    RAMP_5MS, GAIN_LEFT_OFFSET);
 	omap_abe_write_gain(abe, GAINS_SPLIT, GAIN_0dB,
 			    RAMP_5MS, GAIN_RIGHT_OFFSET);
-	omap_abe_write_gain(abe, GAINS_DL1, GAIN_0dB,
-			    RAMP_5MS, GAIN_LEFT_OFFSET);
-	omap_abe_write_gain(abe, GAINS_DL1, GAIN_0dB,
-			    RAMP_5MS, GAIN_RIGHT_OFFSET);
-	omap_abe_write_gain(abe, GAINS_DL2, GAIN_0dB,
-			    RAMP_5MS, GAIN_LEFT_OFFSET);
-	omap_abe_write_gain(abe, GAINS_DL2, GAIN_0dB,
-			    RAMP_5MS, GAIN_RIGHT_OFFSET);
+
 	return 0;
 }
 EXPORT_SYMBOL(omap_abe_reload_fw);
