@@ -29,7 +29,6 @@
 #include <plat/mmc.h>
 #include <mach/gpio.h>
 #include <plat/menelaus.h>
-#include <plat/mcasp.h>
 #include <plat/mcbsp.h>
 #include <plat/remoteproc.h>
 #include <plat/omap44xx.h>
@@ -75,43 +74,6 @@ void omap_mcbsp_register_board_cfg(struct resource *res, int res_count,
 void omap_mcbsp_register_board_cfg(struct resource *res, int res_count,
 			struct omap_mcbsp_platform_data *config, int size)
 {  }
-#endif
-
-
-/*-------------------------------------------------------------------------*/
-
-#if defined(CONFIG_SND_OMAP_SOC_MCASP) || \
-	defined(CONFIG_SND_OMAP_SOC_MCASP_MODULE)
-
-static struct omap_device_pm_latency omap_mcasp_latency[] = {
-	{
-		.deactivate_func = omap_device_idle_hwmods,
-		.activate_func = omap_device_enable_hwmods,
-		.flags = OMAP_DEVICE_LATENCY_AUTO_ADJUST,
-	},
-};
-
-void omap_init_mcasp(struct omap_mcasp_platform_data *pdata)
-{
-	struct omap_hwmod *oh;
-	struct omap_device *od;
-
-	oh = omap_hwmod_lookup("omap-mcasp-dai");
-	if (!oh) {
-		printk(KERN_ERR "Could not look up mcasp hw_mod\n");
-		return;
-	}
-
-	od = omap_device_build("omap-mcasp-dai", -1, oh, pdata,
-				sizeof(struct omap_mcasp_platform_data),
-				omap_mcasp_latency,
-				ARRAY_SIZE(omap_mcasp_latency), 0);
-
-	if (od <= 0)
-		printk(KERN_ERR "Could not build omap_device for omap-mcasp-dai\n");
-}
-#else
-inline void omap_init_mcasp(struct omap_mcasp_platform_data *pdata) {}
 #endif
 
 /*-------------------------------------------------------------------------*/
