@@ -326,11 +326,6 @@ static struct platform_device tuna_ion_device = {
 	},
 };
 
-static struct platform_device tuna_mcasp_device = {
-	.name		= "omap-mcasp-dai",
-	.id		= 0,
-};
-
 static struct platform_device tuna_spdif_dit_device = {
 	.name		= "spdif-dit",
 	.id		= 0,
@@ -343,7 +338,6 @@ static struct platform_device *tuna_devices[] __initdata = {
 	&twl6030_madc_device,
 	&tuna_ion_device,
 	&tuna_gpio_i2c5_device,
-	&tuna_mcasp_device,
 	&tuna_spdif_dit_device,
 };
 
