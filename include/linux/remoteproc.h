@@ -199,12 +199,15 @@ enum rproc_state {
  *
  * @RPROC_RESUME: users should use this event to revert what was done in the
  *		  POS_SUSPEND event.
+ *
+ * @RPROC_SECURE: remote processor secure mode has changed.
  */
 enum rproc_event {
 	RPROC_ERROR,
 	RPROC_PRE_SUSPEND,
 	RPROC_POS_SUSPEND,
 	RPROC_RESUME,
+	RPROC_SECURE,
 };
 
 #define RPROC_MAX_NAME	100
