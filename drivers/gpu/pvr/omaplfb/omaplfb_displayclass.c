@@ -1101,6 +1101,7 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 	OMAPLFBPrintInfo(psDevInfo);
 
 	/* hijack LINFB */
+#if defined(CONFIG_ION_OMAP)
 	if(1)
 	{
 		/* for some reason we need at least 3 buffers in the swap chain */
@@ -1131,7 +1132,11 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 		psPVRFBInfo->uiBytesPerPixel = psLINFBInfo->var.bits_per_pixel >> 3;
 		psPVRFBInfo->bIs2D = OMAPLFB_TRUE;
 
-		res = omap_ion_tiler_alloc(gpsIONClient, &sAllocData);
+		res = omap_ion_nonsecure_tiler_alloc(gpsIONClient, &sAllocData);
+		if (res < 0)
+		{
+			res = omap_ion_tiler_alloc(gpsIONClient, &sAllocData);
+		}
 		psPVRFBInfo->psIONHandle = sAllocData.handle;
 		if (res < 0)
 		{
@@ -1174,6 +1179,7 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 		}
 	}
 	else
+#endif
 	{
 		psPVRFBInfo->sSysAddr.uiAddr = psLINFBInfo->fix.smem_start;
 		psPVRFBInfo->sCPUVAddr = psLINFBInfo->screen_base;
