@@ -2246,7 +2246,7 @@ static int check_port_resume_type(struct usb_device *udev,
 	 * so try a reset-resume instead.
 	 */
 	else if (!(portstatus & USB_PORT_STAT_ENABLE) && !udev->reset_resume) {
-		if (udev->persist_enabled)
+		if (udev->persist_enabled && !(udev->quirks & USB_QUIRK_NO_RESET_RESUME))
 			udev->reset_resume = 1;
 		else
 			status = -ENODEV;
