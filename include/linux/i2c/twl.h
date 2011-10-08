@@ -681,10 +681,16 @@ struct twl4030_resconfig {
 	u8 remap_sleep;	/* sleep state remapping */
 };
 
+struct twl4030_system_config {
+	char *name;
+	u8 group;
+};
+
 struct twl4030_power_data {
 	struct twl4030_script **scripts;	/* used in TWL4030 only */
 	unsigned num;				/* used in TWL4030 only */
 	struct twl4030_resconfig *resource_config;
+	struct twl4030_system_config *sys_config; /*system resources*/
 #define TWL4030_RESCONFIG_UNDEF	((u8)-1)
 };
 
