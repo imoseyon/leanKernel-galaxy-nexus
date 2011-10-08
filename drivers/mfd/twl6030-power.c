@@ -70,6 +70,10 @@ static __initdata struct twl6030_resource_map twl6030_res_map[] = {
 	/* TEMP cannot be modified */
 };
 
+static struct twl4030_system_config twl6030_sys_config[] = {
+	{.name = "DEV_ON", .group =  DEV_GRP_P1,},
+};
+
 /* Actual power groups that TWL understands */
 #define P3_GRP_6030	BIT(2)		/* secondary processor, modem, etc */
 #define P2_GRP_6030	BIT(1)		/* "peripherals" */
@@ -95,6 +99,24 @@ static __init void twl6030_program_map(void)
 			       "grp=0x%02X\n", __func__, r, res->name,
 			       res->base_addr, res->group);
 		res++;
+	}
+}
+
+static __init void twl6030_update_system_map
+			(struct twl4030_system_config *sys_list)
+{
+	int i;
+	struct twl4030_system_config *sys_res;
+
+	while (sys_list && sys_list->name)  {
+		sys_res = twl6030_sys_config;
+		for (i = 0; i < ARRAY_SIZE(twl6030_sys_config); i++) {
+			if (!strcmp(sys_res->name, sys_list->name))
+				sys_res->group = sys_list->group &
+					(DEV_GRP_P1 | DEV_GRP_P2 | DEV_GRP_P3);
+			sys_res++;
+		}
+		sys_list++;
 	}
 }
 
@@ -131,14 +153,18 @@ static __init void twl6030_update_map(struct twl4030_resconfig *res_list)
  */
 void __init twl6030_power_init(struct twl4030_power_data *power_data)
 {
-	if (power_data && !power_data->resource_config) {
-		pr_err("%s: power data from platform without resources!\n",
+	if (power_data && (!power_data->resource_config &&
+					!power_data->sys_config)) {
+		pr_err("%s: power data from platform without configuration!\n",
 		       __func__);
 		return;
 	}
 
-	if (power_data)
+	if (power_data && power_data->resource_config)
 		twl6030_update_map(power_data->resource_config);
+
+	if (power_data && power_data->sys_config)
+		twl6030_update_system_map(power_data->sys_config);
 
 	twl6030_program_map();
 
