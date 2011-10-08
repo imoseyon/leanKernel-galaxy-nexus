@@ -27,11 +27,20 @@ struct ion_device *omap_ion_device;
 int num_heaps;
 struct ion_heap **heaps;
 struct ion_heap *tiler_heap;
+static struct ion_heap *nonsecure_tiler_heap;
 
 int omap_ion_tiler_alloc(struct ion_client *client,
 			 struct omap_ion_tiler_alloc_data *data)
 {
 	return omap_tiler_alloc(tiler_heap, client, data);
+}
+
+int omap_ion_nonsecure_tiler_alloc(struct ion_client *client,
+			 struct omap_ion_tiler_alloc_data *data)
+{
+	if (!nonsecure_tiler_heap)
+		return -ENOMEM;
+	return omap_tiler_alloc(nonsecure_tiler_heap, client, data);
 }
 
 long omap_ion_ioctl(struct ion_client *client, unsigned int cmd,
@@ -87,7 +96,10 @@ int omap_ion_probe(struct platform_device *pdev)
 
 		if (heap_data->type == OMAP_ION_HEAP_TYPE_TILER) {
 			heaps[i] = omap_tiler_heap_create(heap_data);
-			tiler_heap = heaps[i];
+			if (heap_data->id == OMAP_ION_HEAP_NONSECURE_TILER)
+				nonsecure_tiler_heap = heaps[i];
+			else
+				tiler_heap = heaps[i];
 		} else {
 			heaps[i] = ion_heap_create(heap_data);
 		}
