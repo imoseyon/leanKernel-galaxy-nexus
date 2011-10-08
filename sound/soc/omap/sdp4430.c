@@ -188,10 +188,10 @@ static int sdp4430_mcpdm_hw_params(struct snd_pcm_substream *substream,
 	int clk_id, freq, ret;
 
 	if (twl6040_power_mode) {
-		clk_id = TWL6040_SYSCLK_SEL_HPPLL;
+		clk_id = TWL6040_HPPLL_ID;
 		freq = 38400000;
 	} else {
-		clk_id = TWL6040_SYSCLK_SEL_LPPLL;
+		clk_id = TWL6040_LPPLL_ID;
 		freq = 32768;
 	}
 
