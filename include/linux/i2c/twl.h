@@ -779,6 +779,7 @@ struct twl4030_platform_data {
 	struct regulator_init_data              *vcxio;
 	struct regulator_init_data              *vusb;
 	struct regulator_init_data		*clk32kg;
+	struct regulator_init_data              *clk32kaudio;
 	/* TWL6025 LDO regulators */
 	struct regulator_init_data		*ldo1;
 	struct regulator_init_data		*ldo2;
@@ -890,5 +891,6 @@ static inline int twl4030charger_usb_en(int enable) { return 0; }
 #define TWL6025_REG_SMPS4	59
 #define TWL6025_REG_VIO		60
 
+#define TWL6030_REG_CLK32KAUDIO	61
 
 #endif /* End of __TWL4030_H */
