@@ -1378,6 +1378,11 @@ static unsigned int hp_rates[] = {
 	96000,
 };
 
+static struct snd_pcm_hw_constraint_list hp_constraints = {
+	.count	= ARRAY_SIZE(hp_rates),
+	.list	= hp_rates,
+};
+
 static int twl6040_set_bias_level(struct snd_soc_codec *codec,
 				enum snd_soc_bias_level level)
 {
@@ -1419,12 +1424,6 @@ static int twl6040_set_bias_level(struct snd_soc_codec *codec,
 	return 0;
 }
 
-
-static struct snd_pcm_hw_constraint_list hp_constraints = {
-	.count	= ARRAY_SIZE(hp_rates),
-	.list	= hp_rates,
-};
-
 static int twl6040_startup(struct snd_pcm_substream *substream,
 			struct snd_soc_dai *dai)
 {
@@ -1449,10 +1448,7 @@ static int twl6040_hw_params(struct snd_pcm_substream *substream,
 	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
 	unsigned int sysclk;
 	int rate;
-
-	/* nothing to do for high-perf pll, it supports only 48 kHz */
-	if (priv->pll == TWL6040_HPPLL_ID)
-		return 0;
+	int ret;
 
 	rate = params_rate(params);
 	switch (rate) {
@@ -1474,7 +1470,15 @@ static int twl6040_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	return twl6040_set_pll(twl6040, TWL6040_LPPLL_ID, priv->clk_in, sysclk);
+	ret = twl6040_set_pll(twl6040, priv->pll, priv->clk_in, sysclk);
+	if (ret) {
+		dev_err(codec->dev, "failed to configure PLL %d", ret);
+		return ret;
+	}
+
+	priv->sysclk = sysclk;
+
+	return 0;
 }
 
 static int twl6040_prepare(struct snd_pcm_substream *substream,
@@ -1511,27 +1515,13 @@ static int twl6040_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 		int clk_id, unsigned int freq, int dir)
 {
 	struct snd_soc_codec *codec = codec_dai->codec;
-	struct twl6040 *twl6040 = codec->control_data;
 	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
-	int ret;
-
-	priv->sysclk = twl6040_get_sysclk(twl6040);
 
 	switch (clk_id) {
 	case TWL6040_LPPLL_ID:
-		ret = twl6040_set_pll(twl6040, TWL6040_LPPLL_ID,
-				      freq, priv->sysclk);
-		if (ret)
-			return ret;
-
 		priv->sysclk_constraints = &lp_constraints;
 		break;
 	case TWL6040_HPPLL_ID:
-		ret = twl6040_set_pll(twl6040, TWL6040_HPPLL_ID, freq,
-				      priv->sysclk);
-		if (ret)
-			return ret;
-
 		priv->sysclk_constraints = &hp_constraints;
 		break;
 	default:
@@ -1539,9 +1529,8 @@ static int twl6040_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 		return -EINVAL;
 	}
 
-	priv->pll = twl6040_get_pll(twl6040);
+	priv->pll = clk_id;
 	priv->clk_in = freq;
-	priv->sysclk = twl6040_get_sysclk(twl6040);
 
 	return 0;
 }
