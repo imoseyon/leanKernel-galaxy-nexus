@@ -765,10 +765,6 @@ struct snd_soc_dai_link {
 
 	/* machine stream operations */
 	struct snd_soc_ops *ops;
-
-	/* pre and post DAI link activity */
-	int (*pre)(struct snd_pcm_substream *substream);
-	void (*post)(struct snd_pcm_substream *substream);
 };
 
 struct snd_soc_codec_conf {

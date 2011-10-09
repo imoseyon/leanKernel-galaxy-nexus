@@ -561,15 +561,6 @@ int soc_pcm_open(struct snd_pcm_substream *substream)
 	if (rtd->dai_link->no_host_mode == SND_SOC_DAI_LINK_NO_HOST)
 		snd_soc_set_runtime_hwparams(substream, &no_host_hardware);
 
-	if (rtd->dai_link->pre) {
-		ret = rtd->dai_link->pre(substream);
-		if (ret < 0) {
-			printk(KERN_ERR "asoc: can't setup DAI link %s\n",
-				rtd->dai_link->name);
-			goto out;
-		}
-	}
-
 	if (rtd->dai_link->ops && rtd->dai_link->ops->startup) {
 		ret = rtd->dai_link->ops->startup(substream);
 		if (ret < 0) {
@@ -724,9 +715,6 @@ cpu_err:
 		rtd->dai_link->ops->shutdown(substream);
 
 machine_err:
-	if (rtd->dai_link->post)
-		rtd->dai_link->post(substream);
-out:
 	mutex_unlock(&rtd->pcm_mutex);
 	return ret;
 }
@@ -805,9 +793,6 @@ int soc_pcm_close(struct snd_pcm_substream *substream)
 
 	if (rtd->dai_link->ops && rtd->dai_link->ops->shutdown)
 		rtd->dai_link->ops->shutdown(substream);
-
-	if (rtd->dai_link->post)
-		rtd->dai_link->post(substream);
 
 	cpu_dai->runtime = NULL;
 
