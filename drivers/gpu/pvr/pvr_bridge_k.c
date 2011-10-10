@@ -394,13 +394,16 @@ PVRSRV_BridgeDispatchKM(struct file *pFile, unsigned int unref__ ioctlCmd, unsig
 
 			psPrivateData->hKernelMemInfo = psExportDeviceMemOUT->hMemInfo;
 #if defined(SUPPORT_MEMINFO_IDS)
-			psExportDeviceMemOUT->ui64Stamp = psPrivateData->ui64Stamp = ++ui64Stamp;
+			psKernelMemInfo->ui64Stamp =
+				psExportDeviceMemOUT->ui64Stamp =
+				psPrivateData->ui64Stamp = ++ui64Stamp;
 #endif
 			break;
 		}
 
 #if defined(SUPPORT_MEMINFO_IDS)
 		case PVRSRV_BRIDGE_MAP_DEV_MEMORY:
+		case PVRSRV_BRIDGE_MAP_DEV_MEMORY_2:
 		{
 			PVRSRV_BRIDGE_OUT_MAP_DEV_MEMORY *psMapDeviceMemoryOUT =
 				(PVRSRV_BRIDGE_OUT_MAP_DEV_MEMORY *)psBridgePackageKM->pvParamOut;
