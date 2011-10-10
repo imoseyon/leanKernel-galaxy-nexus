@@ -887,7 +887,8 @@ static void s6e8aa0_update_elvss(struct omap_dss_device *dssdev)
 
 	s6->elvss_cur_i = i;
 
-	elvss = s6->panel_id[2] + pdata->elvss_table[i].elvss_val;
+	elvss = s6->panel_id[2] & 0x1F; /* ELVSS Pulse 0-4bits */
+	elvss += pdata->elvss_table[i].elvss_val;
 
 	if (elvss > limit)
 		elvss = limit;
