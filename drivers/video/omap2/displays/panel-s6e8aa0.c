@@ -196,12 +196,7 @@ static int s6e8aa0_write_reg(struct omap_dss_device *dssdev, u8 reg, u8 val)
 static int s6e8aa0_write_block(struct omap_dss_device *dssdev, const u8 *data, int len)
 {
 	// XXX: dsi_vc_dsc_write should take a const u8 *
-	int ret;
-	msleep(10);  // XxX: why do we have to wait
-
-	ret = dsi_vc_dcs_write(dssdev, 1, (u8 *)data, len);
-	msleep(10);  // XxX: why do we have to wait
-	return ret;
+	return dsi_vc_dcs_write(dssdev, 1, (u8 *)data, len);
 }
 
 static int s6e8aa0_write_block_nosync(struct omap_dss_device *dssdev,
