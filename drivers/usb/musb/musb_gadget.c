@@ -685,12 +685,8 @@ static void rxstate(struct musb *musb, struct musb_request *req)
 	if (csr & MUSB_RXCSR_RXPKTRDY) {
 		len = musb_readw(epio, MUSB_RXCOUNT);
 
-		 /* Enable Mode 1 for RX transfers only for BULK EP */
-		if (musb_ep->type == USB_ENDPOINT_XFER_BULK &&
-				len == musb_ep->packet_sz)
-			use_mode_1 = 1;
-		else
-			use_mode_1 = 0;
+		 /* Disable mode1 rx dma */
+		use_mode_1 = 0;
 
 		if (request->actual < request->length) {
 #ifdef CONFIG_USB_INVENTRA_DMA
