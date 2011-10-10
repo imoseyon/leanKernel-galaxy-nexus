@@ -49,6 +49,7 @@
 #include <linux/wakelock.h>
 
 #define GPADCS		(1 << 1)
+#define GPADCR		(1 << 0)
 #define REG_TOGGLE1	0x90
 
 #define DRIVER_NAME	(twl6030_madc_driver.driver.name)
@@ -79,6 +80,7 @@ static inline int twl6030_madc_start_conversion(struct twl6030_madc_data *madc)
 		return ret;
 	}
 
+	udelay(100);
 	ret = twl_i2c_write_u8(TWL_MODULE_MADC, TWL6030_MADC_SP1,
 				TWL6030_MADC_CTRL_P1);
 	if (ret) {
@@ -175,6 +177,8 @@ static int twl6030_madc_channel_raw_read(struct twl6030_madc_data *madc,
 	}
 	ret = (int)((msb << 8) | lsb);
 unlock:
+	/* Disable GPADC for power savings. */
+	twl_i2c_write_u8(TWL6030_MODULE_ID1, GPADCR, REG_TOGGLE1);
 	mutex_unlock(&madc->lock);
 	return ret;
 }
