@@ -484,7 +484,7 @@ void hdcp_lib_set_encryption(enum encryption_state enc_state)
 
 	spin_unlock_irqrestore(&hdcp.spinlock, flags);
 
-	DBG("Encryption state changed: %s hdcp_ctrl: %02x",
+	pr_info("HDCP: Encryption state changed: %s hdcp_ctrl: %02x",
 				enc_state == HDCP_ENC_OFF ? "OFF" : "ON",
 				RD_REG_32(hdcp.hdmi_wp_base_addr +
 					  HDMI_IP_CORE_SYSTEM,
@@ -831,6 +831,7 @@ int hdcp_lib_step2(void)
 #ifdef _9032_AUTO_RI_
 		hdcp_lib_auto_ri_check(true);
 #endif
-		return HDCP_OK;
 	}
+
+	return status;
 }

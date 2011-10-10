@@ -98,7 +98,6 @@ struct hdcp_wait_control {
 #include <linux/slab.h>
 #include <linux/fs.h>
 
-#define DEBUG		/* Comment to remove debug printk */
 #define _9032_AUTO_RI_	/* Auto Ri mode */
 #define _9032_BCAP_	/* BCAP polling */
 #undef _9032_AN_STOP_FIX_
@@ -355,7 +354,7 @@ extern struct hdcp_sha_in sha_input;
 
 #undef DBG
 
-#ifdef DEBUG
+#ifdef HDCP_DEBUG
 #define DBG(format, ...) \
 		printk(KERN_DEBUG "HDCP: " format "\n", ## __VA_ARGS__)
 #else
