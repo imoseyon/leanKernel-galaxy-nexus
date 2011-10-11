@@ -903,7 +903,7 @@ void iommu_put(struct iommu *obj)
 	if (!obj->refcount) {
 		dev_err(obj->dev, "%s: %s unbalanced iommu_get/put\n",
 				__func__, obj->name);
-		return -EIO;
+		return;
 	}
 
 	if (--obj->refcount == 0) {
