@@ -315,7 +315,7 @@ static bool check_charge_full(void)
 	return ret < CHARGE_FULL_ADC;
 }
 
-static int get_bat_temp_by_adc(void)
+static int get_bat_temp_by_adc(int *batt_temp)
 {
 	int array_size = temper_table_size;
 	int temp_adc = temp_adc_value();
@@ -345,7 +345,8 @@ static int get_bat_temp_by_adc(void)
 	}
 
 	pr_debug("%s: temp adc : %d, temp : %d\n", __func__, temp_adc, temp);
-	return temp;
+	*batt_temp = temp;
+	return 0;
 }
 
 static int charger_init(struct device *dev)
