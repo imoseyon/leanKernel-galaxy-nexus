@@ -50,7 +50,7 @@
 #define HDMI_PHY		0x300
 
 /* HDMI EDID Length move this */
-#define HDMI_EDID_MAX_LENGTH			256
+#define HDMI_EDID_MAX_LENGTH			512
 #define EDID_TIMING_DESCRIPTOR_SIZE		0x12
 #define EDID_DESCRIPTOR_BLOCK0_ADDRESS		0x36
 #define EDID_DESCRIPTOR_BLOCK1_ADDRESS		0x80
@@ -268,7 +268,7 @@ u8 *hdmi_read_edid(struct omap_video_timings *dp)
 	ret = read_ti_4xxx_edid(&hdmi.hdmi_data, hdmi.edid,
 						HDMI_EDID_MAX_LENGTH);
 
-	for (i = 0; i < 256; i += 16)
+	for (i = 0; i < HDMI_EDID_MAX_LENGTH; i += 16)
 		pr_info("edid[%03x] = %02x %02x %02x %02x %02x %02x %02x %02x "
 			 "%02x %02x %02x %02x %02x %02x %02x %02x\n", i,
 			hdmi.edid[i], hdmi.edid[i + 1], hdmi.edid[i + 2],
