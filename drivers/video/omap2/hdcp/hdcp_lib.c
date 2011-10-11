@@ -699,7 +699,8 @@ int hdcp_lib_step1_r0_check(void)
 
 	if (hdcp_lib_check_repeater_bit_in_tx()) {
 		status = omap4_secure_dispatcher(PPA_SERVICE_HDCP_READ_M0,
-						 0x4, 0, 0, 0, 0, 0);
+						FLAG_START_CRITICAL,
+						0, 0, 0, 0, 0);
 		/* Wait for user space */
 		if (status) {
 			printk(KERN_ERR "HDCP: omap4_secure_dispatcher M0 error "
@@ -817,8 +818,8 @@ int hdcp_lib_step2(void)
 				   DMA_TO_DEVICE);
 
 	status = omap4_secure_dispatcher(PPA_SERVICE_HDCP_CHECK_V,
-					 0x4, 1, __pa((u32)&sha_input),
-					 0, 0, 0);
+					FLAG_START_CRITICAL,
+					1, __pa((u32)&sha_input), 0, 0, 0);
 	/* Wait for user space */
 	if (status) {
 		printk(KERN_ERR "HDCP: omap4_secure_dispatcher CHECH_V error "
