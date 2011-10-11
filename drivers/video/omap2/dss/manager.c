@@ -1628,7 +1628,7 @@ static int omap_dss_mgr_blank(struct omap_overlay_manager *mgr,
 	 * TRICKY: Enable apply irq even if not waiting for vsync, so that
 	 * DISPC programming takes place in case GO bit was on.
 	 */
-	if (dss_cache.irq_enabled) {
+	if (!dss_cache.irq_enabled) {
 		u32 mask;
 
 		mask = DISPC_IRQ_VSYNC	| DISPC_IRQ_EVSYNC_ODD |
@@ -1675,12 +1675,28 @@ static int omap_dss_mgr_blank(struct omap_overlay_manager *mgr,
 
 	spin_unlock_irqrestore(&dss_cache.lock, flags);
 
-	if (wait_for_go && !r)
+	if (wait_for_go)
 		mgr->wait_for_go(mgr);
 
 	if (!r_get)
 		dispc_runtime_put();
 
+	return r;
+}
+
+int omap_dss_manager_unregister_callback(struct omap_overlay_manager *mgr,
+					 struct omapdss_ovl_cb *cb)
+{
+	unsigned long flags;
+	int r = 0;
+	spin_lock_irqsave(&dss_cache.lock, flags);
+	if (mgr->info_dirty &&
+	    mgr->info.cb.fn == cb->fn &&
+	    mgr->info.cb.data == cb->data)
+		mgr->info.cb.fn = NULL;
+	else
+		r = -EPERM;
+	spin_unlock_irqrestore(&dss_cache.lock, flags);
 	return r;
 }
 
