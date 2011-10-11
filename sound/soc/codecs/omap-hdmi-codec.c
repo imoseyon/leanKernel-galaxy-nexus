@@ -48,34 +48,40 @@
 #define HDMI_PLLCTRL	0x200
 #define HDMI_PHY	0x300
 
+/* hdmi configuration params */
+struct hdmi_params {
+	int format;
+	int sample_freq;
+	int channels_nr;
+};
+
+
 /* codec private data */
-struct hdmi_data {
+struct hdmi_codec_data {
 	struct hdmi_audio_format audio_fmt;
 	struct hdmi_audio_dma audio_dma;
 	struct hdmi_core_audio_config audio_core_cfg;
 	struct hdmi_core_infoframe_audio aud_if_cfg;
 	struct hdmi_ip_data ip_data;
 	struct omap_hwmod *oh;
-};
+	struct omap_dss_device *dssdev;
+	struct notifier_block notifier;
+	struct hdmi_params params;
+	int active;
+} hdmi_data;
 
-static int hdmi_audio_hw_params(struct snd_pcm_substream *substream,
-				    struct snd_pcm_hw_params *params,
-				    struct snd_soc_dai *dai)
+
+static int hdmi_audio_set_configuration(struct hdmi_codec_data *priv)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
-	struct platform_device *pdev = to_platform_device(codec->dev);
-	struct hdmi_data *priv = snd_soc_codec_get_drvdata(codec);
 	struct hdmi_audio_format *audio_format = &priv->audio_fmt;
 	struct hdmi_audio_dma *audio_dma = &priv->audio_dma;
 	struct hdmi_core_audio_config *core_cfg = &priv->audio_core_cfg;
 	struct hdmi_core_infoframe_audio *aud_if_cfg = &priv->aud_if_cfg;
-	int err, n, cts, channels_nr, channel_alloc;
+	int err, n, cts, channel_alloc;
 	enum hdmi_core_audio_sample_freq sample_freq;
 	u32 pclk = omapdss_hdmi_get_pixel_clock();
 
-
-	switch (params_format(params)) {
+	switch (priv->params.format) {
 	case SNDRV_PCM_FORMAT_S16_LE:
 		core_cfg->i2s_cfg.word_max_length =
 			HDMI_AUDIO_I2S_MAX_WORD_20BITS;
@@ -107,7 +113,7 @@ static int hdmi_audio_hw_params(struct snd_pcm_substream *substream,
 	}
 
 
-	switch (params_rate(params)) {
+	switch (priv->params.sample_freq) {
 	case 32000:
 		sample_freq = HDMI_AUDIO_FS_32000;
 		break;
@@ -121,8 +127,8 @@ static int hdmi_audio_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	err = hdmi_ti_4xxx_config_audio_acr(&priv->ip_data, params_rate(params),
-							&n, &cts, pclk);
+	err = hdmi_ti_4xxx_config_audio_acr(&priv->ip_data,
+			priv->params.sample_freq, &n, &cts, pclk);
 	if (err < 0)
 		return err;
 
@@ -179,9 +185,8 @@ static int hdmi_audio_hw_params(struct snd_pcm_substream *substream,
 	core_cfg->en_parallel_aud_input = true;
 
 	/* Number of channels */
-	channels_nr = params_channels(params);
 
-	switch (channels_nr) {
+	switch (priv->params.channels_nr) {
 	case 2:
 		core_cfg->layout = HDMI_AUDIO_LAYOUT_2CH;
 		channel_alloc = 0x0;
@@ -211,7 +216,7 @@ static int hdmi_audio_hw_params(struct snd_pcm_substream *substream,
 				HDMI_AUDIO_I2S_SD3_EN;
 		break;
 	default:
-		dev_err(&pdev->dev, "Unsupported number of channels\n");
+		pr_err("Unsupported number of channels\n");
 		return -EINVAL;
 	}
 
@@ -223,7 +228,7 @@ static int hdmi_audio_hw_params(struct snd_pcm_substream *substream,
 	 * info frame audio see doc CEA861-D page 74
 	 */
 	aud_if_cfg->db1_coding_type = HDMI_INFOFRAME_AUDIO_DB1CT_FROM_STREAM;
-	aud_if_cfg->db1_channel_count = channels_nr;
+	aud_if_cfg->db1_channel_count = priv->params.channels_nr;
 	aud_if_cfg->db2_sample_freq = HDMI_INFOFRAME_AUDIO_DB2SF_FROM_STREAM;
 	aud_if_cfg->db2_sample_size = HDMI_INFOFRAME_AUDIO_DB2SS_FROM_STREAM;
 	aud_if_cfg->db4_channel_alloc = channel_alloc;
@@ -232,6 +237,42 @@ static int hdmi_audio_hw_params(struct snd_pcm_substream *substream,
 
 	hdmi_ti_4xxx_core_audio_infoframe_config(&priv->ip_data, aud_if_cfg);
 	return 0;
+
+}
+
+int hdmi_audio_notifier_callback(struct notifier_block *nb,
+				unsigned long arg, void *ptr)
+{
+	enum omap_dss_display_state state = arg;
+
+	if (state == OMAP_DSS_DISPLAY_ACTIVE) {
+		/* this happens just after hdmi_power_on */
+		if (hdmi_data.active)
+			hdmi_ti_4xxx_audio_enable(&hdmi_data.ip_data, 0);
+		hdmi_audio_set_configuration(&hdmi_data);
+		if (hdmi_data.active)
+			hdmi_ti_4xxx_audio_enable(&hdmi_data.ip_data, 1);
+	}
+	return 0;
+}
+
+int hdmi_audio_match(struct omap_dss_device *dssdev, void *arg)
+{
+	return sysfs_streq(dssdev->name , "hdmi");
+}
+
+static int hdmi_audio_hw_params(struct snd_pcm_substream *substream,
+				    struct snd_pcm_hw_params *params,
+				    struct snd_soc_dai *dai)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_codec *codec = rtd->codec;
+	struct hdmi_codec_data *priv = snd_soc_codec_get_drvdata(codec);
+
+	priv->params.format = params_format(params);
+	priv->params.sample_freq = params_rate(params);
+	priv->params.channels_nr = params_channels(params);
+	return hdmi_audio_set_configuration(priv);
 }
 
 static int hdmi_audio_trigger(struct snd_pcm_substream *substream, int cmd,
@@ -239,7 +280,7 @@ static int hdmi_audio_trigger(struct snd_pcm_substream *substream, int cmd,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
-	struct hdmi_data *priv = snd_soc_codec_get_drvdata(codec);
+	struct hdmi_codec_data *priv = snd_soc_codec_get_drvdata(codec);
 	int err = 0;
 
 	switch (cmd) {
@@ -253,11 +294,12 @@ static int hdmi_audio_trigger(struct snd_pcm_substream *substream, int cmd,
 		omap_hwmod_set_slave_idlemode(priv->oh,
 			HWMOD_IDLEMODE_NO);
 		hdmi_ti_4xxx_audio_enable(&priv->ip_data, 1);
+		priv->active = 1;
 		break;
-
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		priv->active = 0;
 		hdmi_ti_4xxx_audio_enable(&priv->ip_data, 0);
 		/*
 		 * switch back to smart-idle & wakeup capable
@@ -283,52 +325,71 @@ static int hdmi_audio_startup(struct snd_pcm_substream *substream,
 }
 static int hdmi_probe(struct snd_soc_codec *codec)
 {
-	struct hdmi_data *priv;
 	struct platform_device *pdev = to_platform_device(codec->dev);
 	struct resource *hdmi_rsrc;
+	int ret = 0;
 
-	priv = kzalloc(sizeof(struct hdmi_data), GFP_KERNEL);
-	if (priv == NULL)
-		return -ENOMEM;
-
-	snd_soc_codec_set_drvdata(codec, priv);
-
+	snd_soc_codec_set_drvdata(codec, &hdmi_data);
 
 	hdmi_rsrc = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 
 	if (!hdmi_rsrc) {
 		dev_err(&pdev->dev, "Cannot obtain IORESOURCE_MEM HDMI\n");
-		return -EINVAL;
+		ret = -EINVAL;
+		goto res_err;
 	}
 
 
-	priv->oh = omap_hwmod_lookup("dss_hdmi");
+	hdmi_data.oh = omap_hwmod_lookup("dss_hdmi");
 
-	if (!priv->oh) {
+	if (!hdmi_data.oh) {
 		dev_err(&pdev->dev, "can't find omap_hwmod for hdmi\n");
-			return -ENODEV;
+		ret = -ENODEV;
+		goto res_err;
 	}
 
 	/* Base address taken from platform */
-	priv->ip_data.base_wp = ioremap(hdmi_rsrc->start,
+	hdmi_data.ip_data.base_wp = ioremap(hdmi_rsrc->start,
 					resource_size(hdmi_rsrc));
 
-	if (!priv->ip_data.base_wp) {
+	if (!hdmi_data.ip_data.base_wp) {
 		dev_err(&pdev->dev, "can't ioremap WP\n");
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto res_err;
 	}
 
-	priv->ip_data.hdmi_core_sys_offset = HDMI_CORE_SYS;
-	priv->ip_data.hdmi_core_av_offset = HDMI_CORE_AV;
-	priv->ip_data.hdmi_pll_offset = HDMI_PLLCTRL;
-	priv->ip_data.hdmi_phy_offset = HDMI_PHY;
+	hdmi_data.ip_data.hdmi_core_sys_offset = HDMI_CORE_SYS;
+	hdmi_data.ip_data.hdmi_core_av_offset = HDMI_CORE_AV;
+	hdmi_data.ip_data.hdmi_pll_offset = HDMI_PLLCTRL;
+	hdmi_data.ip_data.hdmi_phy_offset = HDMI_PHY;
+
+	hdmi_data.dssdev = omap_dss_find_device(NULL, hdmi_audio_match);
+
+	if (!hdmi_data.dssdev) {
+		dev_err(&pdev->dev, "can't find HDMI device\n");
+		ret = -ENODEV;
+		goto dssdev_err;
+	}
+
+	hdmi_data.notifier.notifier_call = hdmi_audio_notifier_callback;
+	blocking_notifier_chain_register(&hdmi_data.dssdev->state_notifiers,
+			&hdmi_data.notifier);
 
 	return 0;
+
+dssdev_err:
+	iounmap(hdmi_data.ip_data.base_wp);
+res_err:
+	return ret;
+
 }
 
 static int hdmi_remove(struct snd_soc_codec *codec)
 {
-	struct hdmi_data *priv = snd_soc_codec_get_drvdata(codec);
+	struct hdmi_codec_data *priv = snd_soc_codec_get_drvdata(codec);
+
+	blocking_notifier_chain_unregister(&priv->dssdev->state_notifiers,
+						&priv->notifier);
 	iounmap(priv->ip_data.base_wp);
 	kfree(priv);
 	return 0;

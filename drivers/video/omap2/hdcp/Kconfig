@@ -1,0 +1,14 @@
+menuconfig OMAP4_HDCP
+	bool "OMAP4 HDCP support"
+        depends on OMAP2_DSS && OMAP4_DSS_HDMI
+        default n
+	help
+	  HDCP Interface. This adds the High Definition Content Protection Interface.
+	  See http://www.digital-cp.com/ for HDCP specification.
+
+config OMAP4_HDCP_DEBUG
+	bool "OMAP4 HDCP Debugging"
+        depends on OMAP4_HDCP
+        default n
+	help
+	  Enableds verbose debugging the the HDCP drivers

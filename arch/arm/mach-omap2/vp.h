@@ -22,7 +22,7 @@
 struct voltagedomain;
 
 /* XXX document */
-#define VP_IDLE_TIMEOUT		200
+#define VP_IDLE_TIMEOUT		500
 #define VP_TRANXDONE_TIMEOUT	300
 
 /**

@@ -76,11 +76,17 @@ static struct {
 	struct hdmi_config cfg;
 	struct regulator *hdmi_reg;
 
+	int hdmi_irq;
 	struct clk *sys_clk;
 	struct clk *hdmi_clk;
 
 	int runtime_count;
 	int enabled;
+	bool set_mode;
+
+	void (*hdmi_start_frame_cb)(void);
+	void (*hdmi_irq_cb)(int);
+	void (*hdmi_power_on_cb)(void);
 } hdmi;
 
 static const u8 edid_header[8] = {0x0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0};
@@ -415,6 +421,9 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 
 	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 1);
 
+	if (hdmi.hdmi_start_frame_cb && hdmi.custom_set)
+		(*hdmi.hdmi_start_frame_cb)();
+
 	return 0;
 err:
 	hdmi_runtime_put();
@@ -426,10 +435,19 @@ static void hdmi_power_off(struct omap_dss_device *dssdev)
 	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 0);
 
 	dispc_enable_channel(OMAP_DSS_CHANNEL_DIGIT, dssdev->type, 0);
-	hdmi_ti_4xxx_phy_off(&hdmi.hdmi_data);
+	hdmi_ti_4xxx_phy_off(&hdmi.hdmi_data, hdmi.set_mode);
 	hdmi_ti_4xxx_set_pll_pwr(&hdmi.hdmi_data, HDMI_PLLPWRCMD_ALLOFF);
 	hdmi_runtime_put();
 	hdmi.deep_color = HDMI_DEEP_COLOR_24BIT;
+}
+
+void hdmi_load_hdcp_keys(struct omap_dss_device *dssdev)
+{
+	/* load the keys and reset the wrapper to populate the AKSV registers*/
+	if (hdmi.hdmi_power_on_cb) {
+		hdmi.hdmi_power_on_cb();
+		hdmi_ti_4xxx_set_wait_soft_reset(&hdmi.hdmi_data);
+	}
 }
 
 int omapdss_hdmi_get_pixel_clock(void)
@@ -441,6 +459,18 @@ int omapdss_hdmi_get_mode(void)
 {
 	return hdmi.mode;
 }
+
+int omapdss_hdmi_register_hdcp_callbacks(void (*hdmi_start_frame_cb)(void),
+					 void (*hdmi_irq_cb)(int status),
+					 void (*hdmi_power_on_cb)(void))
+{
+	hdmi.hdmi_start_frame_cb = hdmi_start_frame_cb;
+	hdmi.hdmi_irq_cb = hdmi_irq_cb;
+	hdmi.hdmi_power_on_cb = hdmi_power_on_cb;
+
+	return hdmi_ti_4xxx_wp_get_video_state(&hdmi.hdmi_data);
+}
+EXPORT_SYMBOL(omapdss_hdmi_register_hdcp_callbacks);
 
 void omapdss_hdmi_set_deepcolor(int val)
 {
@@ -462,7 +492,23 @@ static irqreturn_t hpd_irq_handler(int irq, void *ptr)
 	int hpd = hdmi_get_current_hpd();
 	pr_info("hpd %d\n", hpd);
 
+	if (!hpd && hdmi.hdmi_irq_cb)
+		hdmi.hdmi_irq_cb(HDMI_HPD_LOW);
 	hdmi_panel_hpd_handler(hpd);
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t hdmi_irq_handler(int irq, void *arg)
+{
+	int r = 0;
+
+	r = hdmi_ti_4xxx_irq_handler(&hdmi.hdmi_data);
+
+	DSSDBG("Received HDMI IRQ = %08x\n", r);
+
+	if (hdmi.hdmi_irq_cb)
+		hdmi.hdmi_irq_cb(r);
 
 	return IRQ_HANDLED;
 }
@@ -489,12 +535,14 @@ int omapdss_hdmi_display_set_mode(struct omap_dss_device *dssdev,
 {
 	int r1, r2;
 	/* turn the hdmi off and on to get new timings to use */
-	omapdss_hdmi_display_disable(dssdev);
+	hdmi.set_mode = true;
+	dssdev->driver->disable(dssdev);
+	hdmi.set_mode = false;
 	r1 = hdmi_set_timings(vm, false) ? 0 : -EINVAL;
 	hdmi.custom_set = 1;
 	hdmi.code = hdmi.cfg.cm.code;
 	hdmi.mode = hdmi.cfg.cm.mode;
-	r2 = omapdss_hdmi_display_enable(dssdev);
+	r2 = dssdev->driver->enable(dssdev);
 	return r1 ? : r2;
 }
 
@@ -689,6 +737,15 @@ static int omapdss_hdmihw_probe(struct platform_device *pdev)
 	if (r < 0) {
 		pr_err("hdmi: request_irq %d failed\n",
 			gpio_to_irq(hdmi.dssdev->hpd_gpio));
+		return -EINVAL;
+	}
+
+	hdmi.hdmi_irq = platform_get_irq(pdev, 0);
+
+	r = request_irq(hdmi.hdmi_irq, hdmi_irq_handler, 0, "OMAP HDMI", NULL);
+	if (r < 0) {
+		pr_err("hdmi: request_irq %s failed\n",
+			pdev->name);
 		return -EINVAL;
 	}
 
