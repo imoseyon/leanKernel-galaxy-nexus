@@ -28,11 +28,14 @@
 #include <linux/slab.h>
 
 #include "omap_l3_noc.h"
+#include "board-tuna.h"
 
 #define NUM_OF_L3_MASTERS ARRAY_SIZE(l3_masters)
 
 static void l3_dump_targ_context(u32 baseaddr)
 {
+	extern void print_async_list(void);
+
 	pr_err("COREREG      : 0x%08x\n", readl(baseaddr + L3_COREREG));
 	pr_err("VERSIONREG   : 0x%08x\n", readl(baseaddr + L3_VERSIONREG));
 	pr_err("MAINCTLREG   : 0x%08x\n", readl(baseaddr + L3_MAINCTLREG));
@@ -50,6 +53,12 @@ static void l3_dump_targ_context(u32 baseaddr)
 	pr_err("CUSTOMINFO_MSTADDR: 0x%08x\n", readl(baseaddr + L3_CUSTOMINFO_MSTADDR));
 	pr_err("CUSTOMINFO_OPCODE : 0x%08x\n", readl(baseaddr + L3_CUSTOMINFO_OPCODE));
 	pr_err("ADDRSPACESIZELOG  : 0x%08x\n", readl(baseaddr + L3_ADDRSPACESIZELOG));
+
+	/* Identified as USBHOST EHCI error */
+	if ((readl(baseaddr + L3_MSTADDR) == 0xc0) &&
+			(readl(baseaddr + L3_SLVADDR) == 0x3))
+		if (omap4_tuna_get_type() == TUNA_TYPE_TORO)
+			print_async_list();
 }
 
 /*

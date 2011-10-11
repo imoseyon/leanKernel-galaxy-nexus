@@ -18,6 +18,9 @@
 
 /* this file is part of ehci-hcd.c */
 
+#define DEBUG
+#define BUF_SIZE (1096)
+
 #define ehci_dbg(ehci, fmt, args...) \
 	dev_dbg (ehci_to_hcd(ehci)->self.controller , fmt , ## args )
 #define ehci_err(ehci, fmt, args...) \
@@ -121,13 +124,16 @@ static inline void dbg_hcc_params (struct ehci_hcd *ehci, char *label) {}
 static void __maybe_unused
 dbg_qtd (const char *label, struct ehci_hcd *ehci, struct ehci_qtd *qtd)
 {
-	ehci_dbg(ehci, "%s td %p n%08x %08x t%08x p0=%08x\n", label, qtd,
+	//ehci_dbg(ehci, "%s td %p n%08x %08x t%08x p0=%08x\n", label, qtd,
+	printk("%s %p n%08x %08x t%08x p0=%08x\n", label, qtd,
 		hc32_to_cpup(ehci, &qtd->hw_next),
 		hc32_to_cpup(ehci, &qtd->hw_alt_next),
 		hc32_to_cpup(ehci, &qtd->hw_token),
 		hc32_to_cpup(ehci, &qtd->hw_buf [0]));
 	if (qtd->hw_buf [1])
-		ehci_dbg(ehci, "  p1=%08x p2=%08x p3=%08x p4=%08x\n",
+		//ehci_dbg(ehci, "  p1=%08x p2=%08x p3=%08x p4=%08x\n",
+		printk("%s p1=%08x p2=%08x p3=%08x p4=%08x\n",
+			label,
 			hc32_to_cpup(ehci, &qtd->hw_buf[1]),
 			hc32_to_cpup(ehci, &qtd->hw_buf[2]),
 			hc32_to_cpup(ehci, &qtd->hw_buf[3]),
@@ -139,7 +145,8 @@ dbg_qh (const char *label, struct ehci_hcd *ehci, struct ehci_qh *qh)
 {
 	struct ehci_qh_hw *hw = qh->hw;
 
-	ehci_dbg (ehci, "%s qh %p n%08x info %x %x qtd %x\n", label,
+	//ehci_dbg (ehci, "%s qh %p n%08x info %x %x qtd %x\n", label,
+	printk("%s qh %p n%08x info %x %x qtd %x\n", label,
 		qh, hw->hw_next, hw->hw_info1, hw->hw_info2, hw->hw_current);
 	dbg_qtd("overlay", ehci, (struct ehci_qtd *) &hw->hw_qtd_next);
 }
@@ -467,6 +474,15 @@ static void qh_lines (
 			(cpu_to_hc32(ehci, QTD_TOGGLE) & hw->hw_token)
 				? "data1" : "data0",
 			(hc32_to_cpup(ehci, &hw->hw_alt_next) >> 1) & 0x0f);
+	printk ("\nqh/%p dev%d %cs ep%d %08x %08x (%08x%c %s nak%d)",
+			qh, scratch & 0x007f,
+			speed_char (scratch),
+			(scratch >> 8) & 0x000f,
+			scratch, hc32_to_cpup(ehci, &hw->hw_info2),
+			hc32_to_cpup(ehci, &hw->hw_token), mark,
+			(cpu_to_hc32(ehci, QTD_TOGGLE) & hw->hw_token)
+				? "data1" : "data0",
+			(hc32_to_cpup(ehci, &hw->hw_alt_next) >> 1) & 0x0f);
 	size -= temp;
 	next += temp;
 
@@ -497,6 +513,22 @@ static void qh_lines (
 				(scratch >> 16) & 0x7fff,
 				scratch,
 				td->urb);
+		printk("\n\t\ttd-%p%c%s len=%d %08x\n \t\turb %p t-flag-%x t-buf-%x t-dma-%x\n",
+			td, mark, ({ char *tmp;
+			 switch ((scratch>>8)&0x03) {
+			 case 0: tmp = "out"; break;
+			 case 1: tmp = "in"; break;
+			 case 2: tmp = "setup"; break;
+			 default: tmp = "?"; break;
+			 } tmp;}),
+			(scratch >> 16) & 0x7fff,
+			scratch,
+			td->urb,
+			td->urb->transfer_flags,
+			td->urb->transfer_buffer,
+			td->urb->transfer_dma);
+		/* print the td */
+		dbg_qtd("\t\t", ehci, td);
 		if (size < temp)
 			temp = size;
 		size -= temp;
@@ -550,6 +582,28 @@ static ssize_t fill_async_buffer(struct debug_buffer *buf)
 	spin_unlock_irqrestore (&ehci->lock, flags);
 
 	return strlen(buf->output_buf);
+}
+
+
+void print_async_list(void)
+{
+	struct debug_buffer dbg_buffer, *buf;
+	extern struct usb_hcd *ghcd_omap;
+	char array[BUF_SIZE];
+
+	memset(array, 0, BUF_SIZE);
+	buf = &dbg_buffer;
+
+	buf->fill_func = fill_async_buffer;
+	buf->bus = hcd_to_bus(ghcd_omap);
+	buf->alloc_size = BUF_SIZE;
+	buf->output_buf = array;
+
+	printk("EHCI async list \n");
+	fill_async_buffer(buf);
+
+	//printk("%s\n", array);
+
 }
 
 #define DBG_SCHED_LIMIT 64
