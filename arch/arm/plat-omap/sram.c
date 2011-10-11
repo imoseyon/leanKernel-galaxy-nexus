@@ -48,9 +48,14 @@
 #define OMAP3_SRAM_VA           0xfe400000
 #define OMAP3_SRAM_PUB_PA       (OMAP3_SRAM_PA + 0x8000)
 #define OMAP3_SRAM_PUB_VA       (OMAP3_SRAM_VA + 0x8000)
-#define OMAP4_SRAM_VA		0xfe400000
-#define OMAP4_SRAM_PUB_PA	(OMAP4_SRAM_PA + 0x4000)
-#define OMAP4_SRAM_PUB_VA	(OMAP4_SRAM_VA + 0x4000)
+
+#define OMAP4_SRAM_MAX          0xe000 /* 56K */
+#define OMAP4_SRAM_VA           0xfe400000
+
+#define OMAP4_HS_SRAM_SIZE      0x1000 /*  4K */
+#define OMAP4_HS_SRAM_OFFSET    (OMAP4_SRAM_MAX - OMAP4_HS_SRAM_SIZE)
+#define OMAP4_SRAM_PUB_PA       (OMAP4_SRAM_PA + OMAP4_HS_SRAM_OFFSET)
+#define OMAP4_SRAM_PUB_VA       (OMAP4_SRAM_VA + OMAP4_HS_SRAM_OFFSET)
 
 #if defined(CONFIG_ARCH_OMAP2PLUS)
 #define SRAM_BOOTLOADER_SZ	0x00
@@ -134,7 +139,7 @@ static void __init omap_detect_sram(void)
 			} else if (cpu_is_omap44xx()) {
 				omap_sram_base = OMAP4_SRAM_PUB_VA;
 				omap_sram_start = OMAP4_SRAM_PUB_PA;
-				omap_sram_size = 0xa000; /* 40K */
+				omap_sram_size = OMAP4_HS_SRAM_SIZE;
 			} else {
 				omap_sram_base = OMAP2_SRAM_PUB_VA;
 				omap_sram_start = OMAP2_SRAM_PUB_PA;
@@ -220,21 +225,28 @@ static void __init omap_map_sram(void)
 		 */
 		omap_sram_io_desc[0].type = MT_MEMORY_NONCACHED;
 	} else if (cpu_is_omap44xx()) {
-		omap_sram_io_desc[0].length =
-			ROUND_DOWN(omap_sram_size - PAGE_SIZE, PAGE_SIZE);
 		/*
 		 * Map a page of SRAM with strongly ordered attributes
 		 * for interconnect barrier usage.
+		 * if we have space, then use a new page, else remap
+		 * first map
 		 */
-		omap_sram_io_desc[1].virtual =
-			omap_sram_base + omap_sram_io_desc[0].length;
-		omap_barrier_base = omap_sram_io_desc[1].virtual;
-		base = omap_sram_start + omap_sram_io_desc[0].length;
-		base = ROUND_DOWN(base, PAGE_SIZE);
-		omap_sram_io_desc[1].pfn = __phys_to_pfn(base);
-		omap_sram_io_desc[1].length = PAGE_SIZE;
-		omap_sram_io_desc[1].type = MT_MEMORY_SO;
-		nr_desc = 2;
+		if (omap_sram_size <= PAGE_SIZE) {
+			omap_sram_io_desc[0].type = MT_MEMORY_SO;
+			omap_barrier_base = omap_sram_io_desc[0].virtual;
+		} else {
+			omap_sram_io_desc[0].length = ROUND_DOWN(omap_sram_size
+						- PAGE_SIZE, PAGE_SIZE);
+			omap_sram_io_desc[1].virtual =
+				omap_sram_base + omap_sram_io_desc[0].length;
+			omap_barrier_base = omap_sram_io_desc[1].virtual;
+			base = omap_sram_start + omap_sram_io_desc[0].length;
+			base = ROUND_DOWN(base, PAGE_SIZE);
+			omap_sram_io_desc[1].pfn = __phys_to_pfn(base);
+			omap_sram_io_desc[1].length = PAGE_SIZE;
+			omap_sram_io_desc[1].type = MT_MEMORY_SO;
+			nr_desc = 2;
+		}
 	}
 
 
