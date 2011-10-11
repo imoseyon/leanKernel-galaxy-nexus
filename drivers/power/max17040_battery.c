@@ -249,21 +249,23 @@ static void max17040_get_status(struct i2c_client *client)
 static void max17040_get_temp_status(struct max17040_chip *chip)
 {
 	int r;
+	int t;
 
 	if (!chip->pdata->get_bat_temp) {
 		chip->bat_health = POWER_SUPPLY_HEALTH_UNKNOWN;
 		return;
 	}
 
-	r = chip->pdata->get_bat_temp();
+	r = chip->pdata->get_bat_temp(&t);
+
 	if (r < 0) {
 		dev_err(&chip->client->dev,
-			 "error reading battery temperature\n");
+			"error %d reading battery temperature\n", r);
 		chip->bat_health = POWER_SUPPLY_HEALTH_UNKNOWN;
 		return;
 	}
 
-	chip->bat_temp = r;
+	chip->bat_temp = t;
 
 	if (chip->bat_temp >= chip->pdata->high_block_temp) {
 		chip->bat_health = POWER_SUPPLY_HEALTH_OVERHEAT;
