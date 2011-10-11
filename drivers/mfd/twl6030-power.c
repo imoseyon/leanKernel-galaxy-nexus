@@ -18,10 +18,13 @@
 #include <linux/pm.h>
 #include <linux/i2c/twl.h>
 #include <linux/platform_device.h>
+#include <linux/suspend.h>
 
 #include <asm/mach-types.h>
 
 #define VREG_GRP		0
+
+static u8 dev_on_group;
 
 /**
  * struct twl6030_resource_map - describe the resource mapping for TWL6030
@@ -78,6 +81,46 @@ static struct twl4030_system_config twl6030_sys_config[] = {
 #define P3_GRP_6030	BIT(2)		/* secondary processor, modem, etc */
 #define P2_GRP_6030	BIT(1)		/* "peripherals" */
 #define P1_GRP_6030	BIT(0)		/* CPU/Linux */
+
+static __init void twl6030_process_system_config(void)
+{
+	u8 grp;
+	int r;
+	bool i = false;
+
+	struct twl4030_system_config *sys_config;
+	sys_config = twl6030_sys_config;
+
+	while (sys_config && sys_config->name) {
+		if (!strcmp(sys_config->name, "DEV_ON")) {
+			dev_on_group = sys_config->group;
+			i = true;
+			break;
+		}
+		sys_config++;
+	}
+	if (!i)
+		pr_err("%s: Couldn't find DEV_ON resource configuration!"
+			" MOD & CON group would be kept active.\n", __func__);
+
+	if (dev_on_group) {
+		r = twl_i2c_read_u8(TWL_MODULE_PM_MASTER, &grp,
+				TWL6030_PHOENIX_DEV_ON);
+		if (r) {
+			pr_err("%s: Error(%d) reading  {addr=0x%02x}",
+				__func__, r, TWL6030_PHOENIX_DEV_ON);
+		} else {
+			/*
+			 * Unmapped processor groups are disabled by writing
+			 * 1 to corresponding group in DEV_ON.
+			 */
+			grp |= (dev_on_group & DEV_GRP_P1) ? 0 : P1_GRP_6030;
+			grp |= (dev_on_group & DEV_GRP_P2) ? 0 : P2_GRP_6030;
+			grp |= (dev_on_group & DEV_GRP_P3) ? 0 : P3_GRP_6030;
+			dev_on_group = grp;
+		}
+	}
+}
 
 static __init void twl6030_program_map(void)
 {
@@ -146,6 +189,29 @@ static __init void twl6030_update_map(struct twl4030_resconfig *res_list)
 	}
 }
 
+
+static int twl6030_power_notifier_cb(struct notifier_block *notifier,
+					unsigned long pm_event,  void *unused)
+{
+	int r = 0;
+
+	switch (pm_event) {
+	case PM_SUSPEND_PREPARE:
+		r = twl_i2c_write_u8(TWL_MODULE_PM_MASTER, dev_on_group,
+				TWL6030_PHOENIX_DEV_ON);
+		if (r)
+			pr_err("%s: Error(%d) programming {addr=0x%02x}",
+				__func__, r, TWL6030_PHOENIX_DEV_ON);
+		break;
+	}
+
+	return notifier_from_errno(r);
+}
+
+static struct notifier_block twl6030_power_pm_notifier = {
+	.notifier_call = twl6030_power_notifier_cb,
+};
+
 /**
  * twl6030_power_init() - Update the power map to reflect connectivity of board
  * @power_data:	power resource map to update (OPTIONAL) - use this if a resource
@@ -153,6 +219,8 @@ static __init void twl6030_update_map(struct twl4030_resconfig *res_list)
  */
 void __init twl6030_power_init(struct twl4030_power_data *power_data)
 {
+	int r;
+
 	if (power_data && (!power_data->resource_config &&
 					!power_data->sys_config)) {
 		pr_err("%s: power data from platform without configuration!\n",
@@ -166,7 +234,13 @@ void __init twl6030_power_init(struct twl4030_power_data *power_data)
 	if (power_data && power_data->sys_config)
 		twl6030_update_system_map(power_data->sys_config);
 
+	twl6030_process_system_config();
+
 	twl6030_program_map();
+
+	r = register_pm_notifier(&twl6030_power_pm_notifier);
+	if (r)
+		pr_err("%s: twl6030 power registration failed!\n", __func__);
 
 	return;
 }
