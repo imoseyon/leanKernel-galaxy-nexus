@@ -633,7 +633,7 @@ int dsscomp_state_notifier(struct notifier_block *nb,
 	if (mgr) {
 		mutex_lock(&mtx);
 		if (state == OMAP_DSS_DISPLAY_DISABLED) {
-			mgr->blank(mgr, false);
+			mgr->blank(mgr, true);
 			mgrq[mgr->id].blanking = true;
 		} else if (state == OMAP_DSS_DISPLAY_ACTIVE) {
 			mgrq[mgr->id].blanking = false;
