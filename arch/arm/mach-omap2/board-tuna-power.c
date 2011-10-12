@@ -69,6 +69,7 @@ struct temp_adc_table_data {
 
 static DEFINE_SPINLOCK(charge_en_lock);
 static int charger_state;
+static bool is_charging_mode;
 
 static struct temp_adc_table_data temper_table_maguro[] = {
 	/* ADC, Temperature (C/10) */
@@ -435,6 +436,21 @@ static const __initdata struct i2c_board_info max17043_i2c[] = {
 	}
 };
 
+static int __init tuna_charger_mode_setup(char *str)
+{
+	if (!str)		/* No mode string */
+		return 0;
+
+	is_charging_mode = !strcmp(str, "charger");
+
+	pr_debug("Charge mode string = \"%s\" charger mode = %d\n", str,
+		is_charging_mode);
+
+	return 1;
+}
+
+__setup("androidboot.mode=", tuna_charger_mode_setup);
+
 void __init omap4_tuna_power_init(void)
 {
 	struct platform_device *pdev;
@@ -503,6 +519,7 @@ void __init omap4_tuna_power_init(void)
 	if (IS_ERR_OR_NULL(pdev))
 		pr_err("cannot register pda-power\n");
 
+	max17043_pdata.use_fuel_alert = !is_charging_mode;
 	i2c_register_board_info(4, max17043_i2c, ARRAY_SIZE(max17043_i2c));
 
 	if (enable_sr)
