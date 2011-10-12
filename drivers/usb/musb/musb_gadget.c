@@ -46,7 +46,6 @@
 #include <linux/slab.h>
 
 #include "musb_core.h"
-#include "musbhsdma.h"
 
 
 /* MUSB PERIPHERAL status 3-mar-2006:
@@ -885,7 +884,7 @@ static void rxstate(struct musb *musb, struct musb_request *req)
  */
 void musb_g_rx(struct musb *musb, u8 epnum)
 {
-	u16			csr, len;
+	u16			csr;
 	struct musb_request	*req;
 	struct usb_request	*request;
 	void __iomem		*mbase = musb->mregs;
@@ -908,7 +907,6 @@ void musb_g_rx(struct musb *musb, u8 epnum)
 	request = &req->request;
 
 	csr = musb_readw(epio, MUSB_RXCSR);
-	len = musb_readw(epio, MUSB_RXCOUNT);
 	dma = is_dma_capable() ? musb_ep->dma : NULL;
 
 	dev_dbg(musb->controller, "<== %s, rxcsr %04x%s %p\n", musb_ep->end_point.name,
@@ -936,51 +934,10 @@ void musb_g_rx(struct musb *musb, u8 epnum)
 	}
 
 	if (dma_channel_status(dma) == MUSB_DMA_STATUS_BUSY) {
-		if ((!request->short_not_ok) && (csr & MUSB_RXCSR_DMAMODE) &&
-			(csr & MUSB_RXCSR_RXPKTRDY) && (len < musb_ep->packet_sz)) {
-			/*Short packet recieved in DMA Mode 1*/
-			struct dma_controller	*c;
-			u16			dma_csr;
-			int			ret;
-			u32			dma_addr, dma_count;
-			struct musb_dma_channel	*musb_dma_chnl_ptr;
-			void __iomem		*mbase_controller;
-
-			musb_dma_chnl_ptr = container_of(dma,
-							struct musb_dma_channel,
-							channel);
-			mbase_controller = musb_dma_chnl_ptr->controller->base;
-			c = musb->dma_controller;
-
-			/*Get number of bytes already transferred*/
-			dma_addr = musb_read_hsdma_addr(mbase_controller,
-						     musb_dma_chnl_ptr->idx);
-			dma_count = musb_read_hsdma_count(mbase_controller,
-						     musb_dma_chnl_ptr->idx);
-			dma_csr = musb_readw(mbase_controller,
-					MUSB_HSDMA_CHANNEL_OFFSET(musb_dma_chnl_ptr->idx,
-					MUSB_HSDMA_CONTROL));
-
-			dma->actual_len = dma_addr -
-						musb_dma_chnl_ptr->start_addr;
-			request->actual += dma->actual_len;
-
-			dev_dbg(musb->controller, "dma_addr=0x%08x,\
-				dma_start_addr=0x%08x, txfered=%d,\
-				dma_count=%d, dma_csr=0x%04x\n", dma_addr,
-				musb_dma_chnl_ptr->start_addr, dma->actual_len,
-				dma_count, dma_csr);
-
-			/*Now abort the transfer*/
-			ret = c->channel_abort(dma);
-			goto exit;
-
-		} else {
-			/* "should not happen"; likely RXPKTRDY pending for DMA */
-			dev_dbg(musb->controller, "%s busy, csr %04x\n",
-				musb_ep->end_point.name, csr);
-			return;
-		}
+		/* "should not happen"; likely RXPKTRDY pending for DMA */
+		dev_dbg(musb->controller, "%s busy, csr %04x\n",
+			musb_ep->end_point.name, csr);
+		return;
 	}
 
 	if (dma && (csr & MUSB_RXCSR_DMAENAB)) {
