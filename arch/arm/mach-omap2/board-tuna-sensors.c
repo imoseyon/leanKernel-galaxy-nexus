@@ -82,6 +82,16 @@ static s8 orientation_back_180[] = {
 	 0,  0, -1,
 };
 
+/*
+ * A correction matrix for YAS530
+ * which takes care of soft iron effect in TORO
+ */
+static s32 compass_correction_matrix_toro[] = {
+	1072,	-51,	-22,
+	-30,	910,	-4,
+	-23,	-63,	1024,
+};
+
 static void rotcpy(s8 dst[3 * 3], const s8 src[3 * 3])
 {
 	memcpy(dst, src, 3 * 3);
@@ -190,10 +200,12 @@ void __init omap4_tuna_sensors_init(void)
 	/* optical sensor */
 	gp2a_gpio_init();
 
-	if (omap4_tuna_get_type() == TUNA_TYPE_MAGURO)
+	if (omap4_tuna_get_type() == TUNA_TYPE_MAGURO) {
 		omap4_tuna_fixup_orientations_maguro(omap4_tuna_get_revision());
-	else if (omap4_tuna_get_type() == TUNA_TYPE_TORO)
+	} else if (omap4_tuna_get_type() == TUNA_TYPE_TORO) {
 		omap4_tuna_fixup_orientations_toro(omap4_tuna_get_revision());
+		mpu_data.compass.private_data = compass_correction_matrix_toro;
+	}
 
 	i2c_register_board_info(4, tuna_sensors_i2c4_boardinfo,
 				ARRAY_SIZE(tuna_sensors_i2c4_boardinfo));
