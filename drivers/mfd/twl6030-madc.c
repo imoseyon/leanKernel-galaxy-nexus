@@ -121,8 +121,12 @@ static int twl6030_madc_wait_conversion_ready(struct twl6030_madc_data *madc,
 		}
 		if (!(reg & TWL6030_MADC_BUSY) && (reg & TWL6030_MADC_EOCP1))
 			return 0;
+
+		if (time_after(jiffies, timeout))
+			break;
+
 		usleep_range(500, 2000);
-	} while (!time_after(jiffies, timeout));
+	} while (1);
 
 	dev_err(madc->dev, "conversion timeout, ctrl_px=0x%08x\n", reg);
 	return -EAGAIN;
