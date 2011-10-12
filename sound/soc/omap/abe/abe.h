@@ -107,24 +107,6 @@ struct omap_abe_equ {
 	s32 equ_param3;
 };
 
-struct omap_abe {
-	void __iomem *io_base[5];
-	u32 firmware_version_number;
-	u16 MultiFrame[PROCESSING_SLOTS][TASKS_IN_SLOT];
-	u32 compensated_mixer_gain;
-	u8  muted_gains_indicator[MAX_NBGAIN_CMEM];
-	u32 desired_gains_decibel[MAX_NBGAIN_CMEM];
-	u32 muted_gains_decibel[MAX_NBGAIN_CMEM];
-	u32 desired_gains_linear[MAX_NBGAIN_CMEM];
-	u32 desired_ramp_delay_ms[MAX_NBGAIN_CMEM];
-	struct mutex mutex;
-	u32 warm_boot;
-
-	u32 irq_dbg_read_ptr;
-
-	struct omap_abe_dbg dbg;
-};
-
 extern struct omap_abe *abe;
 
 void omap_abe_dbg_log(struct omap_abe *abe, u32 x, u32 y, u32 z, u32 t);
