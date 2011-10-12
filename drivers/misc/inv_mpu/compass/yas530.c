@@ -54,6 +54,7 @@ enum {
 struct yas530_private_data {
 	int flags;
 	char offsets[3];
+	const int *correction_matrix;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -434,7 +435,11 @@ static int yas530_read(void *mlsl_handle,
 	int busy;
 	short t, x, y1, y2;
 	int32_t xyz[3];
+	int32_t tmp[3];
+	int i;
 	short rawfixed[3];
+	struct yas530_private_data *private_data = pdata->private_data;
+	const int *correction_matrix = private_data->correction_matrix;
 
 	result = measure_normal(mlsl_handle, slave, pdata,
 				&busy, &t, &x, &y1, &y2);
@@ -444,6 +449,19 @@ static int yas530_read(void *mlsl_handle,
 	}
 
 	coordinate_conversion(x, y1, y2, t, &xyz[0], &xyz[1], &xyz[2]);
+	if (correction_matrix) {
+		for (i = 0; i < 3; i++) {
+			tmp[i] =  (correction_matrix[i * 3 + 0]
+				* (xyz[0] / 10)) / 100
+				+ (correction_matrix[i * 3 + 1]
+				* (xyz[1] / 10)) / 100
+				+ (correction_matrix[i * 3 + 2]
+				* (xyz[2] / 10)) / 100;
+		}
+		for (i = 0; i < 3; i++)
+			xyz[i] = tmp[i];
+	}
+
 
 	rawfixed[0] = (short)(xyz[0] / 100);
 	rawfixed[1] = (short)(xyz[1] / 100);
@@ -576,6 +594,8 @@ static int yas530_init(void *mlsl_handle,
 
 	if (!private_data)
 		return INV_ERROR_MEMORY_EXAUSTED;
+
+	private_data->correction_matrix = pdata->private_data;
 
 	pdata->private_data = private_data;
 
