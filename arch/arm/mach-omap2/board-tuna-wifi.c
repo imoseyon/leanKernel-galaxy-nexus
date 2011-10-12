@@ -207,6 +207,14 @@ static struct platform_device omap_vwlan_device = {
 
 static int tuna_wifi_power(int on)
 {
+	if (!clk32kaudio_reg) {
+		clk32kaudio_reg = regulator_get(0, "clk32kaudio");
+		if (IS_ERR(clk32kaudio_reg)) {
+			pr_err("%s: clk32kaudio reg not found!\n", __func__);
+			clk32kaudio_reg = NULL;
+		}
+	}
+
 	if (clk32kaudio_reg && on && !tuna_wifi_power_state)
 		regulator_enable(clk32kaudio_reg);
 
@@ -403,12 +411,6 @@ static void __init tuna_wlan_gpio(void)
 int __init tuna_wlan_init(void)
 {
 	pr_debug("%s: start\n", __func__);
-
-	clk32kaudio_reg = regulator_get(0, "clk32kaudio");
-	if (IS_ERR(clk32kaudio_reg)) {
-		pr_err("clk32kaudio reg not found!\n");
-		clk32kaudio_reg = NULL;
-	}
 
 	tuna_wlan_gpio();
 	tuna_init_wifi_mem();
