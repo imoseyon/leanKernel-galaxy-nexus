@@ -137,15 +137,22 @@ static irqreturn_t phone_active_irq_handler(int irq, void *_mc)
 	pr_info("[MODEM_IF] PA EVENT : reset =%d, pa=%d\n",
 				phone_reset, phone_active_value);
 
-	if (phone_reset && phone_active_value)
+	if (phone_reset && phone_active_value) {
 		phone_state = STATE_ONLINE;
-	else if (phone_reset && !phone_active_value)
-		phone_state = STATE_CRASH_EXIT;
-	else
+		if (mc->iod && mc->iod->modem_state_changed)
+			mc->iod->modem_state_changed(mc->iod, phone_state);
+	} else if (phone_reset && !phone_active_value) {
+		if (mc->phone_state == STATE_ONLINE) {
+			phone_state = STATE_CRASH_EXIT;
+			if (mc->iod && mc->iod->modem_state_changed)
+				mc->iod->modem_state_changed(mc->iod,
+						phone_state);
+		}
+	} else {
 		phone_state = STATE_OFFLINE;
-
-	if (mc->iod && mc->iod->modem_state_changed)
-		mc->iod->modem_state_changed(mc->iod, phone_state);
+		if (mc->iod && mc->iod->modem_state_changed)
+			mc->iod->modem_state_changed(mc->iod, phone_state);
+	}
 
 	if (phone_active_value)
 		irq_set_irq_type(mc->irq_phone_active, IRQ_TYPE_LEVEL_LOW);
