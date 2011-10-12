@@ -1410,9 +1410,9 @@ void omap2_gpio_set_edge_wakeup(void)
 		 * expected to produce wakeup from low power.
 		 * even if they are set for level detection only.
 		 */
-		__raw_writel((bank->context.edge_falling | level_low) & wkup_status,
+		__raw_writel(bank->context.edge_falling | (level_low & wkup_status),
 			(bank->base + bank->regs->fallingdetect));
-		__raw_writel((bank->context.edge_rising | level_high) & wkup_status,
+		__raw_writel(bank->context.edge_rising | (level_high & wkup_status),
 			(bank->base + bank->regs->risingdetect));
 
 	}
