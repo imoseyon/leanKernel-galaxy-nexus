@@ -813,13 +813,6 @@ static int twl6040_hs_dac_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
-static int twl6040_micbias_event(struct snd_soc_dapm_widget *w,
-			struct snd_kcontrol *kcontrol, int event)
-{
-	msleep(150);
-	return 0;
-}
-
 static int twl6040_power_mode_event(struct snd_soc_dapm_widget *w,
 			struct snd_kcontrol *kcontrol, int event)
 {
@@ -1227,12 +1220,11 @@ static const struct snd_soc_dapm_widget twl6040_dapm_widgets[] = {
 			TWL6040_REG_MICRCTL, 1, 0, NULL, 0),
 
 	/* ADCs */
-	SND_SOC_DAPM_ADC_E("ADC Left", "Left Front Capture",
-			TWL6040_REG_MICLCTL, 2, 0, twl6040_micbias_event,
-				SND_SOC_DAPM_POST_PMU),
-	SND_SOC_DAPM_ADC_E("ADC Right", "Right Front Capture",
-			TWL6040_REG_MICRCTL, 2, 0, twl6040_micbias_event,
-				SND_SOC_DAPM_POST_PMU),
+	SND_SOC_DAPM_ADC("ADC Left", "Left Front Capture",
+			TWL6040_REG_MICLCTL, 2, 0),
+	SND_SOC_DAPM_ADC("ADC Right", "Right Front Capture",
+			TWL6040_REG_MICRCTL, 2, 0),
+
 	/* Microphone bias */
 	SND_SOC_DAPM_MICBIAS("Headset Mic Bias",
 			TWL6040_REG_AMICBCTL, 0, 0),
@@ -1527,6 +1519,21 @@ static int twl6040_prepare(struct snd_pcm_substream *substream,
 				priv->sysclk);
 			return -EPERM;
 	}
+
+	/*
+	 * In the capture, the Analog path should be turn on and stabilized
+	 * before McPDM prepare itself to avoid pop noises.
+	 * So the codec startup event is sending through dapm in prepare itself
+	 * to ensure that the codec analog path is up before McPDM Uplink FIFO
+	 * is going to be activated.
+	 */
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
+		snd_soc_dapm_codec_stream_event(dai->codec,
+				dai->driver->capture.stream_name,
+				SND_SOC_DAPM_STREAM_START);
+		msleep(150);
+	}
+
 	return 0;
 }
 

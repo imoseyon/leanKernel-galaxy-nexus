@@ -250,8 +250,12 @@ int hdmi_audio_notifier_callback(struct notifier_block *nb,
 		if (hdmi_data.active)
 			hdmi_ti_4xxx_audio_enable(&hdmi_data.ip_data, 0);
 		hdmi_audio_set_configuration(&hdmi_data);
-		if (hdmi_data.active)
+		if (hdmi_data.active) {
+			omap_hwmod_set_slave_idlemode(hdmi_data.oh,
+							HWMOD_IDLEMODE_NO);
 			hdmi_ti_4xxx_audio_enable(&hdmi_data.ip_data, 1);
+
+		}
 	}
 	return 0;
 }

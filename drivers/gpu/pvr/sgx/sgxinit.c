@@ -1913,7 +1913,11 @@ IMG_VOID SGXPanic(PVRSRV_SGXDEV_INFO	*psDevInfo)
 {
 	PVR_LOG(("SGX panic"));
 	SGXDumpDebugInfo(psDevInfo, IMG_FALSE);
+#if defined(PVRSRV_RESET_ON_HWTIMEOUT)
 	OSPanic();
+#else
+	PVR_LOG(("OSPanic disabled"));
+#endif
 }
 
 
