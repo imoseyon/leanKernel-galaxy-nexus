@@ -67,6 +67,7 @@ struct usb_link_device {
 	enum RESUME_STATUS	resume_status;
 	int if_usb_connected;
 	int flow_suspend;
+	int host_wake_timeout_flag;
 
 	unsigned gpio_slave_wakeup;
 	unsigned gpio_host_wakeup;

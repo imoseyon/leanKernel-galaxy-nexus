@@ -238,7 +238,8 @@ static int usb_tx_urb_with_skb(struct usb_link_device *usb_ld,
 	struct usb_device *usbdev = usb_ld->usbdev;
 	unsigned long flags;
 
-	if (!usbdev)
+	if (!usbdev || (usbdev->state == USB_STATE_NOTATTACHED) ||
+			usb_ld->host_wake_timeout_flag)
 		return -ENODEV;
 
 	pm_runtime_get_noresume(&usbdev->dev);
@@ -257,6 +258,7 @@ static int usb_tx_urb_with_skb(struct usb_link_device *usb_ld,
 				SET_SLAVE_WAKEUP(usb_ld->pdata, 0);
 				pm_runtime_put_autosuspend(&usbdev->dev);
 				usb_change_modem_state(usb_ld, STATE_CRASH_EXIT);
+				usb_ld->host_wake_timeout_flag = 1;
 				return -1;
 			}
 			pr_err("host wakeup timeout ! retry..\n");
@@ -621,6 +623,7 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 	atomic_set(&usb_ld->suspend_count, 0);
 
 	SET_HOST_ACTIVE(usb_ld->pdata, 1);
+	usb_ld->host_wake_timeout_flag = 0;
 
 	if (gpio_get_value(usb_ld->pdata->gpio_phone_active)) {
 		pm_runtime_set_autosuspend_delay(
@@ -632,7 +635,6 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 		}
 		usb_ld->if_usb_connected = 1;
 		usb_ld->flow_suspend = 0;
-
 		err = request_threaded_irq(usb_ld->pdata->irq_host_wakeup,
 			NULL,
 			usb_resume_irq,
