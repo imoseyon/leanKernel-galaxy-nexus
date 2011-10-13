@@ -559,7 +559,7 @@ static int __devinit max17040_probe(struct i2c_client *client,
 	}
 	schedule_work(&chip->work);
 
-	if (HAS_ALERT_INTERRUPT(chip->ver)) {
+	if (HAS_ALERT_INTERRUPT(chip->ver) && chip->pdata->use_fuel_alert) {
 		/* setting the low SOC alert threshold */
 		if (!max17040_read_reg(client, MAX17040_RCOMP_MSB, &val)) {
 			athd = chip->pdata->min_capacity > 1 ?
@@ -602,7 +602,7 @@ static int __devexit max17040_remove(struct i2c_client *client)
 	alarm_cancel(&chip->alarm);
 	cancel_work_sync(&chip->work);
 	wake_lock_destroy(&chip->work_wake_lock);
-	if (HAS_ALERT_INTERRUPT(chip->ver))
+	if (HAS_ALERT_INTERRUPT(chip->ver) && chip->pdata->use_fuel_alert)
 		free_irq(client->irq, chip);
 	kfree(chip);
 	return 0;

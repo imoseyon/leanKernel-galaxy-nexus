@@ -29,6 +29,7 @@ struct max17040_platform_data {
 	int recharge_vol;
 	int limit_charging_time;
 	int limit_recharging_time;
+	bool use_fuel_alert;
 };
 
 #endif
