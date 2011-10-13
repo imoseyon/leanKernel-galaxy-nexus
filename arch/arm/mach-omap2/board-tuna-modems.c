@@ -627,7 +627,7 @@ static void omap_lte_mux_init(void)
 	omap_mux_init_signal("usbb2_ulpitll_nxt.gpio_160",
 			OMAP_PIN_INPUT | OMAP_PIN_OFF_WAKEUPENABLE);
 	omap_mux_init_signal("dpm_emu17.gpio_28", OMAP_PIN_OUTPUT);
-	omap_mux_init_signal("gpmc_a23.gpio_47", OMAP_PIN_INPUT);
+	omap_mux_init_signal("gpmc_a23.gpio_47", OMAP_PIN_INPUT_PULLDOWN);
 }
 
 static void lte_modem_cfg_gpio(void)
