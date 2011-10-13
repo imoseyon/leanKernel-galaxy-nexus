@@ -48,16 +48,16 @@ static struct sec_jack_zone sec_jack_zones[] = {
 		.jack_type = SEC_HEADSET_3POLE,
 	},
 	{
-		/* 50 < adc <= 450, unstable zone, default to 3pole if it stays
+		/* 50 < adc <= 490, unstable zone, default to 3pole if it stays
 		* in this range for a second (10ms delays, 100 samples)
 		*/
-		.adc_high = 450,
+		.adc_high = 490,
 		.delay_ms = 10,
 		.check_count = 100,
 		.jack_type = SEC_HEADSET_3POLE,
 	},
 	{
-		/* 450 < adc <= 900, unstable zone, default to 4pole if it
+		/* 490 < adc <= 900, unstable zone, default to 4pole if it
 		* stays in this range for a second (10ms delays, 100 samples)
 		*/
 		.adc_high = 900,
