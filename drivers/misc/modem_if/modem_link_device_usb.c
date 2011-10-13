@@ -64,6 +64,7 @@ static int usb_init_communication(struct link_device *ld,
 	switch (iod->format) {
 	case IPC_BOOT:
 		ld->com_state = COM_BOOT;
+		skb_queue_purge(&ld->sk_fmt_tx_q);
 		break;
 
 	case IPC_RAMDUMP:
@@ -344,8 +345,8 @@ static void usb_tx_work(struct work_struct *work)
 
 			ret = usb_tx_urb_with_skb(usb_ld, skb, pipe_data);
 			if (ret < 0) {
-				pr_err("%s usb_tx_urb_with_skb for iod(%d)\n",
-						__func__, iod->format);
+				pr_err("%s usb_tx_urb_with_skb for iod(%d), ret(%d)\n",
+						__func__, iod->format, ret);
 				skb_queue_head(&ld->sk_fmt_tx_q, skb);
 				return;
 			}
@@ -356,8 +357,8 @@ static void usb_tx_work(struct work_struct *work)
 			pipe_data = &usb_ld->devdata[IF_USB_RAW_EP];
 			ret = usb_tx_urb_with_skb(usb_ld, skb, pipe_data);
 			if (ret < 0) {
-				pr_err("%s usb_tx_urb_with_skb for raw iod\n",
-						__func__);
+				pr_err("%s usb_tx_urb_with_skb for raw, ret(%d)\n",
+						__func__, ret);
 				skb_queue_head(&ld->sk_raw_tx_q, skb);
 				return;
 			}
