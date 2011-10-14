@@ -46,6 +46,7 @@ static int omap_tiler_heap_allocate(struct ion_heap *heap,
 
 struct omap_tiler_info {
 	tiler_blk_handle tiler_handle;	/* handle of the allocation intiler */
+	bool lump;			/* true for a single lump allocation */
 	u32 n_phys_pages;		/* number of physical pages */
 	u32 *phys_addrs;		/* array addrs of pages */
 	u32 n_tiler_pages;		/* number of tiler pages */
@@ -62,6 +63,9 @@ int omap_tiler_alloc(struct ion_heap *heap,
 	struct ion_handle *handle;
 	struct ion_buffer *buffer;
 	struct omap_tiler_info *info;
+	u32 n_phys_pages;
+	u32 n_tiler_pages;
+	ion_phys_addr_t addr;
 	int i, ret;
 
 	if (data->fmt == TILER_PIXEL_FMT_PAGE && data->h != 1) {
@@ -70,35 +74,28 @@ int omap_tiler_alloc(struct ion_heap *heap,
 		return -EINVAL;
 	}
 
-	info = kzalloc(sizeof(struct omap_tiler_info), GFP_KERNEL);
-	if (!info)
-		return -ENOMEM;
-
-	ret = tiler_memsize(data->fmt, data->w, data->h, &info->n_phys_pages,
-			    &info->n_tiler_pages);
+	ret = tiler_memsize(data->fmt, data->w, data->h,
+			    &n_phys_pages,
+			    &n_tiler_pages);
 
 	if (ret) {
 		pr_err("%s: invalid tiler request w %u h %u fmt %u\n", __func__,
 		       data->w, data->h, data->fmt);
-		kfree(info);
 		return ret;
 	}
 
-	BUG_ON(!info->n_phys_pages || !info->n_tiler_pages);
+	BUG_ON(!n_phys_pages || !n_tiler_pages);
 
-	info->phys_addrs = kzalloc(sizeof(u32) * info->n_phys_pages,
-				   GFP_KERNEL);
-	if (!info->phys_addrs) {
-		ret = -ENOMEM;
-		goto err_alloc_addrs;
-	}
+	info = kzalloc(sizeof(struct omap_tiler_info) +
+		       sizeof(u32) * n_phys_pages +
+		       sizeof(u32) * n_tiler_pages, GFP_KERNEL);
+	if (!info)
+		return -ENOMEM;
 
-	info->tiler_addrs = kzalloc(sizeof(u32) * info->n_tiler_pages,
-				   GFP_KERNEL);
-	if (!info->tiler_addrs) {
-		ret = -ENOMEM;
-		goto err_tiler_addrs;
-	}
+	info->n_phys_pages = n_phys_pages;
+	info->n_tiler_pages = n_tiler_pages;
+	info->phys_addrs = (u32 *)(info + 1);
+	info->tiler_addrs = info->phys_addrs + n_phys_pages;
 
 	info->tiler_handle = tiler_alloc_block_area(data->fmt, data->w, data->h,
 						    &info->tiler_start,
@@ -107,20 +104,26 @@ int omap_tiler_alloc(struct ion_heap *heap,
 		ret = PTR_ERR(info->tiler_handle);
 		pr_err("%s: failure to allocate address space from tiler\n",
 		       __func__);
-		goto err_tiler_block_alloc;
+		goto err_nomem;
 	}
 
-	for (i = 0; i < info->n_phys_pages; i++) {
-		ion_phys_addr_t addr = ion_carveout_allocate(heap, PAGE_SIZE,
-							     0);
+	addr = ion_carveout_allocate(heap, n_phys_pages*PAGE_SIZE, 0);
+	if (addr == ION_CARVEOUT_ALLOCATE_FAIL) {
+		for (i = 0; i < n_phys_pages; i++) {
+			addr = ion_carveout_allocate(heap, PAGE_SIZE, 0);
 
-		if (addr == ION_CARVEOUT_ALLOCATE_FAIL) {
-			ret = -ENOMEM;
-			goto err_alloc;
-			pr_err("%s: failure to pages to back tiler "
-			       "address space\n", __func__);
+			if (addr == ION_CARVEOUT_ALLOCATE_FAIL) {
+				ret = -ENOMEM;
+				pr_err("%s: failed to allocate pages to back "
+					"tiler address space\n", __func__);
+				goto err_alloc;
+			}
+			info->phys_addrs[i] = addr;
 		}
-		info->phys_addrs[i] = addr;
+	} else {
+		info->lump = true;
+		for (i = 0; i < n_phys_pages; i++)
+			info->phys_addrs[i] = addr + i*PAGE_SIZE;
 	}
 
 	ret = tiler_pin_block(info->tiler_handle, info->phys_addrs,
@@ -151,13 +154,12 @@ err:
 	tiler_unpin_block(info->tiler_handle);
 err_alloc:
 	tiler_free_block_area(info->tiler_handle);
-	for (i -= 1; i >= 0; i--)
-		ion_carveout_free(heap, info->phys_addrs[i], PAGE_SIZE);
-err_tiler_block_alloc:
-	kfree(info->tiler_addrs);
-err_tiler_addrs:
-	kfree(info->phys_addrs);
-err_alloc_addrs:
+	if (info->lump)
+		ion_carveout_free(heap, addr, n_phys_pages * PAGE_SIZE);
+	else
+		for (i -= 1; i >= 0; i--)
+			ion_carveout_free(heap, info->phys_addrs[i], PAGE_SIZE);
+err_nomem:
 	kfree(info);
 	return ret;
 }
@@ -165,16 +167,20 @@ err_alloc_addrs:
 void omap_tiler_heap_free(struct ion_buffer *buffer)
 {
 	struct omap_tiler_info *info = buffer->priv_virt;
-	int i;
 
 	tiler_unpin_block(info->tiler_handle);
 	tiler_free_block_area(info->tiler_handle);
 
-	for (i = 0; i < info->n_phys_pages; i++)
-		ion_carveout_free(buffer->heap, info->phys_addrs[i], PAGE_SIZE);
+	if (info->lump) {
+		ion_carveout_free(buffer->heap, info->phys_addrs[0],
+				  info->n_phys_pages*PAGE_SIZE);
+	} else {
+		int i;
+		for (i = 0; i < info->n_phys_pages; i++)
+			ion_carveout_free(buffer->heap,
+					  info->phys_addrs[i], PAGE_SIZE);
+	}
 
-	kfree(info->tiler_addrs);
-	kfree(info->phys_addrs);
 	kfree(info);
 }
 
