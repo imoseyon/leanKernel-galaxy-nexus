@@ -159,7 +159,7 @@ static void usb_rx_complete(struct urb *urb)
 			}
 		}
 re_submit:
-		if (urb->status)
+		if (urb->status || atomic_read(&usb_ld->suspend_count))
 			break;
 		usb_rx_submit(pipe_data, urb, GFP_ATOMIC);
 		return;
