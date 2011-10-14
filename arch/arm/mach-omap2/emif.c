@@ -593,6 +593,32 @@ static void setup_registers(u32 emif_nr, struct emif_regs *regs, u32 volt_state)
 	__raw_writel(EMIF_PWR_MGMT_CTRL_SHDW,
 		     base + OMAP44XX_EMIF_PWR_MGMT_CTRL_SHDW);
 
+	/* Configure EMIF Automatic Power Management to Self-refresh mode */
+	if (regs->emif_ddr_selfrefresh_time >= 0) {
+		u32 num_cycles, ddr_sr_timer;
+
+		temp = __raw_readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL_SHDW);
+		/*
+		 * Configure the self refresh timing
+		 * base value starts at 16 cycles mapped to 1( __ffs(16) = 4)
+		 */
+		num_cycles = ns_2_cycles(regs->emif_ddr_selfrefresh_time);
+		if (num_cycles >= 16)
+			ddr_sr_timer = __fls(num_cycles) - 3;
+		else
+			ddr_sr_timer = 0;
+
+		mask_n_set(temp, OMAP44XX_REG_SR_TIM_SHDW_SHIFT,
+			   OMAP44XX_REG_SR_TIM_SHDW_MASK, ddr_sr_timer);
+		__raw_writel(temp, base + OMAP44XX_EMIF_PWR_MGMT_CTRL_SHDW);
+
+		/* Enable Self Refresh */
+		temp = __raw_readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL);
+		mask_n_set(temp, OMAP44XX_REG_LP_MODE_SHIFT,
+			   OMAP44XX_REG_LP_MODE_MASK, LP_MODE_SELF_REFRESH);
+		__raw_writel(temp, base + OMAP44XX_EMIF_PWR_MGMT_CTRL);
+	}
+
 	__raw_writel(regs->temp_alert_config,
 		     base + OMAP44XX_EMIF_TEMP_ALERT_CONFIG);
 
@@ -936,6 +962,7 @@ static void emif_calculate_regs(const struct emif_device_details *devices,
 	emif_assert(addressing);
 
 	regs->RL_final = timings->RL;
+	regs->emif_ddr_selfrefresh_time = timings->omap_emif_self_refresh_time;
 	/*
 	 * Initial value of EMIF_SDRAM_CONFIG corresponds to the base
 	 * frequency - 19.2 MHz
