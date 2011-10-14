@@ -82,6 +82,11 @@ static unsigned char dck;
 
 /* -------------------------------------------------------------------------- */
 
+static int is_overunderflow(short xy1y2)
+{
+	return (xy1y2 == 0 || xy1y2 == 4095);
+}
+
 static int set_hardware_offset(void *mlsl_handle,
 			       struct ext_slave_descr *slave,
 			       struct ext_slave_platform_data *pdata,
@@ -473,6 +478,9 @@ static int yas530_read(void *mlsl_handle,
 	data[3] = rawfixed[1] & 0xFF;
 	data[4] = rawfixed[2] >> 8;
 	data[5] = rawfixed[2] & 0xFF;
+	data[6] = is_overunderflow(x)
+			|| is_overunderflow(y1)
+			|| is_overunderflow(y2);
 
 	return result;
 }
@@ -520,6 +528,14 @@ static int yas530_get_config(void *mlsl_handle,
 	case MPU_SLAVE_OFFSET_VALS: {
 		if (!(private_data->flags & FLAG_RESUMED)) {
 			result = power_up(mlsl_handle, slave, pdata);
+			if (result) {
+				LOG_RESULT_LOCATION(result);
+				return result;
+			}
+		} else {
+			result = inv_serial_single_write(mlsl_handle,
+					pdata->address,
+					YAS530_REGADDR_ACTUATE_INIT_COIL, 0);
 			if (result) {
 				LOG_RESULT_LOCATION(result);
 				return result;
@@ -636,7 +652,7 @@ static struct ext_slave_descr yas530_descr = {
 	.type             = EXT_SLAVE_TYPE_COMPASS,
 	.id               = COMPASS_ID_YAS530,
 	.read_reg         = 0x06,
-	.read_len         = 6,
+	.read_len         = 7,
 	.endian           = EXT_SLAVE_BIG_ENDIAN,
 	.range            = {3276, 8001},
 	.trigger          = NULL,
