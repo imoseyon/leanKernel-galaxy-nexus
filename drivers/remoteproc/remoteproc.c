@@ -547,14 +547,6 @@ rproc_da_to_pa(const struct rproc_mem_entry *maps, u64 da, phys_addr_t *pa)
 	return -EINVAL;
 }
 
-static void dump_remoteproc_regs(const char *name, struct exc_regs *xregs)
-{
-	struct pt_regs regs;
-	remoteproc_fill_pt_regs(&regs, xregs);
-	pr_info("remoteproc %s: register dump\n", name);
-	__show_regs(&regs);
-}
-
 static int rproc_mmu_fault_isr(struct rproc *rproc, u64 da, u32 flags)
 {
 	dev_err(rproc->dev, "%s\n", __func__);
@@ -604,8 +596,9 @@ static int _event_notify(struct rproc *rproc, int type, void *data)
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 		pm_runtime_dont_use_autosuspend(rproc->dev);
 #endif
-		dump_remoteproc_regs(rproc->name,
-				(struct exc_regs *)rproc->cdump_buf1);
+		if (rproc->ops->dump_registers)
+			rproc->ops->dump_registers(rproc);
+
 		if (!rproc->halt_on_crash)
 			complete_remoteproc_crash(rproc);
 		else

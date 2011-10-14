@@ -159,6 +159,7 @@ struct rproc_ops {
 	int (*scale)(struct rproc *rproc, long v);
 	int (*watchdog_init)(struct rproc *, int (*)(struct rproc *));
 	int (*watchdog_exit)(struct rproc *);
+	void (*dump_registers)(struct rproc *);
 };
 
 /*
