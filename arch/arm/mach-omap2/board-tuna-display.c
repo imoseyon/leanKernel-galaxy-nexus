@@ -283,6 +283,7 @@ static const struct s6e8aa0_sequence_entry tuna_oled_seq_display_set_m3[] = {
 	{
 		.cmd = tuna_oled_cmd_sleep_out,
 		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_sleep_out),
+		.msleep = 5,
 	},
 	{
 		.cmd = tuna_oled_cmd_init_panel_m3,
@@ -306,6 +307,7 @@ static const struct s6e8aa0_sequence_entry tuna_oled_seq_display_set_sm2[] = {
 	{
 		.cmd = tuna_oled_cmd_sleep_out,
 		.cmd_len = ARRAY_SIZE(tuna_oled_cmd_sleep_out),
+		.msleep = 5,
 	},
 	{
 		.cmd = tuna_oled_cmd_init_panel_sm2,
