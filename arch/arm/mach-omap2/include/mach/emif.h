@@ -277,6 +277,7 @@ struct emif_regs {
 	u32 temp_alert_config_derated;
 	u32 emif_ddr_phy_ctlr_1_init;
 	u32 emif_ddr_phy_ctlr_1_final;
+	s32 emif_ddr_selfrefresh_time;
 };
 
 int omap_emif_setup_registers(u32 freq,

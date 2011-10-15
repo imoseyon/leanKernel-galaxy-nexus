@@ -106,6 +106,8 @@ struct lpddr2_timings {
 	u8 tRASmax;
 	u8 tFAW;
 
+	/* Idle time in ns to wait before putting the memory in self refresh */
+	s32 omap_emif_self_refresh_time;
 };
 
 /*
