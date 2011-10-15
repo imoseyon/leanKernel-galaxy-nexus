@@ -329,13 +329,13 @@ static void omap_rpmsg_del_vqs(struct virtio_device *vdev)
 		kfree(rpvq);
 	}
 
-	iounmap(rpdev->buf_mapped);
-
 	if (rpdev->mbox)
 		omap_mbox_put(rpdev->mbox, &rpdev->nb);
 
 	if (rpdev->rproc)
 		rproc_put(rpdev->rproc);
+
+	iounmap(rpdev->buf_mapped);
 }
 
 static int omap_rpmsg_find_vqs(struct virtio_device *vdev, unsigned nvqs,
