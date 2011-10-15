@@ -90,7 +90,6 @@ struct omap_temp_sensor {
 	u8 clk_on;
 	unsigned long clk_rate;
 	u32 current_temp;
-	u32 save_ctx;
 	struct delayed_work throttle_work;
 };
 
@@ -501,7 +500,6 @@ static int __devinit omap_temp_sensor_probe(struct platform_device *pdev)
 	temp_sensor->phy_base = pdata->offset;
 	temp_sensor->pdev = pdev;
 	temp_sensor->dev = dev;
-	temp_sensor->save_ctx = 0;
 
 	pm_runtime_enable(dev);
 	pm_runtime_irq_safe(dev);
@@ -698,7 +696,6 @@ static int omap_temp_sensor_runtime_suspend(struct device *dev)
 			platform_get_drvdata(to_platform_device(dev));
 
 	omap_temp_sensor_save_ctxt(temp_sensor);
-	temp_sensor->save_ctx = 1;
 	return 0;
 }
 
@@ -706,11 +703,8 @@ static int omap_temp_sensor_runtime_resume(struct device *dev)
 {
 	struct omap_temp_sensor *temp_sensor =
 			platform_get_drvdata(to_platform_device(dev));
-	if (temp_sensor->save_ctx)
-		return 0;
 	if (omap_pm_was_context_lost(dev)) {
 		omap_temp_sensor_restore_ctxt(temp_sensor);
-		temp_sensor->save_ctx = 0;
 	}
 	return 0;
 }
