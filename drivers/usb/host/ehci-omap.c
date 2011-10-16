@@ -75,9 +75,9 @@ static inline u32 ehci_read(void __iomem *base, u32 reg)
 
 u8 omap_ehci_ulpi_read(const struct usb_hcd *hcd, u8 reg)
 {
-	unsigned long timeout = jiffies + msecs_to_jiffies(2);
 	unsigned reg_internal = 0;
 	u8 val;
+	int count = 2000;
 
 	reg_internal = ((reg) << EHCI_INSNREG05_ULPI_REGADD_SHIFT)
 			/* Write */
@@ -93,7 +93,7 @@ u8 omap_ehci_ulpi_read(const struct usb_hcd *hcd, u8 reg)
 	while ((ehci_read(hcd->regs, EHCI_INSNREG05_ULPI)
 			& (1 << EHCI_INSNREG05_ULPI_CONTROL_SHIFT))) {
 		udelay(1);
-		if (time_after(jiffies, timeout)) {
+		if (count-- == 0) {
 			pr_err("ehci: omap_ehci_ulpi_read: Error");
 			break;
 		}
@@ -105,9 +105,9 @@ u8 omap_ehci_ulpi_read(const struct usb_hcd *hcd, u8 reg)
 
 int omap_ehci_ulpi_write(const struct usb_hcd *hcd, u8 val, u8 reg, u8 retry_times)
 {
-	unsigned long timeout;
 	unsigned reg_internal = 0;
 	int status = 0;
+	int count = 2000;
 
 again:
 	reg_internal = val |
@@ -121,19 +121,17 @@ again:
 
 	ehci_write(hcd->regs, EHCI_INSNREG05_ULPI, reg_internal);
 
-	timeout = jiffies + msecs_to_jiffies(2);
 	/* Wait for ULPI access completion */
 	while ((ehci_read(hcd->regs, EHCI_INSNREG05_ULPI)
 			& (1 << EHCI_INSNREG05_ULPI_CONTROL_SHIFT))) {
-		status = 0;
 		udelay(1);
-		if (time_after(jiffies, timeout)) {
-			status = -ETIMEDOUT;
-			if (--retry_times) {
+		if (count-- == 0) {
+			if (retry_times--) {
 				ehci_write(hcd->regs, EHCI_INSNREG05_ULPI, 0);
 				goto again;
 			} else {
 				pr_err("ehci: omap_ehci_ulpi_write: Error");
+				status = -ETIMEDOUT;
 				break;
 			}
 		}
