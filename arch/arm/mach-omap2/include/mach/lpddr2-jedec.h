@@ -105,9 +105,6 @@ struct lpddr2_timings {
 	u8 tDQSCKMAXx2;
 	u8 tRASmax;
 	u8 tFAW;
-
-	/* Idle time in ns to wait before putting the memory in self refresh */
-	s32 omap_emif_self_refresh_time;
 };
 
 /*
@@ -137,6 +134,9 @@ struct lpddr2_device_info {
 	u8	type;
 	u8	density;
 	u8	io_width;
+
+	/* Idle time in cycles to wait before putting the memory in self refresh */
+	s32 emif_ddr_selfrefresh_cycles;
 };
 
 /* The following are exported for devices which use JDEC specifications */
