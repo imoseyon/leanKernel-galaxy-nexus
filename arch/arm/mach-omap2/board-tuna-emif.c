@@ -36,7 +36,7 @@ const struct lpddr2_timings lpddr2_samsung_timings_400_mhz = {
 	.tDQSCKMAXx2	= 11,
 	.tRASmax	= 70,
 	.tFAW		= 50,
-	.omap_emif_self_refresh_time = 80,
+	.omap_emif_self_refresh_time = 5120,
 };
 
 const struct lpddr2_timings lpddr2_samsung_timings_200_mhz = {
