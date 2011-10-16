@@ -1024,12 +1024,26 @@ EXPORT_SYMBOL(omap_set_dma_callback);
  */
 dma_addr_t omap_get_dma_src_pos(int lch)
 {
+	u32 cdac;
 	dma_addr_t offset = 0;
 
 	if (cpu_is_omap15xx())
 		offset = p->dma_read(CPC, lch);
-	else
-		offset = p->dma_read(CSAC, lch);
+	else {
+		/*
+		 * CDAC != 0 indicates that the DMA transfer on the channel has
+		 * been started already.
+		 * If CDAC == 0, we can not trust the CSAC value since it has
+		 * not been updated, and can contain random number.
+		 * Return the start address in case the DMA has not jet started.
+		 * This is valid since in fact the DMA has not yet progressed.
+		 */
+		cdac = p->dma_read(CDAC, lch);
+		if (likely(cdac))
+			offset = p->dma_read(CSAC, lch);
+		else
+			offset = p->dma_read(CSSA, lch);
+	}
 
 	if (IS_DMA_ERRATA(DMA_ERRATA_3_3) && offset == 0)
 		offset = p->dma_read(CSAC, lch);
