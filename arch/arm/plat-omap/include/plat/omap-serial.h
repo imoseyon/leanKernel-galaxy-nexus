@@ -141,6 +141,7 @@ struct uart_omap_port {
 	unsigned char		wer;
 
 	int			use_dma;
+	bool			suspended;
 	/*
 	 * Some bits in registers are cleared on a read, so they must
 	 * be saved whenever the register is read but the bits will not
