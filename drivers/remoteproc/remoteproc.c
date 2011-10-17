@@ -1132,6 +1132,7 @@ static int rproc_loader(struct rproc *rproc)
 int rproc_set_secure(const char *name, bool enable)
 {
 	struct rproc *rproc;
+	int ret;
 
 	rproc = __find_rproc_by_name(name);
 	if (!rproc) {
@@ -1143,6 +1144,8 @@ int rproc_set_secure(const char *name, bool enable)
 	 * set the secure_mode here, the secure_ttb will be filled up during
 	 * the reload process.
 	 */
+	if (mutex_lock_interruptible(&rproc->secure_lock))
+		return -EINTR;
 	rproc->secure_mode = enable;
 	rproc->secure_ttb = NULL;
 	rproc->secure_ok = false;
@@ -1157,10 +1160,15 @@ int rproc_set_secure(const char *name, bool enable)
 	/* block until the restart is complete */
 	if (wait_for_completion_interruptible(&rproc->secure_restart)) {
 		pr_err("error waiting restart completion\n");
-		return -EINTR;
+		ret = -EINTR;
+		goto out;
 	}
 
-	return rproc->secure_ok ? 0 : -EACCES;
+	ret = rproc->secure_ok ? 0 : -EACCES;
+out:
+	mutex_unlock(&rproc->secure_lock);
+
+	return ret;
 }
 EXPORT_SYMBOL(rproc_set_secure);
 
@@ -1610,6 +1618,7 @@ int rproc_register(struct device *dev, const char *name,
 	mutex_init(&rproc->pm_lock);
 #endif
 	mutex_init(&rproc->lock);
+	mutex_init(&rproc->secure_lock);
 	INIT_WORK(&rproc->error_work, rproc_error_work);
 	BLOCKING_INIT_NOTIFIER_HEAD(&rproc->nbh);
 

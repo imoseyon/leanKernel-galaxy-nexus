@@ -277,6 +277,7 @@ struct rproc {
 	struct pm_qos_request_list *qos_request;
 	void *secure_ttb;
 	struct completion secure_restart;
+	struct mutex secure_lock;
 	bool secure_mode;
 	bool secure_ok;
 	bool halt_on_crash;
