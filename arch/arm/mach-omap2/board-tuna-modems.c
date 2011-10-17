@@ -130,6 +130,13 @@ static struct modem_io_t umts_io_devices[] = {
 		.io_type = IODEV_MISC,
 		.link = LINKDEV_MIPI,
 	},
+	[8] = {
+		.name = "umts_boot1",
+		.id = 0x1,
+		.format = IPC_BOOT,
+		.io_type = IODEV_MISC,
+		.link = LINKDEV_MIPI,
+	},
 };
 
 static struct modem_data umts_modem_data = {
