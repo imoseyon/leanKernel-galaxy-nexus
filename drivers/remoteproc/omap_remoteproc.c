@@ -89,6 +89,9 @@ static void omap_rproc_dump_registers(struct rproc *rproc)
 	char buf[64];
 	struct pt_regs regs;
 
+	if (!rproc->cdump_buf1)
+		return;
+
 	remoteproc_fill_pt_regs(&regs,
 			(struct exc_regs *)rproc->cdump_buf1);
 

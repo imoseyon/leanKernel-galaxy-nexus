@@ -2335,11 +2335,16 @@ static int aess_mmap(struct snd_pcm_substream *substream,
 
 static snd_pcm_uframes_t aess_pointer(struct snd_pcm_substream *substream)
 {
-	snd_pcm_uframes_t offset;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_platform *platform = rtd->platform;
+	struct abe_data *abe = snd_soc_platform_get_drvdata(platform);
+	snd_pcm_uframes_t offset = 0;
 	u32 pingpong;
 
-	abe_read_offset_from_ping_buffer(MM_DL_PORT, &pingpong);
-	offset = (snd_pcm_uframes_t)pingpong;
+	if (!abe->first_irq) {
+		abe_read_offset_from_ping_buffer(MM_DL_PORT, &pingpong);
+		offset = (snd_pcm_uframes_t)pingpong;
+	}
 
 	return offset;
 }

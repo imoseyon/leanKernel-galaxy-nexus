@@ -106,8 +106,16 @@ serial_omap_get_divisor(struct uart_port *port, unsigned int baud)
 
 static inline void serial_omap_port_disable(struct uart_omap_port *up)
 {
-	pm_runtime_mark_last_busy(&up->pdev->dev);
-	pm_runtime_put_autosuspend(&up->pdev->dev);
+	if (up->suspended) {
+		/*
+		 * If the port has been suspended by system-wide suspend,
+		 * put it back to low power mode immediately.
+		 */
+		pm_runtime_put_sync_suspend(&up->pdev->dev);
+	} else {
+		pm_runtime_mark_last_busy(&up->pdev->dev);
+		pm_runtime_put_autosuspend(&up->pdev->dev);
+	}
 }
 
 static inline void serial_omap_port_enable(struct uart_omap_port *up)
@@ -1243,8 +1251,8 @@ static int serial_omap_suspend(struct device *dev)
 			up->rts_pullup_in_suspend = 1;
 			omap_rts_mux_write(MUX_PULL_UP, up->port.line);
 		}
+		up->suspended = true;
 		uart_suspend_port(&serial_omap_reg, &up->port);
-		up->console_lock = console_trylock();
 		serial_omap_pm(&up->port, 3, 0);
 	}
 	return 0;
@@ -1256,8 +1264,7 @@ static int serial_omap_resume(struct device *dev)
 
 	if (up) {
 		uart_resume_port(&serial_omap_reg, &up->port);
-		if (up->console_lock)
-			console_unlock();
+		up->suspended = false;
 	}
 
 	return 0;
