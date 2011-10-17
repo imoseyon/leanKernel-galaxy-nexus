@@ -599,6 +599,21 @@ void print_async_list(void)
 	buf->alloc_size = BUF_SIZE;
 	buf->output_buf = array;
 
+	printk("\n EHCI registers \n");
+	printk("HCCAPBASE         : %08x\n", omap_readl(0x4A064C00));
+	printk("HCSPARAMS         : %08x\n", omap_readl(0x4A064C04));
+	printk("HCCPARAMS         : %08x\n", omap_readl(0x4A064C08));
+	printk("USBCMD            : %08x\n", omap_readl(0x4A064C10));
+	printk("USBSTS            : %08x\n", omap_readl(0x4A064C14));
+	printk("USBINTR           : %08x\n", omap_readl(0x4A064C18));
+	printk("FRINDEX           : %08x\n", omap_readl(0x4A064C1C));
+	printk("CTRLDSSEGMENT     : %08x\n", omap_readl(0x4A064C20));
+	printk("PERIODICLISTBASE  : %08x\n", omap_readl(0x4A064C24));
+	printk("ASYNCLISTADDR     : %08x\n", omap_readl(0x4A064C28));
+	printk("CONFIGFLAG        : %08x\n", omap_readl(0x4A064C50));
+	printk("PORT0             : %08x\n", omap_readl(0x4A064C54));
+	printk("PORT1             : %08x\n", omap_readl(0x4A064C58));
+
 	printk("EHCI async list \n");
 	fill_async_buffer(buf);
 
