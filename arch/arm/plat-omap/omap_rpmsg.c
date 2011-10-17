@@ -54,6 +54,8 @@ struct omap_rpmsg_vproc {
 	struct notifier_block rproc_nb_resume;
 	struct notifier_block rproc_nb_error;
 	struct work_struct reset_work;
+	bool slave_reset;
+	struct omap_rpmsg_vproc *slave_next;
 	struct virtqueue *vq[2];
 	int base_vq_id;
 	int num_of_vqs;
@@ -201,6 +203,13 @@ static int omap_rpmsg_mbox_callback(struct notifier_block *this,
 	return NOTIFY_DONE;
 }
 
+static void rpmsg_reset_devices(struct omap_rpmsg_vproc *rpdev)
+{
+	/* wait until previous reset requests have finished */
+	flush_work_sync(&rpdev->reset_work);
+	schedule_work(&rpdev->reset_work);
+}
+
 static int rpmsg_rproc_error(struct notifier_block *this,
 				unsigned long type, void *data)
 {
@@ -209,7 +218,9 @@ static int rpmsg_rproc_error(struct notifier_block *this,
 
 	pr_err("Fatal error in %s\n", rpdev->rproc_name);
 #ifdef CONFIG_OMAP_RPMSG_RECOVERY
-	schedule_work(&rpdev->reset_work);
+	if (rpdev->slave_reset)
+		return NOTIFY_DONE;
+	rpmsg_reset_devices(rpdev);
 #endif
 
 	return NOTIFY_DONE;
@@ -483,15 +494,20 @@ static void rpmsg_reset_work(struct work_struct *work)
 {
 	struct omap_rpmsg_vproc *rpdev =
 		container_of(work, struct omap_rpmsg_vproc, reset_work);
+	struct omap_rpmsg_vproc *tmp;
 	int ret;
 
-	pr_err("reseting virtio device %d\n", rpdev->vdev.index);
-	unregister_virtio_device(&rpdev->vdev);
-	memset(&rpdev->vdev.dev, 0, sizeof(struct device));
-	rpdev->vdev.dev.release = omap_rpmsg_vproc_release;
-	ret = register_virtio_device(&rpdev->vdev);
-	if (ret)
-		pr_err("error creating virtio device %d\n", ret);
+	for (tmp = rpdev; tmp; tmp = tmp->slave_next) {
+		pr_err("reseting virtio device %d\n", tmp->vdev.index);
+		unregister_virtio_device(&tmp->vdev);
+	}
+	for (tmp = rpdev; tmp; tmp = tmp->slave_next) {
+		memset(&tmp->vdev.dev, 0, sizeof(struct device));
+		tmp->vdev.dev.release = omap_rpmsg_vproc_release;
+		ret = register_virtio_device(&tmp->vdev);
+		if (ret)
+			pr_err("error creating virtio device %d\n", ret);
+	}
 }
 
 static struct virtio_config_ops omap_rpmsg_config_ops = {
@@ -525,6 +541,7 @@ static struct omap_rpmsg_vproc omap_rpmsg_vprocs[] = {
 		.rproc_name	= "ipu",
 		.base_vq_id	= 0,
 		.hardcoded_chnls = omap_ipuc0_hardcoded_chnls,
+		.slave_next	= &omap_rpmsg_vprocs[1],
 	},
 	/* ipu_c1's rpmsg backend */
 	{
@@ -534,6 +551,7 @@ static struct omap_rpmsg_vproc omap_rpmsg_vprocs[] = {
 		.rproc_name	= "ipu",
 		.base_vq_id	= 2,
 		.hardcoded_chnls = omap_ipuc1_hardcoded_chnls,
+		.slave_reset	= true,
 	},
 };
 
