@@ -70,6 +70,7 @@ enum {
 	COM_HANDSHAKE,
 	COM_BOOT,
 	COM_CRASH,
+	COM_BOOT_EBL,
 };
 
 struct header_data {

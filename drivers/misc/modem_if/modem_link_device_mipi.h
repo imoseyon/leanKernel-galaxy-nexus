@@ -42,7 +42,6 @@
 
 #define HSI_LL_INVALID_CHANNEL	0xFF
 
-#define HSI_FLASHBOOT_ACK_LEN	16
 #define DUMP_PACKET_SIZE	12289 /* 48K + 4 length, word unit */
 #define DUMP_ERR_INFO_SIZE	39 /* 150 bytes + 4 length , word unit */
 
@@ -151,6 +150,7 @@ enum {
 	HSI_INIT_MODE_NORMAL,
 	HSI_INIT_MODE_FLASHLESS_BOOT,
 	HSI_INIT_MODE_CP_RAMDUMP,
+	HSI_INIT_MODE_FLASHLESS_BOOT_EBL,
 };
 static int hsi_init_handshake(struct mipi_link_device *mipi_ld, int mode);
 static int if_hsi_write(struct if_hsi_channel *channel, u32 *data,
