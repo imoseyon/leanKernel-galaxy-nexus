@@ -23,7 +23,10 @@
 #include <linux/irq.h>
 
 #include <asm/hardware/gic.h>
+#include <asm/mach-types.h>
+
 #include <mach/omap4-common.h>
+
 #include <plat/omap_hsi.h>
 #include <plat/common.h>
 #include <plat/temperature_sensor.h>
@@ -948,7 +951,8 @@ static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 			omap_hsi_wakeup(hsi_port);
 		}
 		omap_uart_resume_idle();
-		usbhs_wakeup();
+		if (!machine_is_tuna())
+			usbhs_wakeup();
 		omap4_trigger_ioctrl();
 	}
 
