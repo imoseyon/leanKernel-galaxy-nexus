@@ -105,7 +105,6 @@ struct dsscomp_data {
 	u32 ovl_mask;		/* overlays used on this frame */
 	u32 ovl_dmask;		/* overlays disabled on this frame */
 	u32 ix;			/* manager index that this frame is on */
-	struct omapdss_ovl_cb cb;
 	struct dsscomp_setup_mgr_data frm;
 	struct dss2_ovl_info ovls[5];
 	void (*extra_cb)(void *data, int status);
@@ -142,7 +141,7 @@ int dsscomp_state_notifier(struct notifier_block *nb,
 
 /* basic operation - if not using queues */
 int set_dss_ovl_info(struct dss2_ovl_info *oi);
-int set_dss_mgr_info(struct dss2_mgr_info *mi);
+int set_dss_mgr_info(struct dss2_mgr_info *mi, struct omapdss_ovl_cb *cb);
 struct omap_overlay_manager *find_dss_mgr(int display_ix);
 void swap_rb_in_ovl_info(struct dss2_ovl_info *oi);
 void swap_rb_in_mgr_info(struct dss2_mgr_info *mi);

@@ -382,7 +382,7 @@ struct omap_overlay_manager *find_dss_mgr(int display_ix)
 	return NULL;
 }
 
-int set_dss_mgr_info(struct dss2_mgr_info *mi)
+int set_dss_mgr_info(struct dss2_mgr_info *mi, struct omapdss_ovl_cb *cb)
 {
 	struct omap_overlay_manager_info info;
 	struct omap_overlay_manager *mgr;
@@ -404,6 +404,7 @@ int set_dss_mgr_info(struct dss2_mgr_info *mi)
 
 	info.cpr_coefs = mi->cpr_coefs;
 	info.cpr_enable = mi->cpr_enabled;
+	info.cb = *cb;
 
 	return mgr->set_manager_info(mgr, &info);
 }

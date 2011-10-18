@@ -1155,7 +1155,7 @@ int rproc_set_secure(const char *name, bool enable)
 	 * restart the processor, the mode will dictate regular load or
 	 * secure load
 	 */
-	_event_notify(rproc, RPROC_ERROR, NULL);
+	_event_notify(rproc, RPROC_SECURE, (void *)enable);
 
 	/* block until the restart is complete */
 	if (wait_for_completion_interruptible(&rproc->secure_restart)) {
