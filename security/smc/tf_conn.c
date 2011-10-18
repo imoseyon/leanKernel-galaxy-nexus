@@ -900,13 +900,6 @@ int tf_open_client_session(
 				"TF_LOGIN_PRIVILEGED for kernel API\n");
 			command->open_client_session.login_type =
 				TF_LOGIN_PRIVILEGED_KERNEL;
-		} else if (current_euid() != 0 && current_egid() != 0) {
-			dprintk(KERN_ERR "tf_open_client_session: "
-				" user %d, group %d not allowed to open "
-				"session with TF_LOGIN_PRIVILEGED\n",
-				current_euid(), current_egid());
-			error = -EACCES;
-			goto error;
 		} else {
 			dprintk(KERN_DEBUG "tf_open_client_session: "
 				"TF_LOGIN_PRIVILEGED for %u:%u\n",
