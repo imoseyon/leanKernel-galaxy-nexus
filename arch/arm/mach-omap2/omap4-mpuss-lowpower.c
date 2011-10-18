@@ -586,7 +586,7 @@ cpu_prepare:
 	 */
 	wakeup_cpu = hard_smp_processor_id();
 	set_cpu_next_pwrst(wakeup_cpu, PWRDM_POWER_ON);
-	omap4_secure_dispatcher(PPA_SERVICE_0, FLAG_START_CRITICAL, 0, 0, 0, 0, 0);
+
 	if (cpu)
 		gic_restore_ppi();
 
@@ -625,12 +625,7 @@ cpu_prepare:
 
 	if ((omap4_device_prev_state_off()) &&
 			(omap_type() != OMAP2_DEVICE_TYPE_GP)) {
-		/*
-		 * Dummy dispatcher call after resuming from off mode.
-		 * Restore the right return Kernel address (with MMU on) for subsequent
-		 * calls to secure ROM after we have hit OFF.
-		 */
-		omap4_secure_dispatcher(PPA_SERVICE_0, FLAG_START_CRITICAL, 0, 0, 0, 0, 0);
+		omap4_secure_dispatcher(0x21, 4, 0, 0, 0, 0, 0);
 		restore_ivahd_tesla_regs();
 		restore_l3instr_regs();
 	}
