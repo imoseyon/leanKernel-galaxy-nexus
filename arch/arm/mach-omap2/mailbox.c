@@ -20,6 +20,7 @@
 #include <mach/irqs.h>
 
 #define MAILBOX_REVISION		0x000
+#define MAILBOX_SYSCONFIG		0x10
 #define MAILBOX_MESSAGE(m)		(0x040 + 0x4 * (m))
 #define MAILBOX_FIFOSTATUS(m)		(0x080 + 0x4 * (m))
 #define MAILBOX_MSGSTATUS(m)		(0x0c0 + 0x4 * (m))
@@ -32,6 +33,7 @@
 
 #define MAILBOX_IRQ_NEWMSG(m)		(1 << (2 * (m)))
 #define MAILBOX_IRQ_NOTFULL(m)		(1 << (2 * (m) + 1))
+#define MAILBOX_SOFTRESET		1
 
 #define MBOX_NUM_USER                  2
 #define OMAP4_MBOX_NUM_USER            3
@@ -122,6 +124,8 @@ static int omap2_mbox_startup(struct omap_mbox *mbox)
 
 	pm_runtime_enable(mbox->dev->parent);
 	pm_runtime_get_sync(mbox->dev->parent);
+
+	mbox_write_reg(MAILBOX_SOFTRESET, MAILBOX_SYSCONFIG);
 
 	omap2_mbox_restore_ctx(mbox);
 
