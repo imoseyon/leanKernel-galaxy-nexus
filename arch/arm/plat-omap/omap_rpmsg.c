@@ -244,6 +244,16 @@ static int rpmsg_rproc_resume(struct omap_rpmsg_vproc *rpdev)
 	return NOTIFY_DONE;
 }
 
+static int rpmsg_rproc_secure(struct omap_rpmsg_vproc *rpdev, bool s)
+{
+	pr_err("%s: %s secure mode\n", rpdev->rproc_name, s ? "enter" : "exit");
+	if (rpdev->slave_reset)
+		return NOTIFY_DONE;
+	rpmsg_reset_devices(rpdev);
+
+	return NOTIFY_DONE;
+}
+
 static int rpmsg_rproc_events(struct notifier_block *this,
 				unsigned long type, void *data)
 {
@@ -259,6 +269,8 @@ static int rpmsg_rproc_events(struct notifier_block *this,
 		return rpmsg_rproc_pos_suspend(rpdev);
 	case RPROC_RESUME:
 		return rpmsg_rproc_resume(rpdev);
+	case RPROC_SECURE:
+		return rpmsg_rproc_secure(rpdev, !!data);
 	}
 	return NOTIFY_DONE;
 }

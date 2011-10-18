@@ -466,21 +466,22 @@ static void hdcp_cancel_work(struct delayed_work **work)
  * Function: hdcp_3des_cb
  *-----------------------------------------------------------------------------
  */
-static void hdcp_3des_cb(void)
+static bool hdcp_3des_cb(void)
 {
 	DBG("hdcp_3des_cb() %u", jiffies_to_msecs(jiffies));
 
 	if (!hdcp.hdcp_keys_loaded) {
-		DBG("%s: hdcp_keys not loaded = %d",
-		    __func__, hdcp.hdcp_keys_loaded);
-		return;
+		printk(KERN_ERR "%s: hdcp_keys not loaded = %d",
+		       __func__, hdcp.hdcp_keys_loaded);
+		return false;
 	}
 
 	/* Load 3DES key */
 	if (hdcp_3des_load_key(hdcp.en_ctrl->key) != HDCP_OK) {
 		printk(KERN_ERR "Error Loading  HDCP keys\n");
-		return;
+		return false;
 	}
+	return true;
 }
 
 /*-----------------------------------------------------------------------------
@@ -504,8 +505,7 @@ static void hdcp_start_frame_cb(void)
 	hdcp.hpd_low = 0;
 	hdcp.pending_disable = 0;
 	hdcp.retry_cnt = hdcp.en_ctrl->nb_retry;
-	hdcp.pending_start = hdcp_submit_work(HDCP_START_FRAME_EVENT,
-					      HDCP_ENABLE_DELAY);
+	hdcp.pending_start = hdcp_submit_work(HDCP_START_FRAME_EVENT, 0);
 }
 
 /*-----------------------------------------------------------------------------

@@ -425,9 +425,6 @@ static u32 dsscomp_mgr_callback(void *data, int id, int status)
 {
 	struct dsscomp_data *comp = data;
 
-	/* do any other callbacks */
-	dss_ovl_cb(&comp->cb, id, status);
-
 	if (status == DSS_COMPLETION_PROGRAMMED ||
 	    (status == DSS_COMPLETION_DISPLAYED &&
 	     comp->state != DSSCOMP_STATE_DISPLAYED) ||
@@ -440,7 +437,7 @@ static u32 dsscomp_mgr_callback(void *data, int id, int status)
 	}
 
 	/* get each callback only once */
-	return ~status | (comp->cb.fn ? comp->cb.mask : 0);
+	return ~status;
 }
 
 static inline bool dssdev_manually_updated(struct omap_dss_device *dev)
@@ -461,6 +458,14 @@ static int dsscomp_apply(dsscomp_t comp)
 	struct omap_overlay *ovl;
 	struct dsscomp_setup_mgr_data *d;
 	u32 oix;
+	bool cb_programmed = false;
+
+	struct omapdss_ovl_cb cb = {
+		.fn = dsscomp_mgr_callback,
+		.data = comp,
+		.mask = DSS_COMPLETION_DISPLAYED |
+		DSS_COMPLETION_PROGRAMMED | DSS_COMPLETION_RELEASED,
+	};
 
 	BUG_ON(comp->state != DSSCOMP_STATE_APPLYING);
 
@@ -535,8 +540,10 @@ skip_ovl_set:
 	 * so if it succeeds, we will use the callback to complete the
 	 * composition.  Otherwise, we can skip the composition now.
 	 */
-	if (!r || comp->must_apply)
-		r = set_dss_mgr_info(&d->mgr);
+	if (!r || comp->must_apply) {
+		r = set_dss_mgr_info(&d->mgr, &cb);
+		cb_programmed = r == 0;
+	}
 
 	if (r && !comp->must_apply) {
 		dev_err(DEV(cdev), "[%p] set failed %d\n", comp, r);
@@ -547,14 +554,8 @@ skip_ovl_set:
 		if (r)
 			dev_warn(DEV(cdev), "[%p] ignoring set failure %d\n",
 								comp, r);
-		/* override manager's callback to avoid eclipsed cb */
 		comp->blank = dmask == comp->ovl_mask;
 		comp->ovl_dmask = dmask;
-		comp->cb = mgr->info.cb;
-		mgr->info.cb.fn = dsscomp_mgr_callback;
-		mgr->info.cb.data = comp;
-		mgr->info.cb.mask = DSS_COMPLETION_DISPLAYED |
-			DSS_COMPLETION_PROGRAMMED | DSS_COMPLETION_RELEASED;
 
 		/*
 		 * Check other overlays that may also use this display.
@@ -595,15 +596,28 @@ skip_ovl_set:
 		r = mgr->apply(mgr);
 		if (r)
 			dev_err(DEV(cdev), "failed while applying %d", r);
+		/* keep error if set_mgr_info failed */
+		if (!r && !cb_programmed)
+			r = -EINVAL;
 	}
 	mutex_unlock(&mtx);
 
-	/* ignore this error if callback has already been registered */
-	if (!mgr->info_dirty)
-		r = 0;
-	else if (r)
-		/* otherwise reset original callback */
-		mgr->info.cb = comp->cb;
+	/*
+	 * TRICKY: try to unregister callback to see if callbacks have
+	 * been applied (moved into DSS2 pipeline).  Unregistering also
+	 * avoids having to unnecessarily kick out compositions (which
+	 * would result in screen blinking).  If callbacks failed to apply,
+	 * (e.g. could not set them or apply them) we will need to call
+	 * them ourselves (we note this by returning an error).
+	 */
+	if (cb_programmed && r) {
+		/* clear error if callback already registered */
+		if (omap_dss_manager_unregister_callback(mgr, &cb))
+			r = 0;
+	}
+	/* if failed to apply, kick out prior composition */
+	if (comp->must_apply && r)
+		mgr->blank(mgr, true);
 
 	if (!r && (d->mode & DSSCOMP_SETUP_MODE_DISPLAY)) {
 		/* cannot handle update errors, so ignore them */

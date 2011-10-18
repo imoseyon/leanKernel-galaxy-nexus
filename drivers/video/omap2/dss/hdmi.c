@@ -50,7 +50,7 @@
 #define HDMI_PHY		0x300
 
 /* HDMI EDID Length move this */
-#define HDMI_EDID_MAX_LENGTH			256
+#define HDMI_EDID_MAX_LENGTH			512
 #define EDID_TIMING_DESCRIPTOR_SIZE		0x12
 #define EDID_DESCRIPTOR_BLOCK0_ADDRESS		0x36
 #define EDID_DESCRIPTOR_BLOCK1_ADDRESS		0x80
@@ -83,10 +83,11 @@ static struct {
 	int runtime_count;
 	int enabled;
 	bool set_mode;
+	bool wp_reset_done;
 
 	void (*hdmi_start_frame_cb)(void);
 	void (*hdmi_irq_cb)(int);
-	void (*hdmi_power_on_cb)(void);
+	bool (*hdmi_power_on_cb)(void);
 } hdmi;
 
 static const u8 edid_header[8] = {0x0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0};
@@ -267,7 +268,7 @@ u8 *hdmi_read_edid(struct omap_video_timings *dp)
 	ret = read_ti_4xxx_edid(&hdmi.hdmi_data, hdmi.edid,
 						HDMI_EDID_MAX_LENGTH);
 
-	for (i = 0; i < 256; i += 16)
+	for (i = 0; i < HDMI_EDID_MAX_LENGTH; i += 16)
 		pr_info("edid[%03x] = %02x %02x %02x %02x %02x %02x %02x %02x "
 			 "%02x %02x %02x %02x %02x %02x %02x %02x\n", i,
 			hdmi.edid[i], hdmi.edid[i + 1], hdmi.edid[i + 2],
@@ -421,7 +422,9 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 
 	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 1);
 
-	if (hdmi.hdmi_start_frame_cb && hdmi.custom_set)
+	if (hdmi.hdmi_start_frame_cb &&
+	    hdmi.custom_set &&
+	    hdmi.wp_reset_done)
 		(*hdmi.hdmi_start_frame_cb)();
 
 	return 0;
@@ -432,6 +435,9 @@ err:
 
 static void hdmi_power_off(struct omap_dss_device *dssdev)
 {
+	if (hdmi.hdmi_irq_cb)
+		hdmi.hdmi_irq_cb(HDMI_HPD_LOW);
+
 	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 0);
 
 	dispc_enable_channel(OMAP_DSS_CHANNEL_DIGIT, dssdev->type, 0);
@@ -441,12 +447,16 @@ static void hdmi_power_off(struct omap_dss_device *dssdev)
 	hdmi.deep_color = HDMI_DEEP_COLOR_24BIT;
 }
 
-void hdmi_load_hdcp_keys(struct omap_dss_device *dssdev)
+static void hdmi_load_hdcp_keys(struct omap_dss_device *dssdev)
 {
+	DSSDBG("hdmi_load_hdcp_keys\n");
 	/* load the keys and reset the wrapper to populate the AKSV registers*/
-	if (hdmi.hdmi_power_on_cb) {
-		hdmi.hdmi_power_on_cb();
-		hdmi_ti_4xxx_set_wait_soft_reset(&hdmi.hdmi_data);
+	if (hdmi.hdmi_power_on_cb && !hdmi.wp_reset_done) {
+		if (hdmi.hdmi_power_on_cb()) {
+			hdmi_ti_4xxx_set_wait_soft_reset(&hdmi.hdmi_data);
+			hdmi.wp_reset_done = true;
+			DSSINFO("HDMI_WRAPPER RESET DONE\n");
+		}
 	}
 }
 
@@ -462,7 +472,7 @@ int omapdss_hdmi_get_mode(void)
 
 int omapdss_hdmi_register_hdcp_callbacks(void (*hdmi_start_frame_cb)(void),
 					 void (*hdmi_irq_cb)(int status),
-					 void (*hdmi_power_on_cb)(void))
+					 bool (*hdmi_power_on_cb)(void))
 {
 	hdmi.hdmi_start_frame_cb = hdmi_start_frame_cb;
 	hdmi.hdmi_irq_cb = hdmi_irq_cb;
@@ -492,8 +502,6 @@ static irqreturn_t hpd_irq_handler(int irq, void *ptr)
 	int hpd = hdmi_get_current_hpd();
 	pr_info("hpd %d\n", hpd);
 
-	if (!hpd && hdmi.hdmi_irq_cb)
-		hdmi.hdmi_irq_cb(HDMI_HPD_LOW);
 	hdmi_panel_hpd_handler(hpd);
 
 	return IRQ_HANDLED;
@@ -534,6 +542,7 @@ int omapdss_hdmi_display_set_mode(struct omap_dss_device *dssdev,
 				  struct fb_videomode *vm)
 {
 	int r1, r2;
+	DSSINFO("Enter omapdss_hdmi_display_set_mode\n");
 	/* turn the hdmi off and on to get new timings to use */
 	hdmi.set_mode = true;
 	dssdev->driver->disable(dssdev);
@@ -564,7 +573,7 @@ int omapdss_hdmi_display_enable(struct omap_dss_device *dssdev)
 {
 	int r = 0;
 
-	DSSDBG("ENTER hdmi_display_enable\n");
+	DSSINFO("ENTER hdmi_display_enable\n");
 
 	mutex_lock(&hdmi.lock);
 
@@ -598,6 +607,8 @@ int omapdss_hdmi_display_enable(struct omap_dss_device *dssdev)
 		goto err3;
 	}
 
+	/* Load the HDCP keys if not already loaded*/
+	hdmi_load_hdcp_keys(dssdev);
 	r = hdmi_power_on(dssdev);
 	if (r) {
 		DSSERR("failed to power on device\n");
@@ -625,7 +636,7 @@ err0:
 
 void omapdss_hdmi_display_disable(struct omap_dss_device *dssdev)
 {
-	DSSDBG("Enter hdmi_display_disable\n");
+	DSSINFO("Enter hdmi_display_disable\n");
 
 	mutex_lock(&hdmi.lock);
 
@@ -633,6 +644,8 @@ void omapdss_hdmi_display_disable(struct omap_dss_device *dssdev)
 		goto done;
 
 	hdmi.enabled = false;
+	if (dssdev->state == OMAP_DSS_DISPLAY_SUSPENDED)
+		hdmi.wp_reset_done = false;
 
 	hdmi_power_off(dssdev);
 	if (dssdev->sync_lost_error == 0)
@@ -753,6 +766,7 @@ static int omapdss_hdmihw_probe(struct platform_device *pdev)
 	hdmi.hdmi_data.hdmi_core_av_offset = HDMI_CORE_AV;
 	hdmi.hdmi_data.hdmi_pll_offset = HDMI_PLLCTRL;
 	hdmi.hdmi_data.hdmi_phy_offset = HDMI_PHY;
+	hdmi.wp_reset_done = false;
 
 	hdmi_panel_init();
 

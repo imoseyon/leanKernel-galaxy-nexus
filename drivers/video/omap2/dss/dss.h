@@ -548,14 +548,13 @@ void omapdss_hdmi_set_deepcolor(int val);
 int hdmi_get_current_hpd(void);
 void hdmi_get_monspecs(struct fb_monspecs *specs);
 u8 *hdmi_read_edid(struct omap_video_timings *);
-void hdmi_load_hdcp_keys(struct omap_dss_device *dssdev);
 
 int hdmi_panel_init(void);
 void hdmi_panel_exit(void);
 void hdmi_dump_regs(struct seq_file *s);
 int omapdss_hdmi_register_hdcp_callbacks(void (*hdmi_start_frame_cb)(void),
 					 void (*hdmi_irq_cb)(int status),
-					 void (*hdmi_power_on_cb)(void));
+					 bool (*hdmi_power_on_cb)(void));
 int omap_dss_ovl_set_info(struct omap_overlay *ovl,
 		struct omap_overlay_info *info);
 
