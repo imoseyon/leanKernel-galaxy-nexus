@@ -1445,6 +1445,14 @@ static void prcmdebug_dump_mod(struct seq_file *sf, struct d_mod_info *mod,
 	    !optclk)
 		return;
 
+	if (flags & PRCMDEBUG_LASTSLEEP &&
+	    (mod->flags & MOD_MODE &&
+	     ((clkctrl & OMAP4430_MODULEMODE_MASK) >>
+	      OMAP4430_MODULEMODE_SHIFT) == 1 /* AUTO */) &&
+	    (!(mod->flags & MOD_SLAVE) || idlest == 0) /* ON */ &&
+	    !optclk)
+		return;
+
 	d_pr(sf, "         %s", mod->name);
 
 	if (mod->flags & MOD_MODE)

@@ -249,6 +249,8 @@ int omap_rproc_deactivate(struct omap_device *od)
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	struct omap_rproc_priv *rpp = rproc->priv;
 #endif
+	if (pdata->clkdm)
+		clkdm_wakeup(pdata->clkdm);
 
 	for (i = 0; i < od->hwmods_cnt; i++) {
 		ret = omap_hwmod_shutdown(od->hwmods[i]);
@@ -271,6 +273,9 @@ int omap_rproc_deactivate(struct omap_device *od)
 	}
 #endif
 err:
+	if (pdata->clkdm)
+		clkdm_allow_idle(pdata->clkdm);
+
 	return ret;
 }
 
@@ -287,6 +292,8 @@ static int omap_rproc_iommu_init(struct rproc *rproc,
 	if (!rpp)
 		return -ENOMEM;
 
+	if (pdata->clkdm)
+		clkdm_wakeup(pdata->clkdm);
 	iommu_set_isr(pdata->iommu_name, omap_rproc_iommu_isr, rproc);
 	iommu_set_secure(pdata->iommu_name, rproc->secure_mode,
 						rproc->secure_ttb);
@@ -312,12 +319,17 @@ static int omap_rproc_iommu_init(struct rproc *rproc,
 				goto err_map;
 		}
 	}
+	if (pdata->clkdm)
+		clkdm_allow_idle(pdata->clkdm);
+
 	return 0;
 
 err_map:
 	iommu_put(iommu);
 err_mmu:
 	iommu_set_secure(pdata->iommu_name, false, NULL);
+	if (pdata->clkdm)
+		clkdm_allow_idle(pdata->clkdm);
 	kfree(rpp);
 	return ret;
 }
@@ -481,10 +493,16 @@ out:
 static int omap_rproc_iommu_exit(struct rproc *rproc)
 {
 	struct omap_rproc_priv *rpp = rproc->priv;
+	struct omap_rproc_pdata *pdata = rproc->dev->platform_data;
+
+	if (pdata->clkdm)
+		clkdm_wakeup(pdata->clkdm);
 
 	if (rpp->iommu)
 		iommu_put(rpp->iommu);
 	kfree(rpp);
+	if (pdata->clkdm)
+		clkdm_allow_idle(pdata->clkdm);
 
 	return 0;
 }
