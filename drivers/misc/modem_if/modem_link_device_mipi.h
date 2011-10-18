@@ -45,6 +45,8 @@
 #define DUMP_PACKET_SIZE	12289 /* 48K + 4 length, word unit */
 #define DUMP_ERR_INFO_SIZE	39 /* 150 bytes + 4 length , word unit */
 
+#define MIPI_BULK_TX_SIZE	(8 * 1024)
+
 enum {
 	HSI_LL_MSG_BREAK, /* 0x0 */
 	HSI_LL_MSG_ECHO,
@@ -132,7 +134,7 @@ struct mipi_link_device {
 	spinlock_t list_cmd_lock;
 
 	struct workqueue_struct *mipi_wq;
-	struct work_struct cmd_work;
+	struct delayed_work cmd_work;
 	struct delayed_work start_work;
 
 	struct wake_lock wlock;
@@ -141,6 +143,9 @@ struct mipi_link_device {
 	/* maybe -list of io devices for the link device to use
 	 * to find where to send incoming packets to */
 	struct list_head list_of_io_devices;
+
+	void *bulk_tx_buf;
+	struct sk_buff_head bulk_txq;
 };
 /* converts from struct link_device* to struct xxx_link_device* */
 #define to_mipi_link_device(linkdev) \

@@ -158,7 +158,10 @@ static int mipi_hsi_send(struct link_device *ld, struct io_device *iod,
 	/* en queue skb data */
 	skb_queue_tail(txq, skb);
 
-	queue_work(ld->tx_wq, &ld->tx_work);
+	if (iod->format == IPC_RAW)
+		queue_delayed_work(ld->tx_raw_wq, &ld->tx_delayed_work, 0);
+	else
+		queue_work(ld->tx_wq, &ld->tx_work);
 	return skb->len;
 }
 
@@ -170,12 +173,15 @@ static void mipi_hsi_tx_work(struct work_struct *work)
 	struct mipi_link_device *mipi_ld = to_mipi_link_device(ld);
 	struct io_device *iod;
 	struct sk_buff *fmt_skb;
-	struct sk_buff *raw_skb;
 	int send_channel = 0;
 
-	while (ld->sk_fmt_tx_q.qlen || ld->sk_raw_tx_q.qlen) {
-		pr_debug("[MIPI-HSI] fmt qlen : %d, raw qlen:%d\n",
-				ld->sk_fmt_tx_q.qlen, ld->sk_raw_tx_q.qlen);
+	while (ld->sk_fmt_tx_q.qlen) {
+		pr_debug("[MIPI-HSI] fmt qlen : %d\n", ld->sk_fmt_tx_q.qlen);
+
+		if (ld->com_state != COM_ONLINE) {
+			pr_debug("[MIPI-HSI] fmt CP not ready\n");
+			return;
+		}
 
 		fmt_skb = skb_dequeue(&ld->sk_fmt_tx_q);
 		if (fmt_skb) {
@@ -183,12 +189,6 @@ static void mipi_hsi_tx_work(struct work_struct *work)
 
 			pr_debug("[MIPI-HSI] dequeue. fmt qlen : %d\n",
 						ld->sk_fmt_tx_q.qlen);
-
-			if (ld->com_state != COM_ONLINE) {
-				pr_err("[MIPI-HSI] CP not ready\n");
-				skb_queue_head(&ld->sk_fmt_tx_q, fmt_skb);
-				return;
-			}
 
 			switch (iod->format) {
 			case IPC_FMT:
@@ -220,28 +220,51 @@ static void mipi_hsi_tx_work(struct work_struct *work)
 
 			dev_kfree_skb_any(fmt_skb);
 		}
+	}
+}
 
-		raw_skb = skb_dequeue(&ld->sk_raw_tx_q);
-		if (raw_skb) {
-			if (ld->com_state != COM_ONLINE) {
-				pr_err("[MIPI-HSI] RAW CP not ready\n");
-				skb_queue_head(&ld->sk_raw_tx_q, raw_skb);
-				return;
-			}
+static void mipi_hsi_tx_raw_work(struct work_struct *work)
+{
+	int ret;
+	struct link_device *ld = container_of(work, struct link_device,
+				tx_delayed_work.work);
+	struct mipi_link_device *mipi_ld = to_mipi_link_device(ld);
+	struct sk_buff *raw_skb;
+	unsigned bulk_size;
 
-			pr_debug("[MIPI-HSI] dequeue. raw qlen:%d\n",
-						ld->sk_raw_tx_q.qlen);
+	while (ld->sk_raw_tx_q.qlen) {
+		pr_debug("[MIPI-HSI] raw qlen:%d\n", ld->sk_raw_tx_q.qlen);
 
-			ret = if_hsi_protocol_send(mipi_ld, HSI_RAW_CHANNEL,
-					(u32 *)raw_skb->data, raw_skb->len);
-			if (ret < 0) {
-				/* TODO: Re Enqueue */
-				pr_err("[MIPI-HSI] write fail : %d\n", ret);
-			}  else
-				pr_debug("[MIPI-HSI] write Done\n");
-
-			dev_kfree_skb_any(raw_skb);
+		if (ld->com_state != COM_ONLINE) {
+			pr_debug("[MIPI-HSI] raw CP not ready\n");
+			return;
 		}
+
+		bulk_size = 0;
+		raw_skb = skb_dequeue(&ld->sk_raw_tx_q);
+		while (raw_skb) {
+			if (bulk_size + raw_skb->len < MIPI_BULK_TX_SIZE) {
+				memcpy(mipi_ld->bulk_tx_buf + bulk_size,
+						raw_skb->data, raw_skb->len);
+				bulk_size += raw_skb->len;
+				skb_queue_head(&mipi_ld->bulk_txq, raw_skb);
+			} else {
+				skb_queue_head(&ld->sk_raw_tx_q, raw_skb);
+				break;
+			}
+			raw_skb = skb_dequeue(&ld->sk_raw_tx_q);
+		}
+
+		ret = if_hsi_protocol_send(mipi_ld, HSI_RAW_CHANNEL,
+					(u32 *)mipi_ld->bulk_tx_buf, bulk_size);
+		if (ret < 0) {
+			raw_skb = skb_dequeue(&mipi_ld->bulk_txq);
+			while (raw_skb) {
+				skb_queue_head(&ld->sk_raw_tx_q, raw_skb);
+				raw_skb = skb_dequeue(&mipi_ld->bulk_txq);
+			}
+		} else
+			skb_queue_purge(&mipi_ld->bulk_txq);
 	}
 }
 
@@ -728,7 +751,7 @@ static void if_hsi_cmd_work(struct work_struct *work)
 	int retry_count = 0;
 	unsigned long int flags;
 	struct mipi_link_device *mipi_ld =
-			container_of(work, struct mipi_link_device, cmd_work);
+	container_of(work, struct mipi_link_device, cmd_work.work);
 	struct if_hsi_channel *channel =
 			&mipi_ld->hsi_channles[HSI_CONTROL_CHANNEL];
 	struct if_hsi_command *hsi_cmd;
@@ -803,7 +826,7 @@ static int if_hsi_send_command(struct mipi_link_device *mipi_ld,
 	spin_unlock_irqrestore(&mipi_ld->list_cmd_lock, flags);
 
 	pr_debug("[MIPI-HSI] queue_work : cmd_work\n");
-	queue_work(mipi_ld->mipi_wq, &mipi_ld->cmd_work);
+	queue_delayed_work(mipi_ld->mipi_wq, &mipi_ld->cmd_work, 0);
 
 	return 0;
 }
@@ -1539,12 +1562,13 @@ static int if_hsi_init(struct link_device *ld)
 		return ret;
 	}
 
-	mipi_ld->mipi_wq = create_singlethread_workqueue("mipi_cmd_wq");
+	mipi_ld->mipi_wq = alloc_workqueue("mipi_cmd_wq",
+		WQ_HIGHPRI | WQ_UNBOUND | WQ_RESCUER, 1);
 	if (!mipi_ld->mipi_wq) {
 		pr_err("[MIPI-HSI] fail to create work Q.\n");
 		return -ENOMEM;
 	}
-	INIT_WORK(&mipi_ld->cmd_work, if_hsi_cmd_work);
+	INIT_DELAYED_WORK(&mipi_ld->cmd_work, if_hsi_cmd_work);
 	INIT_DELAYED_WORK(&mipi_ld->start_work, mipi_hsi_start_work);
 
 	setup_timer(&mipi_ld->hsi_acwake_down_timer, if_hsi_acwake_down_func,
@@ -1581,6 +1605,14 @@ static int if_hsi_init(struct link_device *ld)
 		pr_err("[MIPI-HSI] alloc HSI_CMD_CHANNEL rx_data fail\n");
 		return -ENOMEM;
 	}
+
+	mipi_ld->bulk_tx_buf = kmalloc(MIPI_BULK_TX_SIZE, GFP_DMA | GFP_ATOMIC);
+	if (!mipi_ld->bulk_tx_buf) {
+		pr_err("[MIPI-HSI] alloc bulk tx buffer fail\n");
+		return -ENOMEM;
+	}
+
+	skb_queue_head_init(&mipi_ld->bulk_txq);
 
 	return 0;
 }
@@ -1624,6 +1656,14 @@ struct link_device *mipi_create_link_device(struct platform_device *pdev)
 		return NULL;
 	}
 	INIT_WORK(&ld->tx_work, mipi_hsi_tx_work);
+
+	ld->tx_raw_wq = alloc_workqueue("mipi_tx_raw_wq",
+		WQ_HIGHPRI | WQ_UNBOUND | WQ_RESCUER, 1);
+	if (!ld->tx_raw_wq) {
+		pr_err("[MIPI-HSI] fail to create raw work Q.\n");
+		return NULL;
+	}
+	INIT_DELAYED_WORK(&ld->tx_delayed_work, mipi_hsi_tx_raw_work);
 
 	ret = if_hsi_init(ld);
 	if (ret)

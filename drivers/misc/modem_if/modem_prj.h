@@ -145,6 +145,7 @@ struct link_device {
 	struct sk_buff_head sk_raw_tx_q;
 
 	struct workqueue_struct *tx_wq;
+	struct workqueue_struct *tx_raw_wq;
 	struct work_struct tx_work;
 	struct delayed_work tx_delayed_work;
 
