@@ -44,6 +44,7 @@
 #include <plat/dma.h>
 #include <plat/omap_hwmod.h>
 #include <plat/mcpdm.h>
+#include "../../../arch/arm/mach-omap2/cm1_44xx.h"
 #include "omap-mcpdm.h"
 #include "omap-pcm.h"
 #if defined(CONFIG_SND_OMAP_SOC_ABE_DSP) ||\
@@ -59,6 +60,10 @@
 #define MCPDM_ABE_DAI_DL2		3
 #define MCPDM_ABE_DAI_VIB		4
 #define MCPDM_ABE_DAI_UL1		5
+
+#define CLKCTRL_MODULEMODE_MASK 0x0003
+#define CLKCTRL_MODULEMODE_DISABLED 0x0000
+#define CLKCTRL_MODULEMODE_ENABLED 0x0002
 
 struct omap_mcpdm {
 	struct device *dev;
@@ -373,6 +378,7 @@ static int omap_mcpdm_dai_startup(struct snd_pcm_substream *substream,
 {
 	struct omap_mcpdm *mcpdm = snd_soc_dai_get_drvdata(dai);
 	u32 ctrl;
+	u32 val;
 	int err = 0;
 
 	dev_dbg(dai->dev, "%s: active %d\n", __func__, dai->active);
@@ -389,6 +395,10 @@ static int omap_mcpdm_dai_startup(struct snd_pcm_substream *substream,
 		mcpdm->abe_mode = 0;
 
 	pm_runtime_get_sync(mcpdm->dev);
+
+	val = __raw_readl(OMAP4430_CM1_ABE_PDM_CLKCTRL);
+	if ((val & CLKCTRL_MODULEMODE_MASK) != CLKCTRL_MODULEMODE_ENABLED)
+		dev_err(mcpdm->dev, "Clock not enabled: PDM_CLKCTRL=0x%x\n", val);
 
 	/* Enable McPDM watch dog for ES above ES 1.0 to avoid saturation */
 	if (omap_rev() != OMAP4430_REV_ES1_0) {
