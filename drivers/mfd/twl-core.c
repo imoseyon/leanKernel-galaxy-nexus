@@ -389,8 +389,9 @@ int twl_i2c_write(u8 mod_no, u8 *value, u8 reg, unsigned num_bytes)
 
 	/* i2c_transfer returns number of messages transferred */
 	if (ret != 1) {
-		pr_err("%s: i2c_write failed to transfer all messages\n",
-			DRIVER_NAME);
+		pr_err("%s: i2c_write failed to transfer all messages "
+			"(addr 0x%04x, reg %d, len %d)\n",
+			DRIVER_NAME, twl->address, reg, msg->len);
 		if (ret < 0)
 			return ret;
 		else
@@ -448,8 +449,9 @@ int twl_i2c_read(u8 mod_no, u8 *value, u8 reg, unsigned num_bytes)
 
 	/* i2c_transfer returns number of messages transferred */
 	if (ret != 2) {
-		pr_err("%s: i2c_read failed to transfer all messages\n",
-			DRIVER_NAME);
+		pr_err("%s: i2c_read failed to transfer all messages "
+			"(addr 0x%04x, reg %d, len %d)\n",
+			DRIVER_NAME, twl->address, reg, msg->len);
 		if (ret < 0)
 			return ret;
 		else
