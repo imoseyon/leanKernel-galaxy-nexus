@@ -621,13 +621,19 @@ cpu_prepare:
 		/* Enable GIC distributor and inteface on CPU0*/
 		gic_cpu_enable();
 		gic_dist_enable();
+
+		/*
+		 * Dummy dispatcher call after OSWR and OFF
+		 * Restore the right return Kernel address (with MMU on) for
+		 * subsequent calls to secure ROM. Otherwise the return address
+		 * will be to a PA return address and the system will hang.
+		 */
+		if (omap_type() != OMAP2_DEVICE_TYPE_GP)
+			omap4_secure_dispatcher(PPA_SERVICE_0,
+						FLAG_START_CRITICAL,
+						0, 0, 0, 0, 0);
 	}
 
-	if ((omap4_device_prev_state_off()) &&
-			(omap_type() != OMAP2_DEVICE_TYPE_GP))
-		omap4_secure_dispatcher(PPA_SERVICE_0,
-					FLAG_START_CRITICAL,
-					0, 0, 0, 0, 0);
 	if (omap4_device_prev_state_off()) {
 		restore_ivahd_tesla_regs();
 		restore_l3instr_regs();
