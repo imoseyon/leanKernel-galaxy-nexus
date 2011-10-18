@@ -472,6 +472,26 @@ static int fsa9480_detect_callback(struct otg_id_notifier_block *nb)
 	prev_dev = usbsw->curr_dev;
 
 	if (dev_type & DEV_USB_MASK) {
+		/* If there is an external id signal then verify that the ID
+		 * signal is floating.  If the ID signal is pulled low then this
+		 * may be a cable misidentification.  This can occur if the
+		 * board allows for the ID signal to be redirected away from the
+		 * FSA9480.  If the ID signal is not visible to the FSA9480 and
+		 * VBUS is present then the cable will be identified as a USB
+		 * peripheral cable.
+		 *
+		 * In the event of a cable misidentification the FSA9480 chip
+		 * will be reset to force a new detection cycle.
+		 */
+		if (usbsw->pdata->external_id >= 0 &&
+				!gpio_get_value(usbsw->pdata->external_id)) {
+			dev_info(&usbsw->client->dev, "Cable misidentified as "
+					"a USB-peripheral cable, resetting the "
+					"FSA9480\n");
+			fsa9480_reset(usbsw);
+			goto handled;
+		}
+
 		/* usb peripheral mode */
 		if (!(nb_info->detect_set->mask & FSA9480_DETECT_USB))
 			goto unhandled;
