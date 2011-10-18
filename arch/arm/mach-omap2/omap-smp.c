@@ -45,7 +45,9 @@ void __cpuinit platform_secondary_init(unsigned int cpu)
 {
 	/* Enable NS access to SMP bit for this CPU on HS devices */
 	if (cpu_is_omap443x() && (omap_type() != OMAP2_DEVICE_TYPE_GP))
-		omap4_secure_dispatcher(PPA_SERVICE_DEFAULT_POR_NS_SMP, 4, 0, 0, 0, 0, 0);
+		omap4_secure_dispatcher(PPA_SERVICE_DEFAULT_POR_NS_SMP,
+					FLAG_START_CRITICAL,
+					0, 0, 0, 0, 0);
 
 	/*
 	 * If any interrupts are already enabled for the primary
