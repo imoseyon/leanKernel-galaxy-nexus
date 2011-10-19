@@ -932,7 +932,7 @@ static int if_hsi_rx_cmd_handle(struct mipi_link_device *mipi_ld, u32 cmd,
 			return 0;
 
 		default:
-			pr_err("[MIPI-HSI] wrong state : %08x, recv_step : %d\n",
+			pr_debug("[MIPI-HSI] wrong state : %08x, recv_step : %d\n",
 						cmd, channel->recv_step);
 			return -1;
 		}
@@ -1188,6 +1188,13 @@ static void if_hsi_write_done(struct hsi_device *dev, unsigned int size)
 			(struct mipi_link_device *)if_hsi_driver.priv_data;
 	struct if_hsi_channel *channel = &mipi_ld->hsi_channles[dev->n_ch];
 
+	if ((((*channel->tx_data & 0xF0000000) >> 28) ==
+			HSI_LL_MSG_CONN_CLOSED) &&
+			mipi_ld->ld.com_state == COM_ONLINE) {
+		mipi_ld->hsi_channles[
+		(*channel->tx_data & 0x0F000000) >> 24].recv_step = STEP_IDLE;
+	}
+
 	pr_debug("[MIPI-HSI] got write data : 0x%x(%d)\n",
 				*(u32 *)channel->tx_data, size);
 
@@ -1249,7 +1256,7 @@ static void if_hsi_read_done(struct hsi_device *dev, unsigned int size)
 				ret = if_hsi_rx_cmd_handle(mipi_ld, cmd, ch,
 							param);
 				if (ret)
-					pr_err("[MIPI-HSI] handle cmd cmd=%x\n",
+					pr_debug("[MIPI-HSI] handle cmd cmd=%x\n",
 								cmd);
 			}
 
@@ -1361,14 +1368,14 @@ static void if_hsi_read_done(struct hsi_device *dev, unsigned int size)
 		pr_debug("[MIPI-HSI] receive command data : 0x%x\n",
 					*channel->rx_data);
 
+		channel->recv_step = STEP_SEND_TO_CONN_CLOSED;
+
 		ch = channel->channel_id;
 		param = 0;
 		ret = if_hsi_send_command(mipi_ld, HSI_LL_MSG_CONN_CLOSED,
 					ch, param);
 		if (ret)
 			pr_err("[MIPI-HSI] send_cmd fail=%d\n", ret);
-
-		channel->recv_step = STEP_IDLE;
 		return;
 
 	default:
@@ -1396,15 +1403,14 @@ static void if_hsi_read_done(struct hsi_device *dev, unsigned int size)
 			if (ret < 0)
 				pr_err("[MIPI-HSI] recv call fail : %d\n", ret);
 
+			channel->recv_step = STEP_SEND_TO_CONN_CLOSED;
+
 			ch = channel->channel_id;
 			param = 0;
 			ret = if_hsi_send_command(mipi_ld,
 				HSI_LL_MSG_CONN_CLOSED, ch, param);
 			if (ret)
 				pr_err("[MIPI-HSI] send_cmd fail=%d\n", ret);
-
-			channel->recv_step = STEP_IDLE;
-
 			return;
 		}
 	}
