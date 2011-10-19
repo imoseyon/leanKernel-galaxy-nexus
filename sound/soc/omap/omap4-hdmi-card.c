@@ -21,6 +21,7 @@
  *
  */
 
+#include <linux/delay.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
 #include <asm/mach-types.h>
@@ -31,7 +32,7 @@
 static int omap4_hdmi_dai_hw_params(struct snd_pcm_substream *substream,
 		struct snd_pcm_hw_params *params)
 {
-	int i;
+	int i, count = 0;
 	struct omap_overlay_manager *mgr = NULL;
 	struct device *dev = substream->pcm->card->dev;
 
@@ -49,9 +50,12 @@ static int omap4_hdmi_dai_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	/* Make sure HDMI is power-on to avoid L3 interconnect errors */
-	if (mgr->device->state != OMAP_DSS_DISPLAY_ACTIVE) {
+	while (mgr->device->state != OMAP_DSS_DISPLAY_ACTIVE) {
+		msleep(50);
+		if (count > 5)
+			return -EIO;
 		dev_err(dev, "HDMI display is not active!\n");
-		return -EIO;
+		count++;
 	}
 
 	return 0;
