@@ -564,14 +564,13 @@ static ssize_t tuna_otg_usb_sel_store(struct device *dev,
 				      const char *buf, size_t size)
 {
 	struct tuna_otg *tuna_otg = dev_get_drvdata(dev);
-	size_t len = strlen(buf);
 	int old_mode;
 
 	mutex_lock(&tuna_otg->lock);
 
 	old_mode = tuna_otg->usb_manual_mode;
 
-	if (!strncasecmp(buf, "PDA", 3) && len == 4) {
+	if (!strncasecmp(buf, "PDA", 3)) {
 		tuna_otg->usb_manual_mode = TUNA_MANUAL_USB_AP;
 
 		/* If we are transitioning from CP USB to AP USB then notify the
@@ -582,7 +581,7 @@ static ssize_t tuna_otg_usb_sel_store(struct device *dev,
 			tuna_cp_usb_detach(tuna_otg);
 			tuna_ap_usb_attach(tuna_otg);
 		}
-	} else if (!strncasecmp(buf, "MODEM", 5) && len == 6) {
+	} else if (!strncasecmp(buf, "MODEM", 5)) {
 		tuna_otg->usb_manual_mode = TUNA_MANUAL_USB_MODEM;
 
 		/* If we are transitioning from AP USB to CP USB then notify the
@@ -594,7 +593,7 @@ static ssize_t tuna_otg_usb_sel_store(struct device *dev,
 			tuna_ap_usb_detach(tuna_otg);
 			tuna_cp_usb_attach(tuna_otg);
 		}
-	} else if (!strncasecmp(buf, "NONE", 5) && len == 5) {
+	} else if (!strncasecmp(buf, "NONE", 4)) {
 		tuna_otg->usb_manual_mode = TUNA_MANUAL_USB_NONE;
 
 		/* If we are transitioning from CP USB to AP USB then notify the
@@ -609,7 +608,7 @@ static ssize_t tuna_otg_usb_sel_store(struct device *dev,
 
 	mutex_unlock(&tuna_otg->lock);
 
-	return len;
+	return size;
 }
 
 static ssize_t tuna_otg_uart_switch_show(struct device *dev,
@@ -641,27 +640,26 @@ static ssize_t tuna_otg_uart_switch_store(struct device *dev,
 					  const char *buf, size_t size)
 {
 	struct tuna_otg *tuna_otg = dev_get_drvdata(dev);
-	size_t len = strlen(buf);
 
 	mutex_lock(&tuna_otg->lock);
 
-	if (!strncasecmp(buf, "PDA", 3) && len == 4) {
+	if (!strncasecmp(buf, "PDA", 3)) {
 		tuna_otg->uart_manual_mode = TUNA_MANUAL_UART_AP;
 
 		if (tuna_otg->current_device == FSA9480_DETECT_JIG)
 			tuna_ap_uart_actions(tuna_otg);
-	} else if (!strncasecmp(buf, "MODEM", 5) && len == 6) {
+	} else if (!strncasecmp(buf, "MODEM", 5)) {
 		tuna_otg->uart_manual_mode = TUNA_MANUAL_UART_MODEM;
 
 		if (tuna_otg->current_device == FSA9480_DETECT_JIG)
 			tuna_cp_uart_actions(tuna_otg);
-	} else if (!strncasecmp(buf, "LTEMODEM", 8) && len == 9 &&
+	} else if (!strncasecmp(buf, "LTEMODEM", 8) &&
 			omap4_tuna_get_type() == TUNA_TYPE_TORO) {
 		tuna_otg->uart_manual_mode = TUNA_MANUAL_UART_LTE;
 
 		if (tuna_otg->current_device == FSA9480_DETECT_JIG)
 			tuna_lte_uart_actions(tuna_otg);
-	} else if (!strncasecmp(buf, "NONE", 5) && len == 5) {
+	} else if (!strncasecmp(buf, "NONE", 4)) {
 		tuna_otg->uart_manual_mode = TUNA_MANUAL_UART_NONE;
 
 		if (tuna_otg->current_device == FSA9480_DETECT_JIG)
@@ -670,7 +668,7 @@ static ssize_t tuna_otg_uart_switch_store(struct device *dev,
 
 	mutex_unlock(&tuna_otg->lock);
 
-	return len;
+	return size;
 }
 
 #define OMAP_HDMI_HPD_ADDR	0x4A100098
