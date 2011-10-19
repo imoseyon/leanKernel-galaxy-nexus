@@ -41,6 +41,8 @@ void omap4_tuna_emif_init(void);
 void omap4_ehci_init(void);
 void modem_toro_init(void);
 
+void tuna_otg_pogo_charger(bool on);
+
 extern struct mmc_platform_data tuna_wifi_data;
 extern struct class *sec_class;
 

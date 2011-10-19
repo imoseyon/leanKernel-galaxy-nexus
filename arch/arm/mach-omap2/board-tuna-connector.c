@@ -715,6 +715,18 @@ static void sii9234_vbus_present(bool on)
 				tuna_otg->otg.gadget);
 }
 
+void tuna_otg_pogo_charger(bool on)
+{
+	struct tuna_otg *tuna_otg = &tuna_otg_xceiv;
+
+	tuna_otg->otg.state = OTG_STATE_B_IDLE;
+	tuna_otg->otg.default_a = false;
+	tuna_otg->otg.last_event = on ? USB_EVENT_CHARGER : USB_EVENT_NONE;
+	atomic_notifier_call_chain(&tuna_otg->otg.notifier,
+				on ? USB_EVENT_CHARGER : USB_EVENT_NONE,
+				tuna_otg->otg.gadget);
+}
+
 static struct sii9234_platform_data sii9234_pdata = {
 	.prio = TUNA_OTG_ID_SII9234_PRIO,
 	.enable = tuna_mux_usb_to_mhl,

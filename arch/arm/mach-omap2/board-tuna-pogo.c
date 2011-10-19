@@ -26,6 +26,7 @@
 #include <linux/irq.h>
 #include <linux/sched.h>
 #include <linux/completion.h>
+#include <linux/usb/otg.h>
 
 #include <asm/div64.h>
 
@@ -137,6 +138,9 @@ static irqreturn_t pogo_det_irq_thread(int irq, void *data)
 				pr_info("POGO Car Dock Detected, ID period"
 						" %dms\n",
 						id_period);
+
+				tuna_otg_pogo_charger(true);
+
 				pogo->dock_type = POGO_DOCK_CAR;
 				switch_set_state(&pogo->dock_switch,
 						POGO_DOCK_CAR);
@@ -148,6 +152,9 @@ static irqreturn_t pogo_det_irq_thread(int irq, void *data)
 				pr_info("POGO Desk Dock Detected, ID period"
 						" %dms\n",
 						id_period);
+
+				tuna_otg_pogo_charger(true);
+
 				pogo->dock_type = POGO_DOCK_DESK;
 				switch_set_state(&pogo->dock_switch,
 						POGO_DOCK_DESK);
@@ -180,6 +187,9 @@ static irqreturn_t pogo_det_irq_thread(int irq, void *data)
 		if (pogo->dock_type != POGO_DOCK_UNDOCKED) {
 			pogo->dock_type = POGO_DOCK_UNDOCKED;
 			pr_info("POGO Dock Detached\n");
+
+			tuna_otg_pogo_charger(false);
+
 			switch_set_state(&pogo->dock_switch,
 					POGO_DOCK_UNDOCKED);
 			switch_set_state(&pogo->audio_switch,
