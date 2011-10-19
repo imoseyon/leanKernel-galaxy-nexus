@@ -2664,7 +2664,8 @@ static int abe_probe(struct snd_soc_platform *platform)
 		fw_data + sizeof(struct fw_header) + abe->hdr.coeff_size,
 		abe->hdr.firmware_size);
 
-	ret = request_irq(abe->irq, abe_irq_handler, 0, "ABE", (void *)abe);
+	ret = request_threaded_irq(abe->irq, NULL, abe_irq_handler,
+				IRQF_ONESHOT, "ABE", (void *)abe);
 	if (ret) {
 		dev_err(platform->dev, "request for ABE IRQ %d failed %d\n",
 				abe->irq, ret);
