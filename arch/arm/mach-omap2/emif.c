@@ -590,8 +590,6 @@ static void setup_registers(u32 emif_nr, struct emif_regs *regs, u32 volt_state)
 		   OMAP44XX_REG_DDR_PHY_CTRL_1_SHDW_MASK,
 		   regs->emif_ddr_phy_ctlr_1_final);
 	__raw_writel(temp, base + OMAP44XX_EMIF_DDR_PHY_CTRL_1_SHDW);
-	__raw_writel(EMIF_PWR_MGMT_CTRL_SHDW,
-		     base + OMAP44XX_EMIF_PWR_MGMT_CTRL_SHDW);
 
 	/* Configure EMIF Automatic Power Management to Self-refresh mode */
 	if (regs->emif_ddr_selfrefresh_cycles >= 0) {
