@@ -1626,8 +1626,9 @@ LinuxMemAreaToCpuPAddr(LinuxMemArea *psLinuxMemArea, IMG_UINT32 ui32ByteOffset)
         }
         default:
         {
-            PVR_DPF((PVR_DBG_ERROR, "%s: Unknown LinuxMemArea type (%d)\n",
+            PVR_DPF((PVR_DBG_ERROR, "%s: Unknown LinuxMemArea type (%d)",
                      __FUNCTION__, psLinuxMemArea->eAreaType));
+            dump_stack();
             PVR_ASSERT(CpuPAddr.uiAddr);
            break;
         }
@@ -1659,7 +1660,7 @@ LinuxMemAreaPhysIsContig(LinuxMemArea *psLinuxMemArea)
             return LinuxMemAreaPhysIsContig(psLinuxMemArea->uData.sSubAlloc.psParentLinuxMemArea);
 
         default:
-            PVR_DPF((PVR_DBG_ERROR, "%s: Unknown LinuxMemArea type (%d)\n",
+            PVR_DPF((PVR_DBG_ERROR, "%s: Unknown LinuxMemArea type (%d)",
                      __FUNCTION__, psLinuxMemArea->eAreaType));
 	    break;
     }

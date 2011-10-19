@@ -103,6 +103,21 @@ static ssize_t rproc_name_read(struct file *filp, char __user *userbuf,
 	return simple_read_from_buffer(userbuf, count, ppos, buf, i);
 }
 
+static ssize_t rproc_version_read(struct file *filp, char __user *userbuf,
+						size_t count, loff_t *ppos)
+{
+
+	struct rproc *rproc = filp->private_data;
+	char *pch;
+	int len;
+	pch = strstr(rproc->header, "version:");
+	if (!pch)
+		return 0;
+	pch += strlen("version:") + 1;
+	len = rproc->header_len - (pch - rproc->header);
+	return simple_read_from_buffer(userbuf, count, ppos, pch, len);
+}
+
 static int rproc_open_generic(struct inode *inode, struct file *file)
 {
 	file->private_data = inode->i_private;
@@ -468,6 +483,12 @@ static const struct file_operations core_rproc_ops = {
 
 static const struct file_operations rproc_name_ops = {
 	.read = rproc_name_read,
+	.open = rproc_open_generic,
+	.llseek	= generic_file_llseek,
+};
+
+static const struct file_operations rproc_version_ops = {
+	.read = rproc_version_read,
 	.open = rproc_open_generic,
 	.llseek	= generic_file_llseek,
 };
@@ -1077,6 +1098,15 @@ static void rproc_loader_cont(const struct firmware *fw, void *context)
 	}
 
 	dev_info(dev, "BIOS image version is %d\n", image->version);
+
+	rproc->header = kzalloc(image->header_len, GFP_KERNEL);
+	if (!rproc->header) {
+		dev_err(dev, "%s: kzalloc failed\n", __func__);
+		goto out;
+	}
+	memcpy(rproc->header, image->header, image->header_len);
+	rproc->header_len = image->header_len;
+
 	/* Ensure we recognize this BIOS version: */
 	if (image->version != RPROC_BIOS_VERSION) {
 		dev_err(dev, "Expected BIOS version: %d!\n",
@@ -1284,6 +1314,7 @@ void rproc_put(struct rproc *rproc)
 
 	rproc_reset_poolmem(rproc);
 	memset(rproc->memory_maps, 0, sizeof(rproc->memory_maps));
+	kfree(rproc->header);
 
 	/*
 	 * make sure rproc is really running before powering it off.
@@ -1655,9 +1686,11 @@ int rproc_register(struct device *dev, const char *name,
 		goto out;
 	}
 
-	debugfs_create_file("name", 0400, rproc->dbg_dir, rproc,
+	debugfs_create_file("name", 0444, rproc->dbg_dir, rproc,
 							&rproc_name_ops);
 
+	debugfs_create_file("version", 0444, rproc->dbg_dir, rproc,
+							&rproc_version_ops);
 out:
 	return 0;
 }

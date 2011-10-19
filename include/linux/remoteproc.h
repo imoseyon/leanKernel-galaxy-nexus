@@ -286,6 +286,8 @@ struct rproc {
 	bool secure_ok;
 	bool secure_reset;
 	bool halt_on_crash;
+	char *header;
+	int header_len;
 };
 
 int rproc_set_secure(const char *, bool);
