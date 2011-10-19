@@ -107,9 +107,10 @@ int omap_ehci_ulpi_write(const struct usb_hcd *hcd, u8 val, u8 reg, u8 retry_tim
 {
 	unsigned reg_internal = 0;
 	int status = 0;
-	int count = 2000;
+	int count;
 
 again:
+	count = 2000;
 	reg_internal = val |
 			((reg) << EHCI_INSNREG05_ULPI_REGADD_SHIFT)
 			/* Write */
