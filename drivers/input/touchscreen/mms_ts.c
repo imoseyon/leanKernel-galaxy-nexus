@@ -542,6 +542,7 @@ static int mms_ts_enable(struct mms_ts_info *info)
 		goto out;
 	/* wake up the touch controller. */
 	i2c_smbus_write_byte_data(info->client, 0, 0);
+	usleep_range(3000, 5000);
 	info->enabled = true;
 	enable_irq(info->irq);
 out:
@@ -556,6 +557,7 @@ static int mms_ts_disable(struct mms_ts_info *info)
 		goto out;
 	disable_irq(info->irq);
 	i2c_smbus_write_byte_data(info->client, MMS_MODE_CONTROL, 0);
+	usleep_range(10000, 12000);
 	info->enabled = false;
 out:
 	mutex_unlock(&info->lock);
