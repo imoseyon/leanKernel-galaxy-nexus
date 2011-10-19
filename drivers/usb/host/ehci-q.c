@@ -498,6 +498,11 @@ qh_completions (struct ehci_hcd *ehci, struct ehci_qh *qh)
 			last = list_entry (qtd->qtd_list.prev,
 					struct ehci_qtd, qtd_list);
 			last->hw_next = qtd->hw_next;
+			/*
+			 * Make sure the new hw_next pointer is visible
+			 * to the HW before freeing the old one
+			 */
+			wmb();
 		}
 
 		/* remove qtd; it's recycled after possible urb completion */
