@@ -593,9 +593,9 @@ static void omap_gpio_free(struct gpio_chip *chip, unsigned offset)
 	 * disable the bank module.
 	 */
 	if (!bank->mod_usage) {
-		if (pm_runtime_put_sync(bank->dev) < 0) {
+		if (pm_runtime_put_sync_suspend(bank->dev)) {
 			dev_err(bank->dev, "%s: GPIO bank %d "
-					"pm_runtime_put_sync failed\n",
+					"pm_runtime_put_sync_suspend failed\n",
 					__func__, bank->id);
 		}
 	}
