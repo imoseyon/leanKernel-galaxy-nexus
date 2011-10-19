@@ -790,6 +790,7 @@ void uhh_omap_reset_link(struct ehci_hcd *ehci)
 	gpio_set_value(159, 0);
 	mdelay(2);
 	gpio_set_value(159, 1);
+	mdelay(2);
 
 	/* switch back to external 60Mhz clock */
 	temp_reg &= ~(1 << 8);
