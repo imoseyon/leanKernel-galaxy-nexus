@@ -1144,13 +1144,17 @@ static int __init omap4_pm_init(void)
 		/*ret |= clkdm_add_wkdep(mpuss_clkdm, emif_clkdm);*/
 		ret |= clkdm_add_wkdep(mpuss_clkdm, l4_per);
 		ret |= clkdm_add_wkdep(mpuss_clkdm, l4_cfg);
+
+		/* There appears to be a problem between the MPUSS and L3_1 */
+		ret |= clkdm_add_wkdep(mpuss_clkdm, l3_1_clkdm);
+
 		if (ret) {
 			pr_err("Failed to add MPUSS -> "
-			       "L4* wakeup dependency\n");
+			       "L4* and L3_1 wakeup dependency\n");
 			goto err2;
 		}
 		pr_info("OMAP4 PM: Static dependency added between"
-			" MPUSS <-> L4_PER/CFG.\n");
+			" MPUSS <-> L4_PER/CFG and L3_1.\n");
 	}
 
 	(void) clkdm_for_each(clkdms_setup, NULL);
