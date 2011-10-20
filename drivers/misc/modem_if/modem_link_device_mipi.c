@@ -138,12 +138,6 @@ static int mipi_hsi_send(struct link_device *ld, struct io_device *iod,
 		} else
 			pr_debug("[MIPI-HSI] write Done\n");
 		dev_kfree_skb_any(skb);
-
-		/* for enable 3 wire mode */
-		if (iod->id == 0x0)
-			hsi_ioctl(mipi_ld->hsi_channles[
-				HSI_FLASHLESS_CHANNEL].dev,
-				HSI_IOCTL_SET_3WIRE_MODE, NULL);
 		return ret;
 
 	case IPC_FMT:
@@ -443,11 +437,11 @@ static int hsi_init_handshake(struct mipi_link_device *mipi_ld, int mode)
 			hsi_ioctl(mipi_ld->hsi_channles[i].dev,
 						HSI_IOCTL_SET_RX, &rx_config);
 			pr_debug("[MIPI-HSI] Set TX/RX MIPI-HSI\n");
-
-			hsi_ioctl(mipi_ld->hsi_channles[i].dev,
-					HSI_IOCTL_SET_4WIRE_MODE, NULL);
-			pr_debug("[MIPI-HSI] Set 4 WIRE MODE\n");
 		}
+
+		hsi_ioctl(mipi_ld->hsi_channles[HSI_CONTROL_CHANNEL].dev,
+			HSI_IOCTL_SET_WAKE_RX_4WIRES_MODE, NULL);
+		pr_debug("[MIPI-HSI] Set 4 WIRE MODE\n");
 
 		if (mipi_ld->ld.com_state != COM_ONLINE)
 			mipi_ld->ld.com_state = COM_HANDSHAKE;
@@ -501,7 +495,7 @@ static int hsi_init_handshake(struct mipi_link_device *mipi_ld, int mode)
 		pr_debug("[MIPI-HSI] Set TX/RX MIPI-HSI\n");
 
 		hsi_ioctl(mipi_ld->hsi_channles[HSI_FLASHLESS_CHANNEL].dev,
-					HSI_IOCTL_SET_3WIRE_MODE, NULL);
+				HSI_IOCTL_SET_WAKE_RX_3WIRES_MODE, NULL);
 		pr_debug("[MIPI-HSI] Set 3 WIRE MODE\n");
 
 		if (!wake_lock_active(&mipi_ld->wlock)) {
@@ -550,7 +544,7 @@ static int hsi_init_handshake(struct mipi_link_device *mipi_ld, int mode)
 		pr_debug("[MIPI-HSI] Set TX/RX MIPI-HSI\n");
 
 		hsi_ioctl(mipi_ld->hsi_channles[HSI_FLASHLESS_CHANNEL].dev,
-					HSI_IOCTL_SET_4WIRE_MODE, NULL);
+				HSI_IOCTL_SET_WAKE_RX_4WIRES_MODE, NULL);
 		pr_debug("[MIPI-HSI] Set 4 WIRE MODE\n");
 
 		if (!wake_lock_active(&mipi_ld->wlock)) {
@@ -606,7 +600,7 @@ static int hsi_init_handshake(struct mipi_link_device *mipi_ld, int mode)
 		pr_debug("[MIPI-HSI] Set TX/RX MIPI-HSI\n");
 
 		hsi_ioctl(mipi_ld->hsi_channles[HSI_CP_RAMDUMP_CHANNEL].dev,
-					HSI_IOCTL_SET_4WIRE_MODE, NULL);
+				HSI_IOCTL_SET_WAKE_RX_4WIRES_MODE, NULL);
 		pr_debug("[MIPI-HSI] Set 4 WIRE MODE\n");
 
 		if (!wake_lock_active(&mipi_ld->wlock)) {
@@ -668,7 +662,7 @@ static void hsi_conn_err_recovery(struct mipi_link_device *mipi_ld)
 		pr_debug("[MIPI-HSI] Set TX/RX MIPI-HSI\n");
 
 		hsi_ioctl(mipi_ld->hsi_channles[i].dev,
-					HSI_IOCTL_SET_4WIRE_MODE, NULL);
+				HSI_IOCTL_SET_WAKE_RX_4WIRES_MODE, NULL);
 		pr_debug("[MIPI-HSI] Set 4 WIRE MODE\n");
 	}
 
