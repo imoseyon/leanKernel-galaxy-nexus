@@ -42,8 +42,10 @@
 #define POGO_ID_PERIOD_TIMEOUT		750
 #define POGO_ID_CARDOCK			100
 #define POGO_ID_DESKDOCK		200
-#define POGO_ENTER_SPDIF_PERIOD		200
-#define POGO_ENTER_SPDIF_WAIT_PERIOD	50
+#define POGO_DESKDOCK_PREWAIT_PERIOD	100
+#define POGO_CARDOCK_PREWAIT_PERIOD	200
+#define POGO_ENTER_SPDIF_PERIOD		100
+#define POGO_ENTER_SPDIF_WAIT_PERIOD	100
 #define POGO_ID_PERIOD_TOLERANCE	20
 
 #define POGO_DOCK_ID_MAX_RETRY		10
@@ -108,17 +110,47 @@ static int pogo_read_id_period(struct tuna_pogo *pogo,
 	return temp.tv_nsec / NSEC_PER_MSEC;
 }
 
+static void pogo_dock_change(struct tuna_pogo *pogo)
+{
+	switch_set_state(&pogo->dock_switch, pogo->dock_type);
+	switch_set_state(&pogo->audio_switch,
+			pogo->dock_type != POGO_DOCK_UNDOCKED ?
+			POGO_AUDIO_CONNECTED : POGO_AUDIO_DISCONNECTED);
+	tuna_otg_pogo_charger(pogo->dock_type != POGO_DOCK_UNDOCKED);
+
+	switch (pogo->dock_type) {
+	case POGO_DOCK_DESK:
+		pr_info("Desk Dock\n");
+		break;
+	case POGO_DOCK_CAR:
+		pr_info("Car Dock\n");
+		break;
+	default:
+		pr_info("Undocked\n");
+	};
+}
+
 static irqreturn_t pogo_det_irq_thread(int irq, void *data)
 {
 	struct tuna_pogo *pogo = data;
 	int id_period;
 	unsigned int retry = 0;
 
-	if (gpio_get_value(GPIO_POGO_DET)) {
+	if (pogo->dock_type == POGO_DOCK_UNDOCKED) {
 		wake_lock(&pogo->wake_lock);
 
-		while (gpio_get_value(GPIO_POGO_DET) &&
-				retry++ <= POGO_DOCK_ID_MAX_RETRY) {
+		while (pogo->dock_type == POGO_DOCK_UNDOCKED) {
+
+			if (!gpio_get_value(GPIO_POGO_DET)) {
+				wake_unlock(&pogo->wake_lock);
+				return IRQ_HANDLED;
+			}
+
+			if (retry++ > POGO_DOCK_ID_MAX_RETRY) {
+				wake_unlock(&pogo->wake_lock);
+				pr_err("Unable to identify pogo dock\n");
+				return IRQ_HANDLED;
+			}
 
 			/* Start the detection process by sending a wake pulse
 			 * to the dock.
@@ -134,45 +166,17 @@ static irqreturn_t pogo_det_irq_thread(int irq, void *data)
 			 * dock that is attached.
 			 */
 			if (abs(id_period - POGO_ID_CARDOCK) <=
-					POGO_ID_PERIOD_TOLERANCE) {
-				pr_info("POGO Car Dock Detected, ID period"
-						" %dms\n",
-						id_period);
-
-				tuna_otg_pogo_charger(true);
-
+					POGO_ID_PERIOD_TOLERANCE)
 				pogo->dock_type = POGO_DOCK_CAR;
-				switch_set_state(&pogo->dock_switch,
-						POGO_DOCK_CAR);
-				switch_set_state(&pogo->audio_switch,
-						POGO_AUDIO_CONNECTED);
-				break;
-			} else if (abs(id_period - POGO_ID_DESKDOCK) <=
-					POGO_ID_PERIOD_TOLERANCE) {
-				pr_info("POGO Desk Dock Detected, ID period"
-						" %dms\n",
-						id_period);
-
-				tuna_otg_pogo_charger(true);
-
+			else if (abs(id_period - POGO_ID_DESKDOCK) <=
+					POGO_ID_PERIOD_TOLERANCE)
 				pogo->dock_type = POGO_DOCK_DESK;
-				switch_set_state(&pogo->dock_switch,
-						POGO_DOCK_DESK);
-				switch_set_state(&pogo->audio_switch,
-					POGO_AUDIO_CONNECTED);
-				break;
-			} else {
-				pr_err("Unknown POGO dock detected, ID period"
-						" %ums\n",
-						id_period);
-			}
 		}
 
-		if (pogo->dock_type == POGO_DOCK_UNDOCKED) {
-			wake_unlock(&pogo->wake_lock);
-			pr_err("Unable to identify pogo dock, giving up\n");
-			return IRQ_HANDLED;
-		}
+		if (pogo->dock_type == POGO_DOCK_CAR)
+			msleep(POGO_CARDOCK_PREWAIT_PERIOD);
+		else
+			msleep(POGO_DESKDOCK_PREWAIT_PERIOD);
 
 		/* Instruct the dock to enter SPDIF mode */
 		pogo_send_pulse(POGO_ENTER_SPDIF_PERIOD);
@@ -182,19 +186,12 @@ static irqreturn_t pogo_det_irq_thread(int irq, void *data)
 		omap_mux_set_gpio(OMAP_MUX_MODE2 | OMAP_PIN_OUTPUT,
 				GPIO_POGO_DATA);
 
+		pogo_dock_change(pogo);
+
 		wake_unlock(&pogo->wake_lock);
-	} else {
-		if (pogo->dock_type != POGO_DOCK_UNDOCKED) {
-			pogo->dock_type = POGO_DOCK_UNDOCKED;
-			pr_info("POGO Dock Detached\n");
-
-			tuna_otg_pogo_charger(false);
-
-			switch_set_state(&pogo->dock_switch,
-					POGO_DOCK_UNDOCKED);
-			switch_set_state(&pogo->audio_switch,
-					POGO_AUDIO_DISCONNECTED);
-		}
+	} else if (!gpio_get_value(GPIO_POGO_DET)) {
+		pogo->dock_type = POGO_DOCK_UNDOCKED;
+		pogo_dock_change(pogo);
 
 		omap_mux_set_gpio(OMAP_MUX_MODE3 | OMAP_PIN_INPUT_PULLDOWN,
 				GPIO_POGO_DATA);
