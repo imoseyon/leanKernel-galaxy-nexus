@@ -1282,7 +1282,8 @@ struct tiler_pa_info *user_block_to_pa(u32 usr_addr, u32 num_pg)
 
 	struct tiler_pa_info *pa = NULL;
 	struct page **pages = NULL;
-	u32 *mem = NULL, write, usr_count, i;
+	u32 *mem = NULL, write, i;
+	int usr_count;
 
 	pa = kzalloc(sizeof(*pa), GFP_KERNEL);
 	if (!pa)
