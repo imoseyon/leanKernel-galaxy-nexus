@@ -1055,7 +1055,7 @@ static void __init omap4_pm_setup_errata(void)
  */
 static int __init omap4_pm_init(void)
 {
-	int ret;
+	int ret = 0;
 	struct clockdomain *emif_clkdm, *mpuss_clkdm, *l3_1_clkdm;
 	struct clockdomain *ducati_clkdm, *l3_2_clkdm, *l4_per, *l4_cfg;
 
@@ -1090,10 +1090,19 @@ static int __init omap4_pm_init(void)
 	}
 
 	/*
+	 * On 4430:
 	 * The dynamic dependency between MPUSS -> MEMIF and
 	 * MPUSS -> L3_* and DUCATI -> doesn't work as expected.
 	 * The hardware recommendation is to keep above dependencies.
 	 * Without this system locks up or randomly crashesh.
+	 *
+	 * On 4460:
+	 * The dynamic dependency between MPUSS -> MEMIF doesn't work
+	 * as expected if MPUSS OSWR is enabled in idle.
+	 * The dynamic dependency between MPUSS -> L4 PER & CFG
+	 * doesn't work as expected. The hardware recommendation is
+	 * to keep above dependencies. Without this system locks up or
+	 * randomly crashes.
 	 */
 	mpuss_clkdm = clkdm_lookup("mpuss_clkdm");
 	emif_clkdm = clkdm_lookup("l3_emif_clkdm");
@@ -1106,25 +1115,45 @@ static int __init omap4_pm_init(void)
 		(!l3_2_clkdm) || (!ducati_clkdm) || (!l4_per) || (!l4_cfg))
 		goto err2;
 
-	ret = clkdm_add_wkdep(mpuss_clkdm, emif_clkdm);
-	ret |= clkdm_add_wkdep(mpuss_clkdm, l3_1_clkdm);
-	ret |= clkdm_add_wkdep(mpuss_clkdm, l3_2_clkdm);
-	ret |= clkdm_add_wkdep(ducati_clkdm, l3_1_clkdm);
-	ret |= clkdm_add_wkdep(ducati_clkdm, l3_2_clkdm);
-	ret |= clkdm_add_wkdep(mpuss_clkdm, l4_per);
-	ret |= clkdm_add_wkdep(mpuss_clkdm, l4_cfg);
-	ret |= clkdm_add_wkdep(ducati_clkdm, l4_per);
-	ret |= clkdm_add_wkdep(ducati_clkdm, l4_cfg);
-	if (ret) {
-		pr_err("Failed to add MPUSS -> L3/EMIF, DUCATI -> L3"
-				" and MPUSS -> L4* wakeup dependency\n");
-		goto err2;
+	if (cpu_is_omap443x()) {
+		ret |= clkdm_add_wkdep(mpuss_clkdm, emif_clkdm);
+		ret |= clkdm_add_wkdep(mpuss_clkdm, l3_1_clkdm);
+		ret |= clkdm_add_wkdep(mpuss_clkdm, l3_2_clkdm);
+		ret |= clkdm_add_wkdep(ducati_clkdm, l3_1_clkdm);
+		ret |= clkdm_add_wkdep(ducati_clkdm, l3_2_clkdm);
+		ret |= clkdm_add_wkdep(mpuss_clkdm, l4_per);
+		ret |= clkdm_add_wkdep(mpuss_clkdm, l4_cfg);
+		ret |= clkdm_add_wkdep(ducati_clkdm, l4_per);
+		ret |= clkdm_add_wkdep(ducati_clkdm, l4_cfg);
+		if (ret) {
+			pr_err("Failed to add MPUSS -> L3/EMIF, DUCATI -> L3"
+			       " and MPUSS -> L4* wakeup dependency\n");
+			goto err2;
+		}
+		pr_info("OMAP4 PM: Static dependency added between"
+			" MPUSS <-> EMIF, MPUSS <-> L4_PER/CFG"
+			" MPUSS <-> L3_MAIN_1.\n");
+		pr_info("OMAP4 PM: Static dependency added between"
+			" DUCATI <-> L4_PER/CFG and DUCATI <-> L3.\n");
+	} else if (cpu_is_omap446x()) {
+		/*
+		 * Static dependency between mpuss and emif can only be
+		 * disabled if OSWR is disabled to avoid a HW bug that occurs
+		 * when mpuss enters OSWR
+		 */
+		/*ret |= clkdm_add_wkdep(mpuss_clkdm, emif_clkdm);*/
+		ret |= clkdm_add_wkdep(mpuss_clkdm, l4_per);
+		ret |= clkdm_add_wkdep(mpuss_clkdm, l4_cfg);
+		if (ret) {
+			pr_err("Failed to add MPUSS -> "
+			       "L4* wakeup dependency\n");
+			goto err2;
+		}
+		pr_info("OMAP4 PM: Static dependency added between"
+			" MPUSS <-> L4_PER/CFG.\n");
 	}
 
 	(void) clkdm_for_each(clkdms_setup, NULL);
-
-	pr_info("OMAP4 PM: Static dependency added between MPUSS <-> EMIF"
-		" MPUSS <-> L4_PER/CFG and MPUSS <-> L3_MAIN_1.\n");
 
 	/* Get handles for VDD's for enabling/disabling SR */
 	mpu_voltdm = voltdm_lookup("mpu");

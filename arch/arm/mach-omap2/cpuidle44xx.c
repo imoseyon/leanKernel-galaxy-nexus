@@ -116,10 +116,15 @@ static struct cpuidle_params cpuidle_params_table[] = {
 	/* C2 - CPU0 INA + CPU1 INA + MPU INA  + CORE INA */
 	{.exit_latency = 1100, .target_residency = 1100, .valid = 1},
 	/* C3 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
-	{.exit_latency = 1200, .target_residency = 10, .valid = 1},
+	{.exit_latency = 1200, .target_residency = 1200, .valid = 1},
 #ifdef CONFIG_OMAP_ALLOW_OSWR
 	/* C4 - CPU0 OFF + CPU1 OFF + MPU OSWR + CORE OSWR */
-	{.exit_latency = 1500, .target_residency = 1200, .valid = 1},
+	/*
+	 * OSWR is disabled to avoid a HW bug that occurs when there is
+	 * no static dependency between mpuss and emif, and mpuss enters
+	 * OSWR
+	 */
+	{.exit_latency = 1500, .target_residency = 1500, .valid = 0},
 #else
 	{.exit_latency = 1500, .target_residency = 1500, .valid = 0},
 #endif

@@ -15,6 +15,7 @@
 #include <linux/platform_device.h>
 #include <linux/io.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 #include <linux/pm_runtime.h>
 #include <plat/mailbox.h>
 #include <mach/irqs.h>
@@ -121,11 +122,17 @@ static void omap2_mbox_restore_ctx(struct omap_mbox *mbox)
 static int omap2_mbox_startup(struct omap_mbox *mbox)
 {
 	u32 l;
+	u32 max_iter = 100;
 
 	pm_runtime_enable(mbox->dev->parent);
 	pm_runtime_get_sync(mbox->dev->parent);
 
 	mbox_write_reg(MAILBOX_SOFTRESET, MAILBOX_SYSCONFIG);
+	while (mbox_read_reg(MAILBOX_SYSCONFIG) & MAILBOX_SOFTRESET) {
+		if (WARN_ON(!max_iter--))
+			break;
+		udelay(1);
+	}
 
 	omap2_mbox_restore_ctx(mbox);
 
