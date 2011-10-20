@@ -525,6 +525,7 @@ static int fsa9480_detect_callback(struct otg_id_notifier_block *nb)
 		enable_irq(usbsw->external_id_irq);
 		return OTG_ID_HANDLED;
 	} else if (dev_type == 0) {
+		usbsw->curr_dev = 0;
 		dev_info(&usbsw->client->dev,
 			 "nothing attached, keeping ownership of port\n");
 		goto handled;
