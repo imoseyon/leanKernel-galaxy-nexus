@@ -676,7 +676,7 @@ static int volume_put_sdt_mixer(struct snd_kcontrol *kcontrol,
 	pm_runtime_get_sync(the_abe->dev);
 
 	abe_write_mixer(MIXSDT, abe_val_to_gain(ucontrol->value.integer.value[0]),
-				RAMP_5MS, mc->reg);
+				RAMP_2MS, mc->reg);
 	pm_runtime_put_sync(the_abe->dev);
 
 	return 1;
@@ -690,7 +690,7 @@ static int volume_put_audul_mixer(struct snd_kcontrol *kcontrol,
 
 	pm_runtime_get_sync(the_abe->dev);
 	abe_write_mixer(MIXAUDUL, abe_val_to_gain(ucontrol->value.integer.value[0]),
-				RAMP_5MS, mc->reg);
+				RAMP_2MS, mc->reg);
 	pm_runtime_put_sync(the_abe->dev);
 
 	return 1;
@@ -704,7 +704,7 @@ static int volume_put_vxrec_mixer(struct snd_kcontrol *kcontrol,
 
 	pm_runtime_get_sync(the_abe->dev);
 	abe_write_mixer(MIXVXREC, abe_val_to_gain(ucontrol->value.integer.value[0]),
-				RAMP_5MS, mc->reg);
+				RAMP_2MS, mc->reg);
 	pm_runtime_put_sync(the_abe->dev);
 
 	return 1;
@@ -718,7 +718,7 @@ static int volume_put_dl1_mixer(struct snd_kcontrol *kcontrol,
 
 	pm_runtime_get_sync(the_abe->dev);
 	abe_write_mixer(MIXDL1, abe_val_to_gain(ucontrol->value.integer.value[0]),
-				RAMP_5MS, mc->reg);
+				RAMP_2MS, mc->reg);
 	pm_runtime_put_sync(the_abe->dev);
 
 	return 1;
@@ -732,7 +732,7 @@ static int volume_put_dl2_mixer(struct snd_kcontrol *kcontrol,
 
 	pm_runtime_get_sync(the_abe->dev);
 	abe_write_mixer(MIXDL2, abe_val_to_gain(ucontrol->value.integer.value[0]),
-				RAMP_5MS, mc->reg);
+				RAMP_2MS, mc->reg);
 	pm_runtime_put_sync(the_abe->dev);
 
 	return 1;
@@ -747,10 +747,10 @@ static int volume_put_gain(struct snd_kcontrol *kcontrol,
 	pm_runtime_get_sync(the_abe->dev);
 	abe_write_gain(mc->reg,
 		       abe_val_to_gain(ucontrol->value.integer.value[0]),
-		       RAMP_5MS, mc->shift);
+		       RAMP_2MS, mc->shift);
 	abe_write_gain(mc->reg,
 		       -12000 + (ucontrol->value.integer.value[1] * 100),
-		       RAMP_5MS, mc->rshift);
+		       RAMP_2MS, mc->rshift);
 	pm_runtime_put_sync(the_abe->dev);
 
 	return 1;
@@ -2084,13 +2084,13 @@ static void abe_dsp_init_gains(struct abe_data *abe)
 	abe_mute_gain(GAINS_BTUL, GAIN_RIGHT_OFFSET);
 
 	/* Downlink gains */
-	abe_write_gain(GAINS_DL1, GAIN_0dB, RAMP_5MS, GAIN_LEFT_OFFSET);
-	abe_write_gain(GAINS_DL1, GAIN_0dB, RAMP_5MS, GAIN_RIGHT_OFFSET);
+	abe_write_gain(GAINS_DL1, GAIN_0dB, RAMP_2MS, GAIN_LEFT_OFFSET);
+	abe_write_gain(GAINS_DL1, GAIN_0dB, RAMP_2MS, GAIN_RIGHT_OFFSET);
 	abe_mute_gain(GAINS_DL1, GAIN_LEFT_OFFSET);
 	abe_mute_gain(GAINS_DL1, GAIN_RIGHT_OFFSET);
 
-	abe_write_gain(GAINS_DL2, GAIN_M7dB, RAMP_5MS, GAIN_LEFT_OFFSET);
-	abe_write_gain(GAINS_DL2, GAIN_M7dB, RAMP_5MS, GAIN_RIGHT_OFFSET);
+	abe_write_gain(GAINS_DL2, GAIN_M7dB, RAMP_2MS, GAIN_LEFT_OFFSET);
+	abe_write_gain(GAINS_DL2, GAIN_M7dB, RAMP_2MS, GAIN_RIGHT_OFFSET);
 	abe_mute_gain(GAINS_DL2, GAIN_LEFT_OFFSET);
 	abe_mute_gain(GAINS_DL2, GAIN_RIGHT_OFFSET);
 
@@ -2664,7 +2664,8 @@ static int abe_probe(struct snd_soc_platform *platform)
 		fw_data + sizeof(struct fw_header) + abe->hdr.coeff_size,
 		abe->hdr.firmware_size);
 
-	ret = request_irq(abe->irq, abe_irq_handler, 0, "ABE", (void *)abe);
+	ret = request_threaded_irq(abe->irq, NULL, abe_irq_handler,
+				IRQF_ONESHOT, "ABE", (void *)abe);
 	if (ret) {
 		dev_err(platform->dev, "request for ABE IRQ %d failed %d\n",
 				abe->irq, ret);

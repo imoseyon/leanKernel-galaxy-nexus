@@ -42,6 +42,7 @@
 #define MCPDM_FIFO_CTRL_DN	0x50
 #define MCPDM_FIFO_CTRL_UP	0x54
 #define MCPDM_DN_OFFSET		0x58
+#define MCPDM_STATUS		0x68
 
 /*
  * MCPDM_IRQ bit fields
