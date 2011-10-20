@@ -655,7 +655,7 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 		if (err) {
 			dev_err(dev, "can't configure watchdog timer %d\n",
 				err);
-			goto unlock_mutex;
+			goto wdt_error;
 		}
 	}
 
@@ -667,7 +667,7 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 	err = rproc->ops->start(rproc, bootaddr);
 	if (err) {
 		dev_err(dev, "can't start rproc %s: %d\n", rproc->name, err);
-		goto unlock_mutex;
+		goto start_error;
 	}
 
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
@@ -683,14 +683,25 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 	rproc->state = RPROC_RUNNING;
 
 	dev_info(dev, "remote processor %s is now up\n", rproc->name);
+	rproc->secure_ok = true;
+	complete_all(&rproc->secure_restart);
+	mutex_unlock(&rproc->lock);
 
-unlock_mutex:
+	return;
+
 	/*
 	 * signal always, as we would need a notification in both the
 	 * normal->secure & secure->normal mode transitions, otherwise
 	 * we would have to introduce one more variable.
 	 */
-	rproc->secure_ok = !err;
+start_error:
+	if (rproc->ops->watchdog_exit)
+		rproc->ops->watchdog_exit(rproc);
+wdt_error:
+	if (rproc->ops->iommu_exit)
+		rproc->ops->iommu_exit(rproc);
+unlock_mutex:
+	rproc->secure_ok = false;
 	complete_all(&rproc->secure_restart);
 	mutex_unlock(&rproc->lock);
 }
