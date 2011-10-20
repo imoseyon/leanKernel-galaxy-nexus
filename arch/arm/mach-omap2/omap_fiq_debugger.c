@@ -14,6 +14,7 @@
  */
 
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/irq.h>
@@ -43,6 +44,17 @@ struct omap_fiq_debugger {
 	void __iomem *debug_port_base;
 	bool suspended;
 	spinlock_t lock;
+	bool have_state;
+
+	/* uart state */
+	unsigned char lcr;
+	unsigned char fcr;
+	unsigned char efr;
+	unsigned char dll;
+	unsigned char dlh;
+	unsigned char mcr;
+	unsigned char ier;
+	unsigned char wer;
 };
 
 static struct omap_fiq_debugger *dbgs[OMAP_MAX_HSUART_PORTS];
@@ -111,20 +123,95 @@ static int debug_omap_port_suspend(struct platform_device *pdev)
 	return 0;
 }
 
-static int debug_port_config(struct omap_fiq_debugger *dbg)
+/* mostly copied from drivers/tty/serial/omap-serial.c */
+static void omap_write_mdr1(struct omap_fiq_debugger *dbg, u8 mdr1)
 {
-	if (omap_read(dbg, UART_LSR) & UART_LSR_DR)
-		omap_read(dbg, UART_RX);
+	u8 timeout = 255;
 
-	/* enable rx and lsr interrupt */
-	omap_write(dbg, UART_IER_RLSI | UART_IER_RDI, UART_IER);
+	if (!(cpu_is_omap34xx() || cpu_is_omap44xx())) {
+		omap_write(dbg, UART_OMAP_MDR1_DISABLE, UART_OMAP_MDR1);
+		return;
+	}
 
-	/* interrupt on every character */
-	omap_write(dbg, 0, UART_IIR);
+	omap_write(dbg, mdr1, UART_OMAP_MDR1);
+	udelay(2);
+	omap_write(dbg, dbg->fcr | UART_FCR_CLEAR_XMIT | UART_FCR_CLEAR_RCVR,
+		   UART_FCR);
 
-	omap_write(dbg, 0, UART_OMAP_WER);
+	/*
+	 * Wait for FIFO to empty: when empty, RX_FIFO_E bit is 0 and
+	 * TX_FIFO_E bit is 1.
+	 */
+	while (UART_LSR_THRE !=
+	       (omap_read(dbg, UART_LSR) & (UART_LSR_THRE | UART_LSR_DR))) {
+		timeout--;
+		if (!timeout) {
+			/* Should *never* happen. we warn and carry on */
+			dev_crit(&dbg->pdev->dev, "Errata i202: timedout %x\n",
+				 omap_read(dbg, UART_LSR));
+			break;
+		}
+		udelay(1);
+	}
+}
 
-	return 0;
+/* assume the bootloader programmed us correctly */
+static void debug_port_read_state(struct omap_fiq_debugger *dbg)
+{
+	/* assume we're in operational mode when we are called */
+	dbg->lcr = omap_read(dbg, UART_LCR);
+
+	/* config mode A */
+	omap_write(dbg, UART_LCR_CONF_MODE_A, UART_LCR);
+	dbg->mcr = omap_read(dbg, UART_MCR);
+
+	/* config mode B */
+	omap_write(dbg, UART_LCR_CONF_MODE_B, UART_LCR);
+	dbg->efr = omap_read(dbg, UART_EFR);
+	dbg->dll = omap_read(dbg, UART_DLL);
+	dbg->dlh = omap_read(dbg, UART_DLM);
+
+	/* back to operational */
+	omap_write(dbg, dbg->lcr, UART_LCR);
+
+	pr_debug("%s: lcr=%02x mcr=%02x efr=%02x dll=%02x dlh=%02x\n",
+		 __func__, dbg->lcr, dbg->mcr, dbg->efr, dbg->dll, dbg->dlh);
+}
+
+static void debug_port_restore(struct omap_fiq_debugger *dbg)
+{
+	omap_write(dbg, UART_LCR_CONF_MODE_B, UART_LCR); /* Config B mode */
+	omap_write(dbg, dbg->efr | UART_EFR_ECB, UART_EFR);
+	omap_write(dbg, 0x0, UART_LCR); /* Operational mode */
+	omap_write(dbg, 0x0, UART_IER);
+	omap_write(dbg, UART_LCR_CONF_MODE_B, UART_LCR); /* Config B mode */
+	omap_write(dbg, 0, UART_DLL);
+	omap_write(dbg, 0, UART_DLM);
+	omap_write(dbg, UART_LCR_CONF_MODE_A, UART_LCR);
+	omap_write(dbg, dbg->mcr | UART_MCR_TCRTLR, UART_MCR);
+	omap_write(dbg, UART_LCR_CONF_MODE_B, UART_LCR);
+	omap_write(dbg, 0, UART_TI752_TLR);
+	omap_write(dbg, 0, UART_SCR);
+	omap_write(dbg, dbg->efr, UART_EFR);
+	omap_write(dbg, UART_LCR_CONF_MODE_A, UART_LCR);
+	omap_write(dbg, dbg->fcr, UART_FCR);
+	omap_write(dbg, dbg->mcr, UART_MCR);
+	omap_write_mdr1(dbg, UART_OMAP_MDR1_DISABLE);
+
+	omap_write(dbg, UART_LCR_CONF_MODE_B, UART_LCR);
+	omap_write(dbg, dbg->efr | UART_EFR_ECB, UART_EFR);
+	omap_write(dbg, dbg->dll, UART_DLL);
+	omap_write(dbg, dbg->dlh, UART_DLM);
+	omap_write(dbg, 0, UART_LCR);
+	omap_write(dbg, dbg->ier, UART_IER);
+	omap_write(dbg, UART_LCR_CONF_MODE_B, UART_LCR);
+	omap_write(dbg, dbg->efr, UART_EFR);
+
+	/* will put us back to operational mode */
+	omap_write(dbg, dbg->lcr, UART_LCR);
+	omap_write_mdr1(dbg, UART_OMAP_MDR1_16X_MODE);
+
+	omap_write(dbg, dbg->wer, UART_OMAP_WER);
 }
 
 u32 omap_debug_uart_resume_idle(void)
@@ -164,6 +251,11 @@ static int debug_port_init(struct platform_device *pdev)
 {
 	struct omap_fiq_debugger *dbg = get_dbg(pdev);
 
+	dbg->ier = UART_IER_RLSI | UART_IER_RDI;
+	dbg->fcr = UART_FCR_ENABLE_FIFO | UART_FCR_R_TRIG_01 |
+		UART_FCR_T_TRIG_01;
+	dbg->wer = 0;
+
 	device_init_wakeup(&pdev->dev, true);
 
 	pm_runtime_use_autosuspend(&pdev->dev);
@@ -181,7 +273,11 @@ static int debug_port_init(struct platform_device *pdev)
 	if (device_may_wakeup(&pdev->dev))
 		omap_hwmod_enable_wakeup(to_omap_device(pdev)->hwmods[0]);
 
-	debug_port_config(dbg);
+	debug_port_read_state(dbg);
+	debug_port_restore(dbg);
+
+	dbg->have_state = true;
+
 
 	debug_omap_port_disable(pdev);
 	return 0;
@@ -232,7 +328,14 @@ static int uart_idle_hwmod(struct omap_device *od)
 
 static int uart_enable_hwmod(struct omap_device *od)
 {
+	struct platform_device *pdev = &od->pdev;
+	struct omap_fiq_debugger *dbg = get_dbg(pdev);
+
 	omap_hwmod_enable(od->hwmods[0]);
+	if (omap_pm_was_context_lost(&pdev->dev) && dbg->have_state) {
+		debug_port_restore(dbg);
+		dev_dbg(&pdev->dev, "restoring lost context!\n");
+	}
 
 	return 0;
 }
