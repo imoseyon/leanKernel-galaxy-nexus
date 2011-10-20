@@ -44,6 +44,7 @@
 #include <plat/dma.h>
 #include <plat/omap_hwmod.h>
 #include <plat/mcpdm.h>
+#include "../../../arch/arm/mach-omap2/cm1_44xx.h"
 #include "omap-mcpdm.h"
 #include "omap-pcm.h"
 #if defined(CONFIG_SND_OMAP_SOC_ABE_DSP) ||\
@@ -60,6 +61,10 @@
 #define MCPDM_ABE_DAI_VIB		4
 #define MCPDM_ABE_DAI_UL1		5
 
+#define CLKCTRL_MODULEMODE_MASK 0x0003
+#define CLKCTRL_MODULEMODE_DISABLED 0x0000
+#define CLKCTRL_MODULEMODE_ENABLED 0x0002
+
 struct omap_mcpdm {
 	struct device *dev;
 	unsigned long phys_base;
@@ -69,6 +74,7 @@ struct omap_mcpdm {
 	struct mutex mutex;
 	struct omap_mcpdm_platform_data *pdata;
 	struct completion irq_completion;
+	struct delayed_work esd_work;
 	struct abe *abe;
 	struct omap_abe_port *dl_port;
 	struct omap_abe_port *ul_port;
@@ -372,6 +378,7 @@ static int omap_mcpdm_dai_startup(struct snd_pcm_substream *substream,
 {
 	struct omap_mcpdm *mcpdm = snd_soc_dai_get_drvdata(dai);
 	u32 ctrl;
+	u32 val;
 	int err = 0;
 
 	dev_dbg(dai->dev, "%s: active %d\n", __func__, dai->active);
@@ -389,6 +396,10 @@ static int omap_mcpdm_dai_startup(struct snd_pcm_substream *substream,
 
 	pm_runtime_get_sync(mcpdm->dev);
 
+	val = __raw_readl(OMAP4430_CM1_ABE_PDM_CLKCTRL);
+	if ((val & CLKCTRL_MODULEMODE_MASK) != CLKCTRL_MODULEMODE_ENABLED)
+		dev_err(mcpdm->dev, "Clock not enabled: PDM_CLKCTRL=0x%x\n", val);
+
 	/* Enable McPDM watch dog for ES above ES 1.0 to avoid saturation */
 	if (omap_rev() != OMAP4430_REV_ES1_0) {
 		ctrl = omap_mcpdm_read(mcpdm, MCPDM_CTRL);
@@ -397,7 +408,7 @@ static int omap_mcpdm_dai_startup(struct snd_pcm_substream *substream,
 
 	omap_mcpdm_set_offset(mcpdm);
 	omap_mcpdm_open(mcpdm);
-
+	schedule_delayed_work(&mcpdm->esd_work, msecs_to_jiffies(250));
 out:
 	mutex_unlock(&mcpdm->mutex);
 	return err;
@@ -427,6 +438,7 @@ static void omap_mcpdm_dai_shutdown(struct snd_pcm_substream *substream,
 		omap_mcpdm_stop(mcpdm);
 	}
 
+	cancel_delayed_work_sync(&mcpdm->esd_work);
 	omap_mcpdm_close(mcpdm);
 
 	pm_runtime_put_sync(mcpdm->dev);
@@ -540,6 +552,29 @@ static int omap_mcpdm_dai_trigger(struct snd_pcm_substream *substream,
 	}
 	omap_mcpdm_reg_dump(mcpdm);
 	return 0;
+}
+
+static void mcpdm_esd_work(struct work_struct *work)
+{
+	struct omap_mcpdm *mcpdm = container_of(work, struct omap_mcpdm,
+						esd_work.work);
+
+	if (omap_mcpdm_read(mcpdm, MCPDM_STATUS)) {
+		if (mcpdm->abe_mode) {
+			omap_abe_port_disable(mcpdm->abe, mcpdm->dl_port);
+			omap_abe_port_disable(mcpdm->abe, mcpdm->ul_port);
+			udelay(250);
+		}
+		omap_mcpdm_stop(mcpdm);
+
+		if (mcpdm->abe_mode) {
+			omap_abe_port_enable(mcpdm->abe, mcpdm->dl_port);
+			omap_abe_port_enable(mcpdm->abe, mcpdm->ul_port);
+			udelay(250);
+		}
+		omap_mcpdm_start(mcpdm);
+	}
+	schedule_delayed_work(&mcpdm->esd_work, msecs_to_jiffies(250));
 }
 
 static struct snd_soc_dai_ops omap_mcpdm_dai_ops = {
@@ -810,6 +845,8 @@ static __devinit int asoc_mcpdm_probe(struct platform_device *pdev)
 	if (!mcpdm->dl_port)
 		goto err_dl;
 #endif
+
+	INIT_DELAYED_WORK(&mcpdm->esd_work, mcpdm_esd_work);
 
 	ret = snd_soc_register_dais(&pdev->dev, omap_mcpdm_dai,
 			ARRAY_SIZE(omap_mcpdm_dai));

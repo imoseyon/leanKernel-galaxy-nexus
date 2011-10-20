@@ -185,8 +185,8 @@ int omap_abe_set_dl1_output(int output)
 		return -EINVAL;
 	}
 
-	abe_write_gain(GAINS_DL1, gain, RAMP_5MS, GAIN_LEFT_OFFSET);
-	abe_write_gain(GAINS_DL1, gain, RAMP_5MS, GAIN_RIGHT_OFFSET);
+	abe_write_gain(GAINS_DL1, gain, RAMP_2MS, GAIN_LEFT_OFFSET);
+	abe_write_gain(GAINS_DL1, gain, RAMP_2MS, GAIN_RIGHT_OFFSET);
 
 	return 0;
 }
