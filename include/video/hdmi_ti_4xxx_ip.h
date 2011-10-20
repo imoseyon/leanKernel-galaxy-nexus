@@ -382,4 +382,5 @@ void hdmi_ti_4xxx_core_audio_infoframe_config(struct hdmi_ip_data *ip_data,
 		struct hdmi_core_infoframe_audio *info_aud);
 void hdmi_ti_4xxx_audio_enable(struct hdmi_ip_data *ip_data, bool idle);
 int hdmi_ti_4xxx_set_wait_soft_reset(struct hdmi_ip_data *ip_data);
+bool hdmi_ti_4xx_check_aksv_data(struct hdmi_ip_data *ip_data);
 #endif

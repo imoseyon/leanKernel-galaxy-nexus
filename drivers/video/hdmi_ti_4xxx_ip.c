@@ -1316,6 +1316,30 @@ void hdmi_ti_4xxx_audio_enable(struct hdmi_ip_data *ip_data, bool enable)
 }
 EXPORT_SYMBOL(hdmi_ti_4xxx_audio_enable);
 
+bool hdmi_ti_4xx_check_aksv_data(struct hdmi_ip_data *ip_data)
+{
+	u32 aksv_data[5];
+	int i, j;
+	int one = 0, zero = 0;
+	/* check if HDCP AKSV registers are populated.
+	 * If not load the keys and reset the wrapper.
+	 */
+	for (i = 0; i < 5; i++) {
+		aksv_data[i] = hdmi_read_reg(hdmi_core_sys_base(ip_data),
+					     HDMI_CORE_AKSV(i));
+		/* Count number of zero / one */
+		for (j = 0; j < 8; j++)
+			(aksv_data[i] & (0x01 << j)) ? one++ : zero++;
+		pr_debug("%x ", aksv_data[i] & 0xFF);
+	}
+
+	if (one == zero)
+		return true;
+	else
+		return false;
+
+}
+EXPORT_SYMBOL(hdmi_ti_4xx_check_aksv_data);
 
 static int __init hdmi_ti_4xxx_init(void)
 {
