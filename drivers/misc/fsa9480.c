@@ -534,13 +534,6 @@ handled:
 	BUG_ON((usbsw->curr_dev == FSA9480_DETECT_NONE) &&
 	       (prev_dev != FSA9480_DETECT_NONE));
 
-	/* Disable the A/V Charger detection interrupt in case it was enabled
-	 * by the proxy wait callback.
-	 */
-	usbsw->intr_mask |= INT_AV_CHARGING;
-	i2c_smbus_write_word_data(client, FSA9480_REG_INT1_MASK,
-			usbsw->intr_mask);
-
 	mutex_unlock(&usbsw->lock);
 	enable_irq(usbsw->client->irq);
 
@@ -552,17 +545,8 @@ static int fsa9480_proxy_wait_callback(struct otg_id_notifier_block *nb)
 	struct usbsw_nb_info *nb_info =
 			container_of(nb, struct usbsw_nb_info, otg_id_nb);
 	struct fsa9480_usbsw *usbsw = nb_info->usbsw;
-	struct i2c_client *client = usbsw->client;
 
 	dev_info(&usbsw->client->dev, "taking proxy ownership of port\n");
-
-	mutex_lock(&usbsw->lock);
-
-	usbsw->intr_mask &= ~INT_AV_CHARGING;
-	i2c_smbus_write_word_data(client, FSA9480_REG_INT1_MASK,
-			usbsw->intr_mask);
-
-	mutex_unlock(&usbsw->lock);
 
 	usbsw->pdata->enable(true);
 	enable_irq(usbsw->client->irq);
@@ -763,7 +747,7 @@ static int __devinit fsa9480_probe(struct i2c_client *client,
 
 	/* mask interrupts (unmask attach/detach only) */
 	usbsw->intr_mask = ~(INT_ATTACH | INT_DETACH | INT_OCP_EN | INT_OVP_EN |
-			INT_OVP_OCP_DIS);
+			INT_OVP_OCP_DIS | INT_AV_CHARGING);
 	ret = fsa9480_reset(usbsw);
 	if (ret < 0)
 		goto err_reset;
