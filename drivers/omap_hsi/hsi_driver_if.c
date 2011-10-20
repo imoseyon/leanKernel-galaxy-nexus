@@ -50,7 +50,6 @@ int hsi_set_rx_divisor(struct hsi_port *sport, struct hsr_ctx *cfg)
 		} else if (cfg->divisor != HSI_HSR_DIVISOR_AUTO) {
 			/* Divisor set mode: use counters */
 			/* Leave auto mode: use new counters values */
-			cfg->counters = 0xFFFFF;
 			sport->reg_counters = cfg->counters;
 			sport->counters_on = 1;
 			hsi_outl(cfg->counters, base,
