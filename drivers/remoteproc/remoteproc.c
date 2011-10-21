@@ -675,7 +675,8 @@ static void rproc_start(struct rproc *rproc, u64 bootaddr)
 	pm_runtime_set_autosuspend_delay(dev, rproc->sus_timeout);
 	pm_runtime_get_noresume(rproc->dev);
 	pm_runtime_set_active(rproc->dev);
-	pm_runtime_enable(rproc->dev);
+	if (!rproc->secure_mode)
+		pm_runtime_enable(rproc->dev);
 	pm_runtime_mark_last_busy(rproc->dev);
 	pm_runtime_put_autosuspend(rproc->dev);
 #endif
@@ -1340,7 +1341,9 @@ void rproc_put(struct rproc *rproc)
 		 */
 		pm_runtime_get_sync(rproc->dev);
 		pm_runtime_put_noidle(rproc->dev);
-		pm_runtime_disable(rproc->dev);
+		if (!rproc->secure_reset)
+			pm_runtime_disable(rproc->dev);
+
 		pm_runtime_set_suspended(rproc->dev);
 #endif
 		ret = rproc->ops->stop(rproc);
