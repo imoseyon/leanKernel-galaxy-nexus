@@ -206,9 +206,10 @@ static int __init omap_l2_cache_init(void)
 
 	/*
 	 * Double linefill is available only on OMAP4460 L2X0.
+	 * It may cause single cache line memory corruption, leave it disabled
+	 * on all devices
 	 */
-	if (cpu_is_omap446x())
-		por_ctrl |= 1 << L2X0_PREFETCH_DOUBLE_LINEFILL_SHIFT;
+	por_ctrl &= ~(1 << L2X0_PREFETCH_DOUBLE_LINEFILL_SHIFT);
 	if (!mpu_prefetch_disable_errata) {
 		por_ctrl |= 1 << L2X0_PREFETCH_DATA_PREFETCH_SHIFT;
 		por_ctrl |= L2X0_POR_OFFSET_VALUE;
