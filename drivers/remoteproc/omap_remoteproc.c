@@ -192,23 +192,13 @@ int omap_rproc_activate(struct omap_device *od)
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	struct omap_rproc_priv *rpp = rproc->priv;
 	struct iommu *iommu;
-#endif
-	/**
-	 * Domain is in HW SUP thus in hw_auto but
-	 * since remoteproc will be enabled clkdm
-	 * needs to be in sw_sup (Do not let it idle).
-	 */
-	if (pdata->clkdm)
-		clkdm_wakeup(pdata->clkdm);
 
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	if (!rpp->iommu) {
 		iommu = iommu_get(pdata->iommu_name);
 		if (IS_ERR(iommu)) {
 			dev_err(dev, "iommu_get error: %ld\n",
 				PTR_ERR(iommu));
-			ret = PTR_ERR(iommu);
-			goto err;
+			return PTR_ERR(iommu);
 		}
 		rpp->iommu = iommu;
 	}
@@ -216,6 +206,14 @@ int omap_rproc_activate(struct omap_device *od)
 	if (!rpp->mbox)
 		rpp->mbox = omap_mbox_get(pdata->sus_mbox_name, NULL);
 #endif
+
+	/**
+	 * Domain is in HW SUP thus in hw_auto but
+	 * since remoteproc will be enabled clkdm
+	 * needs to be in sw_sup (Do not let it idle).
+	 */
+	if (pdata->clkdm)
+		clkdm_wakeup(pdata->clkdm);
 
 	for (i = 0; i < pdata->timers_cnt; i++)
 		omap_dm_timer_start(timers[i].odt);
@@ -228,7 +226,7 @@ int omap_rproc_activate(struct omap_device *od)
 			break;
 		}
 	}
-err:
+
 	/**
 	 * Domain is in force_wkup but since remoteproc
 	 * was enabled it is safe now to switch clkdm
