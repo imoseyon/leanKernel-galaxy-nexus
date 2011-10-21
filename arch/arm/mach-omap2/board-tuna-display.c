@@ -229,33 +229,33 @@ static const u8 tuna_oled_cmd_init_panel_m3[] = {
 static const u8 tuna_oled_cmd_init_panel_sm2[] = {
 	0xF8, /* Panel Condition Set */
 	0x3D, /* DOTC[0:1], GTCON[2:4], SS, DOTC_H[6:7] */
-	0x35, /* FLTE[0:7] */
+	0x31, /* FLTE[0:7] */
 	0x00,
 	0x00,
 	0x00,
-	0x93, /* FLWE */
+	0x8C, /* FLWE */
 	0x00,
-	0x3C, /* SCTE[0:7] */
-	0x7D, /* SCWE */
+	0x39, /* SCTE[0:7] */
+	0x77, /* SCWE */
 	0x08, /* INTE */
-	0x27,
-	0x7D, /* INTE[0:7] */
-	0x3F, /* INWE[0:7] */
+	0x25,
+	0x77, /* INTE[0:7] */
+	0x3C, /* INWE[0:7] */
 	0x00, /* EMPS */
 	0x00,
 	0x00,
 	0x20,
 	0x04, /* E_FLWE_H[0:7] */
 	0x08, /* E_SCTE[0:7] */
-	0x6E, /* E_SCWE[0:7] */
+	0x68, /* E_SCWE[0:7] */
 	0x00,
 	0x00,
 	0x00,
 	0x02,
-	0x08,
-	0x08,
-	0x23,
-	0x23,
+	0x07,
+	0x07,
+	0x21,
+	0x21,
 	0xC0,
 	0xC8, /* CLK2_CON[0:2], CLK1_CON[3:5], CLK2_DC, CLK1_DC */
 	0x08, /* INT2_CON[0:2], INT1_CON[3:5], INT2_DC, INT1_DC */
