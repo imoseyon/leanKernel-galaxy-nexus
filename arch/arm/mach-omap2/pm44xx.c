@@ -1148,13 +1148,19 @@ static int __init omap4_pm_init(void)
 		/* There appears to be a problem between the MPUSS and L3_1 */
 		ret |= clkdm_add_wkdep(mpuss_clkdm, l3_1_clkdm);
 
+		/* There appears to be a problem between the Ducati and L3/L4 */
+		ret |= clkdm_add_wkdep(ducati_clkdm, l3_1_clkdm);
+		ret |= clkdm_add_wkdep(ducati_clkdm, l3_2_clkdm);
+		ret |= clkdm_add_wkdep(ducati_clkdm, l4_per);
+		ret |= clkdm_add_wkdep(ducati_clkdm, l4_cfg);
+
 		if (ret) {
-			pr_err("Failed to add MPUSS -> "
+			pr_err("Failed to add MPUSS and DUCATI -> "
 			       "L4* and L3_1 wakeup dependency\n");
 			goto err2;
 		}
 		pr_info("OMAP4 PM: Static dependency added between"
-			" MPUSS <-> L4_PER/CFG and L3_1.\n");
+			" MPUSS and DUCATI <-> L4_PER/CFG and L3_1.\n");
 	}
 
 	(void) clkdm_for_each(clkdms_setup, NULL);
