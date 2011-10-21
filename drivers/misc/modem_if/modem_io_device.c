@@ -57,10 +57,11 @@ struct rfs_hdr {
 } __attribute__ ((packed));
 
 static const char const *modem_state_name[] = {
-	[STATE_OFFLINE]     = "OFFLINE",
-	[STATE_CRASH_EXIT]  = "CRASH_EXIT",
-	[STATE_BOOTING]     = "BOOTING",
-	[STATE_ONLINE]      = "ONLINE",
+	[STATE_OFFLINE]		= "OFFLINE",
+	[STATE_CRASH_EXIT]	= "CRASH_EXIT",
+	[STATE_BOOTING]		= "BOOTING",
+	[STATE_ONLINE]		= "ONLINE",
+	[STATE_LOADER_DONE]	= "LOADER_DONE",
 };
 
 static int rx_iodev_skb(struct io_device *iod);

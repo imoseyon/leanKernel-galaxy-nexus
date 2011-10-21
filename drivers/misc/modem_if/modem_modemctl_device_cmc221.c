@@ -66,7 +66,7 @@ static int cmc221_off(struct modem_ctl *mc)
 
 static int cmc221_force_crash_exit(struct modem_ctl *mc)
 {
-	pr_info("[MODEM_IF] %s()\n", __func__);
+	pr_info("[MODEM_IF] %s: # %d\n", __func__, ++(mc->crash_cnt));
 
 	mc->phone_state = STATE_CRASH_EXIT;/* DUMP START */
 
@@ -152,28 +152,34 @@ static void mc_work(struct work_struct *work_arg)
 
 	phone_active = cmc221_get_active(mc);
 	if (phone_active < 0) {
-		pr_err("[MODEM_CTRL] gpio not initialized\n");
+		pr_err("[MODEM_IF] gpio not initialized\n");
 		return;
 	}
 
-	if (phone_active && (mc->phone_state == STATE_BOOTING)) {
-		if (mc->cpcrash_flag) {
-			pr_info("[MODEM_CTRL][%s]%d, LTE DUMP END !!!\n",
-					__func__, __LINE__);
-			mc->cpcrash_flag = 0;
-		} else {
-			mc->phone_state = STATE_ONLINE;
+	switch (mc->phone_state) {
+	case STATE_CRASH_EXIT:
+	case STATE_BOOTING:
+	case STATE_LOADER_DONE:
+		if (phone_active) {
+			if (mc->cpcrash_flag) {
+				pr_info("[MODEM_IF] LTE DUMP END!!\n");
+				mc->cpcrash_flag = 0;
+			}
 		}
-	} else if (!phone_active && (mc->phone_state == STATE_ONLINE)) {
-		pr_info("[MODEM_CTRL][%s]%d, LTE CRASHED!!! LTE DUMP START !!!\n",
-				__func__, __LINE__);
-		mc->phone_state = STATE_CRASH_EXIT;
-		if (mc->iod && mc->iod->modem_state_changed)
-			mc->iod->modem_state_changed(mc->iod, mc->phone_state);
-	} else {
+		break;
+	case STATE_ONLINE:
+		if (!phone_active) {
+			pr_info("[MODEM_IF] LTE CRASHED!! LTE DUMP START!!\n");
+			mc->phone_state = STATE_CRASH_EXIT;
+			if (mc->iod && mc->iod->modem_state_changed)
+				mc->iod->modem_state_changed(mc->iod,
+						mc->phone_state);
+		}
+		break;
+	default:
 		mc->phone_state = STATE_OFFLINE;
-		pr_err("[MODEM_CTRL][%s]%d, phone_status changed to invalid!!!\n",
-				__func__, __LINE__);
+		pr_err("[MODEM_IF], phone_status changed to invalid!!\n");
+		break;
 	}
 }
 

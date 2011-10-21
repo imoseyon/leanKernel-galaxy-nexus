@@ -651,6 +651,10 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 		/* Queue work if skbs were pending before a disconnect/probe */
 		if (ld->sk_fmt_tx_q.qlen || ld->sk_raw_tx_q.qlen)
 			queue_delayed_work(ld->tx_wq, &ld->tx_delayed_work, 0);
+
+		usb_change_modem_state(usb_ld, STATE_ONLINE);
+	} else {
+		usb_change_modem_state(usb_ld, STATE_LOADER_DONE);
 	}
 
 	return 0;

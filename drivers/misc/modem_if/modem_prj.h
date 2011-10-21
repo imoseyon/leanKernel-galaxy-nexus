@@ -56,12 +56,15 @@
 #define SOURCE_MAC_ADDR	{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC}
 
 /* Does modem ctl structure will use state ? or status defined below ?*/
+/* Be careful!! below sequence shouldn't be changed*/
 enum modem_state {
 	STATE_OFFLINE,
 	__UNUSED__,
 	STATE_CRASH_EXIT,
 	STATE_BOOTING,
 	STATE_ONLINE,
+	STATE_NV_REBUILDING,
+	STATE_LOADER_DONE,
 };
 
 enum {
@@ -219,6 +222,7 @@ struct modem_ctl {
 	struct work_struct resume_work;
 	int wakeup_flag; /*flag for CP boot GPIO sync flag*/
 	int cpcrash_flag;
+	int crash_cnt;
 	struct completion *l2_done;
 	int irq[3];
 #endif /*CONFIG_LTE_MODEM_CMC221*/
