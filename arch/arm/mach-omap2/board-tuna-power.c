@@ -368,19 +368,23 @@ static void set_charge_en(int state)
 
 static void charger_set_charge(int state)
 {
+	unsigned long flags;
+
+	spin_lock_irqsave(&charge_en_lock, flags);
 	gpio_set_value(GPIO_CHG_CUR_ADJ, !!(state & PDA_POWER_CHARGE_AC));
-	spin_lock(&charge_en_lock);
 	charger_state = state;
 	set_charge_en(state);
-	spin_unlock(&charge_en_lock);
+	spin_unlock_irqrestore(&charge_en_lock, flags);
 }
 
 static void charger_set_only_charge(int state)
 {
-	spin_lock(&charge_en_lock);
+	unsigned long flags;
+
+	spin_lock_irqsave(&charge_en_lock, flags);
 	if (charger_state)
 		set_charge_en(state);
-	spin_unlock(&charge_en_lock);
+	spin_unlock_irqrestore(&charge_en_lock, flags);
 	/* CHG_ING_N level changed after set charge_en and 150ms */
 	msleep(150);
 }
