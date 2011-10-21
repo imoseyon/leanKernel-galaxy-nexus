@@ -736,10 +736,51 @@ static struct twl4030_codec_audio_data twl6040_audio = {
 	.ep_step	= 0x0f,
 };
 
+static struct regulator *twl6040_clk32kreg;
+
+static int tuna_twl6040_get_ext_clk32k(void)
+{
+	int ret = 0;
+
+	twl6040_clk32kreg = regulator_get(NULL, "twl6040_clk32k");
+	if (IS_ERR(twl6040_clk32kreg)) {
+		ret = PTR_ERR(twl6040_clk32kreg);
+		pr_err("failed to get CLK32K %d\n", ret);
+	}
+
+	return ret;
+}
+
+static void tuna_twl6040_put_ext_clk32k(void)
+{
+	regulator_put(twl6040_clk32kreg);
+}
+
+static int tuna_twl6040_set_ext_clk32k(bool on)
+{
+	int ret;
+
+	if (IS_ERR_OR_NULL(twl6040_clk32kreg))
+		return -EINVAL;
+
+	if (on)
+		ret = regulator_enable(twl6040_clk32kreg);
+	else
+		ret = regulator_disable(twl6040_clk32kreg);
+
+	if (ret)
+		pr_err("failed to enable TWL6040 CLK32K %d\n", ret);
+
+	return ret;
+}
+
 static struct twl4030_codec_data twl6040_codec = {
 	.audio		= &twl6040_audio,
 	.naudint_irq	= OMAP44XX_IRQ_SYS_2N,
 	.irq_base	= TWL6040_CODEC_IRQ_BASE,
+	.get_ext_clk32k	= tuna_twl6040_get_ext_clk32k,
+	.put_ext_clk32k	= tuna_twl6040_put_ext_clk32k,
+	.set_ext_clk32k	= tuna_twl6040_set_ext_clk32k,
 };
 
 static struct twl4030_platform_data tuna_twldata = {

@@ -22,7 +22,6 @@
 #include <linux/clk.h>
 #include <linux/platform_device.h>
 #include <linux/i2c.h>
-#include <linux/regulator/consumer.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -52,7 +51,6 @@
 static int twl6040_power_mode;
 static int mcbsp_cfg;
 static struct snd_soc_codec *twl6040_codec;
-struct regulator *twl6040_clk32kreg;
 
 int omap4_tuna_get_type(void);
 
@@ -405,17 +403,6 @@ static int sdp4430_mcpdm_twl6040_pre(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
 	struct twl6040 *twl6040 = codec->control_data;
-	int ret;
-
-	/* enable external 32kHz clock */
-	ret = regulator_enable(twl6040_clk32kreg);
-	if (ret) {
-		printk(KERN_ERR "failed to enable TWL6040 CLK32K\n");
-		return ret;
-	}
-
-	/* disable internal 32kHz oscillator */
-	twl6040_clear_bits(twl6040, TWL6040_REG_ACCCTL, TWL6040_CLK32KSEL);
 
 	/* TWL6040 supplies McPDM PAD_CLKS */
 	return twl6040_enable(twl6040);
@@ -426,18 +413,9 @@ static void sdp4430_mcpdm_twl6040_post(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
 	struct twl6040 *twl6040 = codec->control_data;
-	int ret;
 
 	/* TWL6040 supplies McPDM PAD_CLKS */
 	twl6040_disable(twl6040);
-
-	/* enable internal 32kHz oscillator */
-	twl6040_set_bits(twl6040, TWL6040_REG_ACCCTL, TWL6040_CLK32KSEL);
-
-	/* disable external 32kHz clock */
-	ret = regulator_disable(twl6040_clk32kreg);
-	if (ret)
-		printk(KERN_ERR "failed to disable TWL6040 CLK32K\n");
 }
 
 static int sdp4430_twl6040_init(struct snd_soc_pcm_runtime *rtd)
@@ -996,20 +974,6 @@ static int __init sdp4430_soc_init(void)
 	else if (machine_is_tuna())
 		snd_soc_sdp4430.name = "Tuna";
 
-	twl6040_clk32kreg = regulator_get(NULL, "twl6040_clk32k");
-	if (IS_ERR(twl6040_clk32kreg)) {
-		ret = PTR_ERR(twl6040_clk32kreg);
-		printk(KERN_ERR "failed to get CLK32K %d\n", ret);
-		goto clk32kreg_err;
-	}
-
-	/* enable external 32kHz clock during TWL6040/McPDM probe */
-	ret = regulator_enable(twl6040_clk32kreg);
-	if (ret) {
-		printk(KERN_ERR "failed to enable TWL6040 CLK32K\n");
-		goto clk32kreg_ena_err;
-	}
-
 	sdp4430_snd_device = platform_device_alloc("soc-audio", -1);
 	if (!sdp4430_snd_device) {
 		printk(KERN_ERR "Platform device allocation failed\n");
@@ -1026,8 +990,6 @@ static int __init sdp4430_soc_init(void)
 	if (ret)
 		goto err;
 
-	regulator_disable(twl6040_clk32kreg);
-
 	twl6040_codec = snd_soc_card_get_codec(&snd_soc_sdp4430,
 					"twl6040-codec");
 
@@ -1037,10 +999,6 @@ err:
 	printk(KERN_ERR "Unable to add platform device\n");
 	platform_device_put(sdp4430_snd_device);
 device_err:
-	regulator_disable(twl6040_clk32kreg);
-clk32kreg_ena_err:
-	regulator_put(twl6040_clk32kreg);
-clk32kreg_err:
 	if (machine_is_tuna())
 		gpio_free(TUNA_SUB_MIC_GPIO);
 submic_gpio_err:
@@ -1057,7 +1015,6 @@ static void __exit sdp4430_soc_exit(void)
 		gpio_free(TUNA_SUB_MIC_GPIO);
 		gpio_free(TUNA_MAIN_MIC_GPIO);
 	}
-	regulator_put(twl6040_clk32kreg);
 	platform_device_unregister(sdp4430_snd_device);
 }
 module_exit(sdp4430_soc_exit);
