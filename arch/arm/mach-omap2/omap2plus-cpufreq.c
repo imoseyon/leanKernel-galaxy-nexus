@@ -27,6 +27,7 @@
 #include <linux/io.h>
 #include <linux/opp.h>
 #include <linux/cpu.h>
+#include <linux/platform_device.h>
 
 #include <asm/system.h>
 #include <asm/smp_plat.h>
@@ -61,6 +62,7 @@ static unsigned int max_thermal;
 static unsigned int max_freq;
 static unsigned int current_target_freq;
 static bool omap_cpufreq_ready;
+static bool omap_cpufreq_suspended;
 
 static unsigned int omap_getspeed(unsigned int cpu)
 {
@@ -177,9 +179,11 @@ void omap_thermal_throttle(void)
 	pr_warn("%s: temperature too high, cpu throttle at max %u\n",
 		__func__, max_thermal);
 
-	cur = omap_getspeed(0);
-	if (cur > max_thermal)
-		omap_cpufreq_scale(max_thermal, cur);
+	if (!omap_cpufreq_suspended) {
+		cur = omap_getspeed(0);
+		if (cur > max_thermal)
+			omap_cpufreq_scale(max_thermal, cur);
+	}
 
 	mutex_unlock(&omap_cpufreq_lock);
 }
@@ -202,8 +206,10 @@ void omap_thermal_unthrottle(void)
 
 	pr_warn("%s: temperature reduced, ending cpu throttling\n", __func__);
 
-	cur = omap_getspeed(0);
-	omap_cpufreq_scale(current_target_freq, cur);
+	if (!omap_cpufreq_suspended) {
+		cur = omap_getspeed(0);
+		omap_cpufreq_scale(current_target_freq, cur);
+	}
 
 out:
 	mutex_unlock(&omap_cpufreq_lock);
@@ -241,7 +247,9 @@ static int omap_target(struct cpufreq_policy *policy,
 
 	current_target_freq = freq_table[i].frequency;
 
-	ret = omap_cpufreq_scale(current_target_freq, policy->cur);
+	if (!omap_cpufreq_suspended)
+		ret = omap_cpufreq_scale(current_target_freq, policy->cur);
+
 
 	mutex_unlock(&omap_cpufreq_lock);
 
@@ -340,6 +348,41 @@ static struct cpufreq_driver omap_driver = {
 	.attr		= omap_cpufreq_attr,
 };
 
+static int omap_cpufreq_suspend_noirq(struct device *dev)
+{
+	mutex_lock(&omap_cpufreq_lock);
+	omap_cpufreq_suspended = true;
+	mutex_unlock(&omap_cpufreq_lock);
+	return 0;
+}
+
+static int omap_cpufreq_resume_noirq(struct device *dev)
+{
+	unsigned int cur;
+
+	mutex_lock(&omap_cpufreq_lock);
+	cur = omap_getspeed(0);
+	if (cur != current_target_freq)
+		omap_cpufreq_scale(current_target_freq, cur);
+
+	omap_cpufreq_suspended = false;
+	mutex_unlock(&omap_cpufreq_lock);
+	return 0;
+}
+
+static struct dev_pm_ops omap_cpufreq_driver_pm_ops = {
+	.suspend_noirq = omap_cpufreq_suspend_noirq,
+	.resume_noirq = omap_cpufreq_resume_noirq,
+};
+
+static struct platform_driver omap_cpufreq_platform_driver = {
+	.driver.name = "omap_cpufreq",
+	.driver.pm = &omap_cpufreq_driver_pm_ops,
+};
+static struct platform_device omap_cpufreq_device = {
+	.name = "omap_cpufreq",
+};
+
 static int __init omap_cpufreq_init(void)
 {
 	int ret;
@@ -366,12 +409,28 @@ static int __init omap_cpufreq_init(void)
 
 	ret = cpufreq_register_driver(&omap_driver);
 	omap_cpufreq_ready = !ret;
+
+	if (!ret) {
+		int t;
+
+		t = platform_device_register(&omap_cpufreq_device);
+		if (t)
+			pr_warn("%s_init: platform_device_register failed\n",
+				__func__);
+		t = platform_driver_register(&omap_cpufreq_platform_driver);
+		if (t)
+			pr_warn("%s_init: platform_driver_register failed\n",
+				__func__);
+	}
+
 	return ret;
 }
 
 static void __exit omap_cpufreq_exit(void)
 {
 	cpufreq_unregister_driver(&omap_driver);
+	platform_driver_unregister(&omap_cpufreq_platform_driver);
+	platform_device_unregister(&omap_cpufreq_device);
 }
 
 MODULE_DESCRIPTION("cpufreq driver for OMAP2PLUS SOCs");
