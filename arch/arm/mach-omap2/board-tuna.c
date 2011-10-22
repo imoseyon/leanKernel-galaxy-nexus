@@ -111,7 +111,10 @@ static const char const *omap4_tuna_hw_name_maguro[] = {
 	[0x01] = "Maguro 1st Sample",
 	[0x02] = "Maguro 2nd Sample",
 	[0x03] = "Maguro 4th Sample",
-	[0x05] = "Maguro 5th sample",
+	[0x05] = "Maguro 5th Sample",
+	[0x07] = "Maguro 6th Sample",
+	[0x08] = "Maguro 7th Sample",
+	[0x09] = "Maguro 8th Sample",
 };
 
 static const char const *omap4_tuna_hw_name_toro[] = {
@@ -120,6 +123,7 @@ static const char const *omap4_tuna_hw_name_toro[] = {
 	[0x02] = "Toro 2nd Sample",
 	[0x03] = "Toro 4th Sample",
 	[0x05] = "Toro 5th Sample",
+	[0x06] = "Toro 8th Sample",
 };
 
 int omap4_tuna_get_revision(void)
