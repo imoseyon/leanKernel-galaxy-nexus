@@ -595,6 +595,7 @@ static irqreturn_t fsa9480_irq_thread(int irq, void *data)
 	intr = i2c_smbus_read_word_data(client, FSA9480_REG_INT1);
 	if (intr < 0) {
 		dev_err(&client->dev, "%s: err %d\n", __func__, intr);
+		intr = 0;
 	} else if (intr == 0) {
 		/* When the FSA9480 triggers an interrupt with no status bits
 		 * set the FSA9480 may have reset and the registers need to be
@@ -737,7 +738,8 @@ static int __devinit fsa9480_probe(struct i2c_client *client,
 			usbsw->intr_mask);
 
 	ret = request_threaded_irq(client->irq, NULL, fsa9480_irq_thread,
-				   IRQF_TRIGGER_FALLING, "fsa9480", usbsw);
+				   IRQF_TRIGGER_LOW | IRQF_ONESHOT, "fsa9480",
+				   usbsw);
 	if (ret) {
 		dev_err(&client->dev, "failed to request IRQ\n");
 		goto err_req_irq;
