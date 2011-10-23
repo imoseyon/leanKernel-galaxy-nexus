@@ -94,15 +94,15 @@ static struct sec_jack_buttons_zone sec_jack_buttons_zones[] = {
 		.adc_high       = 93,
 	},
 	{
-		/* 94 <= adc <= 198, stable zone */
+		/* 94 <= adc <= 167, stable zone */
 		.code           = KEY_PREVIOUSSONG,
 		.adc_low        = 94,
-		.adc_high       = 198,
+		.adc_high       = 167,
 	},
 	{
-		/* 199 <= adc <= 370, stable zone */
+		/* 168 <= adc <= 370, stable zone */
 		.code           = KEY_NEXTSONG,
-		.adc_low        = 199,
+		.adc_low        = 168,
 		.adc_high       = 370,
 	},
 };
