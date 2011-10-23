@@ -25,9 +25,9 @@
 #define IF_USB_RAW_EP		1
 #define IF_USB_RFS_EP		2
 
-#define AUTOSUSPEND_DELAY_MS		500
-#define HOST_WAKEUP_TIMEOUT_JIFFIES	msecs_to_jiffies(500);
-
+#define AUTOSUSPEND_DELAY_MS			500
+#define HOST_WAKEUP_TIMEOUT_JIFFIES		msecs_to_jiffies(500)
+#define WAIT_ENUMURATION_TIMEOUT_JIFFIES	msecs_to_jiffies(15000)
 #define MAX_RETRY	3
 
 enum RESUME_STATUS {
@@ -57,6 +57,7 @@ struct usb_link_device {
 	struct usb_device	*usbdev;
 	struct if_usb_devdata	devdata[IF_USB_DEVNUM_MAX];
 	struct delayed_work	runtime_pm_work;
+	struct delayed_work     wait_enumeration;
 	struct work_struct	disconnect_work;
 
 	struct wake_lock	gpiolock;

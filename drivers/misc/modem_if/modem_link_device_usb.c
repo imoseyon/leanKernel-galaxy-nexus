@@ -410,6 +410,16 @@ static void runtime_pm_work(struct work_struct *work)
 							msecs_to_jiffies(50));
 }
 
+static void wait_enumeration_work(struct work_struct *work)
+{
+	struct usb_link_device *usb_ld =
+		container_of(work, struct usb_link_device, wait_enumeration.work);
+	if (usb_ld->if_usb_connected == 0) {
+		pr_err("USB disconnected and not enumerated for long time\n");
+		usb_change_modem_state(usb_ld, STATE_CRASH_EXIT);
+	}
+}
+
 static int if_usb_resume(struct usb_interface *intf)
 {
 	int i, ret;
@@ -518,6 +528,8 @@ static void if_usb_disconnect(struct usb_interface *intf)
 		cancel_delayed_work_sync(&usb_ld->ld.tx_delayed_work);
 		usb_put_dev(usbdev);
 		usb_ld->usbdev = NULL;
+		schedule_delayed_work(&usb_ld->wait_enumeration,
+				WAIT_ENUMURATION_TIMEOUT_JIFFIES);
 	}
 }
 
@@ -793,6 +805,7 @@ struct link_device *usb_create_link_device(void *data)
 
 	INIT_DELAYED_WORK(&ld->tx_delayed_work, usb_tx_work);
 	INIT_DELAYED_WORK(&usb_ld->runtime_pm_work, runtime_pm_work);
+	INIT_DELAYED_WORK(&usb_ld->wait_enumeration, wait_enumeration_work);
 	INIT_WORK(&usb_ld->disconnect_work, if_usb_force_disconnect);
 
 	ret = if_usb_init(usb_ld);
