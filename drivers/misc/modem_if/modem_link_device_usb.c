@@ -218,6 +218,20 @@ static void usb_tx_complete(struct urb *urb)
 	dev_kfree_skb_any(skb);
 }
 
+static void if_usb_force_disconnect(struct work_struct *work)
+{
+	struct usb_link_device *usb_ld =
+		container_of(work, struct usb_link_device, disconnect_work);
+	struct usb_device *udev = usb_ld->usbdev;
+
+	pm_runtime_get_sync(&udev->dev);
+	if (udev->state != USB_STATE_NOTATTACHED) {
+		usb_force_disconnect(udev);
+		pr_info("force disconnect by modem not responding!!\n");
+	}
+	pm_runtime_put_autosuspend(&udev->dev);
+}
+
 static void
 usb_change_modem_state(struct usb_link_device *usb_ld, enum modem_state state)
 {
@@ -258,7 +272,7 @@ static int usb_tx_urb_with_skb(struct usb_link_device *usb_ld,
 				pr_err("host wakeup timeout !!\n");
 				SET_SLAVE_WAKEUP(usb_ld->pdata, 0);
 				pm_runtime_put_autosuspend(&usbdev->dev);
-				usb_change_modem_state(usb_ld, STATE_CRASH_EXIT);
+				schedule_work(&usb_ld->disconnect_work);
 				usb_ld->host_wake_timeout_flag = 1;
 				return -1;
 			}
@@ -779,6 +793,7 @@ struct link_device *usb_create_link_device(void *data)
 
 	INIT_DELAYED_WORK(&ld->tx_delayed_work, usb_tx_work);
 	INIT_DELAYED_WORK(&usb_ld->runtime_pm_work, runtime_pm_work);
+	INIT_WORK(&usb_ld->disconnect_work, if_usb_force_disconnect);
 
 	ret = if_usb_init(usb_ld);
 	if (ret)

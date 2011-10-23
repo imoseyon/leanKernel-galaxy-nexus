@@ -4044,3 +4044,18 @@ void usb_queue_reset_device(struct usb_interface *iface)
 	schedule_work(&iface->reset_ws);
 }
 EXPORT_SYMBOL_GPL(usb_queue_reset_device);
+
+void usb_force_disconnect(struct usb_device *udev)
+{
+       struct usb_hub                  *parent_hub;
+       int                             port1 = udev->portnum;
+
+       if (!udev->parent)
+               return;
+
+       parent_hub = hdev_to_hub(udev->parent);
+       if (!parent_hub)
+               return;
+
+       hub_port_logical_disconnect(parent_hub, port1);
+}
