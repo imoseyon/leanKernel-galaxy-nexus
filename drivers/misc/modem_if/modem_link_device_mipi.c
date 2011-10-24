@@ -339,7 +339,11 @@ static int if_hsi_open_channel(struct if_hsi_channel *channel)
 	ret = hsi_open(channel->dev);
 	if (ret) {
 		pr_err("[MIPI-HSI] hsi_open fail : %d\n", ret);
-		return ret;
+		if (ret == -EBUSY)
+			pr_err("[MIPI-HSI] ch %d already opened\n",
+					channel->channel_id);
+		else
+			return ret;
 	}
 	channel->opened = 1;
 
@@ -660,11 +664,11 @@ static void hsi_conn_err_recovery(struct mipi_link_device *mipi_ld)
 		hsi_ioctl(mipi_ld->hsi_channles[i].dev,
 					HSI_IOCTL_SET_RX, &rx_config);
 		pr_debug("[MIPI-HSI] Set TX/RX MIPI-HSI\n");
-
-		hsi_ioctl(mipi_ld->hsi_channles[i].dev,
-				HSI_IOCTL_SET_WAKE_RX_4WIRES_MODE, NULL);
-		pr_debug("[MIPI-HSI] Set 4 WIRE MODE\n");
 	}
+
+	hsi_ioctl(mipi_ld->hsi_channles[HSI_CONTROL_CHANNEL].dev,
+			HSI_IOCTL_SET_WAKE_RX_4WIRES_MODE, NULL);
+	pr_debug("[MIPI-HSI] Set 4 WIRE MODE\n");
 
 	ret = hsi_read(mipi_ld->hsi_channles[HSI_CONTROL_CHANNEL].dev,
 		mipi_ld->hsi_channles[HSI_CONTROL_CHANNEL].rx_data, 1);
