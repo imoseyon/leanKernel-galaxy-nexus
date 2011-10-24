@@ -250,7 +250,7 @@ static void hdcp_wq_authentication_failure(void)
 	hdcp_lib_disable();
 	hdcp.pending_disable = 0;
 
-	if (hdcp.retry_cnt) {
+	if (hdcp.retry_cnt && (hdcp.hdmi_state != HDMI_STOPPED)) {
 		if (hdcp.retry_cnt < HDCP_INFINITE_REAUTH) {
 			hdcp.retry_cnt--;
 			printk(KERN_INFO "HDCP: authentication failed - "
@@ -395,6 +395,13 @@ static void hdcp_work_queue(struct work_struct *work)
 	}
 
 	kfree(hdcp_w);
+	hdcp_w = 0;
+	if (event == HDCP_START_FRAME_EVENT)
+		hdcp.pending_start = 0;
+	if (event == HDCP_KSV_LIST_RDY_EVENT ||
+	    event == HDCP_R0_EXP_EVENT) {
+		hdcp.pending_wq_event = 0;
+	}
 
 	DBG("hdcp_work_queue() - END - %u hdmi=%d hdcp=%d auth=%d evt=%x %d ",
 		jiffies_to_msecs(jiffies),
@@ -442,16 +449,11 @@ static void hdcp_cancel_work(struct delayed_work **work)
 
 	if (*work) {
 		ret = cancel_delayed_work(*work);
-#if 0  /* cancel_work_sync is only exported to GPL code
-	* as HDCP is not GPL, will not wait for work to finish
-	* but avoid freeing the work which is on-going
-	*/
 		if (ret != 1) {
 			ret = cancel_work_sync(&((*work)->work));
 			printk(KERN_INFO "Canceling work failed - "
 					 "cancel_work_sync done %d\n", ret);
 		}
-#endif
 		kfree(*work);
 		*work = 0;
 	}
@@ -499,8 +501,10 @@ static void hdcp_start_frame_cb(void)
 	}
 
 	/* Cancel any pending work */
-	hdcp_cancel_work(&hdcp.pending_start);
-	hdcp_cancel_work(&hdcp.pending_wq_event);
+	if (hdcp.pending_start)
+		hdcp_cancel_work(&hdcp.pending_start);
+	if (hdcp.pending_wq_event)
+		hdcp_cancel_work(&hdcp.pending_wq_event);
 
 	hdcp.hpd_low = 0;
 	hdcp.pending_disable = 0;
