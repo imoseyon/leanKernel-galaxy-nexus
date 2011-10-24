@@ -330,6 +330,21 @@ static void hdmi_compute_pll(struct omap_dss_device *dssdev, int phy,
 	DSSDBG("range = %d sd = %d\n", pi->dcofreq, pi->regsd);
 }
 
+static void hdmi_load_hdcp_keys(struct omap_dss_device *dssdev)
+{
+	DSSDBG("hdmi_load_hdcp_keys\n");
+	/* load the keys and reset the wrapper to populate the AKSV registers*/
+	if (hdmi.hdmi_power_on_cb) {
+		if (!hdmi_ti_4xx_check_aksv_data(&hdmi.hdmi_data) &&
+		    hdmi.custom_set &&
+		    hdmi.hdmi_power_on_cb()) {
+			hdmi_ti_4xxx_set_wait_soft_reset(&hdmi.hdmi_data);
+			hdmi.wp_reset_done = true;
+			DSSINFO("HDMI_WRAPPER RESET DONE\n");
+		}
+	}
+}
+
 static int hdmi_power_on(struct omap_dss_device *dssdev)
 {
 	int r;
@@ -340,6 +355,9 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 	r = hdmi_runtime_get();
 	if (r)
 		return r;
+
+	/* Load the HDCP keys if not already loaded*/
+	hdmi_load_hdcp_keys(dssdev);
 
 	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 0);
 
@@ -445,19 +463,6 @@ static void hdmi_power_off(struct omap_dss_device *dssdev)
 	hdmi_ti_4xxx_set_pll_pwr(&hdmi.hdmi_data, HDMI_PLLPWRCMD_ALLOFF);
 	hdmi_runtime_put();
 	hdmi.deep_color = HDMI_DEEP_COLOR_24BIT;
-}
-
-static void hdmi_load_hdcp_keys(struct omap_dss_device *dssdev)
-{
-	DSSDBG("hdmi_load_hdcp_keys\n");
-	/* load the keys and reset the wrapper to populate the AKSV registers*/
-	if (hdmi.hdmi_power_on_cb && !hdmi.wp_reset_done) {
-		if (hdmi.hdmi_power_on_cb()) {
-			hdmi_ti_4xxx_set_wait_soft_reset(&hdmi.hdmi_data);
-			hdmi.wp_reset_done = true;
-			DSSINFO("HDMI_WRAPPER RESET DONE\n");
-		}
-	}
 }
 
 int omapdss_hdmi_get_pixel_clock(void)
@@ -607,8 +612,6 @@ int omapdss_hdmi_display_enable(struct omap_dss_device *dssdev)
 		goto err3;
 	}
 
-	/* Load the HDCP keys if not already loaded*/
-	hdmi_load_hdcp_keys(dssdev);
 	r = hdmi_power_on(dssdev);
 	if (r) {
 		DSSERR("failed to power on device\n");
