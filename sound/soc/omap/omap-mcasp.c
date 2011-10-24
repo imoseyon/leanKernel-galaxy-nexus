@@ -202,6 +202,19 @@
 #define MCASP_ALLOWED_PPM	100
 
 /*
+ * OMAP_MCASP_DITCSRA_REG/OMAP_MCASP_DITCSRB_REG
+ */
+#define OMAP_MCASP_DITCSR_44100HZ	(0x0 << 24)
+#define OMAP_MCASP_DITCSR_48000HZ	(0x2 << 24)
+#define OMAP_MCASP_DITCSR_32000HZ	(0x3 << 24)
+#define OMAP_MCASP_DITCSR_22050HZ	(0x4 << 24)
+#define OMAP_MCASP_DITCSR_24000HZ	(0x6 << 24)
+#define OMAP_MCASP_DITCSR_88200HZ	(0x8 << 24)
+#define OMAP_MCASP_DITCSR_96000HZ	(0xA << 24)
+#define OMAP_MCASP_DITCSR_176400HZ	(0xC << 24)
+#define OMAP_MCASP_DITCSR_192000HZ	(0xE << 24)
+
+/*
  * Stream DMA parameters
  */
 static struct omap_pcm_dma_data omap_mcasp_dai_dma_params[] = {
@@ -419,7 +432,7 @@ static void omap_mcasp_shutdown(struct snd_pcm_substream *substream,
 /* S/PDIF */
 static int omap_hw_dit_param(struct omap_mcasp *mcasp, unsigned int rate)
 {
-	u32 aclkxdiv, ahclkxdiv;
+	u32 aclkxdiv, ahclkxdiv, ditcsr;
 	int res;
 
 	/* Set TX frame synch : DIT Mode, 1 bit width, internal, rising edge */
@@ -453,6 +466,41 @@ static int omap_hw_dit_param(struct omap_mcasp *mcasp, unsigned int rate)
 		return res;
 	}
 
+	switch (rate) {
+	case 22050:
+		ditcsr = OMAP_MCASP_DITCSR_22050HZ;
+		break;
+	case 24000:
+		ditcsr = OMAP_MCASP_DITCSR_24000HZ;
+		break;
+	case 32000:
+		ditcsr = OMAP_MCASP_DITCSR_32000HZ;
+		break;
+	case 44100:
+		ditcsr = OMAP_MCASP_DITCSR_44100HZ;
+		break;
+	case 48000:
+		ditcsr = OMAP_MCASP_DITCSR_48000HZ;
+		break;
+	case 88200:
+		ditcsr = OMAP_MCASP_DITCSR_88200HZ;
+		break;
+	case 96000:
+		ditcsr = OMAP_MCASP_DITCSR_96000HZ;
+		break;
+	case 176400:
+		ditcsr = OMAP_MCASP_DITCSR_176400HZ;
+		break;
+	case 192000:
+		ditcsr = OMAP_MCASP_DITCSR_192000HZ;
+		break;
+	default:
+		dev_err(mcasp->dev, "%s: Invalid sampling rate: %d\n",
+			__func__, rate);
+		return -EINVAL;
+	}
+	mcasp_set_reg(mcasp->base + OMAP_MCASP_DITCSRA_REG, ditcsr);
+	mcasp_set_reg(mcasp->base + OMAP_MCASP_DITCSRB_REG, ditcsr);
 	mcasp_set_bits(mcasp->base + OMAP_MCASP_AHCLKXCTL_REG,
 					AHCLKXDIV(ahclkxdiv));
 	mcasp_set_bits(mcasp->base + OMAP_MCASP_ACLKXCTL_REG,
