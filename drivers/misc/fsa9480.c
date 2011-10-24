@@ -455,8 +455,27 @@ static int fsa9480_detect_callback(struct otg_id_notifier_block *nb)
 	u16 dev_type;
 	u8 adc_val;
 	u32 prev_dev;
+	int max_events = 100;
+
+	mutex_lock(&usbsw->lock);
 
 	usbsw->pdata->enable(true);
+
+	/* the fsa could have queued up a few events if we haven't processed
+	 * them promptly
+	 */
+	while (max_events-- > 0) {
+		s32 ret = i2c_smbus_read_word_data(client, FSA9480_REG_INT1);
+		if (!ret)
+			break;
+	}
+	if (!max_events)
+		dev_warn(&client->dev, "too many events. fsa hosed?\n");
+
+	/* fsa may take some time to update the dev_type reg after reading
+	 * the int reg.
+	 */
+	usleep_range(200, 300);
 
 	dev_type = i2c_smbus_read_word_data(client, FSA9480_REG_DEV_T1);
 	adc_val = i2c_smbus_read_byte_data(client, FSA9480_REG_ADC);
@@ -468,7 +487,6 @@ static int fsa9480_detect_callback(struct otg_id_notifier_block *nb)
 	dev_dbg(&client->dev, "trying detect (prio=%d): type=%x adc=%x\n",
 		nb_info->detect_set->prio, dev_type, adc_val);
 
-	mutex_lock(&usbsw->lock);
 	prev_dev = usbsw->curr_dev;
 
 	if (dev_type & DEV_USB_MASK) {
@@ -545,10 +563,10 @@ unhandled:
 		goto handled;
 	}
 
-	mutex_unlock(&usbsw->lock);
 
 err:
 	usbsw->pdata->enable(false);
+	mutex_unlock(&usbsw->lock);
 	return OTG_ID_UNHANDLED;
 
 handled:
