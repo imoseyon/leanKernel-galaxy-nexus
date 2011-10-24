@@ -585,16 +585,6 @@ PVRSRV_ERROR SGXScheduleCCBCommandKM(PVRSRV_DEVICE_NODE		*psDeviceNode,
 	eError = SGXScheduleCCBCommand(psDeviceNode, eCmdType, psCommandData, ui32CallerID, ui32PDumpFlags, hDevMemContext, bLastInScene);
 
 	PVRSRVPowerUnlock(ui32CallerID);
-
-	
-	if (ui32CallerID != ISR_ID)
-	{
-		
-
-
-		SGXTestActivePowerEvent(psDeviceNode, ui32CallerID);
-	}
-
 	return eError;
 }
 
