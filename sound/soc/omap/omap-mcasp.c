@@ -384,15 +384,12 @@ static void omap_mcasp_stop(struct omap_mcasp *mcasp)
 static int omap_mcasp_startup(struct snd_pcm_substream *substream,
 			      struct snd_soc_dai *dai)
 {
-	struct platform_device *pdev;
 	struct omap_mcasp *mcasp = snd_soc_dai_get_drvdata(dai);
 
 	mcasp_clk_on(mcasp);
 
-	pdev = to_platform_device(mcasp->dev);
-
 	if (!mcasp->active++)
-		pm_runtime_get_sync(&pdev->dev);
+		pm_runtime_get_sync(mcasp->dev);
 
 	mcasp_set_reg(mcasp->base + OMAP_MCASP_SYSCONFIG_REG, 0x1);
 
@@ -402,15 +399,12 @@ static int omap_mcasp_startup(struct snd_pcm_substream *substream,
 static void omap_mcasp_shutdown(struct snd_pcm_substream *substream,
 				struct snd_soc_dai *dai)
 {
-	struct platform_device *pdev;
 	struct omap_mcasp *mcasp = snd_soc_dai_get_drvdata(dai);
-
-	pdev = to_platform_device(mcasp->dev);
 
 	mcasp_set_reg(mcasp->base + OMAP_MCASP_SYSCONFIG_REG, 0x2);
 
 	if (!--mcasp->active)
-		pm_runtime_put_sync(&pdev->dev);
+		pm_runtime_put_sync(mcasp->dev);
 
 	mcasp_clk_off(mcasp);
 }
