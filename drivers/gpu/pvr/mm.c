@@ -1091,7 +1091,7 @@ NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags,
                    IMG_PVOID pvPrivData, IMG_UINT32 ui32PrivDataLength)
 {
     struct omap_ion_tiler_alloc_data sAllocData;
-    LinuxMemArea *psLinuxMemArea = IMG_NULL;
+    LinuxMemArea *psLinuxMemArea;
     u32 *pu32PageAddrs;
     int iNumPages;
 
@@ -1156,6 +1156,7 @@ err_out:
 
 err_free:
     LinuxMemAreaStructFree(psLinuxMemArea);
+    psLinuxMemArea = IMG_NULL;
     goto err_out;
 }
 
