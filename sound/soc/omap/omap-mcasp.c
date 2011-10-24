@@ -21,6 +21,7 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/io.h>
+#include <linux/interrupt.h>
 #include <linux/clk.h>
 #include <linux/pm_runtime.h>
 
@@ -148,6 +149,11 @@
  */
 #define AHCLKXDIV(val)	(val)
 #define AHCLKXE		BIT(15)
+
+/*
+ * OMAP_MCASP_EVTCTLX_REG - Transmitter Interrupt Control Register bits
+ */
+#define EVTCTLX_XUNDRN		BIT(0)
 
 /*
  * OMAP_MCASP_TXSTAT_REG - Transmit Status Register Bits
@@ -355,36 +361,20 @@ static int omap_mcasp_start(struct omap_mcasp *mcasp)
 	mcasp_set_ctl_reg(mcasp->base + OMAP_MCASP_GBLCTL_REG, TXFSRST);
 	mcasp_clr_bits(mcasp->base + OMAP_MCASP_TXEVTCTL_REG, TXDATADMADIS);
 
+	/* enable IRQ sources */
+	mcasp_set_bits(mcasp->base + OMAP_MCASP_EVTCTLX_REG, EVTCTLX_XUNDRN);
+
 	return 0;
 }
 
 static void omap_mcasp_stop(struct omap_mcasp *mcasp)
 {
+	/* disable IRQ sources */
+	mcasp_set_reg(mcasp->base + OMAP_MCASP_EVTCTLX_REG, 0);
+
 	mcasp_set_reg(mcasp->base + OMAP_MCASP_GBLCTL_REG, 0);
 	mcasp_set_reg(mcasp->base + OMAP_MCASP_TXSTAT_REG,
 			OMAP_MCASP_TXSTAT_MASK);
-}
-
-static int omap_mcasp_startup(struct snd_pcm_substream *substream,
-			      struct snd_soc_dai *dai)
-{
-	struct omap_mcasp *mcasp = snd_soc_dai_get_drvdata(dai);
-
-	pm_runtime_get_sync(mcasp->dev);
-
-	mcasp_set_reg(mcasp->base + OMAP_MCASP_SYSCONFIG_REG, 0x1);
-
-	return 0;
-}
-
-static void omap_mcasp_shutdown(struct snd_pcm_substream *substream,
-				struct snd_soc_dai *dai)
-{
-	struct omap_mcasp *mcasp = snd_soc_dai_get_drvdata(dai);
-
-	mcasp_set_reg(mcasp->base + OMAP_MCASP_SYSCONFIG_REG, 0x2);
-
-	pm_runtime_put_sync(mcasp->dev);
 }
 
 /* S/PDIF */
@@ -490,6 +480,55 @@ static int omap_hw_dit_param(struct omap_mcasp *mcasp, unsigned int rate)
 	return 0;
 }
 
+static irqreturn_t omap_mcasp_irq_handler(int irq, void *data)
+{
+	struct omap_mcasp *mcasp = data;
+	u32 txstat;
+
+	txstat = mcasp_get_reg(mcasp->base + OMAP_MCASP_TXSTAT_REG);
+	if (txstat & TXSTAT_XUNDRN) {
+		dev_err(mcasp->dev, "%s: Underrun (0x%08x)\n", __func__,
+			txstat);
+
+		/* Try to recover from this state */
+		spin_lock(&mcasp->lock);
+		if (likely(mcasp->stream_rate)) {
+			dev_err(mcasp->dev, "%s: Trying to recover\n",
+				__func__);
+			omap_mcasp_stop(mcasp);
+			omap_hw_dit_param(mcasp, mcasp->stream_rate);
+			omap_mcasp_start(mcasp);
+		}
+		spin_unlock(&mcasp->lock);
+	}
+
+	mcasp_set_reg(mcasp->base + OMAP_MCASP_TXSTAT_REG, txstat);
+
+	return IRQ_HANDLED;
+}
+
+static int omap_mcasp_startup(struct snd_pcm_substream *substream,
+			      struct snd_soc_dai *dai)
+{
+	struct omap_mcasp *mcasp = snd_soc_dai_get_drvdata(dai);
+
+	pm_runtime_get_sync(mcasp->dev);
+
+	mcasp_set_reg(mcasp->base + OMAP_MCASP_SYSCONFIG_REG, 0x1);
+
+	return 0;
+}
+
+static void omap_mcasp_shutdown(struct snd_pcm_substream *substream,
+				struct snd_soc_dai *dai)
+{
+	struct omap_mcasp *mcasp = snd_soc_dai_get_drvdata(dai);
+
+	mcasp_set_reg(mcasp->base + OMAP_MCASP_SYSCONFIG_REG, 0x2);
+
+	pm_runtime_put_sync(mcasp->dev);
+}
+
 static int omap_mcasp_hw_params(struct snd_pcm_substream *substream,
 					struct snd_pcm_hw_params *params,
 					struct snd_soc_dai *dai)
@@ -512,24 +551,31 @@ static int omap_mcasp_trigger(struct snd_pcm_substream *substream,
 				     int cmd, struct snd_soc_dai *cpu_dai)
 {
 	struct omap_mcasp *mcasp = snd_soc_dai_get_drvdata(cpu_dai);
+	unsigned long flags;
 	int ret = 0;
+
+	spin_lock_irqsave(&mcasp->lock, flags);
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		mcasp->stream_rate = substream->runtime->rate;
 		ret = omap_mcasp_start(mcasp);
 		break;
 
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		mcasp->stream_rate = 0;
 		omap_mcasp_stop(mcasp);
 		break;
 
 	default:
 		ret = -EINVAL;
 	}
+
+	spin_unlock_irqrestore(&mcasp->lock, flags);
 
 	return ret;
 }
@@ -571,6 +617,8 @@ static __devinit int omap_mcasp_probe(struct platform_device *pdev)
 	if (!mcasp)
 		return -ENOMEM;
 
+	spin_lock_init(&mcasp->lock);
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
 		dev_err(&pdev->dev, "no resource\n");
@@ -582,6 +630,19 @@ static __devinit int omap_mcasp_probe(struct platform_device *pdev)
 	if (!mcasp->base) {
 		ret = -ENOMEM;
 		goto err_res;
+	}
+
+	mcasp->irq = platform_get_irq(pdev, 0);
+	if (mcasp->irq < 0) {
+		ret = mcasp->irq;
+		goto err_irq;
+	}
+
+	ret = request_threaded_irq(mcasp->irq, NULL, omap_mcasp_irq_handler,
+				0, "McASP", mcasp);
+	if (ret) {
+		dev_err(mcasp->dev, "IRQ request failed\n");
+		goto err_irq;
 	}
 
 	mcasp->fclk = clk_get(&pdev->dev, "mcasp_fck");
@@ -610,6 +671,8 @@ err_dai:
 	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 err_clk:
+	free_irq(mcasp->irq, (void *)mcasp);
+err_irq:
 	iounmap(mcasp->base);
 err_res:
 	kfree(mcasp);
@@ -623,6 +686,7 @@ static __devexit int omap_mcasp_remove(struct platform_device *pdev)
 	snd_soc_unregister_dai(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 	clk_put(mcasp->fclk);
+	free_irq(mcasp->irq, (void *)mcasp);
 	iounmap(mcasp->base);
 	kfree(mcasp);
 
