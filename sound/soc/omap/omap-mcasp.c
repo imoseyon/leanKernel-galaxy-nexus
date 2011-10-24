@@ -343,7 +343,7 @@ static int mcasp_compute_clock_dividers(long fclk_rate, int tgt_sample_rate,
 	return (*out_div_hi <= 4096) ? 0 : -EINVAL;
 }
 
-static int mcasp_start_tx(struct omap_mcasp *mcasp)
+static int omap_mcasp_start(struct omap_mcasp *mcasp)
 {
 	int i;
 	mcasp_set_ctl_reg(mcasp->base + OMAP_MCASP_GBLCTL_REG, TXHCLKRST);
@@ -374,25 +374,11 @@ static int mcasp_start_tx(struct omap_mcasp *mcasp)
 	return 0;
 }
 
-static int omap_mcasp_start(struct omap_mcasp *mcasp, int stream)
-{
-	if (stream == SNDRV_PCM_STREAM_PLAYBACK)
-		return mcasp_start_tx(mcasp);
-
-	return -EINVAL;
-}
-
-static void mcasp_stop_tx(struct omap_mcasp *mcasp)
+static void omap_mcasp_stop(struct omap_mcasp *mcasp)
 {
 	mcasp_set_reg(mcasp->base + OMAP_MCASP_GBLCTL_REG, 0);
 	mcasp_set_reg(mcasp->base + OMAP_MCASP_TXSTAT_REG,
 			OMAP_MCASP_TXSTAT_MASK);
-}
-
-static void omap_mcasp_stop(struct omap_mcasp *mcasp, int stream)
-{
-	if (stream == SNDRV_PCM_STREAM_PLAYBACK)
-		mcasp_stop_tx(mcasp);
 }
 
 static int omap_mcasp_startup(struct snd_pcm_substream *substream,
@@ -539,7 +525,7 @@ static int omap_mcasp_hw_params(struct snd_pcm_substream *substream,
 	struct omap_mcasp *mcasp = snd_soc_dai_get_drvdata(dai);
 	int stream = substream->stream;
 
-	mcasp_stop_tx(mcasp);
+	omap_mcasp_stop(mcasp);
 
 	if (omap_hw_dit_param(mcasp, params_rate(params)) < 0)
 		return -EPERM;
@@ -560,13 +546,13 @@ static int omap_mcasp_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		ret = omap_mcasp_start(mcasp, substream->stream);
+		ret = omap_mcasp_start(mcasp);
 		break;
 
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		omap_mcasp_stop(mcasp, substream->stream);
+		omap_mcasp_stop(mcasp);
 		break;
 
 	default:
