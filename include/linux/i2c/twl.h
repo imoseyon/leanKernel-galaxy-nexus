@@ -738,6 +738,9 @@ struct twl4030_codec_data {
 	int audpwron_gpio;	/* audio power-on gpio */
 	int naudint_irq;	/* audio interrupt */
 	unsigned int irq_base;
+	int (*get_ext_clk32k)(void);
+	void (*put_ext_clk32k)(void);
+	int (*set_ext_clk32k)(bool on);
 };
 
 struct twl4030_platform_data {
