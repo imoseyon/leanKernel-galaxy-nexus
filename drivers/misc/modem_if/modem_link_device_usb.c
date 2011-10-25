@@ -259,7 +259,8 @@ static int usb_tx_urb_with_skb(struct usb_link_device *usb_ld,
 
 	pm_runtime_get_noresume(&usbdev->dev);
 
-	if (usbdev->dev.power.runtime_status != RPM_ACTIVE) {
+	if (usbdev->dev.power.runtime_status == RPM_SUSPENDED ||
+		usbdev->dev.power.runtime_status == RPM_SUSPENDING) {
 		usb_ld->resume_status = AP_INITIATED_RESUME;
 		SET_SLAVE_WAKEUP(usb_ld->pdata, 1);
 
