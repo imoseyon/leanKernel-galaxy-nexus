@@ -102,6 +102,18 @@ static irqreturn_t l3_interrupt_handler(int irq, void *_l3)
 						readl(base + regoffset + L3_HDR));
 				WARN_ONCE(true, "L3 standard error");
 
+				/* Disable ABE L3 Interrupt on LTE boards */
+				if ((readl(base + regoffset + L3_MSTADDR) == 0xc0) &&
+					(readl(base + regoffset + L3_SLVADDR) == 0x3) &&
+					(omap4_tuna_get_type() == TUNA_TYPE_TORO)) {
+					pr_err("** Disabling ABE L3 interrupt for now....\n");
+					writel(0x1, base + regoffset + L3_MAINCTLREG);
+					writel(0x0, base + regoffset + L3_SVRTSTDLVL);
+					writel(0x0, base + regoffset + L3_SVRTCUSTOMLVL);
+					writel(0x0, base + regoffset + L3_MAIN);
+					writel(0x1F, base + regoffset + L3_ADDRSPACESIZELOG);
+				}
+
 				/* clear the std error log*/
 				clear = std_err_main | CLEAR_STDERR_LOG;
 				writel(clear, std_err_main_addr);
