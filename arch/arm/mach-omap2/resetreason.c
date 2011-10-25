@@ -60,7 +60,7 @@ static int __init resetreason_init(void)
 			strlcat(resetreason, resetreason_flags[i].str,
 				sizeof(resetreason));
 
-	snprintf(buf, sizeof(buf), "reset (PRM_RSTST=0x%x)", reasons);
+	snprintf(buf, sizeof(buf), "reset (PRM_RSTST=0x%x)\n", reasons);
 
 	strlcat(resetreason, buf, sizeof(resetreason));
 
