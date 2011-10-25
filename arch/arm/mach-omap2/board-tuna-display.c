@@ -187,40 +187,40 @@ static const u8 tuna_oled_cmd_sleep_out[] = {
 static const u8 tuna_oled_cmd_init_panel_m3[] = {
 	0xF8, /* Panel Condition Set */
 	0x3D, /* DOTC[0:1], GTCON[2:4], SS, DOTC_H[6:7] */
-	0x50, /* FLTE[0:7] */
+	0x35, /* FLTE[0:7] */
 	0x00,
 	0x00,
 	0x00,
-	0x6D,
+	0x8D,
 	0x00,
-	0x62, /* SCTE[0:7] */
-	0x55,
-	0x0C,
-	0x1E,
-	0x61, /* INTE[0:7] */
-	0x31, /* INWE[0:7] */
-	0x00,
+	0x4C, /* SCTE[0:7] */
+	0x6E,
+	0x10,
+	0x27,
+	0x7D, /* INTE[0:7] */
+	0x3F, /* INWE[0:7] */
+	0x10,
 	0x00,
 	0x00,
 	0x20,
 	0x04, /* E_FLWE_H[0:7] */
-	0x06, /* E_SCTE[0:7] */
-	0x55, /* E_SCWE[0:7] */
+	0x08, /* E_SCTE[0:7] */
+	0x6E, /* E_SCWE[0:7] */
 	0x00,
 	0x00,
 	0x00,
 	0x02,
-	0x06,
-	0x06,
-	0x1B,
-	0x1B,
+	0x08,
+	0x08,
+	0x23,
+	0x23,
 	0xC0,
 	0xC8, /* CLK2_CON[0:2], CLK1_CON[3:5], CLK2_DC, CLK1_DC */
 	0x08, /* INT2_CON[0:2], INT1_CON[3:5], INT2_DC, INT1_DC */
 	0x48, /* BICTLB_CON[0:2], BICTL_CON[3:5], BICTLB_DC, BICTL_DC */
 	0xC1,
 	0x00,
-	0xC1, /* EM_FLM_CON[0:2], ACL_FLM_CON[3:5], EM_FLM_DC, ACL_FLM_DC */
+	0xC3, /* EM_FLM_CON[0:2], ACL_FLM_CON[3:5], EM_FLM_DC, ACL_FLM_DC */
 	0xFF, /* EM_CLK1B_CON[0:2], EM_CLK1_CON[3:5], EM_CLK1B_DC, EM_CLK1_DC */
 	0xFF, /* EM_CLK2B_CON[0:2], EM_CLK2_CON[3:5], EM_CLK2B_DC, EM_CLK2_DC */
 	0xC8, /* EM_INT2_CON[0:2], EM_INT1_CON[3:5], EM_INT2_DC, EM_INT1_DC */
@@ -229,33 +229,33 @@ static const u8 tuna_oled_cmd_init_panel_m3[] = {
 static const u8 tuna_oled_cmd_init_panel_sm2[] = {
 	0xF8, /* Panel Condition Set */
 	0x3D, /* DOTC[0:1], GTCON[2:4], SS, DOTC_H[6:7] */
-	0x28, /* FLTE[0:7] */
+	0x35, /* FLTE[0:7] */
 	0x00,
 	0x00,
 	0x00,
-	0x72, /* FLWE */
+	0x93, /* FLWE */
 	0x00,
-	0x2E, /* SCTE[0:7] */
-	0x61, /* SCWE */
-	0x06, /* INTE */
-	0x1E,
-	0x61, /* INTE[0:7] */
-	0x31, /* INWE[0:7] */
+	0x3C, /* SCTE[0:7] */
+	0x7D, /* SCWE */
+	0x08, /* INTE */
+	0x27,
+	0x7D, /* INTE[0:7] */
+	0x3F, /* INWE[0:7] */
 	0x00, /* EMPS */
 	0x00,
 	0x00,
 	0x20,
 	0x04, /* E_FLWE_H[0:7] */
-	0x06, /* E_SCTE[0:7] */
-	0x55, /* E_SCWE[0:7] */
+	0x08, /* E_SCTE[0:7] */
+	0x6E, /* E_SCWE[0:7] */
 	0x00,
 	0x00,
 	0x00,
 	0x02,
-	0x06,
-	0x06,
-	0x1B,
-	0x1B,
+	0x08,
+	0x08,
+	0x23,
+	0x23,
 	0xC0,
 	0xC8, /* CLK2_CON[0:2], CLK1_CON[3:5], CLK2_DC, CLK1_DC */
 	0x08, /* INT2_CON[0:2], INT1_CON[3:5], INT2_DC, INT1_DC */
@@ -820,11 +820,11 @@ static struct omap_dss_device tuna_oled_device = {
 		},
 		.dsi		= {
 			.regn		= 19,	/* DSI_PLL_REGN */
-			.regm		= 192,	/* DSI_PLL_REGM */
+			.regm		= 236,	/* DSI_PLL_REGM */
 
 			.regm_dispc	= 6,	/* PLL_CLK1 (M4) */
 			.regm_dsi	= 6,	/* PLL_CLK2 (M5) */
-			.lp_clk_div	= 7,	/* LPDIV */
+			.lp_clk_div	= 8,	/* LPDIV */
 			.offset_ddr_clk	= 122,	/* DDR PRE & DDR POST
 						 * offset increase
 						 */
