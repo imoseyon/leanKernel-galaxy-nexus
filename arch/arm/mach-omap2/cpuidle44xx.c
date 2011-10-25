@@ -43,7 +43,7 @@
 #define OMAP4_STATE_C2		1
 /* C3 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
 #define OMAP4_STATE_C3		2
-/* C4 - CPU0 OFF + CPU1 OFF + MPU OSWR + CORE OSWR */
+/* C4 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE OSWR */
 #define OMAP4_STATE_C4		3
 
 #define OMAP4_MAX_STATES	4
@@ -118,13 +118,8 @@ static struct cpuidle_params cpuidle_params_table[] = {
 	/* C3 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE CSWR */
 	{.exit_latency = 1200, .target_residency = 1200, .valid = 1},
 #ifdef CONFIG_OMAP_ALLOW_OSWR
-	/* C4 - CPU0 OFF + CPU1 OFF + MPU OSWR + CORE OSWR */
-	/*
-	 * OSWR is disabled to avoid a HW bug that occurs when there is
-	 * no static dependency between mpuss and emif, and mpuss enters
-	 * OSWR
-	 */
-	{.exit_latency = 1500, .target_residency = 1500, .valid = 0},
+	/* C4 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE OSWR */
+	{.exit_latency = 1500, .target_residency = 1500, .valid = 1},
 #else
 	{.exit_latency = 1500, .target_residency = 1500, .valid = 0},
 #endif
@@ -656,7 +651,7 @@ void omap4_init_power_states(void)
 	omap4_power_states[OMAP4_STATE_C3].desc = "CPUs OFF, MPU + CORE CSWR";
 
 	/*
-	 * C4 - CPU0 OFF + CPU1 OFF + MPU OFF + CORE CSWR
+	 * C4 - CPU0 OFF + CPU1 OFF + MPU CSWR + CORE OSWR
 	 */
 	omap4_power_states[OMAP4_STATE_C4].valid =
 			cpuidle_params_table[OMAP4_STATE_C4].valid;
@@ -666,10 +661,10 @@ void omap4_init_power_states(void)
 	omap4_power_states[OMAP4_STATE_C4].target_residency =
 			cpuidle_params_table[OMAP4_STATE_C4].target_residency;
 	omap4_power_states[OMAP4_STATE_C4].mpu_state = PWRDM_POWER_RET;
-	omap4_power_states[OMAP4_STATE_C4].mpu_logic_state = PWRDM_POWER_OFF;
+	omap4_power_states[OMAP4_STATE_C4].mpu_logic_state = PWRDM_POWER_RET;
 	omap4_power_states[OMAP4_STATE_C4].core_state = PWRDM_POWER_RET;
 	omap4_power_states[OMAP4_STATE_C4].core_logic_state = PWRDM_POWER_OFF;
-	omap4_power_states[OMAP4_STATE_C4].desc = "CPUs OFF, MPU + CORE OSWR";
+	omap4_power_states[OMAP4_STATE_C4].desc = "CPUs OFF, MPU CSWR + CORE OSWR";
 
 }
 
