@@ -38,6 +38,7 @@
 #include <linux/spi/spi.h>
 #include <linux/spi/flash.h>
 #include <linux/platform_data/lte_modem_bootloader.h>
+#include <linux/platform_data/ram_console.h>
 #include <plat/mcspi.h>
 #include <linux/i2c-gpio.h>
 
@@ -65,6 +66,7 @@
 #include "control.h"
 #include "mux.h"
 #include "board-tuna.h"
+#include "resetreason.h"
 #include <mach/dmm.h>
 
 #define TUNA_RAMCONSOLE_START	(PLAT_PHYS_OFFSET + SZ_512M)
@@ -215,11 +217,16 @@ static struct resource ramconsole_resources[] = {
 	},
 };
 
+static struct ram_console_platform_data ramconsole_pdata;
+
 static struct platform_device ramconsole_device = {
 	.name           = "ram_console",
 	.id             = -1,
 	.num_resources  = ARRAY_SIZE(ramconsole_resources),
 	.resource       = ramconsole_resources,
+	.dev		= {
+		.platform_data = &ramconsole_pdata,
+	},
 };
 
 static struct platform_device bcm4330_bluetooth_device = {
@@ -1287,6 +1294,7 @@ static void __init tuna_init(void)
 	tuna_i2c_init();
 	tuna_bt_init();
 	tuna_gsd4t_gps_init();
+	ramconsole_pdata.bootinfo = omap4_get_resetreason();
 	platform_add_devices(tuna_devices, ARRAY_SIZE(tuna_devices));
 	board_serial_init();
 	omap2_hsmmc_init(mmc);
