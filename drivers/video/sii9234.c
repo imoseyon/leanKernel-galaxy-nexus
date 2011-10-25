@@ -278,6 +278,7 @@ struct sii9234_data {
 	bool				claimed;
 	enum mhl_state			state;
 	enum rgnd_state			rgnd;
+	int				irq;
 
 	struct mutex			lock;
 };
@@ -598,8 +599,6 @@ static void sii9234_mhl_tx_ctl_int(struct sii9234_data *sii9234)
 
 static void sii9234_power_down(struct sii9234_data *sii9234)
 {
-	disable_irq_nosync(sii9234->pdata->mhl_tx_client->irq);
-
 	if (sii9234->claimed)
 		sii9234->pdata->vbus_present(false);
 
@@ -776,7 +775,7 @@ static int sii9234_detection_callback(struct otg_id_notifier_block *nb)
 		goto unhandled;
 
 	pr_debug("sii9234: waiting for RGND measurement\n");
-	enable_irq(sii9234->pdata->mhl_tx_client->irq);
+	enable_irq(sii9234->irq);
 
 	/* SiI9244 Programmer's Reference Section 2.4.3
 	 * State : RGND Ready
@@ -828,6 +827,8 @@ unhandled:
 	else if (sii9234->state == STATE_CBUS_LOCKOUT)
 		pr_cont(" (cbus_lockout)");
 	pr_cont("\n");
+
+	disable_irq_nosync(sii9234->irq);
 
 	sii9234_power_down(sii9234);
 
@@ -968,8 +969,10 @@ static irqreturn_t sii9234_irq_thread(int irq, void *data)
 			 */
 			/* mhl_disconnection(); */
 			/* Notify Disconnection to OTG */
-			if (sii9234->claimed == true)
+			if (sii9234->claimed == true) {
+				disable_irq_nosync(sii9234->irq);
 				release_otg = true;
+			}
 			sii9234_power_down(sii9234);
 		}
 	}
@@ -1013,6 +1016,8 @@ static int __devinit sii9234_mhl_tx_i2c_probe(struct i2c_client *client,
 	}
 
 	i2c_set_clientdata(client, sii9234);
+
+	sii9234->irq = client->irq;
 
 	init_waitqueue_head(&sii9234->wq);
 	mutex_init(&sii9234->lock);
