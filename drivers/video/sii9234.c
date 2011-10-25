@@ -787,7 +787,7 @@ static int sii9234_detection_callback(struct otg_id_notifier_block *nb)
 				 msecs_to_jiffies(2000));
 
 	mutex_lock(&sii9234->lock);
-	if (ret == 0)
+	if (sii9234->rgnd == RGND_UNKNOWN || mhl_state_is_error(sii9234->state))
 		goto unhandled;
 
 	if (sii9234->rgnd != RGND_1K)
@@ -800,7 +800,7 @@ static int sii9234_detection_callback(struct otg_id_notifier_block *nb)
 				 sii9234->state != STATE_DISCONNECTED,
 				 msecs_to_jiffies(500));
 	mutex_lock(&sii9234->lock);
-	if (ret == 0)
+	if (sii9234->state == STATE_DISCONNECTED)
 		goto unhandled;
 
 	if (sii9234->state == STATE_DISCOVERY_FAILED) {
