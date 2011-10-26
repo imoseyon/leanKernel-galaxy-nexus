@@ -279,6 +279,7 @@ struct sii9234_data {
 	enum mhl_state			state;
 	enum rgnd_state			rgnd;
 	int				irq;
+	bool				rsen;
 
 	struct mutex			lock;
 };
@@ -624,6 +625,7 @@ static int sii9234_detection_callback(struct otg_id_notifier_block *nb)
 	mutex_lock(&sii9234->lock);
 	sii9234->rgnd = RGND_UNKNOWN;
 	sii9234->state = STATE_DISCONNECTED;
+	sii9234->rsen = false;
 
 	/* Set the board configuration so the  SiI9234 has access to the
 	 * external connector.
@@ -811,6 +813,12 @@ static int sii9234_detection_callback(struct otg_id_notifier_block *nb)
 	if (mhl_state_is_error(sii9234->state))
 		goto unhandled;
 
+	mutex_unlock(&sii9234->lock);
+	wait_event_timeout(sii9234->wq, sii9234->rsen, msecs_to_jiffies(400));
+	mutex_lock(&sii9234->lock);
+	if (!sii9234->rsen)
+		goto unhandled;
+
 	pr_info("si9234: connection established\n");
 	sii9234->claimed = true;
 	sii9234->pdata->vbus_present(true);
@@ -956,6 +964,8 @@ static irqreturn_t sii9234_irq_thread(int irq, void *data)
 
 	if (intr1 & RSEN_CHANGE_INT) {
 		ret = mhl_tx_read_reg(sii9234, MHL_TX_SYSSTAT_REG, &value);
+
+		sii9234->rsen = value & RSEN_STATUS;
 
 		if (value & RSEN_STATUS) {
 			pr_info("sii9234: MHL cable connected.. RESN High\n");
