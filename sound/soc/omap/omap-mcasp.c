@@ -512,6 +512,9 @@ static int omap_mcasp_startup(struct snd_pcm_substream *substream,
 {
 	struct omap_mcasp *mcasp = snd_soc_dai_get_drvdata(dai);
 
+	/* HACK: Only allow C2 state */
+	pm_qos_add_request(mcasp->pm_qos, PM_QOS_CPU_DMA_LATENCY, 1150);
+
 	pm_runtime_get_sync(mcasp->dev);
 
 	return 0;
@@ -523,6 +526,9 @@ static void omap_mcasp_shutdown(struct snd_pcm_substream *substream,
 	struct omap_mcasp *mcasp = snd_soc_dai_get_drvdata(dai);
 
 	pm_runtime_put_sync(mcasp->dev);
+
+	/* HACK: remove qos */
+	pm_qos_remove_request(mcasp->pm_qos);
 }
 
 static int omap_mcasp_hw_params(struct snd_pcm_substream *substream,
@@ -659,6 +665,13 @@ static __devinit int omap_mcasp_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto err_dai;
 
+	/* HACK: qos */
+	mcasp->pm_qos = kzalloc(sizeof(struct pm_qos_request_list), GFP_KERNEL);
+	if (!mcasp->pm_qos) {
+		ret = -ENOMEM;
+		goto err_dai;
+	}
+
 	pm_runtime_put_sync(&pdev->dev);
 
 	return 0;
@@ -684,6 +697,8 @@ static __devexit int omap_mcasp_remove(struct platform_device *pdev)
 	clk_put(mcasp->fclk);
 	free_irq(mcasp->irq, (void *)mcasp);
 	iounmap(mcasp->base);
+	/* HACK: qos */
+	kfree(mcasp->pm_qos);
 	kfree(mcasp);
 
 	return 0;
