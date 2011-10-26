@@ -3685,8 +3685,7 @@ static struct omap_hwmod_class omap44xx_mcasp_hwmod_class = {
 /* mcasp */
 static struct omap_hwmod omap44xx_mcasp_hwmod;
 static struct omap_hwmod_irq_info omap44xx_mcasp_irqs[] = {
-	{ .name = "tx", .irq = 109 + OMAP44XX_IRQ_GIC_START },
-	{ .name = "rx", .irq = 0 },
+	{ .irq = 109 + OMAP44XX_IRQ_GIC_START },
 };
 
 static struct omap_hwmod_dma_info omap44xx_mcasp_sdma_reqs[] = {
