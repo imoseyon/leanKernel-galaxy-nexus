@@ -514,8 +514,6 @@ static int omap_mcasp_startup(struct snd_pcm_substream *substream,
 
 	pm_runtime_get_sync(mcasp->dev);
 
-	mcasp_set_reg(mcasp->base + OMAP_MCASP_SYSCONFIG_REG, 0x1);
-
 	return 0;
 }
 
@@ -523,8 +521,6 @@ static void omap_mcasp_shutdown(struct snd_pcm_substream *substream,
 				struct snd_soc_dai *dai)
 {
 	struct omap_mcasp *mcasp = snd_soc_dai_get_drvdata(dai);
-
-	mcasp_set_reg(mcasp->base + OMAP_MCASP_SYSCONFIG_REG, 0x2);
 
 	pm_runtime_put_sync(mcasp->dev);
 }
