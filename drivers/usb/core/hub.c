@@ -2418,6 +2418,9 @@ static int finish_port_resume(struct usb_device *udev)
  retry_reset_resume:
 		status = usb_reset_and_verify_device(udev);
 
+	if (udev->quirks & USB_QUIRK_NO_GET_STATUS)
+		goto done;
+
  	/* 10.5.4.5 says be sure devices in the tree are still there.
  	 * For now let's assume the device didn't go crazy on resume,
 	 * and device drivers will know about any resume quirks.
@@ -2457,6 +2460,7 @@ static int finish_port_resume(struct usb_device *udev)
 		}
 		status = 0;
 	}
+done:
 	return status;
 }
 

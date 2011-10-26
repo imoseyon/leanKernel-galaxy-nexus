@@ -97,7 +97,8 @@ static const struct usb_device_id usb_quirk_list[] = {
 	{ USB_DEVICE(0x8086, 0xf1a5), .driver_info = USB_QUIRK_RESET_RESUME },
 
 	/* CMC221 LTE Modem */
-	{ USB_DEVICE(0x04e8, 0x6999), .driver_info = USB_QUIRK_NO_RESET_RESUME },
+	{ USB_DEVICE(0x04e8, 0x6999), .driver_info =
+		USB_QUIRK_NO_RESET_RESUME | USB_QUIRK_NO_GET_STATUS },
 
 	{ }  /* terminating entry must be last */
 };
