@@ -43,7 +43,6 @@
 #include <plat/omap-pm.h>
 #include <video/omapdss.h>
 
-#include "../clockdomain.h"
 #include "dss.h"
 #include "dss_features.h"
 #include "dispc.h"
@@ -59,8 +58,6 @@
 					 DISPC_IRQ_SYNC_LOST_DIGIT)
 
 #define DISPC_MAX_NR_ISRS		8
-
-static struct clockdomain *l3_1_clkdm;
 
 struct omap_dispc_isr_data {
 	omap_dispc_isr_t	isr;
@@ -528,15 +525,6 @@ int dispc_runtime_get(void)
 	if (dispc.runtime_count++ == 0) {
 		DSSDBG("dispc_runtime_get\n");
 
-		/*
-		 * With the DSS FIFO optimizations, ramdom lockups and reboots
-		 * are seen. It has been identified that L3_1 CD is idling and
-		 * not responding to the traffic initiated by DSS.  The
-		 * Workaround suggested by Hardware team is to keep the L3_1
-		 * CD in NO_SLEEP mode, when DSS is active.
-		 */
-		clkdm_deny_idle(l3_1_clkdm);
-
 		r = dss_runtime_get();
 		if (r)
 			goto err_dss_get;
@@ -582,13 +570,6 @@ void dispc_runtime_put(void)
 		clk_disable(dispc.dss_clk);
 
 		dss_runtime_put();
-
-		/*
-		 * Restore the L3_1 CD to HW_AUTO, when DSS module idles.
-		 * When DSS is idle, we can allow L3_1 to idle.
-		 */
-		clkdm_allow_idle(l3_1_clkdm);
-
 	}
 
 	mutex_unlock(&dispc.runtime_lock);
@@ -3982,8 +3963,6 @@ static void _omap_dispc_initial_config(void)
 		l = FLD_MOD(l, 1, 23, 16);
 		dispc_write_reg(DISPC_DIVISOR, l);
 	}
-
-	l3_1_clkdm = clkdm_lookup("l3_1_clkdm");
 
 	/* FUNCGATED */
 	if (dss_has_feature(FEAT_FUNCGATED))
