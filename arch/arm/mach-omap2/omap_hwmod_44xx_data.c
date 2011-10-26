@@ -3747,6 +3747,7 @@ static struct omap_hwmod_ocp_if *omap44xx_mcasp_slaves[] = {
 static struct omap_hwmod omap44xx_mcasp_hwmod = {
 	.name		= "omap-mcasp-dai",
 	.class		= &omap44xx_mcasp_hwmod_class,
+	.flags		= HWMOD_SWSUP_SIDLE,
 	.mpu_irqs	= omap44xx_mcasp_irqs,
 	.mpu_irqs_cnt	= ARRAY_SIZE(omap44xx_mcasp_irqs),
 	.sdma_reqs	= omap44xx_mcasp_sdma_reqs,
