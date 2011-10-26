@@ -36,6 +36,8 @@
 #include <plat/gpmc.h>
 #include <plat/dma.h>
 
+#include <mach/omap_fiq_debugger.h>
+
 #include "powerdomain.h"
 #include "clockdomain.h"
 #include "pm.h"
@@ -977,6 +979,7 @@ static irqreturn_t prcm_interrupt_handler (int irq, void *dev_id)
 		omap_uart_resume_idle();
 		if (!machine_is_tuna())
 			usbhs_wakeup();
+		omap_debug_uart_resume_idle();
 		omap4_trigger_ioctrl();
 	}
 
