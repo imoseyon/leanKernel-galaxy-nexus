@@ -378,7 +378,7 @@ static void omap_mcasp_stop(struct omap_mcasp *mcasp)
 }
 
 /* S/PDIF */
-static int omap_hw_dit_param(struct omap_mcasp *mcasp, unsigned int rate)
+static int omap_mcasp_setup(struct omap_mcasp *mcasp, unsigned int rate)
 {
 	u32 aclkxdiv, ahclkxdiv, ditcsr;
 	int res;
@@ -496,7 +496,7 @@ static irqreturn_t omap_mcasp_irq_handler(int irq, void *data)
 			dev_err(mcasp->dev, "%s: Trying to recover\n",
 				__func__);
 			omap_mcasp_stop(mcasp);
-			omap_hw_dit_param(mcasp, mcasp->stream_rate);
+			omap_mcasp_setup(mcasp, mcasp->stream_rate);
 			omap_mcasp_start(mcasp);
 		}
 		spin_unlock(&mcasp->lock);
@@ -534,7 +534,7 @@ static int omap_mcasp_hw_params(struct snd_pcm_substream *substream,
 
 	omap_mcasp_stop(mcasp);
 
-	if (omap_hw_dit_param(mcasp, params_rate(params)) < 0)
+	if (omap_mcasp_setup(mcasp, params_rate(params)) < 0)
 		return -EPERM;
 
 	snd_soc_dai_set_dma_data(dai, substream,
