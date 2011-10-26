@@ -600,7 +600,7 @@ static void sii9234_power_down(struct sii9234_data *sii9234)
 {
 	disable_irq_nosync(sii9234->pdata->mhl_tx_client->irq);
 
-	if (sii9234->state == STATE_ESTABLISHED)
+	if (sii9234->claimed)
 		sii9234->pdata->vbus_present(false);
 
 	sii9234->state = STATE_DISCONNECTED;
