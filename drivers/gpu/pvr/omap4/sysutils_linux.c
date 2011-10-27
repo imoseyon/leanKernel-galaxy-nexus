@@ -61,6 +61,10 @@
 #define SGX_PARENT_CLOCK "core_ck"
 #endif
 
+extern bool sgx_idle_logging;
+extern uint sgx_idle_mode;
+extern uint sgx_idle_timeout;
+
 #if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
 extern struct platform_device *gpsPVRLDMDev;
 #endif
@@ -191,7 +195,8 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 	{
 		int res;
 
-		RequestSGXFreq(psSysData, IMG_TRUE);
+		if (sgx_idle_mode == 0)
+			RequestSGXFreq(psSysData, IMG_TRUE);
 
 		res = pm_runtime_get_sync(&gpsPVRLDMDev->dev);
 		if (res < 0)
@@ -243,7 +248,8 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 			PVR_DPF((PVR_DBG_ERROR, "DisableSGXClocks: pm_runtime_put_sync failed (%d)", -res));
 		}
 
-		RequestSGXFreq(psSysData, IMG_FALSE);
+		if (sgx_idle_mode == 0)
+			RequestSGXFreq(psSysData, IMG_FALSE);
 	}
 #endif
 

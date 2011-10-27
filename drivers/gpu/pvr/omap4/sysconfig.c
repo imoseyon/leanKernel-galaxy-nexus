@@ -51,6 +51,8 @@ static SGX_DEVICE_MAP		gsSGXDeviceMap;
 static PVRSRV_DEVICE_NODE	*gpsSGXDevNode;
 
 extern bool sgx_idle_logging;
+extern uint sgx_idle_mode;
+extern uint sgx_idle_timeout;
 
 #if defined(NO_HARDWARE) || defined(SGX_OCP_REGS_ENABLED)
 static IMG_CPU_VIRTADDR gsSGXRegsCPUVAddr;
@@ -1176,12 +1178,68 @@ static void sgx_idle_log_init(void)
 		PVR_DPF((PVR_DBG_ERROR,"Failed to creat sgx_idle debug file"));
 }
 
+static ktime_t sgx_idle_last_busy;
+static struct hrtimer sgx_idle_timer;
+static struct workqueue_struct *sgx_idle_wq;
+static struct work_struct sgx_idle_work;
+
+void RequestSGXFreq(SYS_DATA *psSysData, IMG_BOOL bMaxFreq);
+
+enum hrtimer_restart sgx_idle_timer_callback(struct hrtimer *timer)
+{
+	queue_work(sgx_idle_wq, &sgx_idle_work);
+	return HRTIMER_NORESTART;
+}
+
+void sgx_idle_work_func(struct work_struct *work)
+{
+	sgx_idle_log_event(SGX_SLOW);
+	RequestSGXFreq(gpsSysData, IMG_FALSE);
+}
+
 IMG_VOID SysSGXIdleTransition(IMG_BOOL bSGXIdle)
 {
+	int ret;
+
 	if (bSGXIdle) {
 		sgx_idle_log_event(SGX_IDLE);
+		if (sgx_idle_mode != 0) {
+			uint timeout = sgx_idle_timeout;
+
+			if (sgx_idle_mode == 2) {
+				ktime_t diff;
+
+				diff = ktime_sub(ktime_get(),
+						 sgx_idle_last_busy);
+
+				if (ktime_to_ns(diff) < 2 * NSEC_PER_MSEC)
+					timeout = 3 * NSEC_PER_MSEC -
+						ktime_to_ns(diff);
+			}
+
+			hrtimer_start(&sgx_idle_timer,
+				      ktime_set(0, timeout),
+				      HRTIMER_MODE_REL);
+		}
 	} else {
+		if (sgx_idle_mode != 0) {
+			bool fast = true;
+
+			ret = hrtimer_cancel(&sgx_idle_timer);
+			if (ret)
+				fast = false;
+
+			ret = cancel_work_sync(&sgx_idle_work);
+			if (ret)
+				fast = false;
+
+			if (fast)
+				sgx_idle_log_event(SGX_FAST);
+
+			RequestSGXFreq(gpsSysData, IMG_TRUE);
+		}
 		sgx_idle_log_event(SGX_BUSY);
+		sgx_idle_last_busy = ktime_get();
 	}
 	PVR_DPF((PVR_DBG_MESSAGE, "SysSGXIdleTransition switch to %u", bSGXIdle));
 }
@@ -1189,6 +1247,13 @@ IMG_VOID SysSGXIdleTransition(IMG_BOOL bSGXIdle)
 static void sgx_idle_init(void)
 {
 	sgx_idle_log_init();
+	hrtimer_init(&sgx_idle_timer, HRTIMER_BASE_MONOTONIC,
+		     HRTIMER_MODE_REL);
+	sgx_idle_timer.function = sgx_idle_timer_callback;
+	sgx_idle_wq = alloc_ordered_workqueue("sgx_idle", WQ_HIGHPRI);
+	INIT_WORK(&sgx_idle_work, sgx_idle_work_func);
+
+	/* XXX: need a sgx_idle_deinit() */
 }
 
 PVRSRV_ERROR SysOEMFunction (	IMG_UINT32	ui32ID,

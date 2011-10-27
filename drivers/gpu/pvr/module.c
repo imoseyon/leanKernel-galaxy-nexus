@@ -123,8 +123,23 @@ module_param(gPVRDebugLevel, uint, 0644);
 MODULE_PARM_DESC(gPVRDebugLevel, "Sets the level of debug output (default 0x7)");
 #endif 
 
+#if defined(CONFIG_SGX_DVFS_MODE_NONE)
+#define DEFAULT_IDLE_MODE	0
+#elif defined(CONFIG_SGX_DVFS_MODE_LINEAR)
+#define DEFAULT_IDLE_MODE	1
+#elif defined(CONFIG_SGX_DVFS_MODE_OPTIMIZED)
+#define DEFAULT_IDLE_MODE	2
+#else
+#error "sgx ide mode not defined"
+#endif
+
 bool sgx_idle_logging = false;
 module_param(sgx_idle_logging, bool, 0644);
+uint sgx_idle_mode = DEFAULT_IDLE_MODE;
+module_param(sgx_idle_mode, uint, 0644);
+uint sgx_idle_timeout = CONFIG_SGX_DVFS_IDLE_TIMEOUT * NSEC_PER_USEC;
+module_param(sgx_idle_timeout, uint, 0644);
+
 
 #if defined(CONFIG_ION_OMAP)
 #include <linux/ion.h>
