@@ -54,8 +54,9 @@ usb_free_urbs(struct usb_link_device *usb_ld, struct if_usb_devdata *pipe)
 		usb_poison_urb(urb);
 		usb_free_coherent(usbdev, pipe->rx_buf_size,
 				urb->transfer_buffer, urb->transfer_dma);
-		usb_free_urb(urb);
 		urb->transfer_buffer = NULL;
+		usb_put_urb(urb);
+		usb_free_urb(urb);
 	}
 }
 
