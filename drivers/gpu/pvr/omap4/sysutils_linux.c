@@ -171,6 +171,9 @@ void RequestSGXFreq(SYS_DATA *psSysData, IMG_BOOL bMaxFreq)
 
 }
 
+void sgx_idle_log_on(void);
+void sgx_idle_log_off(void);
+
 PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 {
 #if !defined(NO_HARDWARE)
@@ -206,6 +209,9 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 #else	
 	PVR_UNREFERENCED_PARAMETER(psSysData);
 #endif	
+
+	sgx_idle_log_on();
+
 	return PVRSRV_OK;
 }
 
@@ -220,6 +226,8 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 	{
 		return;
 	}
+
+	sgx_idle_log_off();
 
 	PVR_DPF((PVR_DBG_MESSAGE, "DisableSGXClocks: Disabling SGX Clocks"));
 

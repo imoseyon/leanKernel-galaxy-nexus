@@ -123,6 +123,9 @@ module_param(gPVRDebugLevel, uint, 0644);
 MODULE_PARM_DESC(gPVRDebugLevel, "Sets the level of debug output (default 0x7)");
 #endif 
 
+bool sgx_idle_logging = false;
+module_param(sgx_idle_logging, bool, 0644);
+
 #if defined(CONFIG_ION_OMAP)
 #include <linux/ion.h>
 #include <linux/omap_ion.h>

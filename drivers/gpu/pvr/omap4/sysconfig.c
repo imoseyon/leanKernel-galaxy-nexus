@@ -24,6 +24,12 @@
  *
  ******************************************************************************/
 
+#include <linux/debugfs.h>
+#include <linux/hrtimer.h>
+#include <linux/ktime.h>
+#include <linux/seq_file.h>
+#include <linux/vmalloc.h>
+
 #include "sysconfig.h"
 #include "services_headers.h"
 #include "kerneldisplay.h"
@@ -44,6 +50,7 @@ static IMG_UINT32			gui32SGXDeviceID;
 static SGX_DEVICE_MAP		gsSGXDeviceMap;
 static PVRSRV_DEVICE_NODE	*gpsSGXDevNode;
 
+extern bool sgx_idle_logging;
 
 #if defined(NO_HARDWARE) || defined(SGX_OCP_REGS_ENABLED)
 static IMG_CPU_VIRTADDR gsSGXRegsCPUVAddr;
@@ -59,6 +66,8 @@ IMG_UINT32 PVRSRV_BridgeDispatchKM(IMG_UINT32	Ioctl,
 								   IMG_BYTE		*pOutBuf,
 								   IMG_UINT32	OutBufLen,
 								   IMG_UINT32	*pdwBytesTransferred);
+
+static void sgx_idle_init(void);
 
 #if defined(SGX_OCP_REGS_ENABLED)
 
@@ -482,7 +491,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 	}
 #endif 
 
-
+	sgx_idle_init();
 	return PVRSRV_OK;
 }
 
@@ -958,11 +967,229 @@ PVRSRV_ERROR SysDevicePostPowerState(IMG_UINT32				ui32DeviceIndex,
 }
 
 
+enum sgx_idle_event_type {
+	SGX_NONE = 0,
+	SGX_IDLE,
+	SGX_BUSY,
+	SGX_FLIP,
+	SGX_SLOW,
+	SGX_FAST,
+	SGX_OFF,
+	SGX_ON,
+};
+
+const char *sgx_idle_event_str[] = {
+	[SGX_NONE]	= "none",
+	[SGX_IDLE]	= "  idle",
+	[SGX_BUSY]	= "  busy",
+	[SGX_FLIP]	= "flip",
+	[SGX_SLOW]	= "    slow",
+	[SGX_FAST]	= "    fast",
+	[SGX_OFF]	= "      off",
+	[SGX_ON]	= "      on",
+};
+
+struct sgx_idle_event {
+	enum sgx_idle_event_type	type;
+	ktime_t				timestamp;
+};
+
+static struct sgx_idle_event sgx_idle_log[1024 * 10];
+static int sgx_idle_log_head;
+static int sgx_idle_log_tail;
+static DEFINE_MUTEX(sgx_idle_log_lock);
+
+static void sgx_idle_log_event(enum sgx_idle_event_type type)
+{
+	if (!sgx_idle_logging)
+		return;
+
+	mutex_lock(&sgx_idle_log_lock);
+
+	sgx_idle_log[sgx_idle_log_head].type = type;
+	sgx_idle_log[sgx_idle_log_head].timestamp = ktime_get();
+
+	sgx_idle_log_head++;
+	if (sgx_idle_log_head >= ARRAY_SIZE(sgx_idle_log))
+		sgx_idle_log_head = 0;
+	if (sgx_idle_log_head == sgx_idle_log_tail) {
+		sgx_idle_log_tail++;
+		if (sgx_idle_log_tail >= ARRAY_SIZE(sgx_idle_log))
+			sgx_idle_log_tail = 0;
+	}
+
+	mutex_unlock(&sgx_idle_log_lock);
+}
+
+void sgx_idle_log_flip(void)
+{
+	sgx_idle_log_event(SGX_FLIP);
+}
+
+void sgx_idle_log_on(void)
+{
+	sgx_idle_log_event(SGX_ON);
+}
+
+void sgx_idle_log_off(void)
+{
+	sgx_idle_log_event(SGX_OFF);
+}
+
+struct sgx_idle_seq_data {
+	struct sgx_idle_event log[ARRAY_SIZE(sgx_idle_log)];
+	int size;
+	int pos;
+};
+
+static void *sgx_idle_log_seq_start(struct seq_file *s, loff_t *pos)
+{
+	struct sgx_idle_seq_data *data = s->private;
+
+	if (*pos >= data->size)
+		return NULL;
+	data->pos = *pos;
+	return data;
+}
+
+static void sgx_idle_log_seq_stop(struct seq_file *s, void *v)
+{
+}
+
+static void *sgx_idle_log_seq_next(struct seq_file *s, void *v, loff_t *pos)
+{
+	struct sgx_idle_seq_data *data = v;
+
+	data->pos = ++(*pos);
+	if (data->pos >= data->size)
+		return NULL;
+
+	return data;
+}
+
+static int sgx_idle_log_find_next(struct sgx_idle_seq_data *data, int pos,
+				  enum sgx_idle_event_type type)
+{
+	for(; pos < data->size; pos++) {
+		if (data->log[pos].type == type)
+			return pos;
+	}
+
+	return -1;
+}
+
+static int sgx_idle_log_seq_show(struct seq_file *s, void *v)
+{
+	struct sgx_idle_seq_data *data = v;
+	struct sgx_idle_event *e = &data->log[data->pos];
+	struct timespec ts = ktime_to_timespec(e->timestamp);
+	int next = -1;
+
+	seq_printf(s, "[%lu.%06lu] %s", ts.tv_sec, ts.tv_nsec / NSEC_PER_USEC,
+		   sgx_idle_event_str[e->type]);
+	if (e->type == SGX_IDLE)
+		next = sgx_idle_log_find_next(data, data->pos, SGX_BUSY);
+	else if (e->type == SGX_BUSY)
+		next = sgx_idle_log_find_next(data, data->pos, SGX_IDLE);
+
+	if (next > 0) {
+		struct sgx_idle_event *e1 = &data->log[next];
+		ktime_t diff = ktime_sub(e1->timestamp, e->timestamp);
+		ts = ktime_to_timespec(diff);
+
+		seq_printf(s, " for %lu.%06lu", ts.tv_sec,
+			   ts.tv_nsec / NSEC_PER_USEC);
+	}
+
+	seq_printf(s, "\n");
+
+	return 0;
+}
+
+static const struct seq_operations sgx_idle_log_seq_ops = {
+	.start = sgx_idle_log_seq_start,
+	.next = sgx_idle_log_seq_next,
+	.stop = sgx_idle_log_seq_stop,
+	.show = sgx_idle_log_seq_show,
+};
+
+static int sgx_idle_log_open(struct inode *inode, struct file *file)
+{
+	struct sgx_idle_seq_data *data;
+	struct seq_file *seq;
+	int ret;
+	int pos;
+
+	ret = seq_open(file, &sgx_idle_log_seq_ops);
+	if (ret < 0)
+		goto err;
+
+	data = vmalloc(sizeof(*data));
+	if (!data)
+		goto err_seq_release;
+
+	mutex_lock(&sgx_idle_log_lock);
+	data->size = 0;
+	pos = sgx_idle_log_tail;
+	while (pos != sgx_idle_log_head) {
+		data->log[data->size] = sgx_idle_log[pos];
+		data->size++;
+		pos++;
+		if (pos >= ARRAY_SIZE(sgx_idle_log))
+			pos = 0;
+	}
+	mutex_unlock(&sgx_idle_log_lock);
+
+	seq = file->private_data;
+	seq->private = data;
+
+	return 0;
+
+err_seq_release:
+	seq_release(inode, file);
+err:
+	return ret;
+}
+
+static int sgx_idle_log_release(struct inode *inode, struct file *file)
+{
+	struct seq_file *seq;
+	seq = file->private_data;
+	vfree(seq->private);
+	return seq_release(inode, file);
+}
+
+static const struct file_operations sgx_idle_log_fops = {
+	.open = sgx_idle_log_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = sgx_idle_log_release,
+};
+
+static void sgx_idle_log_init(void)
+{
+	struct dentry *d;
+
+	d = debugfs_create_file("sgx_idle", S_IRUGO, NULL,
+				NULL, &sgx_idle_log_fops);
+	if (IS_ERR_OR_NULL(d))
+		PVR_DPF((PVR_DBG_ERROR,"Failed to creat sgx_idle debug file"));
+}
+
 IMG_VOID SysSGXIdleTransition(IMG_BOOL bSGXIdle)
 {
+	if (bSGXIdle) {
+		sgx_idle_log_event(SGX_IDLE);
+	} else {
+		sgx_idle_log_event(SGX_BUSY);
+	}
 	PVR_DPF((PVR_DBG_MESSAGE, "SysSGXIdleTransition switch to %u", bSGXIdle));
 }
 
+static void sgx_idle_init(void)
+{
+	sgx_idle_log_init();
+}
 
 PVRSRV_ERROR SysOEMFunction (	IMG_UINT32	ui32ID,
 								IMG_VOID	*pvIn,
