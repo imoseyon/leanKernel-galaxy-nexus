@@ -465,7 +465,7 @@ static void __init omap_4430hsi_pad_conf(void)
 	/* hsi1_acready */
 	omap_mux_init_signal("usbb1_ulpitll_nxt.hsi1_acready", \
 		OMAP_PIN_OUTPUT | \
-		OMAP_PIN_OFF_OUTPUT_LOW);
+		OMAP_OFF_EN);
 	/* hsi1_acwake */
 	omap_mux_init_signal("usbb1_ulpitll_dat0.hsi1_acwake", \
 		OMAP_PIN_OUTPUT | \
