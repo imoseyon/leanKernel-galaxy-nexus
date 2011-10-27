@@ -1052,7 +1052,12 @@ retry_send:
 		pr_err("[MIPI-HSI] ch=%d, ack_done timeout\n",
 					channel->channel_id);
 
-		if (mipi_ld->ld.com_state == COM_ONLINE) {
+		list_for_each_entry(iod, &mipi_ld->list_of_io_devices, list)
+			if (iod->format == IPC_FMT)
+				break;
+
+		if ((mipi_ld->ld.com_state == COM_ONLINE) &&
+			(iod->mc->phone_state == STATE_ONLINE)) {
 			channel->send_step = STEP_SEND_OPEN_CONN;
 			hsi_conn_err_recovery(mipi_ld);
 
@@ -1176,10 +1181,8 @@ static int if_hsi_write(struct if_hsi_channel *channel, u32 *data,
 		pr_err("[MIPI-HSI] ch=%d, hsi_write_done timeout : %d\n",
 					channel->channel_id, size);
 
-		pr_err("[MIPI-HSI] data : %08x %08x %08x %08x %08x ...\n",
-			*channel->tx_data, *(channel->tx_data + 1),
-			*(channel->tx_data + 2), *(channel->tx_data + 3),
-			*(channel->tx_data + 4));
+		print_hex_dump_bytes("[HSI]", DUMP_PREFIX_OFFSET,
+						channel->tx_data, size);
 
 		hsi_write_cancel(channel->dev);
 
@@ -1194,10 +1197,10 @@ static int if_hsi_write(struct if_hsi_channel *channel, u32 *data,
 		pr_err("[MIPI-HSI] ch:%d,write_done fail,write_size:%d,origin_size:%d\n",
 				channel->channel_id, channel->tx_count, size);
 
-	pr_debug("[MIPI-HSI] len:%d, id:%d, data : %08x %08x %08x %08x %08x ...\n",
-		channel->tx_count, channel->channel_id, *channel->tx_data,
-		*(channel->tx_data + 1), *(channel->tx_data + 2),
-		*(channel->tx_data + 3), *(channel->tx_data + 4));
+#ifdef DEBUG
+	print_hex_dump_bytes("[HSI]", DUMP_PREFIX_OFFSET,
+					channel->tx_data, size);
+#endif
 
 	return channel->tx_count;
 }
