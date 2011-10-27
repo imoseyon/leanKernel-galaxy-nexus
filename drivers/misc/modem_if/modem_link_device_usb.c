@@ -21,6 +21,7 @@
 #include <linux/poll.h>
 #include <linux/gpio.h>
 #include <linux/if_arp.h>
+#include <plat/omap-pm.h>
 
 #include <linux/platform_data/modem.h>
 #include "modem_prj.h"
@@ -680,8 +681,15 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 			queue_delayed_work(ld->tx_wq, &ld->tx_delayed_work, 0);
 
 		usb_change_modem_state(usb_ld, STATE_ONLINE);
+		omap_pm_set_min_bus_tput(&usbdev->dev,
+						OCP_INITIATOR_AGENT,
+						-1);
+
 	} else {
 		usb_change_modem_state(usb_ld, STATE_LOADER_DONE);
+		omap_pm_set_min_bus_tput(&usbdev->dev,
+						OCP_INITIATOR_AGENT,
+						(200*1000*4));
 	}
 
 	return 0;
