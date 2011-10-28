@@ -33,7 +33,8 @@
 
 #include <linux/platform_data/lte_modem_bootloader.h>
 
-#define LEN_XMIT_DELEY	100
+#define LEN_XMIT_DELEY	10
+#define MAX_XMIT_SIZE	16
 
 #ifdef AIRPLAIN_MODE_TEST
 int lte_airplain_mode;
@@ -57,22 +58,23 @@ struct lte_modem_bootloader {
 
 static inline
 int spi_xmit(struct lte_modem_bootloader *loader,
-		const unsigned char val)
+		const char *buf, int size_per_xmit)
 {
-	unsigned char buf[1];
+	int i;
 	int ret;
+	unsigned char xmit_buf[MAX_XMIT_SIZE];
 	struct spi_message msg;
+	struct spi_transfer xfers[MAX_XMIT_SIZE];
 
-	struct spi_transfer xfer = {
-		.len = 1,
-		.tx_buf = buf,
-	};
-
-	buf[0] = val;
-
+	memcpy(xmit_buf, buf, sizeof(xmit_buf));
 	spi_message_init(&msg);
-	spi_message_add_tail(&xfer, &msg);
-
+	memset(xfers, 0, sizeof(xfers));
+	for (i = 0; i < size_per_xmit ; i++) {
+		xfers[i].cs_change = 1;
+		xfers[i].len = 1;
+		xfers[i].tx_buf = xmit_buf + i;
+		spi_message_add_tail(&xfers[i], &msg);
+	}
 	ret = spi_sync(loader->spi_dev, &msg);
 
 	if (ret < 0)
@@ -81,6 +83,7 @@ int spi_xmit(struct lte_modem_bootloader *loader,
 
 	return ret;
 }
+
 
 static
 int bootloader_write(struct lte_modem_bootloader *loader,
@@ -92,19 +95,21 @@ int bootloader_write(struct lte_modem_bootloader *loader,
 
 	if (loader->xmit_status == XMIT_LOADER_READY) {
 		memcpy(lenbuf, &len, ARRAY_SIZE(lenbuf));
-		for (i = 0 ; i < ARRAY_SIZE(lenbuf) ; i++) {
-			ret = spi_xmit(loader, lenbuf[i]);
-			if (ret < 0)
-				return ret;
-		}
+		ret = spi_xmit(loader, lenbuf,
+				ARRAY_SIZE(lenbuf));
+		if (ret < 0)
+			return ret;
 		msleep(LEN_XMIT_DELEY);
 	}
 
-	for (i = 0 ; i < len ; i++) {
-		ret = spi_xmit(loader, addr[i]);
+	for (i = 0 ; i < len / MAX_XMIT_SIZE ; i++) {
+		ret = spi_xmit(loader,
+				addr + i * MAX_XMIT_SIZE,
+				MAX_XMIT_SIZE);
 		if (ret < 0)
 			return ret;
 	}
+	ret = spi_xmit(loader, addr + i * MAX_XMIT_SIZE , len % MAX_XMIT_SIZE);
 
 	return 0;
 }
