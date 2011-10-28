@@ -2295,6 +2295,9 @@ static int musb_bus_suspend(struct usb_hcd *hcd)
 
 static int musb_bus_resume(struct usb_hcd *hcd)
 {
+	struct musb     *musb = hcd_to_musb(hcd);
+
+	wake_lock_timeout(&musb->musb_wakelock, msecs_to_jiffies(3000));
 	/* resuming child port does the work */
 	return 0;
 }
