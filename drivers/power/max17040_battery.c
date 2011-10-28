@@ -109,6 +109,8 @@ static int max17040_get_property(struct power_supply *psy,
 		val->intval = chip->soc;
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
+		if (!chip->pdata->get_bat_temp)
+			return -ENODATA;
 		val->intval = chip->bat_temp;
 		break;
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
@@ -428,8 +430,9 @@ static enum power_supply_property max17040_battery_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_CAPACITY,
-	POWER_SUPPLY_PROP_TEMP,
 	POWER_SUPPLY_PROP_TECHNOLOGY,
+	/* must be last */
+	POWER_SUPPLY_PROP_TEMP,
 };
 
 static int max17040_pm_notifier(struct notifier_block *notifier,
@@ -488,6 +491,7 @@ static int __devinit max17040_probe(struct i2c_client *client,
 	int ret;
 	u16 val;
 	u16 athd;
+	int num_props = ARRAY_SIZE(max17040_battery_props);
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE))
 		return -EIO;
@@ -499,13 +503,16 @@ static int __devinit max17040_probe(struct i2c_client *client,
 	chip->client = client;
 	chip->pdata = client->dev.platform_data;
 
+	if (!chip->pdata->get_bat_temp)
+		num_props--;
+
 	i2c_set_clientdata(client, chip);
 
 	chip->battery.name		= "battery";
 	chip->battery.type		= POWER_SUPPLY_TYPE_BATTERY;
 	chip->battery.get_property	= max17040_get_property;
 	chip->battery.properties	= max17040_battery_props;
-	chip->battery.num_properties	= ARRAY_SIZE(max17040_battery_props);
+	chip->battery.num_properties	= num_props;
 	chip->battery.external_power_changed	= max17040_ext_power_changed;
 
 	chip->bat_health = POWER_SUPPLY_HEALTH_GOOD;
