@@ -39,6 +39,7 @@ CONFIG_SMP=y
 CONFIG_NR_CPUS=2
 CONFIG_PREEMPT=y
 CONFIG_HIGHMEM=y
+CONFIG_COMPACTION=y
 CONFIG_ARM_FLUSH_CONSOLE_ON_RESTART=y
 CONFIG_CMDLINE="console=ttyFIQ0 androidboot.console=ttyFIQ0 mem=1G vmalloc=768M omap_wdt.timer_margin=30 no_console_suspend"
 CONFIG_CMDLINE_EXTEND=y
