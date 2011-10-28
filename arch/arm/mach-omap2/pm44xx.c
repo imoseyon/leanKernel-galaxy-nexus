@@ -1080,7 +1080,7 @@ static int __init omap4_pm_init(void)
 
 	ret = request_irq(OMAP44XX_IRQ_PRCM,
 			  (irq_handler_t)prcm_interrupt_handler,
-			  IRQF_DISABLED, "prcm", NULL);
+			  IRQF_NO_SUSPEND | IRQF_DISABLED, "prcm", NULL);
 	if (ret) {
 		printk(KERN_ERR "request_irq failed to register for 0x%x\n",
 		       OMAP44XX_IRQ_PRCM);
