@@ -46,6 +46,7 @@
 #include <plat/omap_hwmod.h>
 #include <plat/usb.h>
 #include <plat/clock.h>
+#include <plat/omap-pm.h>
 
 /* EHCI Register Set */
 #define EHCI_INSNREG04					(0xA0)
@@ -379,6 +380,10 @@ static int ehci_omap_bus_suspend(struct usb_hcd *hcd)
 			clk_disable(clk);
 	}
 
+	omap_pm_set_min_bus_tput(dev,
+			OCP_INITIATOR_AGENT,
+			-1);
+
 	return ret;
 }
 
@@ -398,6 +403,10 @@ static int ehci_omap_bus_resume(struct usb_hcd *hcd)
 		if (clk)
 			clk_enable(clk);
 	}
+
+	omap_pm_set_min_bus_tput(dev,
+			OCP_INITIATOR_AGENT,
+			(200*1000*4));
 
 	if (dev->parent) {
 		pm_runtime_get_sync(dev->parent);
