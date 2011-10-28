@@ -43,206 +43,12 @@
 #define ADC_NUM_SAMPLES		5
 #define ADC_LIMIT_ERR_COUNT	5
 #define ISET_ADC_CHANNEL	3
-#define TEMP_ADC_CHANNEL	1
 
 #define CHARGE_FULL_ADC		203
-
-#define HIGH_BLOCK_TEMP_MAGURO 500
-#define HIGH_RECOVER_TEMP_MAGURO 420
-#define LOW_BLOCK_TEMP_MAGURO (-50)
-#define LOW_RECOVER_TEMP_MAGURO 0
-
-#define HIGH_BLOCK_TEMP_TORO 470
-#define HIGH_RECOVER_TEMP_TORO 400
-#define LOW_BLOCK_TEMP_TORO (-30)
-#define LOW_RECOVER_TEMP_TORO 0
-
-/**
-** temp_adc_table_data
-** @adc_value : thermistor adc value
-** @temperature : temperature(C) * 10
-**/
-struct temp_adc_table_data {
-	int adc_value;
-	int temperature;
-};
 
 static DEFINE_SPINLOCK(charge_en_lock);
 static int charger_state;
 static bool is_charging_mode;
-
-static struct temp_adc_table_data temper_table_maguro[] = {
-	/* ADC, Temperature (C/10) */
-	{ 75,	700     },
-	{ 78,	690     },
-	{ 82,	680     },
-	{ 84,	670     },
-	{ 87,	660     },
-	{ 89,	650     },
-	{ 92,	640     },
-	{ 95,	630     },
-	{ 99,	620     },
-	{ 102,	610     },
-	{ 105,	600     },
-	{ 109,	590     },
-	{ 113,	580     },
-	{ 117,	570     },
-	{ 121,	560     },
-	{ 124,	550     },
-	{ 127,	540     },
-	{ 135,	530     },
-	{ 139,	520     },
-	{ 143,	510     },
-	{ 147,	500     },
-	{ 153,	490     },
-	{ 158,	480     },
-	{ 163,	470     },
-	{ 169,	460     },
-	{ 175,	450     },
-	{ 181,	440     },
-	{ 187,	430     },
-	{ 193,	420     },
-	{ 199,	410     },
-	{ 205,	400     },
-	{ 212,	390     },
-	{ 218,	380     },
-	{ 227,	370     },
-	{ 233,	360     },
-	{ 240,	350     },
-	{ 249,	340     },
-	{ 258,	330     },
-	{ 267,	320     },
-	{ 276,	310     },
-	{ 285,	300     },
-	{ 299,	290     },
-	{ 308,	280     },
-	{ 313,	270     },
-	{ 322,	260     },
-	{ 331,	250     },
-	{ 342,	240     },
-	{ 355,	230     },
-	{ 363,	220     },
-	{ 373,	210     },
-	{ 383,	200     },
-	{ 394,	190     },
-	{ 407,	180     },
-	{ 417,	170     },
-	{ 427,	160     },
-	{ 437,	150     },
-	{ 450,	140     },
-	{ 465,	130     },
-	{ 475,	120     },
-	{ 487,	110     },
-	{ 500,	100     },
-	{ 514,	90      },
-	{ 526,	80      },
-	{ 540,	70      },
-	{ 552,	60      },
-	{ 565,	50      },
-	{ 577,	40      },
-	{ 589,	30      },
-	{ 603,	20      },
-	{ 614,	10      },
-	{ 628,	0       },
-	{ 639,	(-10)   },
-	{ 664,	(-20)   },
-	{ 689,	(-30)   },
-	{ 717,	(-40)   },
-	{ 744,	(-50)   },
-	{ 754,	(-60)   },
-	{ 765,	(-70)   },
-	{ 776,	(-80)   },
-	{ 787,	(-90)   },
-	{ 798,	(-100)  },
-};
-
-static struct temp_adc_table_data temper_table_toro[] = {
-	/* ADC, Temperature (C/10) */
-	{ 63,	700     },
-	{ 66,	690     },
-	{ 67,	680     },
-	{ 71,	670     },
-	{ 73,	660     },
-	{ 75,	650     },
-	{ 79,	640     },
-	{ 81,	630     },
-	{ 83,	620     },
-	{ 86,	610     },
-	{ 89,	600     },
-	{ 92,	590     },
-	{ 95,	580     },
-	{ 98,	570     },
-	{ 102,	560     },
-	{ 106,	550     },
-	{ 110,	540     },
-	{ 114,	530     },
-	{ 118,	520     },
-	{ 122,	510     },
-	{ 126,	500     },
-	{ 130,	490     },
-	{ 134,	480     },
-	{ 139,	470     },
-	{ 144,	460     },
-	{ 150,	450     },
-	{ 155,	440     },
-	{ 160,	430     },
-	{ 165,	420     },
-	{ 171,	410     },
-	{ 176,	400     },
-	{ 185,	390     },
-	{ 191,	380     },
-	{ 198,	370     },
-	{ 205,	360     },
-	{ 211,	350     },
-	{ 218,	340     },
-	{ 225,	330     },
-	{ 232,	320     },
-	{ 240,	310     },
-	{ 248,	300     },
-	{ 256,	290     },
-	{ 265,	280     },
-	{ 274,	270     },
-	{ 283,	260     },
-	{ 292,	250     },
-	{ 302,	240     },
-	{ 313,	230     },
-	{ 323,	220     },
-	{ 334,	210     },
-	{ 344,	200     },
-	{ 354,	190     },
-	{ 365,	180     },
-	{ 375,	170     },
-	{ 386,	160     },
-	{ 396,	150     },
-	{ 410,	140     },
-	{ 423,	130     },
-	{ 436,	120     },
-	{ 449,	110     },
-	{ 462,	100     },
-	{ 473,	90      },
-	{ 484,	80      },
-	{ 495,	70      },
-	{ 506,	60      },
-	{ 517,	50      },
-	{ 530,	40      },
-	{ 543,	30      },
-	{ 557,	20      },
-	{ 570,	10      },
-	{ 582,	0       },
-	{ 596,	(-10)   },
-	{ 610,	(-20)   },
-	{ 623,	(-30)   },
-	{ 636,	(-40)   },
-	{ 650,	(-50)   },
-	{ 663,	(-60)   },
-	{ 676,	(-70)   },
-	{ 686,	(-80)   },
-	{ 696,	(-90)   },
-	{ 716,	(-100)  },
-};
-
-static struct temp_adc_table_data *temper_table = temper_table_maguro;
-static int temper_table_size = ARRAY_SIZE(temper_table_maguro);
 
 static bool enable_sr = true;
 module_param(enable_sr, bool, S_IRUSR | S_IRGRP | S_IROTH);
@@ -297,11 +103,6 @@ static int iset_adc_value(void)
 	return twl6030_get_adc_data(ISET_ADC_CHANNEL);
 }
 
-static int temp_adc_value(void)
-{
-	return twl6030_get_adc_data(TEMP_ADC_CHANNEL);
-}
-
 static bool check_charge_full(void)
 {
 	int ret;
@@ -315,40 +116,6 @@ static bool check_charge_full(void)
 	pr_debug("%s : iset adc value : %d\n", __func__, ret);
 
 	return ret < CHARGE_FULL_ADC;
-}
-
-static int get_bat_temp_by_adc(int *batt_temp)
-{
-	int array_size = temper_table_size;
-	int temp_adc = temp_adc_value();
-	int mid;
-	int left_side = 0;
-	int right_side = array_size - 1;
-	int temp = 0;
-
-	if (temp_adc < 0) {
-		pr_err("%s : Invalid temperature adc value [%d]\n",
-			__func__, temp_adc);
-		return temp_adc;
-	}
-
-	while (left_side <= right_side) {
-		mid = (left_side + right_side) / 2;
-		if (mid == 0 || mid == array_size - 1 ||
-				(temper_table[mid].adc_value <= temp_adc &&
-				 temper_table[mid+1].adc_value > temp_adc)) {
-			temp = temper_table[mid].temperature;
-			break;
-		} else if (temp_adc - temper_table[mid].adc_value > 0) {
-			left_side = mid + 1;
-		} else {
-			right_side = mid - 1;
-		}
-	}
-
-	pr_debug("%s: temp adc : %d, temp : %d\n", __func__, temp_adc, temp);
-	*batt_temp = temp;
-	return 0;
 }
 
 static int charger_init(struct device *dev)
@@ -421,11 +188,6 @@ static struct max17040_platform_data max17043_pdata = {
 	.skip_reset = true,
 	.min_capacity = 3,
 	.is_full_charge = check_charge_full,
-	.get_bat_temp = get_bat_temp_by_adc,
-	.high_block_temp = HIGH_BLOCK_TEMP_MAGURO,
-	.high_recover_temp = HIGH_RECOVER_TEMP_MAGURO,
-	.low_block_temp = LOW_BLOCK_TEMP_MAGURO,
-	.low_recover_temp = LOW_RECOVER_TEMP_MAGURO,
 	.fully_charged_vol = 4150000,
 	.recharge_vol = 4140000,
 	.limit_charging_time = 21600,  /* 6 hours */
@@ -476,17 +238,6 @@ void __init omap4_tuna_power_init(void)
 		/* make 4460 map usable for 4430 */
 		omap_twl_pmic_update("core", CHIP_IS_OMAP446X, CHIP_IS_OMAP443X);
 		omap_tps6236x_update("mpu", CHIP_IS_OMAP446X, CHIP_IS_OMAP443X);
-	}
-
-	/* Update temperature data from board type */
-	if (omap4_tuna_get_type() == TUNA_TYPE_TORO) {
-		temper_table = temper_table_toro;
-		temper_table_size = ARRAY_SIZE(temper_table_toro);
-
-		max17043_pdata.high_block_temp = HIGH_BLOCK_TEMP_TORO;
-		max17043_pdata.high_recover_temp = HIGH_RECOVER_TEMP_TORO;
-		max17043_pdata.low_block_temp = LOW_BLOCK_TEMP_TORO;
-		max17043_pdata.low_recover_temp = LOW_RECOVER_TEMP_TORO;
 	}
 
 	/* Update oscillator information */
