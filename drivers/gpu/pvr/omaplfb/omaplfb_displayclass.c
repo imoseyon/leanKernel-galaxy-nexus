@@ -882,7 +882,7 @@ static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
 		return IMG_FALSE;
 	}
 
-	for(i = k = 0; i < ui32NumMemInfos && i < ARRAY_SIZE(apsTilerPAs); i++, k++)
+	for(i = k = 0; i < ui32NumMemInfos && k < ARRAY_SIZE(apsTilerPAs); i++, k++)
 	{
 		struct tiler_pa_info *psTilerInfo;
 		LinuxMemArea *psLinuxMemArea;
