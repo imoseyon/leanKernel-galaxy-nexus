@@ -140,6 +140,8 @@ module_param(sgx_idle_mode, uint, 0644);
 uint sgx_idle_timeout = CONFIG_SGX_DVFS_IDLE_TIMEOUT * NSEC_PER_USEC;
 module_param(sgx_idle_timeout, uint, 0644);
 
+uint sgx_apm_latency = SYS_SGX_ACTIVE_POWER_LATENCY_MS;
+module_param(sgx_apm_latency, uint, 0644);
 
 #if defined(CONFIG_ION_OMAP)
 #include <linux/ion.h>

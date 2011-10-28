@@ -64,6 +64,7 @@
 extern bool sgx_idle_logging;
 extern uint sgx_idle_mode;
 extern uint sgx_idle_timeout;
+extern uint sgx_apm_latency;
 
 #if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
 extern struct platform_device *gpsPVRLDMDev;
@@ -139,7 +140,7 @@ IMG_VOID SysGetSGXTimingInformation(SGX_TIMING_INFORMATION *psTimingInfo)
 #else
 	psTimingInfo->bEnableActivePM = IMG_FALSE;
 #endif 
-	psTimingInfo->ui32ActivePowManLatencyms = SYS_SGX_ACTIVE_POWER_LATENCY_MS;
+	psTimingInfo->ui32ActivePowManLatencyms = sgx_apm_latency;
 }
 
 void RequestSGXFreq(SYS_DATA *psSysData, IMG_BOOL bMaxFreq)
