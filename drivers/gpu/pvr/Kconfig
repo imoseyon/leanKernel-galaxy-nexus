@@ -106,3 +106,23 @@ config PVR_PDUMP
 
 config PVR_OMAP_DSS2
 	bool
+
+choice
+	prompt "SGX DVFS mode"
+	depends on PVR_SGX
+	default SGX_DVFS_MODE_NONE
+
+config SGX_DVFS_MODE_NONE
+	bool "None"
+
+config SGX_DVFS_MODE_LINEAR
+	bool "Linear"
+
+config SGX_DVFS_MODE_OPTIMIZED
+	bool "Optimized"
+endchoice
+
+config SGX_DVFS_IDLE_TIMEOUT
+	int "DVFS idle timeout (us)"
+	depends on PVR_SGX
+	default 1000
