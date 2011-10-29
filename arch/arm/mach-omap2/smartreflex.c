@@ -446,8 +446,52 @@ int sr_configure_errgen(struct voltagedomain *voltdm)
 		sr_errconfig);
 
 	/* Enabling the interrupts if the ERROR module is used */
-	sr_modify_reg(sr, errconfig_offs,
-		vpboundint_en, (vpboundint_en | vpboundint_st));
+	sr_modify_reg(sr, errconfig_offs, (vpboundint_en | vpboundint_st),
+		      vpboundint_en);
+
+	return 0;
+}
+
+/**
+ * sr_disable_errgen() - Disables SmartReflex AVS module's errgen component
+ * @voltdm: voltagedomain pointer to which the SR module to be configured belongs to.
+ *
+ * This API is to be called from the smartreflex class driver to
+ * disable the error generator module inside the smartreflex module.
+ *
+ * Returns 0 on success and error value in case of failure.
+ */
+int sr_disable_errgen(struct voltagedomain *voltdm)
+{
+	u32 errconfig_offs, vpboundint_en;
+	u32 vpboundint_st;
+	struct omap_sr *sr = _sr_lookup(voltdm);
+
+	if (IS_ERR(sr)) {
+		pr_warning("%s: omap_sr struct for sr_%s not found\n",
+			__func__, voltdm->name);
+		return -EINVAL;
+	}
+
+	if (sr->ip_type == SR_TYPE_V1) {
+		errconfig_offs = ERRCONFIG_V1;
+		vpboundint_en = ERRCONFIG_VPBOUNDINTEN_V1;
+		vpboundint_st = ERRCONFIG_VPBOUNDINTST_V1;
+	} else if (sr->ip_type == SR_TYPE_V2) {
+		errconfig_offs = ERRCONFIG_V2;
+		vpboundint_en = ERRCONFIG_VPBOUNDINTEN_V2;
+		vpboundint_st = ERRCONFIG_VPBOUNDINTST_V2;
+	} else {
+		dev_err(&sr->pdev->dev, "%s: Trying to Configure smartreflex"
+			"module without specifying the ip\n", __func__);
+		return -EINVAL;
+	}
+
+	/* Disable the interrupts of ERROR module */
+	sr_modify_reg(sr, errconfig_offs, vpboundint_en | vpboundint_st, 0);
+
+	/* Disable the Sensor and errorgen */
+	sr_modify_reg(sr, SRCONFIG, SRCONFIG_SENENABLE | SRCONFIG_ERRGEN_EN, 0);
 
 	return 0;
 }
