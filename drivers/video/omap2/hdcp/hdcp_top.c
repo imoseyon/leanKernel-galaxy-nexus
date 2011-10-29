@@ -509,7 +509,8 @@ static void hdcp_start_frame_cb(void)
 	hdcp.hpd_low = 0;
 	hdcp.pending_disable = 0;
 	hdcp.retry_cnt = hdcp.en_ctrl->nb_retry;
-	hdcp.pending_start = hdcp_submit_work(HDCP_START_FRAME_EVENT, 0);
+	hdcp.pending_start = hdcp_submit_work(HDCP_START_FRAME_EVENT,
+							HDCP_ENABLE_DELAY);
 }
 
 /*-----------------------------------------------------------------------------

@@ -1150,6 +1150,7 @@ static int __init omap4_pm_init(void)
 
 		/* There appears to be a problem between the MPUSS and L3_1 */
 		ret |= clkdm_add_wkdep(mpuss_clkdm, l3_1_clkdm);
+		ret |= clkdm_add_wkdep(mpuss_clkdm, l3_2_clkdm);
 
 		/* There appears to be a problem between the Ducati and L3/L4 */
 		ret |= clkdm_add_wkdep(ducati_clkdm, l3_1_clkdm);
