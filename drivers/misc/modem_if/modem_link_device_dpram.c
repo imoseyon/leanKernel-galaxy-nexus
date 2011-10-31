@@ -221,6 +221,9 @@ static void cmd_error_display_handler(struct dpram_link_device *dpld)
 {
 	struct io_device *iod = dpram_find_iod(dpld, FMT_IDX);
 
+	pr_info("[DPRAM] Received 0xc9 from modem (CP Crash)\n");
+	pr_info("[DPRAM] %s\n", dpld->dpram->fmt_in_buff);
+
 	if (iod && iod->modem_state_changed)
 		iod->modem_state_changed(iod, STATE_CRASH_EXIT);
 }
