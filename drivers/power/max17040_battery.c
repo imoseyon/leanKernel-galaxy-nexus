@@ -251,10 +251,8 @@ static void max17040_get_temp_status(struct max17040_chip *chip)
 	int r;
 	int t;
 
-	if (!chip->pdata->get_bat_temp) {
-		chip->bat_health = POWER_SUPPLY_HEALTH_UNKNOWN;
+	if (!chip->pdata->get_bat_temp)
 		return;
-	}
 
 	r = chip->pdata->get_bat_temp(&t);
 
