@@ -139,9 +139,7 @@
 #define HSI_SET_WAKE_3_WIRES_MASK	0xfffcffff /* 3-wires + ACREADY to 1 */
 #define HSI_SET_WAKE_READY_LVL_0	(0 << 17)
 #define HSI_SET_WAKE_READY_LVL_1	(1 << 17)
-#define HSI_SET_WAKE(channel)		(1 << (channel) |\
-						HSI_SET_WAKE_4_WIRES |\
-						HSI_SET_WAKE_READY_LVL_0)
+#define HSI_SET_WAKE(channel)		(1 << (channel))
 #define HSI_CLEAR_WAKE(channel)		(1 << (channel))
 #define HSI_WAKE(channel)		(1 << (channel))
 
