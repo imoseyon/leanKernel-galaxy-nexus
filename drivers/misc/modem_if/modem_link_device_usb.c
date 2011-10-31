@@ -407,7 +407,7 @@ static void runtime_pm_work(struct work_struct *work)
 
 	ret = pm_request_autosuspend(&usb_ld->usbdev->dev);
 
-	if (ret == -EAGAIN)
+	if (ret == -EAGAIN || ret == 1)
 		queue_delayed_work(system_nrt_wq, &usb_ld->runtime_pm_work,
 							msecs_to_jiffies(50));
 }
