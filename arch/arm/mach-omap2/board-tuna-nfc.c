@@ -119,7 +119,8 @@ void __init omap4_tuna_nfc_init(void)
 
 	gpio_request(GPIO_NFC_IRQ, "nfc_irq");
 	gpio_direction_input(GPIO_NFC_IRQ);
-	omap_mux_init_gpio(GPIO_NFC_IRQ, OMAP_PIN_INPUT_PULLUP);
+	omap_mux_init_gpio(GPIO_NFC_IRQ, OMAP_PIN_INPUT_PULLUP |
+			OMAP_PIN_OFF_WAKEUPENABLE);
 
 	wake_lock_init(&nfc_wake_lock, WAKE_LOCK_SUSPEND, "nfc");
 
