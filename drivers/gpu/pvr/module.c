@@ -148,6 +148,7 @@ module_param(sgx_apm_latency, uint, 0644);
 #include <linux/omap_ion.h>
 extern struct ion_device *omap_ion_device;
 struct ion_client *gpsIONClient;
+EXPORT_SYMBOL(gpsIONClient);
 #endif 
 
  
