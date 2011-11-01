@@ -40,7 +40,7 @@ void __init omap4_ehci_init(void)
 	struct clk *phy_ref_clk;
 
 	omap_mux_init_gpio(GPIO_USB3333_RESETB, OMAP_PIN_OUTPUT |
-						OMAP_PIN_OFF_OUTPUT_HIGH);
+						OMAP_PIN_OFF_NONE);
 
 	ret = gpio_request(GPIO_USB3333_RESETB, "usb3333_resetb");
 	if (ret) {
