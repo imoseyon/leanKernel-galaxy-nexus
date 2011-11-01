@@ -21,7 +21,6 @@
 #include <linux/poll.h>
 #include <linux/gpio.h>
 #include <linux/if_arp.h>
-#include <plat/omap-pm.h>
 
 #include <linux/platform_data/modem.h>
 #include "modem_prj.h"
@@ -515,10 +514,7 @@ static void if_usb_disconnect(struct usb_interface *intf)
 	if (usb_ld->if_usb_connected) {
 		disable_irq_wake(usb_ld->pdata->irq_host_wakeup);
 		free_irq(usb_ld->pdata->irq_host_wakeup, usb_ld);
-	} else if (usb_ld->dev_count == 1) {
-		omap_pm_set_min_bus_tput(&usbdev->dev, OCP_INITIATOR_AGENT, -1);
 	}
-
 	usb_ld->if_usb_connected = 0;
 	usb_ld->flow_suspend = 1;
 
@@ -687,9 +683,6 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 		usb_change_modem_state(usb_ld, STATE_ONLINE);
 	} else {
 		usb_change_modem_state(usb_ld, STATE_LOADER_DONE);
-		omap_pm_set_min_bus_tput(&usbdev->dev,
-						OCP_INITIATOR_AGENT,
-						(200*1000*4));
 	}
 
 	return 0;
