@@ -539,7 +539,10 @@ static int fsa9480_detect_callback(struct otg_id_notifier_block *nb)
 
 		/* Enable the external ID interrupt to detect the detach of the
 		 * USB host cable since the FSA9480 is unable to detect it.
+		 * The FSA9480 takes a while pulling that line down, so a sleep
+		 * is needed.
 		 */
+		usleep_range(8500, 8600);
 		enable_irq(usbsw->external_id_irq);
 		return OTG_ID_HANDLED;
 	} else if (dev_type == 0) {
