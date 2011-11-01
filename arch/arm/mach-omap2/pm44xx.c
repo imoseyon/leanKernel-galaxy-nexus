@@ -117,6 +117,7 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 	int per_next_state = PWRDM_POWER_ON;
 	int core_next_state = PWRDM_POWER_ON;
 	int mpu_next_state = PWRDM_POWER_ON;
+	int ret;
 
 	pwrdm_clear_all_prev_pwrst(cpu0_pwrdm);
 	pwrdm_clear_all_prev_pwrst(mpu_pwrdm);
@@ -129,7 +130,9 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 	core_next_state = pwrdm_read_next_pwrst(core_pwrdm);
 	mpu_next_state = pwrdm_read_next_pwrst(mpu_pwrdm);
 
-	omap2_gpio_prepare_for_idle(omap4_device_next_state_off());
+	ret = omap2_gpio_prepare_for_idle(omap4_device_next_state_off());
+	if (ret)
+		goto abort_gpio;
 
 	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
 		if (omap_dvfs_is_scaling(mpu_voltdm)) {
@@ -236,6 +239,7 @@ abort_device_off:
 
 	omap2_gpio_resume_after_idle(omap4_device_next_state_off());
 
+abort_gpio:
 	return;
 }
 
