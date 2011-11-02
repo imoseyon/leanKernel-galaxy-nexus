@@ -2345,6 +2345,8 @@ static int omap_hsmmc_suspend(struct device *dev)
 			}
 		}
 		cancel_work_sync(&host->mmc_carddetect_work);
+		if (mmc_slot(host).mmc_data.built_in)
+			host->mmc->pm_flags |= MMC_PM_KEEP_POWER;
 		if (host->mmc->card && (host->mmc->card->type != MMC_TYPE_SDIO))
 			ret = mmc_suspend_host(host->mmc);
 		mmc_host_enable(host->mmc);
