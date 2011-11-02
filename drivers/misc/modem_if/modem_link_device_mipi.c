@@ -390,6 +390,7 @@ static void mipi_hsi_start_work(struct work_struct *work)
 			container_of(work, struct mipi_link_device,
 						start_work.work);
 
+	mipi_ld->ld.com_state = COM_HANDSHAKE;
 	ret = if_hsi_protocol_send(mipi_ld, HSI_CMD_CHANNEL, &start_cmd, 1);
 	if (ret < 0) {
 		/* TODO: Re Enqueue */
@@ -1056,7 +1057,8 @@ retry_send:
 			if (iod->format == IPC_FMT)
 				break;
 
-		if ((mipi_ld->ld.com_state == COM_ONLINE) &&
+		if (((mipi_ld->ld.com_state == COM_ONLINE) ||
+			(mipi_ld->ld.com_state == COM_HANDSHAKE)) &&
 			(iod->mc->phone_state == STATE_ONLINE)) {
 			channel->send_step = STEP_SEND_OPEN_CONN;
 			hsi_conn_err_recovery(mipi_ld);
