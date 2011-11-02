@@ -128,6 +128,8 @@ static const char const *omap4_tuna_hw_name_toro[] = {
 	[0x03] = "Toro 4th Sample",
 	[0x05] = "Toro 5th Sample",
 	[0x06] = "Toro 8th Sample",
+	[0x08] = "Toro 8th Sample",
+	[0x09] = "Toro 8-1th Sample",
 };
 
 int omap4_tuna_get_revision(void)
