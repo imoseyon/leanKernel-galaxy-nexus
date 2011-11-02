@@ -288,7 +288,7 @@ static void omap_i2c_unidle(struct omap_i2c_dev *dev)
 	}
 	dev->idle = 0;
 
-	if (dev->rev >= OMAP_I2C_REV_ON_4430) {
+	if (cpu_is_omap44xx() && dev->rev >= OMAP_I2C_REV_ON_4430) {
 		omap_i2c_write_reg(dev, OMAP_I2C_IRQENABLE_CLR,0x6FFF);
 		omap_i2c_write_reg(dev, OMAP_I2C_IRQENABLE_SET, dev->iestate);
 	} else {
@@ -307,7 +307,7 @@ static void omap_i2c_idle(struct omap_i2c_dev *dev)
 	pdev = to_platform_device(dev->dev);
 	pdata = pdev->dev.platform_data;
 
-	if (dev->rev >= OMAP_I2C_REV_ON_4430)
+	if (cpu_is_omap44xx() && dev->rev >= OMAP_I2C_REV_ON_4430)
 		omap_i2c_write_reg(dev, OMAP_I2C_IRQENABLE_CLR, 0x6FFF);
 	else
 		omap_i2c_write_reg(dev, OMAP_I2C_IE_REG, 0);
