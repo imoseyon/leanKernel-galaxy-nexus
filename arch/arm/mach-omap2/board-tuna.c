@@ -279,7 +279,6 @@ static struct platform_device tuna_gpio_i2c5_device = {
 #define OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE	(SZ_1M * 90)
 #define OMAP_TUNA_ION_HEAP_TILER_SIZE		(SZ_128M - SZ_32M)
 #define OMAP_TUNA_ION_HEAP_NONSECURE_TILER_SIZE	SZ_32M
-#define OMAP_TUNA_ION_HEAP_LARGE_SURFACES_SIZE	SZ_32M
 #define PHYS_ADDR_SMC_SIZE	(SZ_1M * 3)
 #define PHYS_ADDR_SMC_MEM	(0x80000000 + SZ_1G - PHYS_ADDR_SMC_SIZE)
 #define PHYS_ADDR_DUCATI_SIZE	(SZ_1M * 105)
@@ -287,7 +286,7 @@ static struct platform_device tuna_gpio_i2c5_device = {
 				OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE)
 
 static struct ion_platform_data tuna_ion_data = {
-	.nr = 4,
+	.nr = 3,
 	.heaps = {
 		{
 			.type = ION_HEAP_TYPE_CARVEOUT,
@@ -304,18 +303,10 @@ static struct ion_platform_data tuna_ion_data = {
 					OMAP_TUNA_ION_HEAP_TILER_SIZE,
 			.size = OMAP_TUNA_ION_HEAP_TILER_SIZE,
 		},
-		{
-			.type = ION_HEAP_TYPE_CARVEOUT,
-			.id = OMAP_ION_HEAP_LARGE_SURFACES,
-			.name = "large_surfaces",
-			.base = 0x80000000 + SZ_512M + SZ_2M,
-			.size = OMAP_TUNA_ION_HEAP_LARGE_SURFACES_SIZE,
-		},
 		{	.type = OMAP_ION_HEAP_TYPE_TILER,
 			.id = OMAP_ION_HEAP_NONSECURE_TILER,
 			.name = "nonsecure_tiler",
-			.base = 0x80000000 + SZ_512M + SZ_2M +
-				OMAP_TUNA_ION_HEAP_LARGE_SURFACES_SIZE,
+			.base = 0x80000000 + SZ_512M + SZ_2M,
 			.size = OMAP_TUNA_ION_HEAP_NONSECURE_TILER_SIZE,
 		},
 	},
