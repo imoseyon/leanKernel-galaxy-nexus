@@ -129,6 +129,8 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 	core_next_state = pwrdm_read_next_pwrst(core_pwrdm);
 	mpu_next_state = pwrdm_read_next_pwrst(mpu_pwrdm);
 
+	omap2_gpio_prepare_for_idle(omap4_device_next_state_off());
+
 	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
 		if (omap_dvfs_is_scaling(mpu_voltdm)) {
 			mpu_next_state = PWRDM_POWER_INACTIVE;
@@ -165,10 +167,7 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 		}
 	}
 
-	omap2_gpio_set_edge_wakeup();
-
 	if (omap4_device_next_state_off()) {
-		omap2_gpio_prepare_for_idle(true);
 		omap_gpmc_save_context();
 		omap_dma_global_context_save();
 	}
@@ -223,25 +222,19 @@ abort_device_off:
 	}
 
 	if (omap4_device_next_state_off()) {
-		/*
-		 * GPIO: since we have put_synced clks, we need to resume
-		 * even if OFF was not really achieved
-		 */
-		omap2_gpio_resume_after_idle();
-
 		/* Disable the extension of Non-EMIF I/O isolation */
 		omap4_prminst_rmw_inst_reg_bits(OMAP4430_ISOOVR_EXTEND_MASK,
 			0, OMAP4430_PRM_PARTITION,
 			OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_IO_PMCTRL_OFFSET);
 	}
 
-	omap2_gpio_restore_edge_wakeup();
-
 	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
 		omap_vc_set_auto_trans(mpu_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE);
 		omap_sr_enable(mpu_voltdm);
 	}
+
+	omap2_gpio_resume_after_idle(omap4_device_next_state_off());
 
 	return;
 }

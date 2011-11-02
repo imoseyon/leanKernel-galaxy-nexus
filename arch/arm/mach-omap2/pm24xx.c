@@ -148,7 +148,7 @@ no_sleep:
 		tmp = timespec_to_ns(&ts_idle) * NSEC_PER_USEC;
 		omap2_pm_dump(0, 1, tmp);
 	}
-	omap2_gpio_resume_after_idle();
+	omap2_gpio_resume_after_idle(0);
 
 	clk_enable(osc_ck);
 

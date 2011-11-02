@@ -1385,72 +1385,63 @@ static int omap_gpio_pm_runtime_resume(struct device *dev)
 }
 
 #ifdef CONFIG_ARCH_OMAP2PLUS
-void omap2_gpio_set_edge_wakeup(void)
+static void omap2_gpio_set_edge_wakeup(struct gpio_bank *bank)
 {
-	struct gpio_bank *bank;
+	u32 level_low = 0;
+	u32 level_high = 0;
+	u32 wkup_status = 0;
 
-	list_for_each_entry(bank, &omap_gpio_list, node) {
-		u32 level_low = 0;
-		u32 level_high = 0;
-		u32 wkup_status = 0;
+	if (pm_runtime_get_sync(bank->dev) < 0) {
+		dev_err(bank->dev, "%s: GPIO bank %d pm_runtime_get_sync "
+				"failed\n", __func__, bank->id);
+		return;
+	}
 
-		if (pm_runtime_get_sync(bank->dev) < 0) {
-			dev_err(bank->dev, "%s: GPIO bank %d pm_runtime_get_sync "
-					"failed\n", __func__, bank->id);
-			return;
-		}
+	level_low = __raw_readl(bank->base +
+			bank->regs->leveldetect0);
+	level_high = __raw_readl(bank->base +
+			bank->regs->leveldetect1);
+	wkup_status = __raw_readl(bank->base +
+			bank->regs->wkup_status);
+	bank->context.edge_falling = __raw_readl(bank->base +
+			bank->regs->fallingdetect);
+	bank->context.edge_rising = __raw_readl(bank->base +
+			bank->regs->risingdetect);
 
-		level_low = __raw_readl(bank->base +
-				bank->regs->leveldetect0);
-		level_high = __raw_readl(bank->base +
-				bank->regs->leveldetect1);
-		wkup_status = __raw_readl(bank->base +
-				bank->regs->wkup_status);
-		bank->context.edge_falling = __raw_readl(bank->base +
-				bank->regs->fallingdetect);
-		bank->context.edge_rising = __raw_readl(bank->base +
-				bank->regs->risingdetect);
+	/*
+	 * Set edge trigger for all gpio's that are
+	 * expected to produce wakeup from low power.
+	 * even if they are set for level detection only.
+	 */
+	__raw_writel(bank->context.edge_falling | (level_low & wkup_status),
+			(bank->base + bank->regs->fallingdetect));
+	__raw_writel(bank->context.edge_rising | (level_high & wkup_status),
+			(bank->base + bank->regs->risingdetect));
 
-		/*
-		 * Set edge trigger for all gpio's that are
-		 * expected to produce wakeup from low power.
-		 * even if they are set for level detection only.
-		 */
-		__raw_writel(bank->context.edge_falling | (level_low & wkup_status),
-				(bank->base + bank->regs->fallingdetect));
-		__raw_writel(bank->context.edge_rising | (level_high & wkup_status),
-				(bank->base + bank->regs->risingdetect));
-
-		if (pm_runtime_put_sync_suspend(bank->dev) < 0) {
-			dev_err(bank->dev, "%s: GPIO bank %d pm_runtime_put_sync "
-					"failed\n", __func__, bank->id);
-			return;
-		}
+	if (pm_runtime_put_sync_suspend(bank->dev) < 0) {
+		dev_err(bank->dev, "%s: GPIO bank %d pm_runtime_put_sync "
+				"failed\n", __func__, bank->id);
+		return;
 	}
 }
 
-void omap2_gpio_restore_edge_wakeup(void)
+static void omap2_gpio_restore_edge_wakeup(struct gpio_bank *bank)
 {
-	struct gpio_bank *bank;
+	if (pm_runtime_get_sync(bank->dev) < 0) {
+		dev_err(bank->dev, "%s: GPIO bank %d pm_runtime_get_sync "
+				"failed\n", __func__, bank->id);
+		return;
+	}
 
-	list_for_each_entry(bank, &omap_gpio_list, node) {
-		/* restore edge setting */
-		if (pm_runtime_get_sync(bank->dev) < 0) {
-			dev_err(bank->dev, "%s: GPIO bank %d pm_runtime_get_sync "
-					"failed\n", __func__, bank->id);
-			return;
-		}
+	__raw_writel(bank->context.edge_falling,
+			(bank->base + bank->regs->fallingdetect));
+	__raw_writel(bank->context.edge_rising,
+			(bank->base + bank->regs->risingdetect));
 
-		__raw_writel(bank->context.edge_falling,
-				(bank->base + bank->regs->fallingdetect));
-		__raw_writel(bank->context.edge_rising,
-				(bank->base + bank->regs->risingdetect));
-
-		if (pm_runtime_put_sync_suspend(bank->dev) < 0) {
-			dev_err(bank->dev, "%s: GPIO bank %d pm_runtime_put_sync "
-					"failed\n", __func__, bank->id);
-			return;
-		}
+	if (pm_runtime_put_sync_suspend(bank->dev) < 0) {
+		dev_err(bank->dev, "%s: GPIO bank %d pm_runtime_put_sync "
+				"failed\n", __func__, bank->id);
+		return;
 	}
 }
 
@@ -1458,12 +1449,11 @@ void omap2_gpio_prepare_for_idle(int off_mode)
 {
 	struct gpio_bank *bank;
 
-	if (!off_mode)
-		return;
-
 	list_for_each_entry(bank, &omap_gpio_list, node) {
-		if (!bank->mod_usage || !bank->loses_context)
+		if (!bank->mod_usage || !bank->loses_context || !off_mode) {
+			omap2_gpio_set_edge_wakeup(bank);
 			continue;
+		}
 
 		if (pm_runtime_put_sync_suspend(bank->dev) < 0)
 			dev_err(bank->dev, "%s: GPIO bank %d "
@@ -1472,13 +1462,15 @@ void omap2_gpio_prepare_for_idle(int off_mode)
 	}
 }
 
-void omap2_gpio_resume_after_idle(void)
+void omap2_gpio_resume_after_idle(int off_mode)
 {
 	struct gpio_bank *bank;
 
 	list_for_each_entry(bank, &omap_gpio_list, node) {
-		if (!bank->mod_usage || !bank->loses_context)
+		if (!bank->mod_usage || !bank->loses_context || !off_mode) {
+			omap2_gpio_restore_edge_wakeup(bank);
 			continue;
+		}
 
 		if (pm_runtime_get_sync(bank->dev) < 0)
 			dev_err(bank->dev, "%s: GPIO bank %d "
