@@ -2312,8 +2312,7 @@ static int omap_hsmmc_suspend(struct device *dev)
 			}
 		}
 		cancel_work_sync(&host->mmc_carddetect_work);
-		if (host->mmc->card && (host->mmc->card->type != MMC_TYPE_SDIO))
-			ret = mmc_suspend_host(host->mmc);
+		ret = mmc_suspend_host(host->mmc);
 		mmc_host_enable(host->mmc);
 		if (ret == 0) {
 			omap_hsmmc_disable_irq(host);
@@ -2375,8 +2374,7 @@ static int omap_hsmmc_resume(struct device *dev)
 		omap_hsmmc_protect_card(host);
 
 		/* Notify the core to resume the host */
-		if (host->mmc->card && (host->mmc->card->type != MMC_TYPE_SDIO))
-			ret = mmc_resume_host(host->mmc);
+		ret = mmc_resume_host(host->mmc);
 		if (ret == 0)
 			host->suspended = 0;
 
