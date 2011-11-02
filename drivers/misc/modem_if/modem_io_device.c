@@ -568,6 +568,8 @@ static int misc_release(struct inode *inode, struct file *filp)
 
 	if (iod->link->terminate_comm)
 		iod->link->terminate_comm(iod->link, iod);
+
+	skb_queue_purge(&iod->sk_rx_q);
 	return 0;
 }
 
