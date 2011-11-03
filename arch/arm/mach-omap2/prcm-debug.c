@@ -1480,6 +1480,8 @@ static void prcmdebug_dump_real_cd(struct seq_file *sf, struct d_clkd_info *cd,
 	u32 clktrctrl =
 		omap4_cminst_read_inst_reg(cd->prcm_partition, cd->cm_inst,
 					   cd->clkdm_offs + OMAP4_CM_CLKSTCTRL);
+	u32 mode = (clktrctrl & OMAP4430_CLKTRCTRL_MASK) >>
+		OMAP4430_CLKTRCTRL_SHIFT;
 	u32 activity = clktrctrl & cd->activity;
 #if 0
 	u32 staticdep =
@@ -1492,9 +1494,10 @@ static void prcmdebug_dump_real_cd(struct seq_file *sf, struct d_clkd_info *cd,
 	int i;
 #endif
 
-	d_pr(sf, "      %s mode=%s", cd->name,
-	     cmtrctrl_s[(clktrctrl & OMAP4430_CLKTRCTRL_MASK) >>
-			OMAP4430_CLKTRCTRL_SHIFT]);
+	if (flags & PRCMDEBUG_LASTSLEEP && mode == 3 /* HW_AUTO */)
+		return;
+
+	d_pr(sf, "      %s mode=%s", cd->name, cmtrctrl_s[mode]);
 
 	d_pr_ctd(sf, " activity=0x%x", activity);
 
@@ -1525,7 +1528,7 @@ static void prcmdebug_dump_cd(struct seq_file *sf, struct d_clkd_info *cd,
 
 	if (cd->cm_inst != -1) {
 		prcmdebug_dump_real_cd(sf, cd, flags);
-	} else {
+	} else if (!(flags & PRCMDEBUG_LASTSLEEP)) {
 		d_pr(sf, "      %s\n", cd->name);
 	}
 
