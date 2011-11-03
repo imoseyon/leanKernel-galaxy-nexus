@@ -109,6 +109,11 @@ static __init void twl6030_process_system_config(void)
 		if (r) {
 			pr_err("%s: Error(%d) reading  {addr=0x%02x}",
 				__func__, r, TWL6030_PHOENIX_DEV_ON);
+			/*
+			 * On error resetting to 0, so that all the process
+			 * groups are kept active.
+			 */
+			dev_on_group = 0;
 		} else {
 			/*
 			 * Unmapped processor groups are disabled by writing
