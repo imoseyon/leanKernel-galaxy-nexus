@@ -15,7 +15,8 @@ obj-$(CONFIG_ARCH_OMAP16XX) += ocpi.o
 # omap_device support (OMAP2+ only at the moment)
 obj-$(CONFIG_ARCH_OMAP2) += omap_device.o
 obj-$(CONFIG_ARCH_OMAP3) += omap_device.o
-obj-$(CONFIG_ARCH_OMAP4) += omap_device.o rproc_user.o
+obj-$(CONFIG_ARCH_OMAP4) += omap_device.o
+obj-$(CONFIG_REMOTE_PROC) += rproc_user.o
 
 obj-$(CONFIG_OMAP_MCBSP) += mcbsp.o
 obj-$(CONFIG_OMAP_RPMSG) += omap_rpmsg.o
