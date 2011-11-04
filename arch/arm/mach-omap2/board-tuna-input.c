@@ -49,6 +49,7 @@ static struct gpio_event_input_info tuna_gpio_keypad_keys_info_high = {
 	.keymap = tuna_gpio_keypad_keys_map_high,
 	.keymap_size = ARRAY_SIZE(tuna_gpio_keypad_keys_map_high),
 	.flags = GPIOEDF_ACTIVE_HIGH,
+	.debounce_time.tv64 = 1 * NSEC_PER_MSEC,
 };
 
 static struct gpio_event_direct_entry tuna_gpio_keypad_keys_map_low[] = {
@@ -68,6 +69,7 @@ static struct gpio_event_input_info tuna_gpio_keypad_keys_info_low = {
 	.type = EV_KEY,
 	.keymap = tuna_gpio_keypad_keys_map_low,
 	.keymap_size = ARRAY_SIZE(tuna_gpio_keypad_keys_map_low),
+	.debounce_time.tv64 = 1 * NSEC_PER_MSEC,
 };
 
 static struct gpio_event_info *tuna_gpio_keypad_info[] = {
