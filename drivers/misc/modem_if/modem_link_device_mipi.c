@@ -954,8 +954,17 @@ static int if_hsi_rx_cmd_handle(struct mipi_link_device *mipi_ld, u32 cmd,
 			return 0;
 
 		default:
-			pr_debug("[MIPI-HSI] wrong state : %08x, recv_step : %d\n",
+			pr_err("[MIPI-HSI] wrong state : %08x, recv_step : %d\n",
 						cmd, channel->recv_step);
+
+			ret = if_hsi_send_command(mipi_ld, HSI_LL_MSG_ACK, ch,
+						param);
+			if (ret) {
+				pr_err("[MIPI-HSI] if_hsi_send_command fail : %d\n",
+							ret);
+				return ret;
+			}
+			pr_err("[MIPI-HSI] Send ACK AGAIN\n");
 			return -1;
 		}
 
