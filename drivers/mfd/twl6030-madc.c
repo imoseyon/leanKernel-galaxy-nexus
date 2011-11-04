@@ -68,6 +68,7 @@ struct twl6030_madc_data {
 };
 
 static struct twl6030_madc_data *twl6030_madc;
+static u8 gpadc_ctrl_reg;
 
 static inline int twl6030_madc_start_conversion(struct twl6030_madc_data *madc)
 {
@@ -281,12 +282,55 @@ static int __devexit twl6030_madc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int twl6030_madc_suspend(struct device *pdev)
+{
+	int ret;
+	u8 reg_val;
+
+	ret = twl_i2c_read_u8(TWL_MODULE_MADC, &reg_val, TWL6030_MADC_CTRL);
+	if (!ret) {
+		reg_val &= ~(TWL6030_MADC_TEMP1_EN);
+		ret = twl_i2c_write_u8(TWL_MODULE_MADC, reg_val,
+					TWL6030_MADC_CTRL);
+	}
+
+	if (ret) {
+		dev_err(twl6030_madc->dev, "unable to disable madc temp1!\n");
+		gpadc_ctrl_reg = TWL6030_MADC_TEMP1_EN;
+	} else
+		gpadc_ctrl_reg = reg_val;
+
+	return 0;
+};
+
+static int twl6030_madc_resume(struct device *pdev)
+{
+	int ret;
+
+	if (!(gpadc_ctrl_reg & TWL6030_MADC_TEMP1_EN)) {
+		gpadc_ctrl_reg |= TWL6030_MADC_TEMP1_EN;
+		ret = twl_i2c_write_u8(TWL_MODULE_MADC, gpadc_ctrl_reg,
+					TWL6030_MADC_CTRL);
+		if (ret)
+			dev_err(twl6030_madc->dev,
+				"unable to enable madc temp1!\n");
+	}
+
+	return 0;
+};
+
+static const struct dev_pm_ops twl6030_madc_pm_ops = {
+	.suspend = twl6030_madc_suspend,
+	.resume = twl6030_madc_resume,
+};
+
 static struct platform_driver twl6030_madc_driver = {
 	.probe = twl6030_madc_probe,
 	.remove = __exit_p(twl6030_madc_remove),
 	.driver = {
 		   .name = "twl6030_madc",
 		   .owner = THIS_MODULE,
+		   .pm = &twl6030_madc_pm_ops,
 		   },
 };
 

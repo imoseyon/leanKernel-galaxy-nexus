@@ -358,7 +358,6 @@ static void sa_calc(struct dispc_config *dispc_reg_config, u32 channel_no,
 	 * buffers allocated.
 	 */
 	i = Tot_mem / pict_16word_ceil;
-	Tot_mem -= pict_16word_ceil * i;
 
 	if (i == 0) {
 		/* LineSize > MemoryLineBufferSize (Valid only for 1D) */
@@ -368,22 +367,26 @@ static void sa_calc(struct dispc_config *dispc_reg_config, u32 channel_no,
 		 * When MemoryLineBufferSize > LineSize >
 		 * (MemoryLineBufferSize/2)
 		 */
-
-		/* HACK: we multiplied pict_16word by 2 as we hit underflow */
-		sa_info->min_sa = 2 * pict_16word + C2 * (Tot_mem - 8);
+		sa_info->min_sa = pict_16word + C2 * (Tot_mem -
+						pict_16word_ceil - 8);
 	} else {
 		/* All other cases */
-		sa_info->min_sa = (4 * (i - 2) + C1) * pict_16word +
-			C2 * (Tot_mem - 8);
+		sa_info->min_sa = 4 * pict_16word_ceil;
 	}
 
 	/* C2=0:: no partialy filed lines:: Then minLT = 0 */
-	if (C2 == 0)
+	if (C2 == 0) {
 		sa_info->min_lt = 0;
-	else if (bh_config.antifckr == 1 && (C1 == 3 || C1 == 4))
-		sa_info->min_lt = (6 - C1) * pict_16word_ceil + C2 * Tot_mem;
-	else
-		sa_info->min_lt = (C2 - 1) * Tot_mem;
+	} else if (bh_config.antifckr == 1) {
+		if (C1 == 3)
+			sa_info->min_lt = 3 * pict_16word_ceil + C2 * (Tot_mem -
+						(pict_16word_ceil*i));
+		else if (C1 == 4)
+			sa_info->min_lt = 2 * pict_16word_ceil + C2 * (Tot_mem -
+						(pict_16word_ceil*i));
+	} else {
+		sa_info->min_lt = (C2 - 1) * (Tot_mem - (pict_16word_ceil*i));
+	}
 
 	sa_info->max_lt = max(sa_info->min_sa - 8, sa_info->min_lt + 1);
 }

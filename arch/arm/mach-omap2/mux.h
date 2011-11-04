@@ -131,6 +131,7 @@ struct omap_mux_partition {
 struct omap_mux {
 	u16	reg_offset;
 	u16	gpio;
+	struct omap_mux_partition *partition;
 #ifdef CONFIG_OMAP_MUX
 	char	*muxnames[OMAP_MUX_NR_MODES];
 #ifdef CONFIG_DEBUG_FS
@@ -264,11 +265,26 @@ static struct omap_board_mux *board_mux __initdata __maybe_unused;
 #endif
 
 /**
- * omap_mux_get_gpio() - get mux register value based on GPIO number
+ * omap_mux_get_gpio() - get mux struct based on GPIO number
  * @gpio:		GPIO number
  *
  */
-u16 omap_mux_get_gpio(int gpio);
+struct omap_mux *omap_mux_get_gpio(int gpio);
+
+/** omap_mux_set_wakeupenable() - set the wakeupenable bit on a mux struct
+ * @m:			mux struct
+ */
+int omap_mux_set_wakeupenable(struct omap_mux *m);
+
+/** omap_mux_clear_wakeupenable() - clear the wakeupenable bit on a mux struct
+ * @m:			mux struct
+ */
+int omap_mux_clear_wakeupenable(struct omap_mux *m);
+
+/** omap_mux_get_wakeupenable() - get the wakeupenable bit from a mux struct
+ * @m:			mux struct
+ */
+bool omap_mux_get_wakeupenable(struct omap_mux *m);
 
 /**
  * omap_mux_set_gpio() - set mux register value based on GPIO number
