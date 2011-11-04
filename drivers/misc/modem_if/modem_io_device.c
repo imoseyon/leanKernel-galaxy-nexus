@@ -236,6 +236,12 @@ static int rx_hdlc_data_check(struct io_device *iod, char *buf, unsigned rest)
 			break;
 
 		case IPC_MULTI_RAW:
+                        if (data_size > MAX_RXDATA_SIZE) {
+				pr_err("%s: %s: packet size too large (%d)\n",
+						__func__, iod->name, data_size);
+				return -EINVAL;
+			}
+
 			if (iod->net_typ == UMTS_NETWORK)
 				skb = alloc_skb(alloc_size, GFP_ATOMIC);
 			else
