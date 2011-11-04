@@ -779,6 +779,16 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 		.ops = &sdp4430_mcpdm_ops,
 		.ignore_suspend = 1,
 	},
+	{
+		.name = "SPDIF",
+		.stream_name = "SPDIF",
+		.cpu_dai_name = "omap-mcasp-dai",
+		.codec_dai_name = "dit-hifi",	/* dummy s/pdif transciever
+						 * driver */
+		.platform_name = "omap-pcm-audio",
+		.ignore_suspend = 1,
+		.no_codec = 1,
+	},
 
 /*
  * Backend DAIs - i.e. dynamically matched interfaces, invisible to userspace.
