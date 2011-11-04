@@ -449,7 +449,7 @@ void omap_sram_idle(void)
 	/* PER */
 	if (per_next_state < PWRDM_POWER_ON) {
 		per_prev_state = pwrdm_read_prev_pwrst(per_pwrdm);
-		omap2_gpio_resume_after_idle();
+		omap2_gpio_resume_after_idle(per_going_off);
 	}
 
 	/* Disable IO-PAD and IO-CHAIN wakeup */
