@@ -478,19 +478,21 @@ static int dhd_sleep_pm_callback(struct notifier_block *nfb, unsigned long actio
 {
 	int ret = NOTIFY_DONE;
 
-	switch (action)	{
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 39))
+	switch (action) {
 		case PM_HIBERNATION_PREPARE:
 		case PM_SUSPEND_PREPARE:
 			dhd_mmc_suspend = TRUE;
-		ret = NOTIFY_OK;
+			ret = NOTIFY_OK;
 		break;
 		case PM_POST_HIBERNATION:
 		case PM_POST_SUSPEND:
 			dhd_mmc_suspend = FALSE;
-		ret = NOTIFY_OK;
+			ret = NOTIFY_OK;
 		break;
 	}
 	smp_mb();
+#endif
 	return ret;
 }
 
@@ -2312,6 +2314,7 @@ dhd_open(struct net_device *net)
 #endif
 	int ifidx;
 	int32 ret = 0;
+
 	DHD_OS_WAKE_LOCK(&dhd->pub);
 	/* Update FW path if it was changed */
 	if ((firmware_path != NULL) && (firmware_path[0] != '\0')) {
@@ -4510,6 +4513,31 @@ int dhd_os_wake_unlock(dhd_pub_t *pub)
 	return ret;
 }
 
+int dhd_os_check_wakelock(void *dhdp)
+{
+#ifdef CONFIG_HAS_WAKELOCK
+	dhd_pub_t *pub = (dhd_pub_t *)dhdp;
+	dhd_info_t *dhd;
+
+	if (!pub)
+		return 0;
+	dhd = (dhd_info_t *)(pub->info);
+
+	if (dhd && wake_lock_active(&dhd->wl_wifi))
+		return 1;
+#endif
+	return 0;
+}
+
+int dhd_os_check_if_up(void *dhdp)
+{
+	dhd_pub_t *pub = (dhd_pub_t *)dhdp;
+
+	if (!pub)
+		return 0;
+	return pub->up;
+}
+
 int net_os_wake_unlock(struct net_device *dev)
 {
 	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(dev);
@@ -4544,6 +4572,14 @@ int dhd_ioctl_entry_local(struct net_device *net, wl_ioctl_t *ioc, int cmd)
 	DHD_OS_WAKE_UNLOCK(&dhd->pub);
 
 	return ret;
+}
+
+bool dhd_os_check_hang(dhd_pub_t *dhdp, int ifidx, int ret)
+{
+	struct net_device *net;
+
+	net = dhd_idx2net(dhdp, ifidx);
+	return dhd_check_hang(net, dhdp, ret);
 }
 
 #ifdef PROP_TXSTATUS
