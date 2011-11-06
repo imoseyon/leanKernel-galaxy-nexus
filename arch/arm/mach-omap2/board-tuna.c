@@ -248,6 +248,8 @@ static void __init tuna_bt_init(void)
 	omap_mux_init_signal("dpm_emu16.gpio_27", OMAP_PIN_OUTPUT);
 	/* BT_HOST_WAKE  - GPIO 177 */
 	omap_mux_init_signal("kpd_row5.gpio_177", OMAP_WAKEUP_EN | OMAP_PIN_INPUT);
+
+	platform_device_register(&bcm4330_bluetooth_device);
 }
 
 static struct twl4030_madc_platform_data twl6030_madc = {
@@ -334,7 +336,6 @@ static struct platform_device tuna_spdif_dit_device = {
 static struct platform_device *tuna_devices[] __initdata = {
 	&ramconsole_device,
 	&wl1271_device,
-	&bcm4330_bluetooth_device,
 	&twl6030_madc_device,
 	&tuna_ion_device,
 	&tuna_gpio_i2c5_device,
@@ -1312,11 +1313,11 @@ static void __init tuna_init(void)
 	tuna_wlan_init();
 	tuna_audio_init();
 	tuna_i2c_init();
-	tuna_bt_init();
 	tuna_gsd4t_gps_init();
 	ramconsole_pdata.bootinfo = omap4_get_resetreason();
 	platform_add_devices(tuna_devices, ARRAY_SIZE(tuna_devices));
 	board_serial_init();
+	tuna_bt_init();
 	omap2_hsmmc_init(mmc);
 	usb_musb_init(&musb_board_data);
 	omap4_tuna_create_board_props();
