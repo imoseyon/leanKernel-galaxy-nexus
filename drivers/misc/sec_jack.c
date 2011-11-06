@@ -394,7 +394,7 @@ static int sec_jack_probe(struct platform_device *pdev)
 
 	INIT_WORK(&hi->buttons_work, sec_jack_buttons_work);
 	INIT_WORK(&hi->detect_work, sec_jack_detect_work);
-	hi->queue = create_singlethread_workqueue("sec_jack_wq");
+	hi->queue = create_freezable_workqueue("sec_jack_wq");
 	if (hi->queue == NULL) {
 		ret = -ENOMEM;
 		pr_err("%s: Failed to create workqueue\n", __func__);
