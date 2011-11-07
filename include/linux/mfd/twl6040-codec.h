@@ -108,6 +108,7 @@
 
 #define TWL6040_NCPENA			0x01
 #define TWL6040_NCPOPEN			0x40
+#define TWL6040_TSHUTENA		0x80
 
 /* LDOCTL (0x06) fields */
 
