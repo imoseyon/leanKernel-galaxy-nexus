@@ -519,6 +519,7 @@ PVRSRV_ERROR SGXInitialise(PVRSRV_SGXDEV_INFO	*psDevInfo,
 	{
 		PVR_DPF((PVR_DBG_ERROR, "SGXInitialise: Wait for uKernel initialisation failed"));
 		#if !defined(FIX_HW_BRN_23281)
+		SGXDumpDebugInfo(psDevInfo, IMG_FALSE);
 		PVR_DBG_BREAK;
 		#endif 
 		return PVRSRV_ERROR_RETRY;
@@ -1013,8 +1014,8 @@ static IMG_VOID SGXDumpDebugReg (PVRSRV_SGXDEV_INFO	*psDevInfo,
 }
 
 void dsscomp_kdump(void);
-static IMG_VOID SGXDumpDebugInfo (PVRSRV_SGXDEV_INFO	*psDevInfo,
-								  IMG_BOOL				bDumpSGXRegs)
+IMG_VOID SGXDumpDebugInfo (PVRSRV_SGXDEV_INFO	*psDevInfo,
+						   IMG_BOOL				bDumpSGXRegs)
 {
 	IMG_UINT32	ui32CoreNum;
 
