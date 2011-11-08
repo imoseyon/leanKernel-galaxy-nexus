@@ -28,9 +28,6 @@ struct omap_mcasp {
 	struct device *dev;
 	void __iomem *base;
 	struct clk *fclk;
-	int clk_active;
-	int active;
-	struct omap_hwmod *oh;
 };
 
 #endif	/* OMAP_MCASP_H */
