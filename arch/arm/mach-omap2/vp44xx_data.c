@@ -44,6 +44,7 @@ static const struct omap_vp_common omap4_vp_common = {
 	.vpconfig_initvdd = OMAP4430_INITVDD_MASK,
 	.vpconfig_forceupdate = OMAP4430_FORCEUPDATE_MASK,
 	.vpconfig_vpenable = OMAP4430_VPENABLE_MASK,
+	.vstatus_vpidle = OMAP4430_VPINIDLE_MASK,
 	.vstepmin_smpswaittimemin_shift = OMAP4430_SMPSWAITTIMEMIN_SHIFT,
 	.vstepmax_smpswaittimemax_shift = OMAP4430_SMPSWAITTIMEMAX_SHIFT,
 	.vstepmin_stepmin_shift = OMAP4430_VSTEPMIN_SHIFT,
