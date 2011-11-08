@@ -163,10 +163,10 @@ static void sgtable_free(struct sg_table *sgt)
 	if (!sgt)
 		return;
 
+	pr_debug("%s: sgt:%p\n", __func__, sgt);
+
 	sg_free_table(sgt);
 	kfree(sgt);
-
-	pr_debug("%s: sgt:%p\n", __func__, sgt);
 }
 
 /* map 'sglist' to a contiguous mpu virtual area and return 'va' */

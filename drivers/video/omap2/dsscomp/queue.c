@@ -547,8 +547,6 @@ skip_ovl_set:
 
 	if (r && !comp->must_apply) {
 		dev_err(DEV(cdev), "[%p] set failed %d\n", comp, r);
-		/* extra callbacks in case of delayed apply */
-		dsscomp_mgr_callback(comp, mgr->id, DSS_COMPLETION_ECLIPSED_SET);
 		goto done;
 	} else {
 		if (r)
