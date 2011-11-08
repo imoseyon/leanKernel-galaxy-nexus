@@ -473,6 +473,39 @@ static void omap_init_audio(void)
 static inline void omap_init_audio(void) {}
 #endif
 
+#if defined(CONFIG_SND_OMAP_SOC_MCASP) || \
+	defined(CONFIG_SND_OMAP_SOC_MCASP_MODULE)
+static struct omap_device_pm_latency omap_mcasp_latency[] = {
+	{
+		.deactivate_func = omap_device_idle_hwmods,
+		.activate_func = omap_device_enable_hwmods,
+		.flags = OMAP_DEVICE_LATENCY_AUTO_ADJUST,
+	},
+};
+
+static void omap_init_mcasp(void)
+{
+	struct omap_hwmod *oh;
+	struct omap_device *od;
+	char *oh_name = "omap-mcasp-dai";
+	char *dev_name = "omap-mcasp-dai";
+
+	oh = omap_hwmod_lookup(oh_name);
+	if (!oh) {
+		pr_err("%s: could not look up %s\n", __func__, oh_name);
+		return;
+	}
+
+	od = omap_device_build(dev_name, -1, oh, NULL, 0,
+				omap_mcasp_latency,
+				ARRAY_SIZE(omap_mcasp_latency), 0);
+	WARN(IS_ERR(od), "could not build omap_device for %s:%s\n",
+				oh_name, dev_name);
+}
+#else
+static inline void omap_init_mcasp(void) {}
+#endif
+
 #if defined(CONFIG_SPI_OMAP24XX) || defined(CONFIG_SPI_OMAP24XX_MODULE)
 
 #include <plat/mcspi.h>
@@ -893,6 +926,7 @@ static int __init omap2_init_devices(void)
 	omap_init_audio();
 	omap_init_camera();
 	omap_init_mbox();
+	omap_init_mcasp();
 	omap_init_mcspi();
 	omap_init_pmu();
 	omap_hdq_init();
