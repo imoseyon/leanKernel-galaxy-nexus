@@ -224,6 +224,8 @@ abort_device_off:
 		omap_gpmc_restore_context();
 	}
 
+	omap2_gpio_resume_after_idle(omap4_device_next_state_off());
+
 	if (omap4_device_next_state_off()) {
 		/* Disable the extension of Non-EMIF I/O isolation */
 		omap4_prminst_rmw_inst_reg_bits(OMAP4430_ISOOVR_EXTEND_MASK,
@@ -237,7 +239,6 @@ abort_device_off:
 		omap_sr_enable(mpu_voltdm);
 	}
 
-	omap2_gpio_resume_after_idle(omap4_device_next_state_off());
 
 abort_gpio:
 	return;
