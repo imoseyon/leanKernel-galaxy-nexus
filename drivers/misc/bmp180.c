@@ -82,7 +82,6 @@
 #define AUTO_INCREMENT		0x80
 
 #define DELAY_LOWBOUND		(50 * NSEC_PER_MSEC)
-#define DELAY_UPBOUND		(500 * NSEC_PER_MSEC)
 #define DELAY_DEFAULT		(200 * NSEC_PER_MSEC)
 
 #define PRESSURE_MAX		125000
@@ -386,8 +385,8 @@ static ssize_t bmp180_poll_delay_store(struct device *dev,
 	pr_debug("%s: new delay = %lldns, old delay = %lldns\n",
 		__func__, new_delay, ktime_to_ns(barom->poll_delay));
 
-	if (new_delay < DELAY_LOWBOUND || new_delay > DELAY_UPBOUND)
-		return -EINVAL;
+	if (new_delay < DELAY_LOWBOUND)
+		new_delay = DELAY_LOWBOUND;
 
 	mutex_lock(&barom->lock);
 	if (new_delay != ktime_to_ns(barom->poll_delay))
