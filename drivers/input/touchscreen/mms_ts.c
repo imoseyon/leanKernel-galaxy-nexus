@@ -457,6 +457,7 @@ static int fw_write_image(struct mms_ts_info *info, const u8 *data, size_t len)
 			dev_err(&client->dev,
 				"mismatch @ addr 0x%x: 0x%x != 0x%x\n",
 				addr, verify_val, val);
+			hw_reboot_bootloader(info);
 			continue;
 		}
 		if (retries < 0)
