@@ -194,7 +194,7 @@ struct omap_vdd_dvfs_info {
 };
 
 static LIST_HEAD(omap_dvfs_info_list);
-static DEFINE_MUTEX(omap_dvfs_lock);
+DEFINE_MUTEX(omap_dvfs_lock);
 
 /* Dvfs scale helper function */
 static int _dvfs_scale(struct device *req_dev, struct device *target_dev,
@@ -1016,30 +1016,6 @@ bool omap_dvfs_is_scaling(struct voltagedomain *voltdm)
 	return dvfs_info->is_scaling;
 }
 EXPORT_SYMBOL(omap_dvfs_is_scaling);
-
-/**
- * omap_dvfs_is_any_dev_scaling() - returns true if any devices are scaling
- *
- * Should be called in non_preemptible context and is meant for
- * Arch code to check and take appropriate measures if it is not-advisable
- * for any activity which might conflict with scaling operation.
- *
- * IMPORTANT: This function is expected to be called with interrupt disabled,
- * non-preemptible context.
- */
-bool omap_dvfs_is_any_dev_scaling(void)
-{
-	struct omap_vdd_dvfs_info *dvfs_info;
-
-	WARN(!irqs_disabled(), "Called with IRQs enabled, inaccurate!\n");
-
-	list_for_each_entry(dvfs_info, &omap_dvfs_info_list, node) {
-		if (dvfs_info->is_scaling)
-			return true;
-	}
-	return false;
-}
-EXPORT_SYMBOL(omap_dvfs_is_any_dev_scaling);
 
 #ifdef CONFIG_PM_DEBUG
 static int dvfs_dump_vdd(struct seq_file *sf, void *unused)
