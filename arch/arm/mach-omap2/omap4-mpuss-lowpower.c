@@ -247,6 +247,21 @@ static void gic_restore_ppi(void)
 }
 
 /*
+ * Mask all the PPIs. This should only be called after they have been saved
+ * through secure trap or through save_ppi(). This is primarily needed to
+ * mask the local timer irq that could be pending since timekeeping gets
+ * suspended after the local irqs are disabled. The pending interrupt would
+ * kick the CPU out of WFI immediately, and prevent it from going to the lower
+ * power states. The correct value will be restored when the CPU is brought
+ * back up by restore.
+ */
+static void gic_mask_ppi(void)
+{
+	void __iomem *gic_dist_base = omap4_get_gic_dist_base();
+	writel_relaxed(0xffffffff, gic_dist_base + GIC_DIST_ENABLE_CLEAR);
+}
+
+/*
  * Save GIC context in SAR RAM. Restore is done by ROM code
  * GIC is lost only when MPU hits OSWR or OFF. It consists
  * of a distributor and a per-CPU interface module. The GIC
@@ -563,6 +578,12 @@ int omap4_enter_lowpower(unsigned int cpu, unsigned int power_state)
 cpu_prepare:
 	if (cpu)
 		gic_save_ppi();
+
+	/*
+	 * mask all PPIs to prevent them from kicking us out of wfi.
+	 */
+	if (save_state >= 2)
+		gic_mask_ppi();
 
 	clear_cpu_prev_pwrst(cpu);
 	cpu_clear_prev_logic_pwrst(cpu);

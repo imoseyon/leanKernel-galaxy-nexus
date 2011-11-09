@@ -27,7 +27,11 @@
 struct omap_mcasp {
 	struct device *dev;
 	void __iomem *base;
+	spinlock_t lock;
 	struct clk *fclk;
+	int irq;
+	unsigned int stream_rate;
+	struct pm_qos_request_list *pm_qos;
 };
 
 #endif	/* OMAP_MCASP_H */
