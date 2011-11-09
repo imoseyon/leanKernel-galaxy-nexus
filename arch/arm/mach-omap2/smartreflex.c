@@ -28,6 +28,7 @@
 #include <plat/common.h>
 
 #include "pm.h"
+#include "dvfs.h"
 #include "smartreflex.h"
 
 #define SMARTREFLEX_NAME_LEN	16
@@ -222,8 +223,11 @@ static void sr_start_vddautocomp(struct omap_sr *sr)
 		return;
 	}
 
+	/* pause dvfs from interfereing with our operations */
+	mutex_lock(&omap_dvfs_lock);
 	if (!sr_class->enable(sr->voltdm))
 		sr->autocomp_active = true;
+	mutex_unlock(&omap_dvfs_lock);
 }
 
 static void sr_stop_vddautocomp(struct omap_sr *sr)
@@ -236,8 +240,11 @@ static void sr_stop_vddautocomp(struct omap_sr *sr)
 	}
 
 	if (sr->autocomp_active) {
+		/* Pause dvfs from interfereing with our operations */
+		mutex_lock(&omap_dvfs_lock);
 		sr_class->disable(sr->voltdm, 1);
 		sr->autocomp_active = false;
+		mutex_unlock(&omap_dvfs_lock);
 	}
 }
 
