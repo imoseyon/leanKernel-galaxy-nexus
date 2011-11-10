@@ -41,6 +41,7 @@
 static struct rfkill *bt_rfkill;
 static struct regulator *clk32kaudio_reg;
 static bool bt_enabled;
+static bool uart_enabled;
 
 struct bcm_bt_lpm {
 	int wake;
@@ -121,12 +122,18 @@ static void update_host_wake_locked(int host_wake)
 
 	if (host_wake) {
 		wake_lock(&bt_lpm.wake_lock);
+		if (!uart_enabled)
+			omap_uart_enable(2);
 	} else  {
+		if (uart_enabled)
+			omap_uart_disable(2);
 		// Take a timed wakelock, so that upper layers can take it.
 		// The chipset deasserts the hostwake lock, when there is no
 		// more data to send.
 		wake_lock_timeout(&bt_lpm.wake_lock, HZ/2);
 	}
+
+	uart_enabled = host_wake;
 
 }
 
@@ -134,9 +141,6 @@ static irqreturn_t host_wake_isr(int irq, void *dev)
 {
 	int host_wake;
 	unsigned long flags;
-
-	/* wakeup uart by enabling the uart module */
-	omap_uart_wake(2);
 
 	host_wake = gpio_get_value(BT_HOST_WAKE_GPIO);
 	irq_set_irq_type(irq, host_wake ? IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH);
@@ -279,7 +283,16 @@ static int bcm4330_bluetooth_remove(struct platform_device *pdev)
 int bcm4430_bluetooth_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	int irq = gpio_to_irq(BT_HOST_WAKE_GPIO);
+	int host_wake;
+
 	disable_irq(irq);
+	host_wake = gpio_get_value(BT_HOST_WAKE_GPIO);
+
+	if (host_wake) {
+		enable_irq(irq);
+		return -EBUSY;
+	}
+
 	return 0;
 }
 
