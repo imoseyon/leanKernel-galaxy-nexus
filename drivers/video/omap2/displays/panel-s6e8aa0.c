@@ -42,6 +42,8 @@
 
 #include <linux/platform_data/panel-s6e8aa0.h>
 
+#include "../dss/dss.h"
+
 /* DSI Command Virtual channel */
 #define CMD_VC_CHANNEL 1
 
@@ -1731,6 +1733,7 @@ static void s6e8aa0_power_off(struct omap_dss_device *dssdev)
 static int s6e8aa0_start(struct omap_dss_device *dssdev)
 {
 	int r = 0;
+	unsigned long pclk;
 
 	dsi_bus_lock(dssdev);
 
@@ -1745,6 +1748,11 @@ static int s6e8aa0_start(struct omap_dss_device *dssdev)
 		dssdev->state = OMAP_DSS_DISPLAY_ACTIVE;
 		dssdev->manager->enable(dssdev->manager);
 	}
+
+	/* fixup pclk based on pll config */
+	pclk = dispc_pclk_rate(dssdev->channel);
+	if (pclk)
+		dssdev->panel.timings.pixel_clock = (pclk + 500) / 1000;
 
 	return r;
 }
