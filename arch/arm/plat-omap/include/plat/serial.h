@@ -114,6 +114,8 @@ void __init omap_serial_init_port_pads(int id, struct omap_device_pad *pads,
 	int size, struct omap_uart_port_info *info);
 extern u32 omap_uart_resume_idle(void);
 extern int omap_uart_wake(u8 id);
+extern int omap_uart_enable(u8 uart_num);
+extern int omap_uart_disable(u8 uart_num);
 
 #define MUX_PULL_UP	((1<<8) | (1<<4) | (1<<3) | (7))
 void omap_rts_mux_write(u16 val, int num);

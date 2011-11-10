@@ -144,6 +144,32 @@ u32 omap_uart_resume_idle()
 	return ret;
 }
 
+int omap_uart_enable(u8 uart_num)
+{
+	if (uart_num > OMAP_MAX_HSUART_PORTS)
+		return -ENODEV;
+
+	if (!ui[uart_num - 1])
+		return -ENODEV;
+
+	pm_runtime_get_sync(&ui[uart_num - 1]->pdev->dev);
+
+	return 0;
+}
+
+int omap_uart_disable(u8 uart_num)
+{
+	if (uart_num > OMAP_MAX_HSUART_PORTS)
+		return -ENODEV;
+
+	if (!ui[uart_num - 1])
+		return -ENODEV;
+
+	pm_runtime_put_sync_suspend(&ui[uart_num - 1]->pdev->dev);
+
+	return 0;
+}
+
 int omap_uart_wake(u8 uart_num)
 {
 	if (uart_num > OMAP_MAX_HSUART_PORTS)
