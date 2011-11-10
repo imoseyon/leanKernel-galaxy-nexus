@@ -41,7 +41,8 @@
 static struct rfkill *bt_rfkill;
 static struct regulator *clk32kaudio_reg;
 static bool bt_enabled;
-static bool uart_enabled;
+static bool host_wake_uart_enabled;
+static bool wake_uart_enabled;
 
 struct bcm_bt_lpm {
 	int wake;
@@ -89,7 +90,15 @@ static void set_wake_locked(int wake)
 	if (!wake)
 		wake_unlock(&bt_lpm.wake_lock);
 
+	if (!wake_uart_enabled && wake)
+		omap_uart_enable(2);
+
 	gpio_set_value(BT_WAKE_GPIO, wake);
+
+	if (wake_uart_enabled && !wake)
+		omap_uart_disable(2);
+
+	wake_uart_enabled = wake;
 }
 
 static enum hrtimer_restart enter_lpm(struct hrtimer *timer) {
@@ -122,10 +131,10 @@ static void update_host_wake_locked(int host_wake)
 
 	if (host_wake) {
 		wake_lock(&bt_lpm.wake_lock);
-		if (!uart_enabled)
+		if (!host_wake_uart_enabled)
 			omap_uart_enable(2);
 	} else  {
-		if (uart_enabled)
+		if (host_wake_uart_enabled)
 			omap_uart_disable(2);
 		// Take a timed wakelock, so that upper layers can take it.
 		// The chipset deasserts the hostwake lock, when there is no
@@ -133,7 +142,7 @@ static void update_host_wake_locked(int host_wake)
 		wake_lock_timeout(&bt_lpm.wake_lock, HZ/2);
 	}
 
-	uart_enabled = host_wake;
+	host_wake_uart_enabled = host_wake;
 
 }
 
