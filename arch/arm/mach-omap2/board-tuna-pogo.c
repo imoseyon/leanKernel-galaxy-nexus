@@ -41,11 +41,12 @@
 /* The below constants are in milliseconds */
 #define POGO_WAKE_PERIOD		100
 #define POGO_ID_PERIOD_TIMEOUT		750
+#define POGO_ID_DESKDOCK		50
 #define POGO_ID_CARDOCK			100
-#define POGO_ID_DESKDOCK		200
-#define POGO_DESKDOCK_PREWAIT_PERIOD	100
-#define POGO_CARDOCK_PREWAIT_PERIOD	200
-#define POGO_ENTER_SPDIF_PERIOD		100
+#define POGO_ID_CHARGER			50
+#define POGO_ID_USB			100
+#define POGO_ID_AUDIO			50
+#define POGO_ID_NO_AUDIO		100
 #define POGO_ENTER_SPDIF_WAIT_PERIOD	100
 #define POGO_ID_PERIOD_TOLERANCE	20
 #define POGO_DET_DEBOUNCE		80
@@ -55,9 +56,12 @@
 #define POGO_AUDIO_DISCONNECTED		0
 #define POGO_AUDIO_CONNECTED		2
 
-#define POGO_DOCK_UNDOCKED		0
-#define POGO_DOCK_DESK			1
-#define POGO_DOCK_CAR			2
+enum {
+	POGO_DOCK_DOCKED	= BIT(0),
+	POGO_DOCK_DESK		= BIT(1),	/* 0 = Car */
+	POGO_DOCK_CHARGER	= BIT(2),
+	POGO_DOCK_AUDIO_CONN	= BIT(3),
+};
 
 enum debounce_state {
 	POGO_DET_DOCKED,	/* interrupt enabled,  timer stopped */
@@ -72,12 +76,11 @@ struct tuna_pogo {
 	struct switch_dev		audio_switch;
 	struct wake_lock		wake_lock;
 	struct completion		completion;
-	struct timespec			rise_time;
-	struct timespec			fall_time;
+	struct timespec			timestamps[4];
+	int				ts_index;
 	int				det_irq;
 	int				data_irq;
-	int				dock_type;
-	bool				fall_detected;
+	unsigned int			dock_type;
 	struct mutex			mutex;
 	struct timer_list		det_timer;
 	struct work_struct		det_work;
@@ -96,23 +99,21 @@ static void pogo_send_pulse(unsigned int duration_in_ms)
 static int pogo_read_id_period(struct tuna_pogo *pogo,
 		unsigned int timeout_in_ms)
 {
-	struct timespec temp;
 	int ret;
 
-	pogo->rise_time.tv_sec = 0;
-	pogo->rise_time.tv_nsec = 0;
-	pogo->fall_time.tv_sec = 0;
-	pogo->fall_time.tv_nsec = 0;
-	pogo->fall_detected = false;
+	memset(pogo->timestamps, 0, sizeof(pogo->timestamps));
+	pogo->ts_index = 0;
 
 	gpio_direction_input(GPIO_POGO_DATA);
+
+	irq_set_irq_type(pogo->data_irq, IRQF_TRIGGER_HIGH);
 
 	enable_irq(pogo->data_irq);
 
 	ret = wait_for_completion_timeout(&pogo->completion,
 			msecs_to_jiffies(timeout_in_ms));
 	if (ret <= 0) {
-		if (!pogo->fall_detected)
+		if (pogo->ts_index != ARRAY_SIZE(pogo->timestamps))
 			pr_debug("No response to wake within timeout\n");
 		else
 			pr_debug("ID period did not conclude within timeout\n");
@@ -120,41 +121,60 @@ static int pogo_read_id_period(struct tuna_pogo *pogo,
 		return -1;
 	}
 
-	temp = timespec_sub(pogo->fall_time, pogo->rise_time);
-	return temp.tv_nsec / NSEC_PER_MSEC;
+	return 0;
 }
 
 static void pogo_dock_change(struct tuna_pogo *pogo)
 {
-	switch_set_state(&pogo->dock_switch, pogo->dock_type);
-	switch_set_state(&pogo->audio_switch,
-			pogo->dock_type != POGO_DOCK_UNDOCKED ?
-			POGO_AUDIO_CONNECTED : POGO_AUDIO_DISCONNECTED);
-	tuna_otg_pogo_charger(pogo->dock_type != POGO_DOCK_UNDOCKED);
+	char *dock_type_str;
+	char *dock_audio_str;
+	char *dock_charger_str;
 
-	switch (pogo->dock_type) {
-	case POGO_DOCK_DESK:
-		pr_info("Desk Dock\n");
-		break;
-	case POGO_DOCK_CAR:
-		pr_info("Car Dock\n");
-		break;
-	default:
+	if (!(pogo->dock_type & POGO_DOCK_DOCKED)) {
+		switch_set_state(&pogo->dock_switch, 0);
+		switch_set_state(&pogo->audio_switch, POGO_AUDIO_DISCONNECTED);
+		tuna_otg_pogo_charger(POGO_POWER_DISCONNECTED);
 		pr_info("Undocked\n");
-	};
+		return;
+	} else {
+		switch_set_state(&pogo->dock_switch,
+				pogo->dock_type & POGO_DOCK_DESK ? 1 : 2);
+	}
+
+	dock_type_str = pogo->dock_type & POGO_DOCK_DESK ? "Desk" : "Car";
+	if (pogo->dock_type & POGO_DOCK_AUDIO_CONN) {
+		switch_set_state(&pogo->audio_switch, POGO_AUDIO_CONNECTED);
+		dock_audio_str = "";
+	} else {
+		switch_set_state(&pogo->audio_switch, POGO_AUDIO_DISCONNECTED);
+		dock_audio_str = " no";
+	}
+	if (pogo->dock_type & POGO_DOCK_CHARGER) {
+		tuna_otg_pogo_charger(POGO_POWER_CHARGER);
+		dock_charger_str = "charger";
+	} else {
+		tuna_otg_pogo_charger(POGO_POWER_HOST);
+		dock_charger_str = "host";
+	}
+
+	pr_info("%s dock,%s audio, USB %s\n", dock_type_str, dock_audio_str,
+		dock_charger_str);
 }
 
 static int pogo_detect_callback(struct otg_id_notifier_block *nb)
 {
 	struct tuna_pogo *pogo = container_of(nb, struct tuna_pogo, otg_id_nb);
-	int id_period;
+	int dock_type_period;
+	int power_type_period;
+	int audio_cable_period;
+	struct timespec temp;
 	unsigned int retry = 0;
 	unsigned long irqflags;
 
 	if (gpio_get_value(GPIO_POGO_DET)) {
 		wake_lock(&pogo->wake_lock);
 
-		while (pogo->dock_type == POGO_DOCK_UNDOCKED) {
+		while (!(pogo->dock_type & POGO_DOCK_DOCKED)) {
 
 			if (!gpio_get_value(GPIO_POGO_DET)) {
 				wake_unlock(&pogo->wake_lock);
@@ -172,29 +192,50 @@ static int pogo_detect_callback(struct otg_id_notifier_block *nb)
 			 */
 			pogo_send_pulse(POGO_WAKE_PERIOD);
 
-			id_period = pogo_read_id_period(pogo,
-					POGO_ID_PERIOD_TIMEOUT);
-			if (id_period == -1)
+			if (pogo_read_id_period(pogo, POGO_ID_PERIOD_TIMEOUT))
 				continue;
+
+			temp = timespec_sub(pogo->timestamps[1],
+					pogo->timestamps[0]);
+			dock_type_period = temp.tv_nsec / NSEC_PER_MSEC;
+
+			temp = timespec_sub(pogo->timestamps[2],
+					pogo->timestamps[1]);
+			power_type_period = temp.tv_nsec / NSEC_PER_MSEC;
+
+			temp = timespec_sub(pogo->timestamps[3],
+					pogo->timestamps[2]);
+			audio_cable_period = temp.tv_nsec / NSEC_PER_MSEC;
 
 			/* The length of the ID period will indicate the type of
 			 * dock that is attached.
 			 */
-			if (abs(id_period - POGO_ID_CARDOCK) <=
-					POGO_ID_PERIOD_TOLERANCE)
-				pogo->dock_type = POGO_DOCK_CAR;
-			else if (abs(id_period - POGO_ID_DESKDOCK) <=
-					POGO_ID_PERIOD_TOLERANCE)
-				pogo->dock_type = POGO_DOCK_DESK;
+			if (abs(dock_type_period - POGO_ID_DESKDOCK) <=
+					POGO_ID_PERIOD_TOLERANCE) {
+				pogo->dock_type |= POGO_DOCK_DESK;
+			} else if (abs(dock_type_period - POGO_ID_CARDOCK) >
+					POGO_ID_PERIOD_TOLERANCE) {
+				continue;
+			}
+
+			if (abs(power_type_period - POGO_ID_CHARGER) <=
+					POGO_ID_PERIOD_TOLERANCE) {
+				pogo->dock_type |= POGO_DOCK_CHARGER;
+			} else if (abs(power_type_period - POGO_ID_USB) >
+					POGO_ID_PERIOD_TOLERANCE) {
+				continue;
+			}
+
+			if (abs(audio_cable_period - POGO_ID_AUDIO) <=
+					POGO_ID_PERIOD_TOLERANCE) {
+				pogo->dock_type |= POGO_DOCK_AUDIO_CONN;
+				pogo->dock_type |= POGO_DOCK_DOCKED;
+			} else if (abs(audio_cable_period -
+					POGO_ID_NO_AUDIO) <=
+					POGO_ID_PERIOD_TOLERANCE) {
+				pogo->dock_type |= POGO_DOCK_DOCKED;
+			}
 		}
-
-		if (pogo->dock_type == POGO_DOCK_CAR)
-			msleep(POGO_CARDOCK_PREWAIT_PERIOD);
-		else
-			msleep(POGO_DESKDOCK_PREWAIT_PERIOD);
-
-		/* Instruct the dock to enter SPDIF mode */
-		pogo_send_pulse(POGO_ENTER_SPDIF_PERIOD);
 
 		msleep(POGO_ENTER_SPDIF_WAIT_PERIOD);
 
@@ -221,9 +262,9 @@ static int pogo_detect_callback(struct otg_id_notifier_block *nb)
 static void pogo_dock_undock(struct tuna_pogo *pogo)
 {
 	mutex_lock(&pogo->mutex);
-	if (pogo->dock_type != POGO_DOCK_UNDOCKED &&
+	if ((pogo->dock_type & POGO_DOCK_DOCKED) &&
 	    pogo->debounce_state == POGO_DET_UNDOCKED) {
-		pogo->dock_type = POGO_DOCK_UNDOCKED;
+		pogo->dock_type = 0;
 		pogo_dock_change(pogo);
 
 		omap_mux_set_gpio(OMAP_MUX_MODE3 | OMAP_PIN_INPUT_PULLDOWN,
@@ -348,15 +389,11 @@ static irqreturn_t pogo_data_irq(int irq, void *data)
 {
 	struct tuna_pogo *pogo = data;
 
-	if (gpio_get_value(GPIO_POGO_DATA)) {
-		ktime_get_ts(&pogo->rise_time);
-		irq_set_irq_type(pogo->data_irq,
-				IRQF_TRIGGER_LOW);
-	} else {
-		ktime_get_ts(&pogo->fall_time);
-		pogo->fall_detected = true;
-		irq_set_irq_type(pogo->data_irq,
-				IRQF_TRIGGER_HIGH);
+	ktime_get_ts(&pogo->timestamps[pogo->ts_index++]);
+	irq_set_irq_type(pogo->data_irq, gpio_get_value(GPIO_POGO_DATA) ?
+			IRQF_TRIGGER_LOW :
+			IRQF_TRIGGER_HIGH);
+	if (pogo->ts_index >= ARRAY_SIZE(pogo->timestamps)) {
 		complete(&pogo->completion);
 		disable_irq_nosync(pogo->data_irq);
 	}

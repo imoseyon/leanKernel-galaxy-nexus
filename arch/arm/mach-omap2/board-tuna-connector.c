@@ -711,15 +711,28 @@ static void sii9234_vbus_present(bool on)
 				tuna_otg->otg.gadget);
 }
 
-void tuna_otg_pogo_charger(bool on)
+void tuna_otg_pogo_charger(enum pogo_power_state pogo_state)
 {
 	struct tuna_otg *tuna_otg = &tuna_otg_xceiv;
+	unsigned long power_state;
+
+	switch (pogo_state) {
+		case POGO_POWER_CHARGER:
+			power_state = USB_EVENT_CHARGER;
+			break;
+		case POGO_POWER_HOST:
+			power_state = USB_EVENT_VBUS;
+			break;
+		case POGO_POWER_DISCONNECTED:
+		default:
+			power_state = USB_EVENT_NONE;
+			break;
+	}
 
 	tuna_otg->otg.state = OTG_STATE_B_IDLE;
 	tuna_otg->otg.default_a = false;
-	tuna_otg->otg.last_event = on ? USB_EVENT_CHARGER : USB_EVENT_NONE;
-	atomic_notifier_call_chain(&tuna_otg->otg.notifier,
-				on ? USB_EVENT_CHARGER : USB_EVENT_NONE,
+	tuna_otg->otg.last_event = power_state;
+	atomic_notifier_call_chain(&tuna_otg->otg.notifier, power_state,
 				tuna_otg->otg.gadget);
 }
 
