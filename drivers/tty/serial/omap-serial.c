@@ -1648,8 +1648,11 @@ static int omap_serial_runtime_suspend(struct device *dev)
 	if (!up)
 		goto done;
 
-	if (up->rts_mux_driver_control)
+	if (up->rts_mux_driver_control) {
 		omap_rts_mux_write(MUX_PULL_UP, up->port.line);
+		/* wait a few bytes to allow current transmission to complete */
+		udelay(300);
+	}
 	if (device_may_wakeup(dev))
 		up->enable_wakeup(up->pdev, true);
 	else
