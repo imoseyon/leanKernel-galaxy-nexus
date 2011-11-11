@@ -625,26 +625,8 @@ int omap_abe_enable_data_transfer(struct omap_abe *abe, u32 id)
 			abe->MultiFrame[TASK_IO_MM_DL_SLT][TASK_IO_MM_DL_IDX] =	ABE_TASK_ID(C_ABE_FW_TASK_IO_MM_DL);
 		break;
 	case OMAP_ABE_VX_UL_PORT:
-		if (abe_port[OMAP_ABE_VX_DL_PORT].status == OMAP_ABE_PORT_ACTIVITY_RUNNING) {
-			/* VX_DL port already started, hence no need to
-				initialize ASRC */
-		} else {
-			/* Init VX_UL ASRC & VX_DL ASRC and enable its adaptation */
-			abe_init_asrc_vx_ul(-250);
-			abe_init_asrc_vx_dl(250);
-		}
-		abe->MultiFrame[16][3] = ABE_TASK_ID(C_ABE_FW_TASK_IO_VX_UL);
 		break;
 	case OMAP_ABE_VX_DL_PORT:
-		if (abe_port[OMAP_ABE_VX_UL_PORT].status == OMAP_ABE_PORT_ACTIVITY_RUNNING) {
-			/* VX_UL port already started, hence no need to
-				initialize ASRC */
-		} else {
-			/* Init VX_UL ASRC & VX_DL ASRC and enable its adaptation */
-			abe_init_asrc_vx_ul(-250);
-			abe_init_asrc_vx_dl(250);
-		}
-		abe->MultiFrame[0][2] =	ABE_TASK_ID(C_ABE_FW_TASK_IO_VX_DL);
 		break;
 	case OMAP_ABE_MM_UL2_PORT:
 		abe->MultiFrame[17][3] = ABE_TASK_ID(C_ABE_FW_TASK_IO_MM_UL2);
@@ -712,13 +694,14 @@ int omap_abe_connect_cbpr_dmareq_port(struct omap_abe *abe,
 	/* load the dma_t with physical information from AE memory mapping */
 	abe_init_dma_t(id, &((abe_port[id]).protocol));
 
+	/* load the ATC descriptors - disabled */
+	omap_abe_init_atc(abe, id);
+
 	/* load the micro-task parameters */
 	abe_init_io_tasks(id, &((abe_port[id]).format),
 			  &((abe_port[id]).protocol));
 	abe_port[id].status = OMAP_ABE_PORT_INITIALIZED;
 
-	/* load the ATC descriptors - disabled */
-	omap_abe_init_atc(abe, id);
 	/* return the dma pointer address */
 	abe_read_port_address(id, returned_dma_t);
 	return 0;
@@ -767,11 +750,13 @@ int omap_abe_connect_irq_ping_pong_port(struct omap_abe *abe,
 		(abe_port[id]).protocol.p.prot_pingpong.irq_addr =
 			ABE_DSP_IRQSTATUS_RAW;
 	abe_port[id].status = OMAP_ABE_PORT_INITIALIZED;
+
+	/* load the ATC descriptors - disabled */
+	omap_abe_init_atc(abe, id);
 	/* load the micro-task parameters */
 	abe_init_io_tasks(id, &((abe_port[id]).format),
 			  &((abe_port[id]).protocol));
-	/* load the ATC descriptors - disabled */
-	omap_abe_init_atc(abe, id);
+
 	*sink = (abe_port[id]).protocol.p.prot_pingpong.buf_addr;
 	return 0;
 }
@@ -803,13 +788,12 @@ int omap_abe_connect_serial_port(struct omap_abe *abe,
 	(abe_port[id]).protocol.p.prot_serial.iter =
 		abe_dma_port_iter_factor(f);
 
+	/* load the ATC descriptors - disabled */
+	omap_abe_init_atc(abe, id);
 	/* load the micro-task parameters */
 	abe_init_io_tasks(id, &((abe_port[id]).format),
 			  &((abe_port[id]).protocol));
 	abe_port[id].status = OMAP_ABE_PORT_INITIALIZED;
-
-	/* load the ATC descriptors - disabled */
-	omap_abe_init_atc(abe, id);
 
 	return 0;
 }
@@ -1132,6 +1116,7 @@ void abe_init_io_tasks(u32 id, abe_data_format_t *format,
 		case OMAP_ABE_MM_UL2_PORT:
 			break;
 		case OMAP_ABE_VX_DL_PORT:
+			abe->MultiFrame[0][2] =	ABE_TASK_ID(C_ABE_FW_TASK_IO_VX_DL);
 			/* check for 8kHz/16kHz */
 			if (abe_port[id].format.f == 8000) {
 				abe->MultiFrame[TASK_VX_DL_SLT][TASK_VX_DL_IDX] =
@@ -1150,6 +1135,9 @@ void abe_init_io_tasks(u32 id, abe_data_format_t *format,
 							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_DL_8);
 					abe->MultiFrame[TASK_ASRC_VX_UL_SLT][TASK_ASRC_VX_UL_IDX] =
 							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_UL_8_SIB);
+					/* Init VX_UL ASRC & VX_DL ASRC and enable its adaptation */
+					abe_init_asrc_vx_ul(-250);
+					abe_init_asrc_vx_dl(250);
 				} else {
 					/* Do nothing, Scheduling Table has already been patched */
 				}
@@ -1170,12 +1158,16 @@ void abe_init_io_tasks(u32 id, abe_data_format_t *format,
 						ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_DL_16);
 					abe->MultiFrame[TASK_ASRC_VX_UL_SLT][TASK_ASRC_VX_UL_IDX] =
 						ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_UL_16_SIB);
+					/* Init VX_UL ASRC & VX_DL ASRC and enable its adaptation */
+					abe_init_asrc_vx_ul(-250);
+					abe_init_asrc_vx_dl(250);
 				} else {
 					/* Do nothing, Scheduling Table has already been patched */
 				}
 			}
 			break;
 		case OMAP_ABE_VX_UL_PORT:
+			abe->MultiFrame[16][3] = ABE_TASK_ID(C_ABE_FW_TASK_IO_VX_UL);
 			/* check for 8kHz/16kHz */
 			if (abe_port[id].format.f == 8000) {
 				abe->MultiFrame[TASK_VX_UL_SLT][TASK_VX_UL_IDX] =
@@ -1195,6 +1187,9 @@ void abe_init_io_tasks(u32 id, abe_data_format_t *format,
 							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_DL_8_SIB);
 					abe->MultiFrame[TASK_ASRC_VX_UL_SLT][TASK_ASRC_VX_UL_IDX] =
 							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_UL_8);
+					/* Init VX_UL ASRC & VX_DL ASRC and enable its adaptation */
+					abe_init_asrc_vx_ul(-250);
+					abe_init_asrc_vx_dl(250);
 				} else {
 					/* Do nothing, Scheduling Table has already been patched */
 				}
@@ -1216,6 +1211,9 @@ void abe_init_io_tasks(u32 id, abe_data_format_t *format,
 						ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_DL_16_SIB);
 					abe->MultiFrame[TASK_ASRC_VX_UL_SLT][TASK_ASRC_VX_UL_IDX] =
 						ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_UL_16);
+					/* Init VX_UL ASRC & VX_DL ASRC and enable its adaptation */
+					abe_init_asrc_vx_ul(-250);
+					abe_init_asrc_vx_dl(250);
 				} else {
 					/* Do nothing, Scheduling Table has already been patched */
 				}

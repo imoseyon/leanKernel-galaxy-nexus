@@ -397,8 +397,11 @@ static int omap_mcpdm_dai_startup(struct snd_pcm_substream *substream,
 	pm_runtime_get_sync(mcpdm->dev);
 
 	val = __raw_readl(OMAP4430_CM1_ABE_PDM_CLKCTRL);
-	if ((val & CLKCTRL_MODULEMODE_MASK) != CLKCTRL_MODULEMODE_ENABLED)
-		dev_err(mcpdm->dev, "Clock not enabled: PDM_CLKCTRL=0x%x\n", val);
+	if ((val & CLKCTRL_MODULEMODE_MASK) != CLKCTRL_MODULEMODE_ENABLED) {
+		WARN(1, "Clock not enabled: PDM_CLKCTRL=0x%x\n", val);
+		pm_runtime_put_sync(mcpdm->dev);
+		goto out;
+	}
 
 	/* Enable McPDM watch dog for ES above ES 1.0 to avoid saturation */
 	if (omap_rev() != OMAP4430_REV_ES1_0) {

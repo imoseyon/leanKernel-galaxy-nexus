@@ -306,20 +306,81 @@ static int twl6040_power_up_completion(struct twl6040 *twl6040,
 				       int naudint)
 {
 	int time_left;
+	int round = 0;
+	int ret = 0;
+	int retry = 0;
 	u8 intid;
+	u8 ncpctl;
+	u8 ldoctl;
+	u8 lppllctl;
+	u8 ncpctl_exp;
+	u8 ldoctl_exp;
+	u8 lppllctl_exp;
 
-	time_left = wait_for_completion_timeout(&twl6040->ready,
-						msecs_to_jiffies(144));
-	if (!time_left) {
-		intid = twl6040_reg_read(twl6040, TWL6040_REG_INTID);
-		if (!(intid & TWL6040_READYINT)) {
-			dev_err(twl6040->dev,
-				"timeout waiting for READYINT\n");
-			return -ETIMEDOUT;
+	/* NCPCTL expected value: NCP enabled */
+	ncpctl_exp = (TWL6040_TSHUTENA | TWL6040_NCPENA);
+
+	/* LDOCTL expected value: HS/LS LDOs and Reference enabled */
+	ldoctl_exp = (TWL6040_REFENA | TWL6040_HSLDOENA | TWL6040_LSLDOENA);
+
+	/* LPPLLCTL expected value: Low-Power PLL enabled */
+	lppllctl_exp = TWL6040_LPLLENA;
+
+	do {
+		gpio_set_value(twl6040->audpwron, 1);
+		time_left = wait_for_completion_timeout(&twl6040->ready,
+							msecs_to_jiffies(144));
+		if (!time_left) {
+			intid = twl6040_reg_read(twl6040, TWL6040_REG_INTID);
+			if (!(intid & TWL6040_READYINT)) {
+				dev_err(twl6040->dev,
+					"timeout waiting for READYINT\n");
+				return -ETIMEDOUT;
+			}
 		}
+		/*
+		 * Power on seemingly completed.
+		 * Look for clues that the twl6040 might be still booting.
+		 */
+
+		retry = 0;
+		ncpctl = twl6040_reg_read(twl6040, TWL6040_REG_NCPCTL);
+		if (ncpctl != ncpctl_exp)
+			retry++;
+
+		ldoctl = twl6040_reg_read(twl6040, TWL6040_REG_LDOCTL);
+		if (ldoctl != ldoctl_exp)
+			retry++;
+
+		lppllctl = twl6040_reg_read(twl6040, TWL6040_REG_LPPLLCTL);
+		if (lppllctl != lppllctl_exp)
+			retry++;
+
+		if (retry) {
+			dev_err(twl6040->dev,
+				"NCPCTL: 0x%02x (should be 0x%02x)\n"
+				"LDOCTL: 0x%02x (should be 0x%02x)\n"
+				"LPLLCTL: 0x%02x (should be 0x%02x)\n",
+				ncpctl, ncpctl_exp,
+				ldoctl, ldoctl_exp,
+				lppllctl, lppllctl_exp);
+			round++;
+			gpio_set_value(twl6040->audpwron, 0);
+			usleep_range(1000, 1500);
+			continue;
+		}
+	} while (round && (round < 3));
+
+	if (round >= 3) {
+		dev_err(twl6040->dev,
+			"Automatic power on failed, reverting to manual\n");
+		twl6040->audpwron = -EINVAL;
+		ret = twl6040_power_up(twl6040);
+		if (ret)
+			dev_err(twl6040->dev, "Manual power-up failed\n");
 	}
 
-	return 0;
+	return ret;
 }
 
 static int twl6040_power(struct twl6040 *twl6040, int enable)
@@ -345,8 +406,6 @@ static int twl6040_power(struct twl6040 *twl6040, int enable)
 				TWL6040_CLK32KSEL);
 
 		if (gpio_is_valid(audpwron)) {
-			/* use AUDPWRON line */
-			gpio_set_value(audpwron, 1);
 			/* wait for power-up completion */
 			ret = twl6040_power_up_completion(twl6040, naudint);
 			if (ret) {

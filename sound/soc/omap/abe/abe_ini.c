@@ -253,7 +253,7 @@ void omap_abe_build_scheduler_table(struct omap_abe *abe)
 	     i < sizeof(abe->MultiFrame); i++)
 		*ptr++ = 0;
 
-	abe->MultiFrame[0][2] = ABE_TASK_ID(C_ABE_FW_TASK_IO_VX_DL);
+	abe->MultiFrame[0][2] = 0/*ABE_TASK_ID(C_ABE_FW_TASK_IO_VX_DL)*/;
 	abe->MultiFrame[0][3] = ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_DL_8);
 
 	abe->MultiFrame[1][3] = ABE_TASK_ID(C_ABE_FW_TASK_VX_DL_8_48_FIR);
@@ -314,7 +314,7 @@ void omap_abe_build_scheduler_table(struct omap_abe *abe)
 	abe->MultiFrame[15][6] = 0/*ABE_TASK_ID(C_ABE_FW_TASK_ASRC_BT_UL_8)*/;
 
 	abe->MultiFrame[16][2] = ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_UL_8);
-	abe->MultiFrame[16][3] = ABE_TASK_ID(C_ABE_FW_TASK_IO_VX_UL);
+	abe->MultiFrame[16][3] = 0/*ABE_TASK_ID(C_ABE_FW_TASK_IO_VX_UL)*/;
 
 	abe->MultiFrame[17][2] = ABE_TASK_ID(C_ABE_FW_TASK_BT_UL_8_48);
 	abe->MultiFrame[17][3] = 0/*ABE_TASK_ID(C_ABE_FW_TASK_IO_MM_UL2)*/;
