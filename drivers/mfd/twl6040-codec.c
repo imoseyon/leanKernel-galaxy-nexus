@@ -329,7 +329,7 @@ static int twl6040_power_up_completion(struct twl6040 *twl6040,
 	do {
 		gpio_set_value(twl6040->audpwron, 1);
 		time_left = wait_for_completion_timeout(&twl6040->ready,
-							msecs_to_jiffies(144));
+							msecs_to_jiffies(700));
 		if (!time_left) {
 			intid = twl6040_reg_read(twl6040, TWL6040_REG_INTID);
 			if (!(intid & TWL6040_READYINT)) {
