@@ -177,8 +177,6 @@ struct omap_vdd_user_list {
  * @vdd_user_list: The vdd user list
  * @voltdm:	Voltage domains for which dvfs info stored
  * @dev_list:	Device list maintained per domain
- * @is_scaling: flag to store information about scaling in progress or not
- *		this flag is already protected by the global mutex.
  *
  * This is a fundamental structure used to store all the required
  * DVFS related information for a vdd.
@@ -190,11 +188,10 @@ struct omap_vdd_dvfs_info {
 	struct plist_head vdd_user_list;
 	struct voltagedomain *voltdm;
 	struct list_head dev_list;
-	bool is_scaling;
 };
 
 static LIST_HEAD(omap_dvfs_info_list);
-static DEFINE_MUTEX(omap_dvfs_lock);
+DEFINE_MUTEX(omap_dvfs_lock);
 
 /* Dvfs scale helper function */
 static int _dvfs_scale(struct device *req_dev, struct device *target_dev,
@@ -740,11 +737,6 @@ static int _dvfs_scale(struct device *req_dev, struct device *target_dev,
 	}
 	vdd = voltdm->vdd;
 
-	/* Mark that we are scaling for this device */
-	tdvfs_info->is_scaling = true;
-	/* let the other CPU know as well */
-	smp_wmb();
-
 	/* Find the highest voltage being requested */
 	node = plist_last(&tdvfs_info->vdd_user_list);
 	new_volt = node->prio;
@@ -840,11 +832,6 @@ fail:
 out:
 	/* Re-enable Smartreflex module */
 	omap_sr_enable(voltdm);
-
-	/* Mark done */
-	tdvfs_info->is_scaling = false;
-	/* let the other CPU know as well */
-	smp_wmb();
 
 	return ret;
 }
@@ -988,58 +975,6 @@ out:
 	return ret;
 }
 EXPORT_SYMBOL(omap_device_scale);
-
-/**
- * omap_dvfs_is_scaling() - Tells the caller if the domain is scaling
- * @voltdm:	voltage domain we are interested in
- *
- * Returns true if the domain is in the middle of scale operation,
- * returns false if there is no scale operation is in progress or an
- * invalid parameter was passed.
- */
-bool omap_dvfs_is_scaling(struct voltagedomain *voltdm)
-{
-	struct omap_vdd_dvfs_info *dvfs_info;
-
-	if (IS_ERR_OR_NULL(voltdm)) {
-		pr_err("%s: bad voltdm\n", __func__);
-		return false;
-	}
-
-	dvfs_info = _voltdm_to_dvfs_info(voltdm);
-	if (IS_ERR_OR_NULL(dvfs_info)) {
-		pr_err("%s: no dvfsinfo for voltdm %s\n",
-			__func__, voltdm->name);
-		return false;
-	}
-
-	return dvfs_info->is_scaling;
-}
-EXPORT_SYMBOL(omap_dvfs_is_scaling);
-
-/**
- * omap_dvfs_is_any_dev_scaling() - returns true if any devices are scaling
- *
- * Should be called in non_preemptible context and is meant for
- * Arch code to check and take appropriate measures if it is not-advisable
- * for any activity which might conflict with scaling operation.
- *
- * IMPORTANT: This function is expected to be called with interrupt disabled,
- * non-preemptible context.
- */
-bool omap_dvfs_is_any_dev_scaling(void)
-{
-	struct omap_vdd_dvfs_info *dvfs_info;
-
-	WARN(!irqs_disabled(), "Called with IRQs enabled, inaccurate!\n");
-
-	list_for_each_entry(dvfs_info, &omap_dvfs_info_list, node) {
-		if (dvfs_info->is_scaling)
-			return true;
-	}
-	return false;
-}
-EXPORT_SYMBOL(omap_dvfs_is_any_dev_scaling);
 
 #ifdef CONFIG_PM_DEBUG
 static int dvfs_dump_vdd(struct seq_file *sf, void *unused)
