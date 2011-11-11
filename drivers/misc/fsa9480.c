@@ -177,6 +177,8 @@ struct fsa9480_usbsw {
 
 	int				num_notifiers;
 	struct usbsw_nb_info		notifiers[0];
+
+	bool wake_enabled;
 };
 #define xceiv_to_fsa(x)		container_of((x), struct fsa9480_usbsw, otg)
 
@@ -747,8 +749,6 @@ static int __devinit fsa9480_probe(struct i2c_client *client,
 					ret);
 			goto err_req_id_irq;
 		}
-
-		enable_irq_wake(usbsw->external_id_irq);
 	}
 
 	/* mask all irqs to prevent event processing between
@@ -848,10 +848,8 @@ err_en_wake:
 	if (client->irq)
 		free_irq(client->irq, usbsw);
 err_req_irq:
-	if (usbsw->pdata->external_id >= 0) {
-		disable_irq_wake(usbsw->external_id_irq);
+	if (usbsw->pdata->external_id >= 0)
 		free_irq(usbsw->external_id_irq, usbsw);
-	}
 err_req_id_irq:
 	if (usbsw->pdata->external_id >= 0)
 		gpio_free(usbsw->pdata->external_id);
@@ -883,7 +881,8 @@ static int __devexit fsa9480_remove(struct i2c_client *client)
 	}
 
 	if (usbsw->pdata->external_id >= 0) {
-		disable_irq_wake(usbsw->external_id_irq);
+		if (usbsw->wake_enabled)
+			disable_irq_wake(usbsw->external_id_irq);
 		free_irq(usbsw->external_id_irq, usbsw);
 		gpio_free(usbsw->pdata->external_id);
 	}
@@ -902,8 +901,15 @@ static int __devexit fsa9480_remove(struct i2c_client *client)
 static int fsa9480_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
+	struct fsa9480_usbsw *usbsw = i2c_get_clientdata(client);
+
+	if (usbsw->wake_enabled) {
+		disable_irq_wake(usbsw->external_id_irq);
+		usbsw->wake_enabled = false;
+	}
 
 	otg_id_resume();
+	enable_irq(usbsw->external_id_irq);
 	enable_irq(client->irq);
 
 	return 0;
@@ -912,9 +918,19 @@ static int fsa9480_resume(struct device *dev)
 static int fsa9480_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
+	struct fsa9480_usbsw *usbsw = i2c_get_clientdata(client);
 	int ret;
 
 	disable_irq(client->irq);
+	disable_irq(usbsw->external_id_irq);
+
+	mutex_lock(&usbsw->lock);
+	if (usbsw->curr_dev == FSA9480_DETECT_USB_HOST) {
+		enable_irq_wake(usbsw->external_id_irq);
+		usbsw->wake_enabled = true;
+	}
+	mutex_unlock(&usbsw->lock);
+
 	ret = otg_id_suspend();
 	if (ret)
 		goto err;
@@ -922,6 +938,11 @@ static int fsa9480_suspend(struct device *dev)
 	return 0;
 
 err:
+	if (usbsw->wake_enabled) {
+		disable_irq_wake(usbsw->external_id_irq);
+		usbsw->wake_enabled = false;
+	}
+	enable_irq(usbsw->external_id_irq);
 	enable_irq(client->irq);
 	return ret;
 }
