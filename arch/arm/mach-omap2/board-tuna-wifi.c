@@ -42,6 +42,7 @@
 #define ATAG_TUNA_MAC	0x57464d41
 /* #define ATAG_TUNA_MAC_DEBUG */
 
+#ifdef CONFIG_DHD_USE_STATIC_BUF
 #define PREALLOC_WLAN_NUMBER_OF_SECTIONS	4
 #define PREALLOC_WLAN_NUMBER_OF_BUFFERS		160
 #define PREALLOC_WLAN_SECTION_HEADER		24
@@ -77,9 +78,11 @@ static void *tuna_wifi_mem_prealloc(int section, unsigned long size)
 		return NULL;
 	return wifi_mem_array[section].mem_ptr;
 }
+#endif
 
 int __init tuna_init_wifi_mem(void)
 {
+#ifdef CONFIG_DHD_USE_STATIC_BUF
 	int i;
 
 	for(i=0;( i < WLAN_SKB_BUF_NUM );i++) {
@@ -94,6 +97,7 @@ int __init tuna_init_wifi_mem(void)
 		if (wifi_mem_array[i].mem_ptr == NULL)
 			return -ENOMEM;
 	}
+#endif
 	return 0;
 }
 
@@ -368,7 +372,11 @@ static struct wifi_platform_data tuna_wifi_control = {
 	.set_power      = tuna_wifi_power,
 	.set_reset      = tuna_wifi_reset,
 	.set_carddetect = tuna_wifi_set_carddetect,
+#ifdef CONFIG_DHD_USE_STATIC_BUF
 	.mem_prealloc	= tuna_wifi_mem_prealloc,
+#else
+	.mem_prealloc	= NULL,
+#endif
 	.get_mac_addr	= tuna_wifi_get_mac_addr,
 	.get_country_code = tuna_wifi_get_country_code,
 };
