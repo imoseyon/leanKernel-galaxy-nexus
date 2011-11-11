@@ -33,8 +33,6 @@
 #include <linux/mfd/core.h>
 #include <linux/mfd/twl6040-codec.h>
 
-static struct platform_device *twl6040_dev;
-
 int twl6040_reg_read(struct twl6040 *twl6040, unsigned int reg)
 {
 	int ret;
@@ -315,7 +313,7 @@ static int twl6040_power_up_completion(struct twl6040 *twl6040,
 	if (!time_left) {
 		intid = twl6040_reg_read(twl6040, TWL6040_REG_INTID);
 		if (!(intid & TWL6040_READYINT)) {
-			dev_err(&twl6040_dev->dev,
+			dev_err(twl6040->dev,
 				"timeout waiting for READYINT\n");
 			return -ETIMEDOUT;
 		}
@@ -326,18 +324,33 @@ static int twl6040_power_up_completion(struct twl6040 *twl6040,
 
 static int twl6040_power(struct twl6040 *twl6040, int enable)
 {
+	struct twl4030_codec_data *pdata = dev_get_platdata(twl6040->dev);
 	int audpwron = twl6040->audpwron;
 	int naudint = twl6040->irq;
 	int ret = 0;
 
 	if (enable) {
+		/* enable 32kHz external clock */
+		if (pdata->set_ext_clk32k) {
+			ret = pdata->set_ext_clk32k(true);
+			if (ret) {
+				dev_err(twl6040->dev,
+					"failed to enable CLK32K %d\n", ret);
+				return ret;
+			}
+		}
+
+		/* disable internal 32kHz oscillator */
+		twl6040_clear_bits(twl6040, TWL6040_REG_ACCCTL,
+				TWL6040_CLK32KSEL);
+
 		if (gpio_is_valid(audpwron)) {
 			/* use AUDPWRON line */
 			gpio_set_value(audpwron, 1);
 			/* wait for power-up completion */
 			ret = twl6040_power_up_completion(twl6040, naudint);
 			if (ret) {
-				dev_err(&twl6040_dev->dev,
+				dev_err(twl6040->dev,
 					"automatic power-down failed\n");
 				return ret;
 			}
@@ -345,7 +358,7 @@ static int twl6040_power(struct twl6040 *twl6040, int enable)
 			/* use manual power-up sequence */
 			ret = twl6040_power_up(twl6040);
 			if (ret) {
-				dev_err(&twl6040_dev->dev,
+				dev_err(twl6040->dev,
 					"manual power-up failed\n");
 				return ret;
 			}
@@ -363,11 +376,24 @@ static int twl6040_power(struct twl6040 *twl6040, int enable)
 			/* use manual power-down sequence */
 			ret = twl6040_power_down(twl6040);
 			if (ret) {
-				dev_err(&twl6040_dev->dev,
+				dev_err(twl6040->dev,
 					"manual power-down failed\n");
 				return ret;
 			}
 		}
+
+		/* enable internal 32kHz oscillator */
+		twl6040_set_bits(twl6040, TWL6040_REG_ACCCTL,
+				TWL6040_CLK32KSEL);
+
+		/* disable 32kHz external clock */
+		if (pdata->set_ext_clk32k) {
+			ret = pdata->set_ext_clk32k(false);
+			if (ret)
+				dev_err(twl6040->dev,
+					"failed to disable CLK32K %d\n", ret);
+		}
+
 		twl6040->pll = TWL6040_NOPLL_ID;
 		twl6040->sysclk = 0;
 	}
@@ -432,7 +458,7 @@ int twl6040_set_pll(struct twl6040 *twl6040, enum twl6040_pll_id id,
 			lppllctl &= ~TWL6040_LPLLFIN;
 			break;
 		default:
-			dev_err(&twl6040_dev->dev,
+			dev_err(twl6040->dev,
 				"freq_out %d not supported\n", freq_out);
 			ret = -EINVAL;
 			goto pll_out;
@@ -453,7 +479,7 @@ int twl6040_set_pll(struct twl6040 *twl6040, enum twl6040_pll_id id,
 					  hppllctl);
 			break;
 		default:
-			dev_err(&twl6040_dev->dev,
+			dev_err(twl6040->dev,
 				"freq_in %d not supported\n", freq_in);
 			ret = -EINVAL;
 			goto pll_out;
@@ -464,7 +490,7 @@ int twl6040_set_pll(struct twl6040 *twl6040, enum twl6040_pll_id id,
 	case TWL6040_HPPLL_ID:
 		/* high-performance pll can provide only 19.2 MHz */
 		if (freq_out != 19200000) {
-			dev_err(&twl6040_dev->dev,
+			dev_err(twl6040->dev,
 				"freq_out %d not supported\n", freq_out);
 			ret = -EINVAL;
 			goto pll_out;
@@ -498,7 +524,7 @@ int twl6040_set_pll(struct twl6040 *twl6040, enum twl6040_pll_id id,
 				    TWL6040_HPLLBP;
 			break;
 		default:
-			dev_err(&twl6040_dev->dev,
+			dev_err(twl6040->dev,
 				"freq_in %d not supported\n", freq_in);
 			ret = -EINVAL;
 			goto pll_out;
@@ -514,7 +540,7 @@ int twl6040_set_pll(struct twl6040 *twl6040, enum twl6040_pll_id id,
 		twl6040->pll = TWL6040_HPPLL_ID;
 		break;
 	default:
-		dev_err(&twl6040_dev->dev, "unknown pll id %d\n", id);
+		dev_err(twl6040->dev, "unknown pll id %d\n", id);
 		ret = -EINVAL;
 		goto pll_out;
 	}
@@ -566,7 +592,6 @@ static int __devinit twl6040_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, twl6040);
 
-	twl6040_dev = pdev;
 	twl6040->dev = &pdev->dev;
 	mutex_init(&twl6040->mutex);
 	mutex_init(&twl6040->io_mutex);
@@ -623,6 +648,16 @@ static int __devinit twl6040_probe(struct platform_device *pdev)
 	accctl = twl6040_reg_read(twl6040, TWL6040_REG_ACCCTL);
 	twl6040_reg_write(twl6040, TWL6040_REG_ACCCTL, accctl | TWL6040_I2CSEL);
 
+	if (pdata->get_ext_clk32k) {
+		ret = pdata->get_ext_clk32k();
+		if (ret) {
+			dev_err(twl6040->dev,
+				"failed to get external 32kHz clock %d\n",
+				ret);
+			goto clk32k_err;
+		}
+	}
+
 	if (pdata->audio) {
 		cell = &twl6040->cells[children];
 		cell->name = "twl6040-codec";
@@ -653,6 +688,9 @@ static int __devinit twl6040_probe(struct platform_device *pdev)
 	return 0;
 
 mfd_err:
+	if (pdata->put_ext_clk32k)
+		pdata->put_ext_clk32k();
+clk32k_err:
 	if (naudint)
 		twl6040_free_irq(twl6040, TWL6040_IRQ_READY, twl6040);
 irq_err:
@@ -664,13 +702,13 @@ gpio2_err:
 gpio1_err:
 	platform_set_drvdata(pdev, NULL);
 	kfree(twl6040);
-	twl6040_dev = NULL;
 	return ret;
 }
 
 static int __devexit twl6040_remove(struct platform_device *pdev)
 {
 	struct twl6040 *twl6040 = platform_get_drvdata(pdev);
+	struct twl4030_codec_data *pdata = dev_get_platdata(twl6040->dev);
 	int audpwron = twl6040->audpwron;
 	int naudint = twl6040->irq;
 
@@ -685,9 +723,12 @@ static int __devexit twl6040_remove(struct platform_device *pdev)
 		twl6040_irq_exit(twl6040);
 
 	mfd_remove_devices(&pdev->dev);
+
+	if (pdata->put_ext_clk32k)
+		pdata->put_ext_clk32k();
+
 	platform_set_drvdata(pdev, NULL);
 	kfree(twl6040);
-	twl6040_dev = NULL;
 
 	return 0;
 }
