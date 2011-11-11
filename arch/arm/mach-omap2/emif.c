@@ -574,7 +574,7 @@ static u32 get_temperature_level(u32 emif_nr)
  */
 static void setup_registers(u32 emif_nr, struct emif_regs *regs, u32 volt_state)
 {
-	u32 temp, zq, read_idle;
+	u32 temp,read_idle;
 	void __iomem *base = emif[emif_nr].base;
 
 	__raw_writel(regs->ref_ctrl, base + OMAP44XX_EMIF_SDRAM_REF_CTRL_SHDW);
@@ -623,17 +623,13 @@ static void setup_registers(u32 emif_nr, struct emif_regs *regs, u32 volt_state)
 		     base + OMAP44XX_EMIF_TEMP_ALERT_CONFIG);
 
 	/*
-	 * When voltage ramps zq calibration and forced read idle should
+	 * When voltage ramps forced read idle should
 	 * happen more often.
 	 */
-	if (volt_state == LPDDR2_VOLTAGE_RAMPING) {
-		zq = regs->zq_config_volt_ramp;
+	if (volt_state == LPDDR2_VOLTAGE_RAMPING)
 		read_idle = regs->read_idle_ctrl_volt_ramp;
-	} else {
-		zq = regs->zq_config_normal;
+	else
 		read_idle = regs->read_idle_ctrl_normal;
-	}
-	__raw_writel(zq, base + OMAP44XX_EMIF_ZQ_CONFIG);
 	__raw_writel(read_idle, base + OMAP44XX_EMIF_READ_IDLE_CTRL_SHDW);
 
 	/*
@@ -715,20 +711,17 @@ static irqreturn_t handle_temp_alert(void __iomem *base, u32 emif_nr)
 static void setup_volt_sensitive_registers(u32 emif_nr, struct emif_regs *regs,
 					   u32 volt_state)
 {
-	u32 zq, read_idle;
+	u32 read_idle;
 	void __iomem *base = emif[emif_nr].base;
 	/*
-	 * When voltage ramps zq calibration and forced read idle should
+	 * When voltage ramps forced read idle should
 	 * happen more often.
 	 */
-	if (volt_state == LPDDR2_VOLTAGE_RAMPING) {
-		zq = regs->zq_config_volt_ramp;
+	if (volt_state == LPDDR2_VOLTAGE_RAMPING)
 		read_idle = regs->read_idle_ctrl_volt_ramp;
-	} else {
-		zq = regs->zq_config_normal;
+	else
 		read_idle = regs->read_idle_ctrl_normal;
-	}
-	__raw_writel(zq, base + OMAP44XX_EMIF_ZQ_CONFIG);
+
 	__raw_writel(read_idle, base + OMAP44XX_EMIF_READ_IDLE_CTRL_SHDW);
 
 	/* read back last written register to ensure write is complete */
