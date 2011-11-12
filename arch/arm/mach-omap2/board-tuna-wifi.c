@@ -211,6 +211,9 @@ static struct platform_device omap_vwlan_device = {
 
 static int tuna_wifi_power(int on)
 {
+	int ret = 0;
+
+	pr_debug("%s: %d\n", __func__, on);
 	if (!clk32kaudio_reg) {
 		clk32kaudio_reg = regulator_get(0, "clk32kaudio");
 		if (IS_ERR(clk32kaudio_reg)) {
@@ -219,19 +222,24 @@ static int tuna_wifi_power(int on)
 		}
 	}
 
-	if (clk32kaudio_reg && on && !tuna_wifi_power_state)
-		regulator_enable(clk32kaudio_reg);
-
-	pr_debug("%s: %d\n", __func__, on);
+	if (clk32kaudio_reg && on && !tuna_wifi_power_state) {
+		ret = regulator_enable(clk32kaudio_reg);
+		if (!ret)
+			pr_err("%s: regulator_enable failed: %d\n", __func__,
+				ret);
+	}
 	mdelay(100);
 	gpio_set_value(GPIO_WLAN_PMENA, on);
 	mdelay(200);
 
-	if (clk32kaudio_reg && !on && tuna_wifi_power_state)
-		regulator_disable(clk32kaudio_reg);
-
+	if (clk32kaudio_reg && !on && tuna_wifi_power_state) {
+		ret = regulator_disable(clk32kaudio_reg);
+		if (!ret)
+			pr_err("%s: regulator_disable failed: %d\n", __func__,
+				ret);
+	}
 	tuna_wifi_power_state = on;
-	return 0;
+	return ret;
 }
 
 static int tuna_wifi_reset_state;
