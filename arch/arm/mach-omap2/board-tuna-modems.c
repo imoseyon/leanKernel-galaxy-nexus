@@ -170,14 +170,18 @@ static void umts_modem_cfg_gpio(void)
 	unsigned gpio_flm_uart_sel = umts_modem_data.gpio_flm_uart_sel;
 
 	/* gpio mux setting */
-	omap_mux_init_signal("gpmc_ncs0.gpio_50", OMAP_PIN_OUTPUT);
-	omap_mux_init_signal("gpmc_ncs3.gpio_53", OMAP_PIN_OUTPUT);
-	omap_mux_init_signal("dpm_emu4.gpio_15", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("gpmc_ncs0.gpio_50", OMAP_PIN_OUTPUT |
+				OMAP_OFF_EN | OMAP_OFFOUT_VAL);
+	omap_mux_init_signal("gpmc_ncs3.gpio_53", OMAP_PIN_OUTPUT |
+				OMAP_OFF_EN | OMAP_OFFOUT_VAL);
+	omap_mux_init_signal("dpm_emu4.gpio_15", OMAP_PIN_OUTPUT |
+				OMAP_OFF_EN | OMAP_OFFOUT_VAL);
 	omap_mux_init_signal("abe_dmic_clk1.gpio_119", OMAP_PIN_OUTPUT |
-				OMAP_PIN_OFF_OUTPUT_LOW);
-	omap_mux_init_signal("abe_dmic_din1.gpio_120", OMAP_PIN_INPUT);
+				OMAP_OFF_EN);
+	omap_mux_init_signal("abe_dmic_din1.gpio_120", OMAP_PIN_INPUT_PULLUP);
 	omap_mux_init_signal("usbb1_ulpitll_dat7.gpio_95", OMAP_PIN_INPUT);
-	omap_mux_init_signal("usbb2_ulpitll_dat3.gpio_164", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("usbb2_ulpitll_dat3.gpio_164", OMAP_PIN_OUTPUT |
+				OMAP_OFF_EN | OMAP_OFFOUT_VAL);
 	omap_mux_init_signal("uart3_cts_rctx.uart1_tx", OMAP_PIN_INPUT);
 	omap_mux_init_signal("mcspi1_cs1.uart1_rx", OMAP_PIN_INPUT);
 
