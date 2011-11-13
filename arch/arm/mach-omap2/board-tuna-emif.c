@@ -36,7 +36,6 @@ const struct lpddr2_timings lpddr2_samsung_timings_400_mhz = {
 	.tDQSCKMAXx2	= 11,
 	.tRASmax	= 70,
 	.tFAW		= 50,
-	.omap_emif_self_refresh_time = 5120,
 };
 
 const struct lpddr2_timings lpddr2_samsung_timings_200_mhz = {
@@ -60,7 +59,6 @@ const struct lpddr2_timings lpddr2_samsung_timings_200_mhz = {
 	.tDQSCKMAXx2	= 11,
 	.tRASmax	= 70,
 	.tFAW		= 50,
-	.omap_emif_self_refresh_time = 80,
 };
 
 const struct lpddr2_min_tck lpddr2_samsung_min_tck = {
@@ -86,7 +84,8 @@ struct lpddr2_device_info lpddr2_samsung_4G_S4_dev = {
 	.min_tck	= &lpddr2_samsung_min_tck,
 	.type		= LPDDR2_TYPE_S4,
 	.density	= LPDDR2_DENSITY_4Gb,
-	.io_width	= LPDDR2_IO_WIDTH_32
+	.io_width	= LPDDR2_IO_WIDTH_32,
+	.emif_ddr_selfrefresh_cycles = 262144,
 };
 
 /*
