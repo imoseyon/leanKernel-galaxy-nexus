@@ -2306,6 +2306,11 @@ int snd_soc_poweroff(struct device *dev)
 }
 EXPORT_SYMBOL_GPL(snd_soc_poweroff);
 
+void soc_shutdown(struct platform_device *pdev)
+{
+	snd_soc_poweroff(&pdev->dev);
+}
+
 const struct dev_pm_ops snd_soc_pm_ops = {
 	.suspend = snd_soc_suspend,
 	.resume = snd_soc_resume,
@@ -2322,6 +2327,7 @@ static struct platform_driver soc_driver = {
 	},
 	.probe		= soc_probe,
 	.remove		= soc_remove,
+	.shutdown	= soc_shutdown,
 };
 
 /* create a new pcm */

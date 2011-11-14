@@ -574,7 +574,7 @@ static u32 get_temperature_level(u32 emif_nr)
  */
 static void setup_registers(u32 emif_nr, struct emif_regs *regs, u32 volt_state)
 {
-	u32 temp, zq, read_idle;
+	u32 temp,read_idle;
 	void __iomem *base = emif[emif_nr].base;
 
 	__raw_writel(regs->ref_ctrl, base + OMAP44XX_EMIF_SDRAM_REF_CTRL_SHDW);
@@ -590,50 +590,18 @@ static void setup_registers(u32 emif_nr, struct emif_regs *regs, u32 volt_state)
 		   OMAP44XX_REG_DDR_PHY_CTRL_1_SHDW_MASK,
 		   regs->emif_ddr_phy_ctlr_1_final);
 	__raw_writel(temp, base + OMAP44XX_EMIF_DDR_PHY_CTRL_1_SHDW);
-	__raw_writel(EMIF_PWR_MGMT_CTRL_SHDW,
-		     base + OMAP44XX_EMIF_PWR_MGMT_CTRL_SHDW);
-
-	/* Configure EMIF Automatic Power Management to Self-refresh mode */
-	if (regs->emif_ddr_selfrefresh_cycles >= 0) {
-		u32 num_cycles, ddr_sr_timer;
-
-		temp = __raw_readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL_SHDW);
-		/*
-		 * Configure the self refresh timing
-		 * base value starts at 16 cycles mapped to 1( __ffs(16) = 4)
-		 */
-		num_cycles = regs->emif_ddr_selfrefresh_cycles;
-		if (num_cycles >= 16)
-			ddr_sr_timer = __fls(num_cycles) - 3;
-		else
-			ddr_sr_timer = 0;
-
-		mask_n_set(temp, OMAP44XX_REG_SR_TIM_SHDW_SHIFT,
-			   OMAP44XX_REG_SR_TIM_SHDW_MASK, ddr_sr_timer);
-		__raw_writel(temp, base + OMAP44XX_EMIF_PWR_MGMT_CTRL_SHDW);
-
-		/* Enable Self Refresh */
-		temp = __raw_readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL);
-		mask_n_set(temp, OMAP44XX_REG_LP_MODE_SHIFT,
-			   OMAP44XX_REG_LP_MODE_MASK, LP_MODE_SELF_REFRESH);
-		__raw_writel(temp, base + OMAP44XX_EMIF_PWR_MGMT_CTRL);
-	}
 
 	__raw_writel(regs->temp_alert_config,
 		     base + OMAP44XX_EMIF_TEMP_ALERT_CONFIG);
 
 	/*
-	 * When voltage ramps zq calibration and forced read idle should
+	 * When voltage ramps forced read idle should
 	 * happen more often.
 	 */
-	if (volt_state == LPDDR2_VOLTAGE_RAMPING) {
-		zq = regs->zq_config_volt_ramp;
+	if (volt_state == LPDDR2_VOLTAGE_RAMPING)
 		read_idle = regs->read_idle_ctrl_volt_ramp;
-	} else {
-		zq = regs->zq_config_normal;
+	else
 		read_idle = regs->read_idle_ctrl_normal;
-	}
-	__raw_writel(zq, base + OMAP44XX_EMIF_ZQ_CONFIG);
 	__raw_writel(read_idle, base + OMAP44XX_EMIF_READ_IDLE_CTRL_SHDW);
 
 	/*
@@ -715,20 +683,17 @@ static irqreturn_t handle_temp_alert(void __iomem *base, u32 emif_nr)
 static void setup_volt_sensitive_registers(u32 emif_nr, struct emif_regs *regs,
 					   u32 volt_state)
 {
-	u32 zq, read_idle;
+	u32 read_idle;
 	void __iomem *base = emif[emif_nr].base;
 	/*
-	 * When voltage ramps zq calibration and forced read idle should
+	 * When voltage ramps forced read idle should
 	 * happen more often.
 	 */
-	if (volt_state == LPDDR2_VOLTAGE_RAMPING) {
-		zq = regs->zq_config_volt_ramp;
+	if (volt_state == LPDDR2_VOLTAGE_RAMPING)
 		read_idle = regs->read_idle_ctrl_volt_ramp;
-	} else {
-		zq = regs->zq_config_normal;
+	else
 		read_idle = regs->read_idle_ctrl_normal;
-	}
-	__raw_writel(zq, base + OMAP44XX_EMIF_ZQ_CONFIG);
+
 	__raw_writel(read_idle, base + OMAP44XX_EMIF_READ_IDLE_CTRL_SHDW);
 
 	/* read back last written register to ensure write is complete */
@@ -962,8 +927,6 @@ static void emif_calculate_regs(const struct emif_device_details *devices,
 	emif_assert(addressing);
 
 	regs->RL_final = timings->RL;
-	regs->emif_ddr_selfrefresh_cycles =
-		ns_2_cycles(timings->omap_emif_self_refresh_time);
 	/*
 	 * Initial value of EMIF_SDRAM_CONFIG corresponds to the base
 	 * frequency - 19.2 MHz
@@ -1329,6 +1292,77 @@ int omap_emif_setup_device_details(const struct emif_device_details
 	return 0;
 }
 
+static void __init setup_lowpower_regs(u32 emif_nr,
+				       struct emif_device_details *emif_dev)
+{
+	u32 temp;
+	void __iomem *base = emif[emif_nr].base;
+	const struct lpddr2_device_info *dev;
+
+	if (!emif_dev) {
+		pr_err("%s: no emif %d\n", __func__, emif_nr);
+		return;
+	}
+
+	/*
+	 * All devices on this specific EMIF should have the same Selfrefresh
+	 * timing, so use cs0
+	 */
+	dev = emif_dev->cs0_device;
+	if (!dev) {
+		pr_err("%s: no CS0 device in emif %d\n", __func__, emif_nr);
+		return;
+	}
+	if (dev->emif_ddr_selfrefresh_cycles >= 0) {
+		u32 num_cycles, ddr_sr_timer;
+
+		/* Enable self refresh if not already configured */
+		temp = __raw_readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL) &
+			OMAP44XX_REG_LP_MODE_MASK;
+		/*
+		 * Configure the self refresh timing
+		 * base value starts at 16 cycles mapped to 1( __fls(16) = 4)
+		 */
+		num_cycles = dev->emif_ddr_selfrefresh_cycles;
+		if (num_cycles >= 16)
+			ddr_sr_timer = __fls(num_cycles) - 3;
+		else
+			ddr_sr_timer = 0;
+
+		/* Program the idle delay */
+		temp = __raw_readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL_SHDW);
+		mask_n_set(temp, OMAP44XX_REG_SR_TIM_SHDW_SHIFT,
+			   OMAP44XX_REG_SR_TIM_SHDW_MASK, ddr_sr_timer);
+		/*
+		 * Some weird magic number to a field which should'nt impact..
+		 * but seems to make this work..
+		 */
+		mask_n_set(temp, OMAP44XX_REG_CS_TIM_SHDW_SHIFT,
+			   OMAP44XX_REG_CS_TIM_SHDW_MASK, 0xf);
+		__raw_writel(temp, base + OMAP44XX_EMIF_PWR_MGMT_CTRL_SHDW);
+
+		/* Enable Self Refresh */
+		temp = __raw_readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL);
+		mask_n_set(temp, OMAP44XX_REG_LP_MODE_SHIFT,
+			   OMAP44XX_REG_LP_MODE_MASK, LP_MODE_SELF_REFRESH);
+		__raw_writel(temp, base + OMAP44XX_EMIF_PWR_MGMT_CTRL);
+	} else {
+		/* Disable Automatic power management if < 0 and not disabled */
+		temp = __raw_readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL) &
+			OMAP44XX_REG_LP_MODE_MASK;
+
+		temp = __raw_readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL_SHDW);
+		mask_n_set(temp, OMAP44XX_REG_SR_TIM_SHDW_SHIFT,
+			   OMAP44XX_REG_SR_TIM_SHDW_MASK, 0x0);
+		__raw_writel(temp, base + OMAP44XX_EMIF_PWR_MGMT_CTRL_SHDW);
+
+		temp = __raw_readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL);
+		mask_n_set(temp, OMAP44XX_REG_LP_MODE_SHIFT,
+			   OMAP44XX_REG_LP_MODE_MASK, LP_MODE_DISABLE);
+		__raw_writel(temp, base + OMAP44XX_EMIF_PWR_MGMT_CTRL);
+	}
+}
+
 /*
  * omap_init_emif_timings - reprogram EMIF timing parameters
  *
@@ -1365,10 +1399,14 @@ static int __init omap_init_emif_timings(void)
 		pr_err("Unable to set LPDDR2 rate to %ld:\n", rate);
 
 	/* registers are setup correctly - now enable interrupts */
-	if (emif_devices[EMIF1])
+	if (emif_devices[EMIF1]) {
 		ret = setup_emif_interrupts(EMIF1);
-	if (!ret && emif_devices[EMIF2])
+		setup_lowpower_regs(EMIF1, emif_devices[EMIF1]);
+	}
+	if (!ret && emif_devices[EMIF2]) {
 		ret = setup_emif_interrupts(EMIF2);
+		setup_lowpower_regs(EMIF2, emif_devices[EMIF2]);
+	}
 
 	clk_put(dpll_core_m2_clk);
 
