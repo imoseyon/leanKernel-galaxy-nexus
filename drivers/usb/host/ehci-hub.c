@@ -1032,9 +1032,19 @@ static int ehci_hub_control (
 						"port %d resume error %d\n",
 						wIndex + 1, retval);
 
+						if (ehci->has_smsc_ulpi_bug)
+							ehci->resume_error_flag = 1;
+
 						uhh_omap_reset_link(ehci);
 						goto error;
 				}
+
+				/* restore registers value to its original state*/
+				if (ehci->resume_error_flag) {
+					omap_ehci_ulpi_write(hcd, 0x00, 0x32, 20);
+					omap_ehci_ulpi_write(hcd, 0x04, 0x39, 20);
+				}
+
 				temp &= ~(PORT_SUSPEND|PORT_RESUME|(3<<10));
 			}
 		}
@@ -1158,6 +1168,16 @@ static int ehci_hub_control (
 			if ((temp & PORT_PE) == 0
 					|| (temp & PORT_RESET) != 0)
 				goto error;
+
+			/*
+			* Special workaround for resume error
+			*  - Write 04h to register 32h : inserts a 2uA source current on DP
+			*  - Write 14h to register 39h : enables 125kohm pull up resistors on DP
+			*/
+			if (ehci->resume_error_flag) {
+				omap_ehci_ulpi_write(hcd, 0x04, 0x32, 20);
+				omap_ehci_ulpi_write(hcd, 0x14, 0x39, 20);
+			}
 
 			/* After above check the port must be connected.
 			 * Set appropriate bit thus could put phy into low power
