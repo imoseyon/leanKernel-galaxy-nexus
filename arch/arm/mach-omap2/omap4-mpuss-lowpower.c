@@ -107,6 +107,7 @@ static DEFINE_PER_CPU(struct omap4_cpu_pm_info, omap4_pm_info);
 
 #define PPI_CONTEXT_SIZE 11
 static DEFINE_PER_CPU(u32[PPI_CONTEXT_SIZE], gic_ppi_context);
+static DEFINE_PER_CPU(u32, gic_ppi_enable_mask);
 
 /* Helper functions */
 static inline void sar_writel(u32 val, u32 offset, u8 idx)
@@ -258,7 +259,17 @@ static void gic_restore_ppi(void)
 static void gic_mask_ppi(void)
 {
 	void __iomem *gic_dist_base = omap4_get_gic_dist_base();
+
+	__get_cpu_var(gic_ppi_enable_mask) =
+		readl_relaxed(gic_dist_base + GIC_DIST_ENABLE_SET);
 	writel_relaxed(0xffffffff, gic_dist_base + GIC_DIST_ENABLE_CLEAR);
+}
+
+static void gic_unmask_ppi(void)
+{
+	void __iomem *gic_dist_base = omap4_get_gic_dist_base();
+	writel_relaxed(__get_cpu_var(gic_ppi_enable_mask),
+		       gic_dist_base + GIC_DIST_ENABLE_SET);
 }
 
 /*
@@ -582,8 +593,7 @@ cpu_prepare:
 	/*
 	 * mask all PPIs to prevent them from kicking us out of wfi.
 	 */
-	if (save_state >= 2)
-		gic_mask_ppi();
+	gic_mask_ppi();
 
 	clear_cpu_prev_pwrst(cpu);
 	cpu_clear_prev_logic_pwrst(cpu);
@@ -608,8 +618,16 @@ cpu_prepare:
 	wakeup_cpu = hard_smp_processor_id();
 	set_cpu_next_pwrst(wakeup_cpu, PWRDM_POWER_ON);
 
+	/*
+	 * If we didn't actually get into the low power state (e.g. immediately
+	 * exited wfi due to a pending interrupt), the secure side
+	 * would not have restored CPU0's GIC PPI enable mask.
+	 * For other CPUs, gic_restore_ppi will do that for us.
+	 */
 	if (cpu)
 		gic_restore_ppi();
+	else
+		gic_unmask_ppi();
 
 	/*
 	 * If !master cpu return to hotplug-path.
