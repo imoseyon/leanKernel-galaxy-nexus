@@ -362,6 +362,15 @@ static void sa_calc(struct dispc_config *dispc_reg_config, u32 channel_no,
 	if (i == 0) {
 		/* LineSize > MemoryLineBufferSize (Valid only for 1D) */
 		sa_info->min_sa = Tot_mem - 8;
+	} else if (i == 1) {
+		/*
+		 * When MemoryLineBufferSize > LineSize >
+		 * (MemoryLineBufferSize/2)
+		 */
+
+		/* HACK: we multiplied pict_16word by 2 as we hit underflow */
+		sa_info->min_sa = 2 * pict_16word + C2 * (Tot_mem -
+						pict_16word_ceil - 8);
 	} else {
 		/* All other cases */
 		sa_info->min_sa = 4 * pict_16word_ceil;

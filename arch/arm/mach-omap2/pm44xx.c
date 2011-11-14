@@ -881,9 +881,16 @@ static void omap_pm_clear_dsp_wake_up(void)
 	}
 
 	ret = pwrdm_read_pwrst(tesla_pwrdm);
-	/* If Tesla power state in RET or OFF, then not hit by errata */
-	if (ret <= PWRDM_POWER_RET)
+	/*
+	 * If current Tesla power state is in RET/OFF and not in transition,
+	 * then not hit by errata.
+	 */
+	if (ret <= PWRDM_POWER_RET) {
+		if (!(omap4_prminst_read_inst_reg(tesla_pwrdm->prcm_partition,
+				tesla_pwrdm->prcm_offs, OMAP4_PM_PWSTST)
+				& OMAP_INTRANSITION_MASK))
 		return;
+	}
 
 	if (clkdm_wakeup(tesla_clkdm))
 		pr_err("%s: Failed to force wakeup of %s\n", __func__,
