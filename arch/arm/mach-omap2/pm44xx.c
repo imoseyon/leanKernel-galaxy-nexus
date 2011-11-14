@@ -162,7 +162,7 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 	core_next_state = pwrdm_read_next_pwrst(core_pwrdm);
 	mpu_next_state = pwrdm_read_next_pwrst(mpu_pwrdm);
 
-	ret = omap2_gpio_prepare_for_idle(omap4_device_next_state_off());
+	ret = omap2_gpio_prepare_for_idle(omap4_device_next_state_off(), suspend);
 	if (ret)
 		goto abort_gpio;
 

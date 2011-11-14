@@ -166,29 +166,6 @@
 #define DPD_DISABLE	0
 #define DPD_ENABLE	1
 
-/* Maximum delay before Low Power Modes */
-#define REG_CS_TIM		0xF
-#define REG_SR_TIM		0xF
-#define REG_PD_TIM		0xF
-
-/* EMIF_PWR_MGMT_CTRL register */
-#define EMIF_PWR_MGMT_CTRL (\
-	((REG_CS_TIM << OMAP44XX_REG_CS_TIM_SHIFT) & OMAP44XX_REG_CS_TIM_MASK)|\
-	((REG_SR_TIM << OMAP44XX_REG_SR_TIM_SHIFT) & OMAP44XX_REG_SR_TIM_MASK)|\
-	((REG_PD_TIM << OMAP44XX_REG_PD_TIM_SHIFT) & OMAP44XX_REG_PD_TIM_MASK)|\
-	((LP_MODE_SELF_REFRESH << OMAP44XX_REG_LP_MODE_SHIFT)\
-			& OMAP44XX_REG_LP_MODE_MASK) |\
-	((DPD_DISABLE << OMAP44XX_REG_DPD_EN_SHIFT)\
-			& OMAP44XX_REG_DPD_EN_MASK))\
-
-#define EMIF_PWR_MGMT_CTRL_SHDW (\
-	((REG_CS_TIM << OMAP44XX_REG_CS_TIM_SHDW_SHIFT)\
-			& OMAP44XX_REG_CS_TIM_SHDW_MASK) |\
-	((REG_SR_TIM << OMAP44XX_REG_SR_TIM_SHDW_SHIFT)\
-			& OMAP44XX_REG_SR_TIM_SHDW_MASK) |\
-	((REG_PD_TIM << OMAP44XX_REG_PD_TIM_SHDW_SHIFT)\
-			& OMAP44XX_REG_PD_TIM_SHDW_MASK))
-
 /*
  * Value of bits 12:31 of DDR_PHY_CTRL_1 register:
  * All these fields have magic values dependent on frequency and
@@ -277,7 +254,6 @@ struct emif_regs {
 	u32 temp_alert_config_derated;
 	u32 emif_ddr_phy_ctlr_1_init;
 	u32 emif_ddr_phy_ctlr_1_final;
-	s32 emif_ddr_selfrefresh_cycles;
 };
 
 int omap_emif_setup_registers(u32 freq,

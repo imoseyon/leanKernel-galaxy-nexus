@@ -14,6 +14,7 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/bitops.h>
+#include <linux/spinlock.h>
 #include <plat/cpu.h>
 #include <plat/clock.h>
 #include <plat/common.h>
@@ -36,6 +37,7 @@
 #define MAX_FREQ_UPDATE_TIMEOUT  100000
 
 static struct clockdomain *l3_emif_clkdm;
+static DEFINE_SPINLOCK(l3_emif_lock);
 
 /**
  * omap4_core_dpll_m2_set_rate - set CORE DPLL M2 divider
@@ -53,6 +55,7 @@ int omap4_core_dpll_m2_set_rate(struct clk *clk, unsigned long rate)
 {
 	int i = 0;
 	u32 validrate = 0, shadow_freq_cfg1 = 0, new_div = 0;
+	unsigned long flags;
 
 	if (!clk || !rate)
 		return -EINVAL;
@@ -69,6 +72,8 @@ int omap4_core_dpll_m2_set_rate(struct clk *clk, unsigned long rate)
 			return -EINVAL;
 		}
 	}
+
+	spin_lock_irqsave(&l3_emif_lock, flags);
 
 	/* Configures MEMIF domain in SW_WKUP */
 	clkdm_wakeup(l3_emif_clkdm);
@@ -105,6 +110,8 @@ int omap4_core_dpll_m2_set_rate(struct clk *clk, unsigned long rate)
 	/* Configures MEMIF domain back to HW_WKUP */
 	clkdm_allow_idle(l3_emif_clkdm);
 
+	spin_unlock_irqrestore(&l3_emif_lock, flags);
+
 	if (i == MAX_FREQ_UPDATE_TIMEOUT) {
 		pr_err("%s: Frequency update for CORE DPLL M2 change failed\n",
 				__func__);
@@ -132,12 +139,14 @@ int omap4_prcm_freq_update(void)
 {
 	u32 shadow_freq_cfg1;
 	int i = 0;
+	unsigned long flags;
 
 	if (!l3_emif_clkdm) {
 		pr_err("%s: clockdomain lookup failed\n", __func__);
 		return -EINVAL;
 	}
 
+	spin_lock_irqsave(&l3_emif_lock, flags);
 	/* Configures MEMIF domain in SW_WKUP */
 	clkdm_wakeup(l3_emif_clkdm);
 
@@ -160,6 +169,8 @@ int omap4_prcm_freq_update(void)
 
 	/* Configures MEMIF domain back to HW_WKUP */
 	clkdm_allow_idle(l3_emif_clkdm);
+
+	spin_unlock_irqrestore(&l3_emif_lock, flags);
 
 	if (i == MAX_FREQ_UPDATE_TIMEOUT) {
 		pr_err("%s: Frequency update failed (call from %pF)\n",

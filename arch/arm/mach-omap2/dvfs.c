@@ -751,18 +751,7 @@ static int _dvfs_scale(struct device *req_dev, struct device *target_dev,
 	if (curr_volt == new_volt) {
 		volt_scale_dir = DVFS_VOLT_SCALE_NONE;
 	} else if (curr_volt < new_volt) {
-		ret = voltdm_scale(voltdm, new_volt);
-		if (ret) {
-			dev_err(target_dev,
-				"%s: Unable to scale the %s to %ld volt\n",
-				__func__, voltdm->name, new_volt);
-			goto out;
-		}
-		volt_scale_dir = DVFS_VOLT_SCALE_UP;
-	}
 
-	/* unless we are moving down, scale dependents before we shift freq */
-	if (!(DVFS_VOLT_SCALE_DOWN == volt_scale_dir)) {
 		ret = _dep_scale_domains(target_dev, vdd);
 		if (ret) {
 			dev_err(target_dev,
@@ -770,6 +759,15 @@ static int _dvfs_scale(struct device *req_dev, struct device *target_dev,
 				__func__, ret, new_volt);
 			goto fail;
 		}
+
+		ret = voltdm_scale(voltdm, new_volt);
+		if (ret) {
+			dev_err(target_dev,
+				"%s: Unable to scale the %s to %ld volt\n",
+				__func__, voltdm->name, new_volt);
+			goto fail;
+		}
+		volt_scale_dir = DVFS_VOLT_SCALE_UP;
 	}
 
 	/* Move all devices in list to the required frequencies */
