@@ -710,6 +710,13 @@ static irqreturn_t usb_resume_irq(int irq, void *data)
 
 	pr_debug("< H-WUP %d\n", val);
 
+	if (val == usb_ld->wake_status) {
+		pr_err("%s: Received spurious wake irq: %d", __func__, val);
+		return IRQ_HANDLED;
+	}
+
+	usb_ld->wake_status = val;
+
 	if (val) {
 		device_lock(dev);
 		if (dev->power.is_prepared || dev->power.is_suspended) {

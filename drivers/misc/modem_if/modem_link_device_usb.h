@@ -70,6 +70,7 @@ struct usb_link_device {
 	int if_usb_connected;
 	int flow_suspend;
 	int host_wake_timeout_flag;
+	int wake_status;
 
 	unsigned gpio_slave_wakeup;
 	unsigned gpio_host_wakeup;
