@@ -47,6 +47,7 @@ struct omap_rpmsg_vproc {
 	char *mbox_name;
 	char *rproc_name;
 	struct omap_mbox *mbox;
+	struct mutex lock;
 	struct rproc *rproc;
 	struct notifier_block nb;
 	struct notifier_block rproc_nb;
@@ -145,13 +146,25 @@ static void omap_rpmsg_notify(struct virtqueue *vq)
 {
 	struct omap_rpmsg_vq_info *rpvq = vq->priv;
 	int ret;
+	int count = 5;
 
 	pr_debug("sending mailbox msg: %d\n", rpvq->vq_id);
-	rproc_last_busy(rpvq->rpdev->rproc);
+	do {
+		rproc_last_busy(rpvq->rpdev->rproc);
+		mutex_lock(&rpvq->rpdev->lock);
+		if (rpvq->rpdev->mbox)
+			break;
+		mutex_unlock(&rpvq->rpdev->lock);
+	} while (--count);
+	if (!count) {
+		pr_err("mbox handle is NULL\n");
+		return;
+	}
 	/* send the index of the triggered virtqueue as the mailbox payload */
 	ret = omap_mbox_msg_send(rpvq->rpdev->mbox, rpvq->vq_id);
 	if (ret)
 		pr_err("ugh, omap_mbox_msg_send() failed: %d\n", ret);
+	mutex_unlock(&rpvq->rpdev->lock);
 }
 
 static int omap_rpmsg_mbox_callback(struct notifier_block *this,
@@ -228,18 +241,22 @@ static int rpmsg_rproc_suspend(struct omap_rpmsg_vproc *rpdev)
 
 static int rpmsg_rproc_pos_suspend(struct omap_rpmsg_vproc *rpdev)
 {
+	mutex_lock(&rpdev->lock);
 	if (rpdev->mbox) {
 		omap_mbox_put(rpdev->mbox, &rpdev->nb);
 		rpdev->mbox = NULL;
 	}
+	mutex_unlock(&rpdev->lock);
 
 	return NOTIFY_DONE;
 }
 
 static int rpmsg_rproc_resume(struct omap_rpmsg_vproc *rpdev)
 {
+	mutex_lock(&rpdev->lock);
 	if (!rpdev->mbox)
 		rpdev->mbox = omap_mbox_get(rpdev->mbox_name, &rpdev->nb);
+	mutex_unlock(&rpdev->lock);
 
 	return NOTIFY_DONE;
 }
@@ -315,6 +332,7 @@ static struct virtqueue *rp_find_vq(struct virtio_device *vdev,
 	/* system-wide unique id for this virtqueue */
 	rpvq->vq_id = rpdev->base_vq_id + index;
 	rpvq->rpdev = rpdev;
+	mutex_init(&rpdev->lock);
 
 	return vq;
 
