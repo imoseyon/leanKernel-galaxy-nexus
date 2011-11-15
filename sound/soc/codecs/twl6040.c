@@ -1655,8 +1655,10 @@ static int twl6040_suspend(struct snd_soc_codec *codec, pm_message_t state)
 
 static int twl6040_resume(struct snd_soc_codec *codec)
 {
-	twl6040_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-	twl6040_set_bias_level(codec, codec->dapm.suspend_bias_level);
+	if (codec->dapm.bias_level != codec->dapm.suspend_bias_level) {
+		twl6040_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
+		twl6040_set_bias_level(codec, codec->dapm.suspend_bias_level);
+	}
 
 	return 0;
 }

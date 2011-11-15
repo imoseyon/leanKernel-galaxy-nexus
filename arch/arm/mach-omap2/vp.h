@@ -33,6 +33,7 @@ struct voltagedomain;
 struct omap_vp_ops {
 	u32 (*check_txdone)(u8 vp_id);
 	void (*clear_txdone)(u8 vp_id);
+	void (*recover)(u8 vp_id);
 };
 
 /**

@@ -679,6 +679,35 @@ static const struct platform_suspend_ops omap_pm_ops = {
 void omap4_enter_sleep(unsigned int cpu, unsigned int power_state){ return; }
 #endif /* CONFIG_SUSPEND */
 
+/**
+ * omap4_pm_cold_reset() - Cold reset OMAP4
+ * @reason:	why am I resetting.
+ *
+ * As per the TRM, it is recommended that we set all the power domains to
+ * ON state before we trigger cold reset.
+ */
+int omap4_pm_cold_reset(char *reason)
+{
+	struct power_state *pwrst;
+
+	/* Switch ON all pwrst registers */
+	list_for_each_entry(pwrst, &pwrst_list, node) {
+		if (pwrst->pwrdm->pwrsts_logic_ret)
+			pwrdm_set_logic_retst(pwrst->pwrdm, PWRDM_POWER_ON);
+		if (pwrst->pwrdm->pwrsts)
+			omap_set_pwrdm_state(pwrst->pwrdm, PWRDM_POWER_ON);
+	}
+
+	WARN(1, "Arch Cold reset has been triggered due to %s\n", reason);
+	omap4_prm_global_cold_sw_reset(); /* never returns */
+
+	/* If we reached here - something bad went on.. */
+	BUG();
+
+	/* make the compiler happy */
+	return -EINTR;
+}
+
 /*
  * Enable hardware supervised mode for all clockdomains if it's
  * supported. Initiate sleep transition for other clockdomains, if

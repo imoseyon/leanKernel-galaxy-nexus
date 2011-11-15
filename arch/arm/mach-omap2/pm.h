@@ -60,6 +60,15 @@ static inline int omap4_opp_init(void)
 }
 #endif
 
+#ifdef CONFIG_PM
+int omap4_pm_cold_reset(char *reason);
+#else
+int omap4_pm_cold_reset(char *reason)
+{
+	return -EINVAL;
+}
+#endif
+
 /*
  * cpuidle mach specific parameters
  *
