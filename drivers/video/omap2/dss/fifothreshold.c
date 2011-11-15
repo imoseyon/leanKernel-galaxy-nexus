@@ -371,7 +371,8 @@ static void sa_calc(struct dispc_config *dispc_reg_config, u32 channel_no,
 						pict_16word_ceil - 8);
 	} else {
 		/* All other cases */
-		sa_info->min_sa = 4 * pict_16word_ceil;
+		sa_info->min_sa = i * pict_16word + C1 * pict_16word + C2 *
+				  (Tot_mem - (pict_16word_ceil * i) - 8);
 	}
 
 	/* C2=0:: no partialy filed lines:: Then minLT = 0 */
@@ -385,7 +386,7 @@ static void sa_calc(struct dispc_config *dispc_reg_config, u32 channel_no,
 			sa_info->min_lt = 2 * pict_16word_ceil + C2 * (Tot_mem -
 						(pict_16word_ceil*i));
 	} else {
-		sa_info->min_lt = (C2 - 1) * (Tot_mem - (pict_16word_ceil*i));
+		sa_info->min_lt = C2 * (Tot_mem - (pict_16word_ceil*i));
 	}
 
 	sa_info->max_lt = max(sa_info->min_sa - 8, sa_info->min_lt + 1);
@@ -413,8 +414,8 @@ u32 sa_calc_wrap(struct dispc_config *dispc_reg_config, u32 channel_no)
 	if (dispc_reg_config->format == 0 && channel_no > 0) {
 		/* SA values calculated for Chroma Frame */
 		sa_calc(dispc_reg_config, channel_no, 0, &sa_info_uv);
-		return 2 * max(min(sa_info_y.min_sa, sa_info_uv.min_sa) - 8,
-			       max(sa_info_y.min_lt, sa_info_uv.min_lt) + 1);
+		return 2 * max(max(sa_info_y.min_sa - 8, sa_info_y.min_lt + 1),
+			       max(sa_info_uv.min_sa - 8, sa_info_uv.min_lt + 1));
 	} else {
 		return sa_info_y.max_lt;
 	}
