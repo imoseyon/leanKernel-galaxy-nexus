@@ -21,15 +21,23 @@
 
 #include <plat/common.h>
 
+#include "pm.h"
 #include "prm44xx.h"
 #include "prm-regbits-44xx.h"
 #include "voltage.h"
 
 #include "vp.h"
 
+/* OMAP4 is hooked such that only a cold reset will reset VP */
+static void omap4_vp_recover(u8 vp_id)
+{
+	omap4_pm_cold_reset("Voltage Processor Recovery");
+}
+
 static const struct omap_vp_ops omap4_vp_ops = {
 	.check_txdone = omap4_prm_vp_check_txdone,
 	.clear_txdone = omap4_prm_vp_clear_txdone,
+	.recover = omap4_vp_recover,
 };
 
 /*
