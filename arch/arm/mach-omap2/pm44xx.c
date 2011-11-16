@@ -775,6 +775,25 @@ static int __init pwrdms_setup(struct powerdomain *pwrdm, void *unused)
 	return omap_set_pwrdm_state(pwrst->pwrdm, pwrst->next_state);
 }
 
+static int __init _voltdm_sum_time(struct voltagedomain *voltdm, void *user)
+{
+	struct omap_voltdm_pmic *pmic;
+	u32 *max_time = (u32 *)user;
+
+	if (!voltdm || !max_time) {
+		WARN_ON(1);
+		return -EINVAL;
+	}
+
+	pmic = voltdm->pmic;
+	if (pmic) {
+		*max_time += pmic->on_volt / pmic->slew_rate;
+		*max_time += pmic->switch_on_time;
+	}
+
+	return 0;
+}
+
 static u32 __init _usec_to_val_scrm(unsigned long rate, u32 usec,
 				    u32 shift, u32 mask)
 {
@@ -823,6 +842,7 @@ static void __init prcm_setup_regs(void)
 	struct clk *clk32k = clk_get(NULL, "sys_32k_ck");
 	unsigned long rate32k = 0;
 	u32 val, tshut, tstart;
+	u32 reset_delay_time = 0;
 
 	if (clk32k) {
 		rate32k = clk_get_rate(clk32k);
@@ -871,17 +891,47 @@ static void __init prcm_setup_regs(void)
 	omap4_prminst_write_inst_reg(0x2, OMAP4430_PRM_PARTITION,
 		OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_CLKREQCTRL_OFFSET);
 
+	if (!rate32k)
+		goto no_32k;
+
 	/* Setup max clksetup time for oscillator */
-	if (rate32k) {
-		omap_pm_get_osc_lp_time(&tstart, &tshut);
-		val = _usec_to_val_scrm(rate32k, tstart, OMAP4_SETUPTIME_SHIFT,
-				OMAP4_SETUPTIME_MASK);
-		val |= _usec_to_val_scrm(rate32k, tshut, OMAP4_DOWNTIME_SHIFT,
-				OMAP4_DOWNTIME_MASK);
-		omap4_prminst_write_inst_reg(val, OMAP4430_SCRM_PARTITION, 0x0,
-				OMAP4_SCRM_CLKSETUPTIME_OFFSET);
+	omap_pm_get_osc_lp_time(&tstart, &tshut);
+	val = _usec_to_val_scrm(rate32k, tstart, OMAP4_SETUPTIME_SHIFT,
+			OMAP4_SETUPTIME_MASK);
+	val |= _usec_to_val_scrm(rate32k, tshut, OMAP4_DOWNTIME_SHIFT,
+			OMAP4_DOWNTIME_MASK);
+	omap4_prminst_write_inst_reg(val, OMAP4430_SCRM_PARTITION, 0x0,
+			OMAP4_SCRM_CLKSETUPTIME_OFFSET);
+
+	/*
+	 * Setup OMAP WARMRESET time:
+	 * we use the sum of each voltage domain setup times to handle
+	 * the worst case condition where the device resets from OFF mode.
+	 * hence we leave PRM_VOLTSETUP_WARMRESET alone as this is
+	 * already part of RSTTIME1 we program in.
+	 * in addition, to handle oscillator switch off and switch back on
+	 * (in case WDT triggered while CLKREQ goes low), we also
+	 * add in the additional latencies.
+	 */
+	if (!voltdm_for_each(_voltdm_sum_time, (void *)&reset_delay_time)) {
+		reset_delay_time += tstart + tshut;
+		val = _usec_to_val_scrm(rate32k, reset_delay_time,
+			OMAP4430_RSTTIME1_SHIFT, OMAP4430_RSTTIME1_MASK);
+		omap4_prminst_rmw_inst_reg_bits(OMAP4430_RSTTIME1_MASK, val,
+			OMAP4430_PRM_PARTITION, OMAP4430_PRM_DEVICE_INST,
+			OMAP4_PRM_RSTTIME_OFFSET);
 	}
 
+	/* Setup max PMIC startup time */
+	omap_pm_get_pmic_lp_time(&tstart, &tshut);
+	val = _usec_to_val_scrm(rate32k, tstart, OMAP4_WAKEUPTIME_SHIFT,
+			OMAP4_WAKEUPTIME_MASK);
+	val |= _usec_to_val_scrm(rate32k, tshut, OMAP4_SLEEPTIME_SHIFT,
+			OMAP4_SLEEPTIME_MASK);
+	omap4_prminst_write_inst_reg(val, OMAP4430_SCRM_PARTITION, 0x0,
+			OMAP4_SCRM_PMICSETUPTIME_OFFSET);
+
+no_32k:
 	/*
 	 * De-assert PWRREQ signal in Device OFF state
 	 *	0x3: PWRREQ is de-asserted if all voltage domain are in
@@ -892,16 +942,6 @@ static void __init prcm_setup_regs(void)
 	omap4_prminst_write_inst_reg(0x3, OMAP4430_PRM_PARTITION,
 		OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_PWRREQCTRL_OFFSET);
 
-	/* Setup max PMIC startup time */
-	if (rate32k) {
-		omap_pm_get_pmic_lp_time(&tstart, &tshut);
-		val = _usec_to_val_scrm(rate32k, tstart, OMAP4_WAKEUPTIME_SHIFT,
-				OMAP4_WAKEUPTIME_MASK);
-		val |= _usec_to_val_scrm(rate32k, tshut, OMAP4_SLEEPTIME_SHIFT,
-				OMAP4_SLEEPTIME_MASK);
-		omap4_prminst_write_inst_reg(val, OMAP4430_SCRM_PARTITION, 0x0,
-				OMAP4_SCRM_PMICSETUPTIME_OFFSET);
-	}
 }
 
 
