@@ -58,6 +58,13 @@ static ssize_t rproc_format_trace_buf(char __user *userbuf, size_t count,
 	int *w_idx;
 	int i, w_pos;
 
+	/* When src is NULL, the remoteproc is offline. */
+	if (!src)
+		return -EIO;
+
+	if (size < 2 * sizeof(u32))
+		return -EINVAL;
+
 	/* Assume write_idx is the penultimate byte in the buffer trace*/
 	size = size - (sizeof(u32) * 2);
 	w_idx = (int *)(buf + size);
