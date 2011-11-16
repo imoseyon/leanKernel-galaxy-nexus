@@ -886,7 +886,7 @@ static void __init prcm_setup_regs(void)
 	 */
 	if (!voltdm_for_each(_voltdm_sum_time, (void *)&reset_delay_time)) {
 		reset_delay_time += tstart + tshut;
-		val = _usec_to_val_scrm(rate32k, tstart,
+		val = _usec_to_val_scrm(rate32k, reset_delay_time,
 			OMAP4430_RSTTIME1_SHIFT, OMAP4430_RSTTIME1_MASK);
 		omap4_prminst_rmw_inst_reg_bits(OMAP4430_RSTTIME1_MASK, val,
 			OMAP4430_PRM_PARTITION, OMAP4430_PRM_DEVICE_INST,
