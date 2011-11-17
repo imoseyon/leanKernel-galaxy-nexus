@@ -908,6 +908,7 @@ static int if_hsi_rx_cmd_handle(struct mipi_link_device *mipi_ld, u32 cmd,
 	switch (cmd) {
 	case HSI_LL_MSG_OPEN_CONN_OCTET:
 		switch (channel->recv_step) {
+		case STEP_SEND_TO_CONN_CLOSED:
 		case STEP_IDLE:
 			channel->recv_step = STEP_TO_ACK;
 
@@ -1223,7 +1224,8 @@ static void if_hsi_write_done(struct hsi_device *dev, unsigned int size)
 			(struct mipi_link_device *)if_hsi_driver.priv_data;
 	struct if_hsi_channel *channel = &mipi_ld->hsi_channles[dev->n_ch];
 
-	if ((((*channel->tx_data & 0xF0000000) >> 28) ==
+	if ((channel->channel_id == HSI_CONTROL_CHANNEL) &&
+		(((*channel->tx_data & 0xF0000000) >> 28) ==
 			HSI_LL_MSG_CONN_CLOSED) &&
 			mipi_ld->ld.com_state == COM_ONLINE) {
 		mipi_ld->hsi_channles[
