@@ -1415,31 +1415,30 @@ void rproc_last_busy(struct rproc *rproc)
 {
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	struct device *dev = rproc->dev;
-	unsigned long tj = jiffies + msecs_to_jiffies(10);
-	unsigned long exp;
 
-	/*
-	 * if expiration timeout is < 10msecs, cancel suspend at that
-	 * moment to avoid any race condition.
-	 */
 	mutex_lock(&rproc->pm_lock);
-	exp = pm_runtime_autosuspend_expiration(dev);
-	if (pm_runtime_suspended(dev) || !exp || time_after(tj, exp)) {
+	if (pm_runtime_suspended(dev) ||
+			!pm_runtime_autosuspend_expiration(dev)) {
+		pm_runtime_mark_last_busy(dev);
+		mutex_unlock(&rproc->pm_lock);
 		/*
 		 * if the remote processor is suspended, we can not wake it
 		 * up (that would abort system suspend), instead state that
 		 * the remote processor needs to be waken up on system resume.
 		 */
+		mutex_lock(&rproc->lock);
 		if (rproc->state == RPROC_SUSPENDED) {
 			rproc->need_resume = true;
-			goto unlock;
+			mutex_unlock(&rproc->lock);
+			return;
 		}
+		mutex_unlock(&rproc->lock);
 		pm_runtime_get_sync(dev);
 		pm_runtime_mark_last_busy(dev);
 		pm_runtime_put_autosuspend(dev);
+		return;
 	}
 	pm_runtime_mark_last_busy(dev);
-unlock:
 	mutex_unlock(&rproc->pm_lock);
 #endif
 }
@@ -1454,9 +1453,9 @@ static int rproc_resume(struct device *dev)
 
 	dev_dbg(dev, "Enter %s\n", __func__);
 
-	mutex_lock(&rproc->pm_lock);
+	mutex_lock(&rproc->lock);
 	if (rproc->state != RPROC_SUSPENDED) {
-		mutex_unlock(&rproc->pm_lock);
+		mutex_unlock(&rproc->lock);
 		return 0;
 	}
 
@@ -1469,7 +1468,7 @@ static int rproc_resume(struct device *dev)
 	pm_runtime_put_autosuspend(dev);
 unlock:
 	rproc->state = (ret) ? RPROC_CRASHED : RPROC_RUNNING;
-	mutex_unlock(&rproc->pm_lock);
+	mutex_unlock(&rproc->lock);
 	if (ret) {
 		_event_notify(rproc, RPROC_ERROR, NULL);
 		dev_err(dev, "Error resuming %d\n", ret);
@@ -1485,9 +1484,9 @@ static int rproc_suspend(struct device *dev)
 
 	dev_dbg(dev, "Enter %s\n", __func__);
 
-	mutex_lock(&rproc->pm_lock);
+	mutex_lock(&rproc->lock);
 	if (rproc->state != RPROC_RUNNING) {
-		mutex_unlock(&rproc->pm_lock);
+		mutex_unlock(&rproc->lock);
 		return 0;
 	}
 
@@ -1513,7 +1512,7 @@ static int rproc_suspend(struct device *dev)
 out:
 	if (!ret)
 		rproc->state = RPROC_SUSPENDED;
-	mutex_unlock(&rproc->pm_lock);
+	mutex_unlock(&rproc->lock);
 
 	return ret;
 }
@@ -1546,6 +1545,14 @@ static int rproc_runtime_suspend(struct device *dev)
 
 	if (rproc->state == RPROC_SUSPENDED)
 		return 0;
+
+	mutex_lock(&rproc->pm_lock);
+
+	if (pm_runtime_autosuspend_expiration(dev) && !rproc->force_suspend) {
+		ret = -EBUSY;
+		goto abort;
+	}
+
 	/*
 	 * Notify PROC_PRE_SUSPEND only when the suspend is not forced.
 	 * Users can use pre suspend call back to cancel autosuspend, but
@@ -1580,6 +1587,7 @@ static int rproc_runtime_suspend(struct device *dev)
 	}
 	/* we are not interested in the returned value */
 	_event_notify(rproc, RPROC_POS_SUSPEND, NULL);
+	mutex_unlock(&rproc->pm_lock);
 
 	return 0;
 abort:
@@ -1587,6 +1595,7 @@ abort:
 	to = jiffies_to_msecs(pm_runtime_autosuspend_expiration(dev) - jiffies);
 	pm_schedule_suspend(dev, to);
 	dev->power.timer_autosuspends = 1;
+	mutex_unlock(&rproc->pm_lock);
 	return ret;
 }
 
