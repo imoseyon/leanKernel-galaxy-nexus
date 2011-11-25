@@ -281,6 +281,7 @@ static int ehci_hcd_omap_probe(struct platform_device *pdev)
 	omap_ehci->sbrn = 0x20;
 
 	omap_ehci->has_smsc_ulpi_bug = 1;
+	omap_ehci->no_companion_port_handoff = 1;
 	/* we know this is the memory we want, no need to ioremap again */
 	omap_ehci->caps = hcd->regs;
 	omap_ehci->regs = hcd->regs
