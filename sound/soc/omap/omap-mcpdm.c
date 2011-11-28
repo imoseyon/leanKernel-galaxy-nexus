@@ -399,7 +399,9 @@ static int omap_mcpdm_dai_startup(struct snd_pcm_substream *substream,
 	val = __raw_readl(OMAP4430_CM1_ABE_PDM_CLKCTRL);
 	if ((val & CLKCTRL_MODULEMODE_MASK) != CLKCTRL_MODULEMODE_ENABLED) {
 		WARN(1, "Clock not enabled: PDM_CLKCTRL=0x%x\n", val);
+		mcpdm->active--;
 		pm_runtime_put_sync(mcpdm->dev);
+		err = -ENODEV;
 		goto out;
 	}
 
