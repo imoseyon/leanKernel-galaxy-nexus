@@ -173,7 +173,7 @@ static void umts_modem_cfg_gpio(void)
 	omap_mux_init_signal("gpmc_ncs0.gpio_50", OMAP_PIN_OUTPUT |
 				OMAP_OFF_EN | OMAP_OFFOUT_VAL);
 	omap_mux_init_signal("gpmc_ncs3.gpio_53", OMAP_PIN_OUTPUT |
-				OMAP_OFF_EN | OMAP_OFFOUT_VAL);
+				OMAP_OFF_EN);
 	omap_mux_init_signal("dpm_emu4.gpio_15", OMAP_PIN_OUTPUT |
 				OMAP_OFF_EN | OMAP_OFFOUT_VAL);
 	omap_mux_init_signal("abe_dmic_clk1.gpio_119", OMAP_PIN_OUTPUT |
