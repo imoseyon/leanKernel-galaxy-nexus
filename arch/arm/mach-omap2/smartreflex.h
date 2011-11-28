@@ -250,7 +250,7 @@ struct omap_sr_data {
 void omap_sr_enable(struct voltagedomain *voltdm,
 			struct omap_volt_data *volt_data);
 void omap_sr_disable(struct voltagedomain *voltdm);
-void omap_sr_disable_reset_volt(struct voltagedomain *voltdm);
+int omap_sr_disable_reset_volt(struct voltagedomain *voltdm);
 
 /* API to register the pmic specific data with the smartreflex driver. */
 void omap_sr_register_pmic(struct omap_sr_pmic_data *pmic_data);
@@ -276,8 +276,8 @@ static inline int sr_notifier_control(struct voltagedomain *voltdm,
 	return -EINVAL;
 }
 
-static inline void omap_sr_disable_reset_volt(
-		struct voltagedomain *voltdm) {}
+static inline int omap_sr_disable_reset_volt(
+		struct voltagedomain *voltdm) { return 0; }
 static inline void omap_sr_register_pmic(
 		struct omap_sr_pmic_data *pmic_data) {}
 static inline bool is_sr_enabled(struct voltagedomain *voltdm)

@@ -994,27 +994,29 @@ void omap_sr_disable(struct voltagedomain *voltdm)
  * into the registered smartreflex class disable API. This API will tell
  * the smartreflex class disable to reset the VP voltage after
  * disabling smartreflex.
+ *
+ * Returns result of transition request.
  */
-void omap_sr_disable_reset_volt(struct voltagedomain *voltdm)
+int omap_sr_disable_reset_volt(struct voltagedomain *voltdm)
 {
 	struct omap_sr *sr = _sr_lookup(voltdm);
 
 	if (IS_ERR(sr)) {
 		pr_warning("%s: omap_sr struct for sr_%s not found\n",
 			__func__, voltdm->name);
-		return;
+		return -ENODEV;
 	}
 
 	if (!sr->autocomp_active)
-		return;
+		return 0;
 
 	if (!sr_class || !(sr_class->disable)) {
 		dev_warn(&sr->pdev->dev, "%s: smartreflex class driver not"
 			"registered\n", __func__);
-		return;
+		return -ENODEV;
 	}
 
-	sr_class->disable(voltdm, sr->voltdm_cdata,
+	return sr_class->disable(voltdm, sr->voltdm_cdata,
 			  omap_voltage_get_curr_vdata(voltdm), 1);
 }
 
