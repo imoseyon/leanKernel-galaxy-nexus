@@ -56,6 +56,8 @@ struct omap_sr {
 	struct list_head		node;
 	struct omap_sr_nvalue_table	*nvalue_table;
 	struct voltagedomain		*voltdm;
+	/* Managed by class driver as needed */
+	void				*voltdm_cdata;
 	struct dentry			*dbg_dir;
 };
 
@@ -225,8 +227,8 @@ static irqreturn_t sr_interrupt(int irq, void *data)
 		sr_info->irq_enabled = false;
 	} else {
 		/* If the caller reports inability to handle, disable as well */
-		if (sr_class->notify &&
-		    sr_class->notify(sr_info->voltdm, value)) {
+		if (sr_class->notify && sr_class->notify(sr_info->voltdm,
+						sr_info->voltdm_cdata, value)) {
 			dev_err(&sr_info->pdev->dev, "%s: Callback cant handle!"
 				"status=0x%08x. Disabling to prevent spam!!\n",
 				__func__, status);
@@ -316,14 +318,15 @@ static void sr_start_vddautocomp(struct omap_sr *sr)
 	mutex_lock(&omap_dvfs_lock);
 
 	if (sr_class->init &&
-	    sr_class->init(sr->voltdm, sr_class->class_priv_data)) {
+	    sr_class->init(sr->voltdm, &sr->voltdm_cdata,
+		    sr_class->class_priv_data)) {
 		dev_err(&sr->pdev->dev,
 			"%s: SRClass initialization failed\n", __func__);
 		mutex_unlock(&omap_dvfs_lock);
 		return;
 	}
 
-	r = sr_class->enable(sr->voltdm,
+	r = sr_class->enable(sr->voltdm,  sr->voltdm_cdata,
 			     omap_voltage_get_curr_vdata(sr->voltdm));
 	if (!r)
 		sr->autocomp_active = true;
@@ -342,9 +345,9 @@ static void sr_stop_vddautocomp(struct omap_sr *sr)
 	if (sr->autocomp_active) {
 		/* Pause dvfs from interfereing with our operations */
 		mutex_lock(&omap_dvfs_lock);
-		sr_class->disable(sr->voltdm, 1);
+		sr_class->disable(sr->voltdm, sr->voltdm_cdata, 1);
 		if (sr_class->deinit &&
-		    sr_class->deinit(sr->voltdm,
+		    sr_class->deinit(sr->voltdm, &sr->voltdm_cdata,
 			    sr_class->class_priv_data)) {
 			dev_err(&sr->pdev->dev,
 				"%s: SR[%d]Class deinitialization failed\n",
@@ -743,7 +746,7 @@ int sr_enable(struct voltagedomain *voltdm, struct omap_volt_data *volt_data)
 		return 0;
 
 	/* Configure SR */
-	ret = sr_class->configure(voltdm);
+	ret = sr_class->configure(voltdm, sr->voltdm_cdata);
 	if (ret)
 		return ret;
 
@@ -920,7 +923,8 @@ void omap_sr_enable(struct voltagedomain *voltdm,
 		return;
 	}
 
-	sr_class->enable(voltdm, omap_voltage_get_curr_vdata(voltdm));
+	sr_class->enable(voltdm, sr->voltdm_cdata,
+			omap_voltage_get_curr_vdata(voltdm));
 }
 
 /**
@@ -953,7 +957,7 @@ void omap_sr_disable(struct voltagedomain *voltdm)
 		return;
 	}
 
-	sr_class->disable(voltdm, 0);
+	sr_class->disable(voltdm, sr->voltdm_cdata, 0);
 }
 
 /**
@@ -986,7 +990,7 @@ void omap_sr_disable_reset_volt(struct voltagedomain *voltdm)
 		return;
 	}
 
-	sr_class->disable(voltdm, 1);
+	sr_class->disable(voltdm, sr->voltdm_cdata, 1);
 }
 
 /**

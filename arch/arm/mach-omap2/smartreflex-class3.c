@@ -14,13 +14,16 @@
 #include "smartreflex.h"
 
 static int sr_class3_enable(struct voltagedomain *voltdm,
+			    void *voltdm_cdata,
 			    struct omap_volt_data *volt_data)
 {
 	omap_vp_enable(voltdm);
 	return sr_enable(voltdm, volt_data);
 }
 
-static int sr_class3_disable(struct voltagedomain *voltdm, int is_volt_reset)
+static int sr_class3_disable(struct voltagedomain *voltdm,
+			     void *voltdm_cdata,
+			     int is_volt_reset)
 {
 	sr_disable_errgen(voltdm);
 	omap_vp_disable(voltdm);
@@ -31,7 +34,8 @@ static int sr_class3_disable(struct voltagedomain *voltdm, int is_volt_reset)
 	return 0;
 }
 
-static int sr_class3_configure(struct voltagedomain *voltdm)
+static int sr_class3_configure(struct voltagedomain *voltdm,
+			       void *voltdm_cdata)
 {
 	return sr_configure_errgen(voltdm);
 }
