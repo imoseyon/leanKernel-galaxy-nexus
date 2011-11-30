@@ -254,7 +254,8 @@ struct omap_vdd_dep_info {
 /**
  * omap_vdd_info - Per Voltage Domain info
  *
- * @volt_data		: voltage table having the distinct voltages supported
+ * @volt_data		: Array ending with a 0 terminator containing the
+ *			  voltage table with distinct voltages supported
  *			  by the domain and other associated per voltage data.
  * @dep_vdd_info	: Array ending with a 0 terminator for dependency
  *			  voltage information.
