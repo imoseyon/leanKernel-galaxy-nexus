@@ -260,6 +260,9 @@ static int __init omap4_twl_tps62361_enable(struct voltagedomain *voltdm)
 	/* We would like to ramp the voltage asap */
 	val |= REG_TPS6236X_RAMP_CTRL_RAMP_PFM;
 
+	/* We would like to ramp down the voltage asap as well*/
+	val |= REG_TPS6236X_RAMP_CTRL_EN_DISC;
+
 	ret = omap_vc_bypass_send_i2c_msg(voltdm, voltdm->pmic->i2c_slave_addr,
 			REG_TPS6236X_RAMP_CTRL, val);
 	if (ret)
