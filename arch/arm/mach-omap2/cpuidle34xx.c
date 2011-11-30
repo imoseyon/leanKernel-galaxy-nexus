@@ -120,7 +120,7 @@ static int omap3_enter_idle(struct cpuidle_device *dev,
 	}
 
 	/* Execute ARM wfi */
-	omap_sram_idle();
+	omap_sram_idle(false);
 
 	/* Re-allow idle for C1 */
 	if (state == &dev->states[0]) {

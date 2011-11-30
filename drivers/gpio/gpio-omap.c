@@ -1554,12 +1554,15 @@ int omap2_gpio_prepare_for_idle(int off_mode, bool suspend)
 	struct gpio_bank *bank;
 
 	list_for_each_entry(bank, &omap_gpio_list, node) {
+		if (!bank->mod_usage)
+			continue;
+
 		omap2_gpio_set_wakeupenables(bank);
 
 		if (omap2_gpio_set_edge_wakeup(bank, suspend))
 			ret = -EBUSY;
 
-		if (bank->mod_usage && bank->loses_context && off_mode)
+		if (bank->loses_context && off_mode)
 			if (pm_runtime_put_sync_suspend(bank->dev) < 0)
 				dev_err(bank->dev, "%s: GPIO bank %d "
 						"pm_runtime_put_sync failed\n",
@@ -1577,7 +1580,10 @@ void omap2_gpio_resume_after_idle(int off_mode)
 	struct gpio_bank *bank;
 
 	list_for_each_entry(bank, &omap_gpio_list, node) {
-		if (bank->mod_usage && bank->loses_context && off_mode)
+		if (!bank->mod_usage)
+			continue;
+
+		if (bank->loses_context && off_mode)
 			if (pm_runtime_get_sync(bank->dev) < 0)
 				dev_err(bank->dev, "%s: GPIO bank %d "
 						"pm_runtime_get_sync failed\n",

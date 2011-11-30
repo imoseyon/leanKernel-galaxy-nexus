@@ -328,7 +328,7 @@ static void restore_table_entry(void)
 	set_cr(control_reg_value);
 }
 
-void omap_sram_idle(void)
+void omap_sram_idle(bool suspend)
 {
 	/* Variable to tell what needs to be saved and restored
 	 * in omap_sram_idle*/
@@ -386,7 +386,7 @@ void omap_sram_idle(void)
 	/* PER */
 	if (per_next_state < PWRDM_POWER_ON) {
 		per_going_off = (per_next_state == PWRDM_POWER_OFF) ? 1 : 0;
-		omap2_gpio_prepare_for_idle(per_going_off);
+		omap2_gpio_prepare_for_idle(per_going_off, suspend);
 	}
 
 	/* CORE */
@@ -485,7 +485,7 @@ static void omap3_pm_idle(void)
 	trace_power_start(POWER_CSTATE, 1, smp_processor_id());
 	trace_cpu_idle(1, smp_processor_id());
 
-	omap_sram_idle();
+	omap_sram_idle(false);
 
 	trace_power_end(smp_processor_id());
 	trace_cpu_idle(PWR_EVENT_EXIT, smp_processor_id());
@@ -518,7 +518,7 @@ static int omap3_pm_suspend(void)
 
 	omap3_intc_suspend();
 
-	omap_sram_idle();
+	omap_sram_idle(true);
 
 restore:
 	/* Restore next_pwrsts */
