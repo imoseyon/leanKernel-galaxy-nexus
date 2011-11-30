@@ -1330,7 +1330,7 @@ bool hdmi_ti_4xx_check_aksv_data(struct hdmi_ip_data *ip_data)
 		/* Count number of zero / one */
 		for (j = 0; j < 8; j++)
 			(aksv_data[i] & (0x01 << j)) ? one++ : zero++;
-		pr_debug("%x ", aksv_data[i] & 0xFF);
+		pr_info("%x ", aksv_data[i] & 0xFF);
 	}
 
 	if (one == zero)

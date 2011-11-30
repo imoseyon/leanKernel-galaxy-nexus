@@ -353,10 +353,10 @@ extern struct hdcp_sha_in sha_input;
 
 
 #undef DBG
-
+#define HDCP_DEBUG
 #ifdef HDCP_DEBUG
 #define DBG(format, ...) \
-		printk(KERN_DEBUG "HDCP: " format "\n", ## __VA_ARGS__)
+		printk(KERN_INFO "HDCP: " format "\n", ## __VA_ARGS__)
 #else
 #define DBG(format, ...)
 #endif
