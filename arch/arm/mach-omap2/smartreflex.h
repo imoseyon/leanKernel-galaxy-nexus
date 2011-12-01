@@ -142,6 +142,12 @@
 #define OMAP3430_SR_ERRWEIGHT		0x04
 #define OMAP3430_SR_ERRMAXLIMIT		0x02
 
+/* Smart reflex notifiers for class drivers to use */
+#define SR_NOTIFY_MCUDISACK		BIT(3)
+#define SR_NOTIFY_MCUBOUND		BIT(2)
+#define SR_NOTIFY_MCUVALID		BIT(1)
+#define SR_NOTIFY_MCUACCUM		BIT(0)
+
 /**
  * struct omap_sr_pmic_data - Strucutre to be populated by pmic code to pass
  *				pmic specific info to smartreflex driver
@@ -171,12 +177,15 @@ struct omap_smartreflex_dev_attr {
 #define SR_CLASS1	0x1
 #define SR_CLASS2	0x2
 #define SR_CLASS3	0x3
+#define SR_CLASS1P5	0x4
 
 /**
  * struct omap_sr_class_data - Smartreflex class driver info
  *
  * @enable:		API to enable a particular class smaartreflex.
  * @disable:		API to disable a particular class smartreflex.
+ * @init:		API to do class specific initialization (optional)
+ * @deinit:		API to do class specific deinitialization (optional)
  * @configure:		API to configure a particular class smartreflex.
  * @notify:		API to notify the class driver about an event in SR.
  *			Not needed for class3.
@@ -184,14 +193,23 @@ struct omap_smartreflex_dev_attr {
  * @class_type:		specify which smartreflex class.
  *			Can be used by the SR driver to take any class
  *			based decisions.
+ * @class_priv_data:	Class specific private data (optional)
  */
 struct omap_sr_class_data {
-	int (*enable)(struct voltagedomain *voltdm);
-	int (*disable)(struct voltagedomain *voltdm, int is_volt_reset);
-	int (*configure)(struct voltagedomain *voltdm);
-	int (*notify)(struct voltagedomain *voltdm, u32 status);
+	int (*enable)(struct voltagedomain *voltdm, void *voltdm_cdata,
+			struct omap_volt_data *volt_data);
+	int (*disable)(struct voltagedomain *voltdm, void *voltdm_cdata,
+			struct omap_volt_data *volt_data, int is_volt_reset);
+	int (*init)(struct voltagedomain *voltdm, void **voltdm_cdata,
+			void *class_priv_data);
+	int (*deinit)(struct voltagedomain *voltdm, void **voltdm_cdata,
+			void *class_priv_data);
+	int (*configure)(struct voltagedomain *voltdm, void *voltdm_cdata);
+	int (*notify)(struct voltagedomain *voltdm, void *voltdm_cdata,
+			u32 status);
 	u8 notify_flags;
 	u8 class_type;
+	void *class_priv_data;
 };
 
 /**
@@ -229,28 +247,48 @@ struct omap_sr_data {
 };
 
 /* Smartreflex module enable/disable interface */
-void omap_sr_enable(struct voltagedomain *voltdm);
+void omap_sr_enable(struct voltagedomain *voltdm,
+			struct omap_volt_data *volt_data);
 void omap_sr_disable(struct voltagedomain *voltdm);
-void omap_sr_disable_reset_volt(struct voltagedomain *voltdm);
+int omap_sr_disable_reset_volt(struct voltagedomain *voltdm);
 
 /* API to register the pmic specific data with the smartreflex driver. */
 void omap_sr_register_pmic(struct omap_sr_pmic_data *pmic_data);
 
 /* Smartreflex driver hooks to be called from Smartreflex class driver */
-int sr_enable(struct voltagedomain *voltdm, unsigned long volt);
+int sr_enable(struct voltagedomain *voltdm, struct omap_volt_data *volt_data);
 void sr_disable(struct voltagedomain *voltdm);
+int sr_notifier_control(struct voltagedomain *voltdm, bool enable);
 int sr_configure_errgen(struct voltagedomain *voltdm);
 int sr_disable_errgen(struct voltagedomain *voltdm);
 int sr_configure_minmax(struct voltagedomain *voltdm);
 
 /* API to register the smartreflex class driver with the smartreflex driver */
 int sr_register_class(struct omap_sr_class_data *class_data);
+bool is_sr_enabled(struct voltagedomain *voltdm);
 #else
 static inline void omap_sr_enable(struct voltagedomain *voltdm) {}
 static inline void omap_sr_disable(struct voltagedomain *voltdm) {}
-static inline void omap_sr_disable_reset_volt(
-		struct voltagedomain *voltdm) {}
+
+static inline int sr_notifier_control(struct voltagedomain *voltdm,
+		bool enable)
+{
+	return -EINVAL;
+}
+
+static inline int omap_sr_disable_reset_volt(
+		struct voltagedomain *voltdm) { return 0; }
 static inline void omap_sr_register_pmic(
 		struct omap_sr_pmic_data *pmic_data) {}
+static inline bool is_sr_enabled(struct voltagedomain *voltdm)
+{
+	return false;
+}
+#endif
+
+#ifdef CONFIG_OMAP_SMARTREFLEX_CLASS1P5
+extern void sr_class1p5_margin_set(unsigned int margin);
+#else
+static inline void sr_class1p5_margin_set(unsigned int margin) { }
 #endif
 #endif

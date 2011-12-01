@@ -92,6 +92,26 @@ config OMAP_SMARTREFLEX_CLASS3
 	  Class 3 implementation of Smartreflex employs continuous hardware
 	  voltage calibration.
 
+config OMAP_SMARTREFLEX_CLASS1P5
+	bool "Class 1.5 mode of Smartreflex Implementation"
+	depends on OMAP_SMARTREFLEX
+	help
+	  Say Y to enable Class 1.5 implementation of Smartreflex.
+
+	  Class 1.5 implementation of Smartreflex employs software controlled
+	  hardware voltage calibration.
+
+config OMAP_SR_CLASS1P5_RECALIBRATION_DELAY
+	int "Class 1.5 mode recalibration recalibration delay(ms)"
+	depends on OMAP_SMARTREFLEX_CLASS1P5
+	default 86400000
+	help
+	  Setup the recalibration delay in milliseconds.
+
+	  Use 0 for never doing a recalibration (operates in AVS Class 1 mode).
+	  Defaults to recommended recalibration every 24hrs.
+	  If you do not understand this, use the default.
+
 config OMAP_RESET_CLOCKS
 	bool "Reset unused clocks during boot"
 	depends on ARCH_OMAP

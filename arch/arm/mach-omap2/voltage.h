@@ -17,6 +17,8 @@
 #include <linux/notifier.h>
 #include <linux/err.h>
 
+struct omap_volt_data;
+
 #include "vc.h"
 #include "vp.h"
 #include "ldo.h"
@@ -56,6 +58,9 @@ struct omap_vfsm_instance {
 	u8 voltsetupoff_reg;
 };
 
+/* Dynamic nominal voltage margin common for OMAP3630 and OMAP4 */
+#define OMAP3PLUS_DYNAMIC_NOMINAL_MARGIN_UV	50000
+
 /**
  * struct voltagedomain - omap voltage domain global structure.
  * @name: Name of the voltage domain which can be used as a unique identifier.
@@ -90,8 +95,8 @@ struct voltagedomain {
 	} sys_clk;
 
 	int (*scale) (struct voltagedomain *voltdm,
-		      unsigned long target_volt);
-	u32 curr_volt;
+		      struct omap_volt_data *target_volt);
+	struct omap_volt_data *curr_volt;
 
 	struct omap_vdd_info *vdd;
 	struct srcu_notifier_head change_notify_list;
@@ -125,6 +130,10 @@ struct omap_voltage_notifier {
 /**
  * struct omap_volt_data - Omap voltage specific data.
  * @voltage_nominal:	The possible voltage value in uV
+ * @voltage_calibrated:	The Calibrated voltage value in uV
+ * @voltage_dynamic_nominal:	The run time optimized nominal voltage for
+ *			the device. Dynamic nominal is the nominal voltage
+ *			specialized for that OPP on the device in uV.
  * @sr_efuse_offs:	The offset of the efuse register(from system
  *			control module base address) from where to read
  *			the n-target value for the smartreflex module.
@@ -140,6 +149,8 @@ struct omap_voltage_notifier {
  */
 struct omap_volt_data {
 	u32	volt_nominal;
+	u32	volt_calibrated;
+	u32	volt_dynamic_nominal;
 	u32	sr_efuse_offs;
 	u8	sr_errminlimit;
 	u8	vp_errgain;
@@ -252,7 +263,8 @@ struct omap_vdd_dep_info {
 /**
  * omap_vdd_info - Per Voltage Domain info
  *
- * @volt_data		: voltage table having the distinct voltages supported
+ * @volt_data		: Array ending with a 0 terminator containing the
+ *			  voltage table with distinct voltages supported
  *			  by the domain and other associated per voltage data.
  * @dep_vdd_info	: Array ending with a 0 terminator for dependency
  *			  voltage information.
@@ -266,7 +278,7 @@ void omap_voltage_get_volttable(struct voltagedomain *voltdm,
 		struct omap_volt_data **volt_data);
 struct omap_volt_data *omap_voltage_get_voltdata(struct voltagedomain *voltdm,
 		unsigned long volt);
-unsigned long omap_voltage_get_nom_volt(struct voltagedomain *voltdm);
+struct omap_volt_data *omap_voltage_get_curr_vdata(struct voltagedomain *voldm);
 #ifdef CONFIG_PM
 int omap_voltage_register_pmic(struct voltagedomain *voltdm,
 			       struct omap_voltdm_pmic *pmic);
@@ -299,7 +311,8 @@ int voltdm_for_each(int (*fn)(struct voltagedomain *voltdm, void *user),
 int voltdm_for_each_pwrdm(struct voltagedomain *voltdm,
 			  int (*fn)(struct voltagedomain *voltdm,
 				    struct powerdomain *pwrdm));
-int voltdm_scale(struct voltagedomain *voltdm, unsigned long target_volt);
+int voltdm_scale(struct voltagedomain *voltdm,
+		 struct omap_volt_data *target_volt);
 void voltdm_reset(struct voltagedomain *voltdm);
 
 static inline int voltdm_register_notifier(struct voltagedomain *voltdm,
@@ -313,5 +326,33 @@ static inline int voltdm_unregister_notifier(struct voltagedomain *voltdm,
 {
 	return srcu_notifier_chain_unregister(&voltdm->change_notify_list, nb);
 }
+
+/* convert volt data to the voltage for the voltage data */
+static inline unsigned long omap_get_operation_voltage(
+				struct omap_volt_data *vdata)
+{
+	if (!vdata)
+		return 0;
+	return (vdata->volt_calibrated) ? vdata->volt_calibrated :
+		(vdata->volt_dynamic_nominal) ? vdata->volt_dynamic_nominal :
+			vdata->volt_nominal;
+}
+
+/* what is my dynamic nominal? */
+static inline unsigned long omap_get_dyn_nominal(struct omap_volt_data *vdata)
+{
+	if (IS_ERR_OR_NULL(vdata))
+		return 0;
+	if (vdata->volt_calibrated) {
+		unsigned long v = vdata->volt_calibrated +
+			OMAP3PLUS_DYNAMIC_NOMINAL_MARGIN_UV;
+		if (v > vdata->volt_nominal)
+			return vdata->volt_nominal;
+		return v;
+	}
+	return vdata->volt_nominal;
+}
+
+int omap_voltage_calib_reset(struct voltagedomain *voltdm);
 
 #endif
