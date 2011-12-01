@@ -144,7 +144,8 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 		goto abort_gpio;
 
 	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
-		omap_sr_disable_reset_volt(mpu_voltdm);
+		if (omap_sr_disable_reset_volt(mpu_voltdm))
+			goto abort_device_off;
 		omap_vc_set_auto_trans(mpu_voltdm,
 			OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
 	}
@@ -156,8 +157,10 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 		 * enabling AUTO RET requires SR to disabled, its done here for
 		 * now. Needs a relook to see if this can be optimized.
 		 */
-		omap_sr_disable_reset_volt(iva_voltdm);
-		omap_sr_disable_reset_volt(core_voltdm);
+		if (omap_sr_disable_reset_volt(iva_voltdm))
+			goto abort_device_off;
+		if (omap_sr_disable_reset_volt(core_voltdm))
+			goto abort_device_off;
 		omap_vc_set_auto_trans(core_voltdm,
 			OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
 		if (!is_pm44xx_erratum(IVA_AUTO_RET_iXXX)) {
@@ -213,8 +216,10 @@ abort_device_off:
 		}
 
 		omap_temp_sensor_resume_idle();
-		omap_sr_enable(iva_voltdm);
-		omap_sr_enable(core_voltdm);
+		omap_sr_enable(iva_voltdm,
+				omap_voltage_get_curr_vdata(iva_voltdm));
+		omap_sr_enable(core_voltdm,
+				omap_voltage_get_curr_vdata(core_voltdm));
 	}
 
 	if (omap4_device_prev_state_off()) {
@@ -234,7 +239,8 @@ abort_device_off:
 	if (mpu_next_state < PWRDM_POWER_INACTIVE) {
 		omap_vc_set_auto_trans(mpu_voltdm,
 				OMAP_VC_CHANNEL_AUTO_TRANSITION_DISABLE);
-		omap_sr_enable(mpu_voltdm);
+		omap_sr_enable(mpu_voltdm,
+				omap_voltage_get_curr_vdata(mpu_voltdm));
 	}
 
 
