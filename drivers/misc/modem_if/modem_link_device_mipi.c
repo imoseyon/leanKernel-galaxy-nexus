@@ -1437,8 +1437,13 @@ static void if_hsi_read_done(struct hsi_device *dev, unsigned int size)
 
 			ret = iod->recv(iod, (char *)channel->rx_data,
 						channel->packet_size);
-			if (ret < 0)
+			if (ret < 0) {
 				pr_err("[MIPI-HSI] recv call fail : %d\n", ret);
+				print_hex_dump_bytes("[HSI]",
+					DUMP_PREFIX_OFFSET,
+					channel->rx_data, channel->packet_size);
+			}
+			channel->packet_size = 0;
 
 			channel->recv_step = STEP_SEND_TO_CONN_CLOSED;
 
