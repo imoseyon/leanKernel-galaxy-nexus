@@ -702,16 +702,40 @@ static void sii9234_enable_vbus(bool enable)
 
 }
 
-static void sii9234_vbus_present(bool on)
+static void sii9234_connect(bool on, u8 *devcap)
 {
 	struct tuna_otg *tuna_otg = &tuna_otg_xceiv;
+	unsigned long val;
+	int dock = 0;
 
 	tuna_otg->otg.state = OTG_STATE_B_IDLE;
 	tuna_otg->otg.default_a = false;
 	tuna_otg->otg.last_event = on ? USB_EVENT_VBUS : USB_EVENT_NONE;
+
+	if (on) {
+		if(devcap &&
+		   devcap[MHL_DEVCAP_ADOPTER_ID_H] == 0x33 &&
+		   devcap[MHL_DEVCAP_ADOPTER_ID_L] == 0x33) {
+
+			if (devcap[MHL_DEVCAP_RESERVED] == 2)
+				val = USB_EVENT_CHARGER;
+			else
+				val = USB_EVENT_VBUS;
+
+			if (devcap[MHL_DEVCAP_DEVICE_ID_H] == 0x12 &&
+			    devcap[MHL_DEVCAP_DEVICE_ID_L] == 0x34)
+				dock = 1;
+		} else {
+			val = USB_EVENT_VBUS;
+		}
+	} else {
+		val = USB_EVENT_NONE;
+	}
+
 	atomic_notifier_call_chain(&tuna_otg->otg.notifier,
-				on ? USB_EVENT_VBUS : USB_EVENT_NONE,
-				tuna_otg->otg.gadget);
+				   val, tuna_otg->otg.gadget);
+	tuna_otg_set_dock_switch(dock);
+
 }
 
 void tuna_otg_pogo_charger(enum pogo_power_state pogo_state)
@@ -751,7 +775,7 @@ static struct sii9234_platform_data sii9234_pdata = {
 	.enable = tuna_mux_usb_to_mhl,
 	.power = sii9234_power,
 	.enable_vbus = sii9234_enable_vbus,
-	.vbus_present = sii9234_vbus_present,
+	.connect = sii9234_connect,
 };
 
 static struct i2c_board_info __initdata tuna_i2c5_boardinfo[] = {
