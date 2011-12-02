@@ -24,6 +24,7 @@ u32 omap_debug_uart_resume_idle(void);
 static inline int __init omap_serial_debug_init(int id, bool is_fiq, bool is_high_prio_irq,
 				  struct omap_device_pad *pads, int num_pads)
 {
+	return 0;
 }
 
 static inline u32 omap_debug_uart_resume_idle(void)
