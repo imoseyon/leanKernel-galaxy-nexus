@@ -2048,10 +2048,6 @@ musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 	if (!is_otg_enabled(musb) && is_host_enabled(musb)) {
 		struct usb_hcd	*hcd = musb_to_hcd(musb);
 
-		MUSB_HST_MODE(musb);
-		musb->xceiv->default_a = 1;
-		musb->xceiv->state = OTG_STATE_A_IDLE;
-
 		status = usb_add_hcd(musb_to_hcd(musb), -1, 0);
 
 		hcd->self.uses_pio_for_control = 1;
@@ -2063,9 +2059,6 @@ musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 				? 'B' : 'A'));
 
 	} else /* peripheral is enabled */ {
-		MUSB_DEV_MODE(musb);
-		musb->xceiv->default_a = 0;
-		musb->xceiv->state = OTG_STATE_B_IDLE;
 
 		status = musb_gadget_setup(musb);
 
