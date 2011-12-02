@@ -681,7 +681,7 @@ static void sii9234_mhl_tx_ctl_int(struct sii9234_data *sii9234)
 static void sii9234_power_down(struct sii9234_data *sii9234)
 {
 	if (sii9234->claimed)
-		sii9234->pdata->vbus_present(false);
+		sii9234->pdata->connect(false, NULL);
 
 	sii9234->state = STATE_DISCONNECTED;
 	sii9234->claimed = false;
@@ -969,7 +969,7 @@ static int sii9234_detection_callback(struct otg_id_notifier_block *nb)
 	pr_info("si9234: connection established\n");
 
 	sii9234->claimed = true;
-	sii9234->pdata->vbus_present(true);
+	sii9234->pdata->connect(true, ret == 0 ? sii9234->devcap : NULL);
 	mutex_unlock(&sii9234->lock);
 
 	return OTG_ID_HANDLED;

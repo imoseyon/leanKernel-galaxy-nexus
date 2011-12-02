@@ -24,12 +24,29 @@
 
 #include <linux/i2c.h>
 
+#define MHL_DEVCAP_DEVSTATE		0x0
+#define MHL_DEVCAP_MHL_VERSION		0x1
+#define MHL_DEVCAP_DEV_CAT		0x2
+#define MHL_DEVCAP_ADOPTER_ID_H		0x3
+#define MHL_DEVCAP_ADOPTER_ID_L		0x4
+#define MHL_DEVCAP_VID_LINK_MODE	0x5
+#define MHL_DEVCAP_AUD_LINK_MODE	0x6
+#define MHL_DEVCAP_VIDEO_TYPE		0x7
+#define MHL_DEVCAP_LOG_DEV_MAP		0x8
+#define MHL_DEVCAP_BANDWIDTH		0x9
+#define MHL_DEVCAP_FEATURE_FLAG		0xa
+#define MHL_DEVCAP_DEVICE_ID_H		0xb
+#define MHL_DEVCAP_DEVICE_ID_L		0xc
+#define MHL_DEVCAP_SCRATHPAD_SIZE	0xd
+#define MHL_DEVCAP_INT_STAT_SIZE	0xe
+#define MHL_DEVCAP_RESERVED		0xf
+
 struct sii9234_platform_data {
 	int prio;
 	void (*enable)(bool enable);
 	void (*power)(int on);
 	void (*enable_vbus)(bool enable);
-	void (*vbus_present)(bool on);
+	void (*connect)(bool connected, u8 *devcap);
 	struct i2c_client *mhl_tx_client;
 	struct i2c_client *tpi_client;
 	struct i2c_client *hdmi_rx_client;
