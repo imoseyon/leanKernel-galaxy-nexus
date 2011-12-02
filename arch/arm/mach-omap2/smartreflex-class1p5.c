@@ -620,6 +620,9 @@ static int sr_class1p5_deinit(struct voltagedomain *voltdm,
 	 */
 	if (work_data->work_active)
 		sr_class1p5_disable(voltdm, work_data->vdata, NULL, 0);
+
+	/* Ensure worker canceled. */
+	cancel_delayed_work_sync(&work_data->work);
 	omap_voltage_calib_reset(voltdm);
 	voltdm_reset(voltdm);
 
