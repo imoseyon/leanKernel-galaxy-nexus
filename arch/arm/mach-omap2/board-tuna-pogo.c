@@ -72,7 +72,6 @@ enum debounce_state {
 
 struct tuna_pogo {
 	struct otg_id_notifier_block	otg_id_nb;
-	struct switch_dev		dock_switch;
 	struct switch_dev		audio_switch;
 	struct wake_lock		wake_lock;
 	struct completion		completion;
@@ -131,14 +130,13 @@ static void pogo_dock_change(struct tuna_pogo *pogo)
 	char *dock_charger_str;
 
 	if (!(pogo->dock_type & POGO_DOCK_DOCKED)) {
-		switch_set_state(&pogo->dock_switch, 0);
+		tuna_otg_set_dock_switch(0);
 		switch_set_state(&pogo->audio_switch, POGO_AUDIO_DISCONNECTED);
 		tuna_otg_pogo_charger(POGO_POWER_DISCONNECTED);
 		pr_info("Undocked\n");
 		return;
 	} else {
-		switch_set_state(&pogo->dock_switch,
-				pogo->dock_type & POGO_DOCK_DESK ? 1 : 2);
+		tuna_otg_set_dock_switch(pogo->dock_type & POGO_DOCK_DESK ? 1 : 2);
 	}
 
 	dock_type_str = pogo->dock_type & POGO_DOCK_DESK ? "Desk" : "Car";
@@ -432,15 +430,11 @@ void __init omap4_tuna_pogo_init(void)
 
 	gpio_direction_output(GPIO_POGO_DATA, 0);
 
-	pogo->dock_switch.name = "dock";
-
 	/* The POGO dock does not involve USB but we are reusing the existing
 	 * usb audio switch report the availabilty of SPDIF audio through the
 	 * POGO dock.
 	 */
 	pogo->audio_switch.name = "usb_audio";
-
-	switch_dev_register(&pogo->dock_switch);
 
 	switch_dev_register(&pogo->audio_switch);
 
