@@ -578,6 +578,7 @@ handled:
 	       (prev_dev != FSA9480_DETECT_NONE));
 
 	mutex_unlock(&usbsw->lock);
+	enable_irq_wake(usbsw->client->irq);
 	enable_irq(usbsw->client->irq);
 
 	return OTG_ID_HANDLED;
@@ -592,6 +593,7 @@ static int fsa9480_proxy_wait_callback(struct otg_id_notifier_block *nb)
 	dev_info(&usbsw->client->dev, "taking proxy ownership of port\n");
 
 	usbsw->pdata->enable(true);
+	enable_irq_wake(usbsw->client->irq);
 	enable_irq(usbsw->client->irq);
 
 	return OTG_ID_HANDLED;
@@ -639,6 +641,7 @@ static irqreturn_t fsa9480_irq_thread(int irq, void *data)
 		dev_err(&client->dev, "exiting protection mode\n");
 
 	disable_irq_nosync(client->irq);
+	disable_irq_wake(client->irq);
 
 	mutex_lock(&usbsw->lock);
 	if (usbsw->curr_dev != FSA9480_DETECT_NONE) {
@@ -695,6 +698,7 @@ static irqreturn_t usb_id_irq_thread(int irq, void *data)
 		 */
 		fsa9480_reset(usbsw);
 
+		enable_irq_wake(client->irq);
 		enable_irq(client->irq);
 	}
 
@@ -772,6 +776,7 @@ static int __devinit fsa9480_probe(struct i2c_client *client,
 			"failed to enable wakeup src %d\n", ret);
 		goto err_en_wake;
 	}
+	disable_irq_wake(client->irq);
 
 	/* Reconcile the requested ADC detect time with the available settings
 	 * on the FSA9480.
@@ -841,8 +846,6 @@ err_sys_create:
 err_reset:
 err_timing:
 err_reg_init:
-	if (client->irq)
-		disable_irq_wake(client->irq);
 err_en_wake:
 	if (client->irq)
 		free_irq(client->irq, usbsw);
