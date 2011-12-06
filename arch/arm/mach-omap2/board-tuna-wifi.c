@@ -224,17 +224,17 @@ static int tuna_wifi_power(int on)
 
 	if (clk32kaudio_reg && on && !tuna_wifi_power_state) {
 		ret = regulator_enable(clk32kaudio_reg);
-		if (!ret)
+		if (ret)
 			pr_err("%s: regulator_enable failed: %d\n", __func__,
 				ret);
 	}
-	mdelay(100);
+	msleep(300);
 	gpio_set_value(GPIO_WLAN_PMENA, on);
-	mdelay(200);
+	msleep(200);
 
 	if (clk32kaudio_reg && !on && tuna_wifi_power_state) {
 		ret = regulator_disable(clk32kaudio_reg);
-		if (!ret)
+		if (ret)
 			pr_err("%s: regulator_disable failed: %d\n", __func__,
 				ret);
 	}
