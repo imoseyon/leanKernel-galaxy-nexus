@@ -134,6 +134,8 @@ struct omap_voltage_notifier {
  * @voltage_dynamic_nominal:	The run time optimized nominal voltage for
  *			the device. Dynamic nominal is the nominal voltage
  *			specialized for that OPP on the device in uV.
+ * @volt_margin:	Additional sofware margin in uV to add to OPP calibrated
+ *			voltage
  * @sr_efuse_offs:	The offset of the efuse register(from system
  *			control module base address) from where to read
  *			the n-target value for the smartreflex module.
@@ -151,6 +153,7 @@ struct omap_volt_data {
 	u32	volt_nominal;
 	u32	volt_calibrated;
 	u32	volt_dynamic_nominal;
+	u32	volt_margin;
 	u32	sr_efuse_offs;
 	u8	sr_errminlimit;
 	u8	vp_errgain;
