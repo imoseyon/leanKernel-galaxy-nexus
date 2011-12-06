@@ -171,14 +171,13 @@ struct fsa9480_usbsw {
 	u16				intr_mask;
 	u8				timing;
 	int				external_id_irq;
+	bool				wake_enabled;
 #if defined(CONFIG_DEBUG_FS) && defined(DEBUG_DUMP_REGISTERS)
 	struct dentry			*debug_dir;
 #endif
 
 	int				num_notifiers;
 	struct usbsw_nb_info		notifiers[0];
-
-	bool wake_enabled;
 };
 #define xceiv_to_fsa(x)		container_of((x), struct fsa9480_usbsw, otg)
 
