@@ -1484,10 +1484,10 @@ static int omap2_gpio_set_edge_wakeup(struct gpio_bank *bank, bool suspend)
 	 * even if they are set for level detection only.
 	 */
 	__raw_writel(bank->context.edge_falling |
-			(bank->context.ew_leveldetect0 & wkup_status),
+			(bank->type_leveldetect0 & wkup_status),
 		(bank->base + bank->regs->fallingdetect));
 	__raw_writel(bank->context.edge_rising |
-			(bank->context.ew_leveldetect1 & wkup_status),
+			(bank->type_leveldetect1 & wkup_status),
 		(bank->base + bank->regs->risingdetect));
 	__raw_writel(0, bank->base + bank->regs->leveldetect0);
 	__raw_writel(0, bank->base + bank->regs->leveldetect1);
