@@ -966,6 +966,13 @@ static int sii9234_detection_callback(struct otg_id_notifier_block *nb)
 			       16, 1, sii9234->devcap, 16, false);
 #endif
 
+	/* It's possible for devcap reading to fail but the adapter still
+	 * be connected.  Therefore we must keep ownership of the port
+	 * as long as it's still connected.
+	 */
+	if (sii9234->state != STATE_ESTABLISHED)
+		goto unhandled;
+
 	pr_info("si9234: connection established\n");
 
 	sii9234->claimed = true;
