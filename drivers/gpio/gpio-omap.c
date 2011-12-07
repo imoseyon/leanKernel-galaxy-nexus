@@ -1484,10 +1484,10 @@ static int omap2_gpio_set_edge_wakeup(struct gpio_bank *bank, bool suspend)
 	 * even if they are set for level detection only.
 	 */
 	__raw_writel(bank->context.edge_falling |
-			(bank->context.ew_leveldetect0 & wkup_status),
+			(bank->type_leveldetect0 & wkup_status),
 		(bank->base + bank->regs->fallingdetect));
 	__raw_writel(bank->context.edge_rising |
-			(bank->context.ew_leveldetect1 & wkup_status),
+			(bank->type_leveldetect1 & wkup_status),
 		(bank->base + bank->regs->risingdetect));
 	__raw_writel(0, bank->base + bank->regs->leveldetect0);
 	__raw_writel(0, bank->base + bank->regs->leveldetect1);
@@ -1562,7 +1562,7 @@ int omap2_gpio_prepare_for_idle(int off_mode, bool suspend)
 		if (omap2_gpio_set_edge_wakeup(bank, suspend))
 			ret = -EBUSY;
 
-		if (bank->loses_context && off_mode)
+		if (bank->loses_context)
 			if (pm_runtime_put_sync_suspend(bank->dev) < 0)
 				dev_err(bank->dev, "%s: GPIO bank %d "
 						"pm_runtime_put_sync failed\n",
@@ -1583,7 +1583,7 @@ void omap2_gpio_resume_after_idle(int off_mode)
 		if (!bank->mod_usage)
 			continue;
 
-		if (bank->loses_context && off_mode)
+		if (bank->loses_context)
 			if (pm_runtime_get_sync(bank->dev) < 0)
 				dev_err(bank->dev, "%s: GPIO bank %d "
 						"pm_runtime_get_sync failed\n",
