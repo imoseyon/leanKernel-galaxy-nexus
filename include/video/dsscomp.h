@@ -233,7 +233,7 @@ struct dss2_decim {
  *
  * Userspace operations are as follows:
  *
- * 1) check if DSS supports an overlay configuration, use DSSCOMP_CHECK_OVL
+ * 1) check if DSS supports an overlay configuration, use DSSCIOC_CHECK_OVL
  * ioctl with the manager, overlay, and setup-mode information filled out.
  * All fields should be filled out as it may influence whether DSS can
  * display/render the overlay.
@@ -253,11 +253,11 @@ struct dss2_decim {
  * dss2_overlay_setup() before this.
  *
  * 3) On OMAP4/5 you can use the DSS WB pipeline to copy (and convert) a buffer
- * using DSS.  Use the DSSCOMP_WB_COPY ioctl for this.  This is a blocking
+ * using DSS.  Use the DSSCIOC_WB_COPY ioctl for this.  This is a blocking
  * call, and it may possibly fail if an ongoing WB capture mode has been
  * scheduled (which is outside of the current scope of the DSS2 interface.)
  *
- * There is also a one-shot configuration API (DSSCOMP_SETUP_DISPC).  This
+ * There is also a one-shot configuration API (DSSCIOC_SETUP_DISPC).  This
  * allows you to set-up all overlays on all managers in one call.  This call
  * performs additional functionality:
  *
@@ -334,7 +334,7 @@ struct dss2_ovl_cfg {
 	struct omap_dss_cconv_coefs cconv;
 	struct dss2_vc1_range_map_info vc1;
 
-	__u8 ix;		/* ovl index same as sysfs/overlay# */
+	__u8 ix;	/* ovl index same as sysfs/overlay# */
 	__u8 zorder;	/* 0..3 */
 	__u8 enabled;	/* bool */
 	__u8 zonly;	/* only set zorder and enabled bit */
@@ -349,25 +349,36 @@ enum omapdss_buffer_type {
 	OMAP_DSS_BUFTYPE_TILER_PAGE,
 };
 
+enum omapdss_buffer_addressing_type {
+	OMAP_DSS_BUFADDR_DIRECT,	/* using direct addresses */
+	OMAP_DSS_BUFADDR_BYTYPE,	/* using buffer types */
+	OMAP_DSS_BUFADDR_ION,		/* using ion handle(s) */
+	OMAP_DSS_BUFADDR_GRALLOC,	/* using gralloc handle */
+};
+
 struct dss2_ovl_info {
 	struct dss2_ovl_cfg cfg;
+
+	enum omapdss_buffer_addressing_type addressing;
 
 	union {
 		/* user-space interfaces */
 		struct {
-			void *address;	/* main buffer address */
+			void *address;		/* main buffer address */
+			void *uv_address;	/* uv buffer */
+		};
 
-			/*
-			 * For DSSCOMP_CHECK_OVL we allow specifying just the
-			 * type of each buffer. This is used if we need to
-			 * check whether DSS will be able to display a buffer
-			 * if using a particular memory type before spending
-			 * time to map/copy the buffer into that type of
-			 * memory.  Default value of 0 uses the address to
-			 * determine the type.
-			 */
-			__u16 ba_type;
-			__u16 uv_type;
+		/*
+		 * For DSSCIOC_CHECK_OVL we allow specifying just the
+		 * type of each buffer. This is used if we need to
+		 * check whether DSS will be able to display a buffer
+		 * if using a particular memory type before spending
+		 * time to map/copy the buffer into that type of
+		 * memory.
+		 */
+		struct {
+			enum omapdss_buffer_type ba_type;
+			enum omapdss_buffer_type uv_type;
 		};
 
 		/* kernel-space interfaces */
@@ -411,7 +422,7 @@ struct dss2_mgr_info {
 } __attribute__ ((aligned(4)));
 
 /*
- * ioctl: DSSCOMP_SETUP_MGR, struct dsscomp_setup_mgr_data
+ * ioctl: DSSCIOC_SETUP_MGR, struct dsscomp_setup_mgr_data
  *
  * 1. sets manager of each ovl in composition to the display
  * 2. calls set_dss_ovl_info() for each ovl to set up the
@@ -435,7 +446,7 @@ struct dss2_mgr_info {
  * on failure.
  *
  * If get_sync_obj is true, it returns fd on success, or a negative value
- * on failure.  You can use the fd to wait on (using DSSCOMP_WAIT ioctl()).
+ * on failure.  You can use the fd to wait on (using DSSCIOC_WAIT ioctl()).
  *
  * Note: frames do not get eclipsed when the display turns off.  Queue a
  * blank frame to eclipse old frames.  Blank frames get eclipsed when
@@ -478,7 +489,7 @@ struct dsscomp_setup_mgr_data {
 };
 
 /*
- * ioctl: DSSCOMP_CHECK_OVL, struct dsscomp_check_ovl_data
+ * ioctl: DSSCIOC_CHECK_OVL, struct dsscomp_check_ovl_data
  *
  * DISPLAY and/or CAPTURE bits must be filled for the mode field
  * correctly to be able to decide correctly if DSS can properly
@@ -532,8 +543,8 @@ struct dsscomp_setup_dispc_data {
 };
 
 /*
- * ioctl: DSSCOMP_WB_COPY, struct dsscomp_wb_copy_data
- *
+ * ioctl: DSSCIOC_WB_COPY, struct dsscomp_wb_copy_data
+ *,
  * Requirements:
  *	wb.ix must be OMAP_DSS_WB.
  *
@@ -544,7 +555,7 @@ struct dsscomp_wb_copy_data {
 };
 
 /*
- * ioctl: DSSCOMP_QUERY_DISPLAY, struct dsscomp_display_info
+ * ioctl: DSSCIOC_QUERY_DISPLAY, struct dsscomp_display_info
  *
  * Gets informations about the display.  Fill in ix and modedb_len before
  * calling ioctl, and rest of the fields are filled in by ioctl.  Up to
@@ -570,7 +581,7 @@ struct dsscomp_display_info {
 };
 
 /*
- * ioctl: DSSCOMP_SETUP_DISPLAY, struct dsscomp_setup_display_data
+ * ioctl: DSSCIOC_SETUP_DISPLAY, struct dsscomp_setup_display_data
  *
  * Gets informations about the display.  Fill in ix before calling
  * ioctl, and rest of the fields are filled in by ioctl.
@@ -583,7 +594,7 @@ struct dsscomp_setup_display_data {
 };
 
 /*
- * ioctl: DSSCOMP_WAIT, struct dsscomp_wait_data
+ * ioctl: DSSCIOC_WAIT, struct dsscomp_wait_data
  *
  * Use this ioctl to wait for one of the following events:
  *
@@ -598,7 +609,7 @@ struct dsscomp_setup_display_data {
  * Set timeout to desired timeout value in microseconds.
  *
  * This ioctl must be used on the sync object returned by the
- * DSSCOMP_SETUP_MGR or DSSCOMP_SETUP_DISPC ioctls.
+ * DSSCIOC_SETUP_MGR or DSSCIOC_SETUP_DISPC ioctls.
  *
  * Returns: >=0 on success, <0 error value on failure (e.g. -ETIME).
  */
@@ -614,12 +625,12 @@ struct dsscomp_wait_data {
 };
 
 /* IOCTLS */
-#define DSSCOMP_SETUP_MGR	_IOW('O', 128, struct dsscomp_setup_mgr_data)
-#define DSSCOMP_CHECK_OVL	_IOWR('O', 129, struct dsscomp_check_ovl_data)
-#define DSSCOMP_WB_COPY		_IOW('O', 130, struct dsscomp_wb_copy_data)
-#define DSSCOMP_QUERY_DISPLAY	_IOWR('O', 131, struct dsscomp_display_info)
-#define DSSCOMP_WAIT		_IOW('O', 132, struct dsscomp_wait_data)
+#define DSSCIOC_SETUP_MGR	_IOW('O', 128, struct dsscomp_setup_mgr_data)
+#define DSSCIOC_CHECK_OVL	_IOWR('O', 129, struct dsscomp_check_ovl_data)
+#define DSSCIOC_WB_COPY		_IOW('O', 130, struct dsscomp_wb_copy_data)
+#define DSSCIOC_QUERY_DISPLAY	_IOWR('O', 131, struct dsscomp_display_info)
+#define DSSCIOC_WAIT		_IOW('O', 132, struct dsscomp_wait_data)
 
-#define DSSCOMP_SETUP_DISPC	_IOW('O', 133, struct dsscomp_setup_dispc_data)
-#define DSSCOMP_SETUP_DISPLAY	_IOW('O', 134, struct dsscomp_setup_display_data)
+#define DSSCIOC_SETUP_DISPC	_IOW('O', 133, struct dsscomp_setup_dispc_data)
+#define DSSCIOC_SETUP_DISPLAY	_IOW('O', 134, struct dsscomp_setup_display_data)
 #endif
