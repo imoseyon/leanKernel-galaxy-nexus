@@ -961,7 +961,7 @@ static int sii9234_detection_callback(struct otg_id_notifier_block *nb)
 	}
 
 #ifdef DEBUG
-	if (ret == 0)
+	if (ret >= 0)
 		print_hex_dump(KERN_DEBUG, "sii9234: devcap = ", DUMP_PREFIX_NONE,
 			       16, 1, sii9234->devcap, 16, false);
 #endif
@@ -976,7 +976,7 @@ static int sii9234_detection_callback(struct otg_id_notifier_block *nb)
 	pr_info("si9234: connection established\n");
 
 	sii9234->claimed = true;
-	sii9234->pdata->connect(true, ret == 0 ? sii9234->devcap : NULL);
+	sii9234->pdata->connect(true, ret >= 0 ? sii9234->devcap : NULL);
 	mutex_unlock(&sii9234->lock);
 
 	return OTG_ID_HANDLED;
