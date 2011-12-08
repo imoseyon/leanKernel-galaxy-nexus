@@ -545,7 +545,7 @@ static int fsa9480_detect_callback(struct otg_id_notifier_block *nb)
 		 * The FSA9480 takes a while pulling that line down, so a sleep
 		 * is needed.
 		 */
-		usleep_range(8500, 8600);
+		usleep_range(10000, 11000);
 		enable_irq(usbsw->external_id_irq);
 		return OTG_ID_HANDLED;
 	} else if (dev_type & DEV_AV) {
