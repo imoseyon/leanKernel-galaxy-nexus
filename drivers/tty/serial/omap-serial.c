@@ -1646,9 +1646,9 @@ static void omap_uart_restore_context(struct uart_omap_port *up)
 		}
 
 		serial_out(up, UART_TI752_TLR, 0);
-		serial_out(up, UART_OMAP_SCR, up->scr);
 	}
 
+	serial_out(up, UART_OMAP_SCR, up->scr);
 	/* UART 16x mode */
 	if (up->errata & UART_ERRATA_i202_MDR1_ACCESS)
 		omap_uart_mdr1_errataset(up, up->mdr1);
