@@ -147,12 +147,14 @@ static const unsigned int adc_timing[] = {
 };
 
 static const char *device_names[] = {
-	[FSA9480_DETECT_NONE]		= "unknown/none",
-	[FSA9480_DETECT_USB]		= "usb-peripheral",
-	[FSA9480_DETECT_USB_HOST]	= "usb-host",
-	[FSA9480_DETECT_CHARGER]	= "charger",
-	[FSA9480_DETECT_JIG]		= "jig",
-	[FSA9480_DETECT_UART]		= "uart",
+	[FSA9480_DETECT_NONE]			= "unknown/none",
+	[FSA9480_DETECT_USB]			= "usb-peripheral",
+	[FSA9480_DETECT_USB_HOST]		= "usb-host",
+	[FSA9480_DETECT_CHARGER]		= "charger",
+	[FSA9480_DETECT_JIG]			= "jig",
+	[FSA9480_DETECT_UART]			= "uart",
+	[FSA9480_DETECT_AV_365K]		= "av-365k",
+	[FSA9480_DETECT_AV_365K_CHARGER]	= "av-365k-charger",
 };
 
 struct usbsw_nb_info {
@@ -546,6 +548,35 @@ static int fsa9480_detect_callback(struct otg_id_notifier_block *nb)
 		usleep_range(8500, 8600);
 		enable_irq(usbsw->external_id_irq);
 		return OTG_ID_HANDLED;
+	} else if (dev_type & DEV_AV) {
+		/* There are two ID resistances, 1K and 365K that the FSA9480
+		 * will resolve to the A/V Cable device type.  The ADC value can
+		 * be used to tell the difference between the two.
+		 */
+		if (adc_val == 0x1a) {
+			/* Delay to allow VBUS to be seen, if present. There's
+			 * a possibility that we won't charge if it takes
+			 * longer than this for VBUS to be present. */
+			msleep(10);
+			if ((nb_info->detect_set->mask &
+					FSA9480_DETECT_AV_365K_CHARGER) &&
+					usbsw->pdata->vbus_present()) {
+				_detected(usbsw,
+					FSA9480_DETECT_AV_365K_CHARGER);
+				/* The FSA9480 will not interrupt when a USB or
+				 * charger cable is disconnected from the dock
+				 * so we must detect loss of VBUS via an
+				 * external interrupt. */
+				enable_irq(usbsw->pdata->external_vbus_irq);
+			} else if ((nb_info->detect_set->mask &
+					FSA9480_DETECT_AV_365K) &&
+					!usbsw->pdata->vbus_present()) {
+				_detected(usbsw, FSA9480_DETECT_AV_365K);
+			} else {
+				goto unhandled;
+			}
+			goto handled;
+		}
 	} else if (dev_type == 0) {
 		usbsw->curr_dev = 0;
 		dev_info(&usbsw->client->dev,
@@ -707,6 +738,28 @@ static irqreturn_t usb_id_irq_thread(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static irqreturn_t vbus_irq_thread(int irq, void *data)
+{
+	struct fsa9480_usbsw *usbsw = data;
+
+	disable_irq_nosync(usbsw->pdata->external_vbus_irq);
+
+	mutex_lock(&usbsw->lock);
+	if (usbsw->curr_dev != FSA9480_DETECT_AV_365K_CHARGER) {
+		mutex_unlock(&usbsw->lock);
+		return IRQ_HANDLED;
+	}
+
+	/* VBUS has gone away when docked, so reset the state to
+	 * FSA_DETECT_NONE and reset the FSA9480, because it cannot
+	 * detect ID pin changes correctly after dock detach. */
+	_detected(usbsw, FSA9480_DETECT_NONE);
+	fsa9480_reset(usbsw);
+	mutex_unlock(&usbsw->lock);
+
+	return IRQ_HANDLED;
+}
+
 static int __devinit fsa9480_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
@@ -718,7 +771,10 @@ static int __devinit fsa9480_probe(struct i2c_client *client,
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE_DATA))
 		return -EIO;
-	if (!pdata || !pdata->detected || !pdata->enable) {
+	if (!pdata || !pdata->detected || !pdata->enable ||
+			!pdata->mask_vbus_irq || !pdata->unmask_vbus_irq ||
+			!pdata->vbus_present ||
+			(pdata->external_vbus_irq < 0)) {
 		dev_err(&client->dev, "missing/invalid platform data\n");
 		return -EINVAL;
 	}
@@ -753,6 +809,19 @@ static int __devinit fsa9480_probe(struct i2c_client *client,
 			goto err_req_id_irq;
 		}
 	}
+
+	pdata->mask_vbus_irq();
+	ret = request_threaded_irq(pdata->external_vbus_irq, NULL,
+			vbus_irq_thread, pdata->external_vbus_flags,
+			"external_vbus", usbsw);
+	if (ret) {
+		dev_err(&client->dev,
+				"failed to request vbus IRQ err %d\n",
+				ret);
+		goto err_req_vbus_irq;
+	}
+	disable_irq(pdata->external_vbus_irq);
+	pdata->unmask_vbus_irq();
 
 	/* mask all irqs to prevent event processing between
 	 * request_irq and disable_irq
@@ -850,6 +919,8 @@ err_en_wake:
 	if (client->irq)
 		free_irq(client->irq, usbsw);
 err_req_irq:
+	free_irq(usbsw->pdata->external_vbus_irq, usbsw);
+err_req_vbus_irq:
 	if (usbsw->pdata->external_id >= 0)
 		free_irq(usbsw->external_id_irq, usbsw);
 err_req_id_irq:
@@ -888,6 +959,8 @@ static int __devexit fsa9480_remove(struct i2c_client *client)
 		free_irq(usbsw->external_id_irq, usbsw);
 		gpio_free(usbsw->pdata->external_id);
 	}
+
+	free_irq(usbsw->pdata->external_vbus_irq, usbsw);
 
 	i2c_set_clientdata(client, NULL);
 
