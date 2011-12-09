@@ -88,6 +88,12 @@
 #define CHARGERUSB_CTRL3	0xA
 #define CHARGERUSB_CINLIMIT	0xE
 
+#define TWL6030_VBUS_IRQ	(TWL6030_IRQ_BASE + USB_PRES_INTR_OFFSET)
+#define TWL6030_VBUS_FLAGS	(IRQF_TRIGGER_FALLING | IRQF_ONESHOT)
+
+#define TWL_REG_CONTROLLER_STAT1	0x03
+#define TWL_STAT1_VBUS_DET		BIT(2)
+
 struct tuna_otg {
 	struct otg_transceiver		otg;
 	struct device			dev;
@@ -350,6 +356,32 @@ static void tuna_lte_uart_actions(struct tuna_otg *tuna_otg)
 	 */
 }
 
+static void tuna_otg_mask_vbus_irq(void)
+{
+	twl6030_interrupt_mask(TWL6030_CHARGER_CTRL_INT_MASK,
+				REG_INT_MSK_LINE_C);
+	twl6030_interrupt_mask(TWL6030_CHARGER_CTRL_INT_MASK,
+				REG_INT_MSK_STS_C);
+}
+
+static void tuna_otg_unmask_vbus_irq(void)
+{
+	twl6030_interrupt_unmask(TWL6030_CHARGER_CTRL_INT_MASK,
+				REG_INT_MSK_LINE_C);
+	twl6030_interrupt_unmask(TWL6030_CHARGER_CTRL_INT_MASK,
+				REG_INT_MSK_STS_C);
+}
+
+static bool tuna_otg_vbus_present(void)
+{
+	u8 vbus_state;
+
+	twl_i2c_read_u8(TWL_MODULE_MAIN_CHARGE, &vbus_state,
+				TWL_REG_CONTROLLER_STAT1);
+
+	return !!(vbus_state & TWL_STAT1_VBUS_DET);
+}
+
 static void tuna_fsa_usb_detected(int device)
 {
 	struct tuna_otg *tuna_otg = &tuna_otg_xceiv;
@@ -362,6 +394,9 @@ static void tuna_fsa_usb_detected(int device)
 
 	pr_debug("detected %x\n", device);
 	switch (device) {
+	case FSA9480_DETECT_AV_365K_CHARGER:
+		tuna_otg_set_dock_switch(1);
+		/* intentional fall-through */
 	case FSA9480_DETECT_USB:
 		if (tuna_otg->usb_manual_mode == TUNA_MANUAL_USB_MODEM)
 			tuna_cp_usb_attach(tuna_otg);
@@ -403,6 +438,9 @@ static void tuna_fsa_usb_detected(int device)
 			if (tuna_otg->uart_manual_mode == TUNA_MANUAL_UART_NONE)
 				tuna_ap_uart_actions(tuna_otg);
 			break;
+		case FSA9480_DETECT_AV_365K_CHARGER:
+			tuna_otg_set_dock_switch(0);
+			/* intentional fall-through */
 		case FSA9480_DETECT_USB:
 			if (tuna_otg->usb_manual_mode == TUNA_MANUAL_USB_MODEM)
 				tuna_cp_usb_detach(tuna_otg);
@@ -414,6 +452,9 @@ static void tuna_fsa_usb_detected(int device)
 			break;
 		case FSA9480_DETECT_CHARGER:
 			tuna_ap_usb_detach(tuna_otg);
+			break;
+		case FSA9480_DETECT_AV_365K:
+			tuna_otg_set_dock_switch(0);
 			break;
 		case FSA9480_DETECT_UART:
 		default:
@@ -433,6 +474,9 @@ static void tuna_fsa_usb_detected(int device)
 			tuna_cp_uart_actions(tuna_otg);
 			break;
 		};
+		break;
+	case FSA9480_DETECT_AV_365K:
+		tuna_otg_set_dock_switch(1);
 		break;
 	case FSA9480_DETECT_UART:
 	default:
@@ -455,13 +499,19 @@ static struct fsa9480_detect_set fsa_detect_sets[] = {
 };
 
 static struct fsa9480_platform_data tuna_fsa9480_pdata = {
-	.detect_time	= 500,
-	.detect_sets	= fsa_detect_sets,
-	.num_sets	= ARRAY_SIZE(fsa_detect_sets),
+	.detect_time		= 500,
+	.detect_sets		= fsa_detect_sets,
+	.num_sets		= ARRAY_SIZE(fsa_detect_sets),
 
-	.enable		= tuna_mux_usb_to_fsa,
-	.detected	= tuna_fsa_usb_detected,
-	.external_id	= GPIO_USB_OTG_ID,
+	.enable			= tuna_mux_usb_to_fsa,
+	.detected		= tuna_fsa_usb_detected,
+	.external_id		= GPIO_USB_OTG_ID,
+
+	.external_vbus_irq	= TWL6030_VBUS_IRQ,
+	.external_vbus_flags	= TWL6030_VBUS_FLAGS,
+	.mask_vbus_irq		= tuna_otg_mask_vbus_irq,
+	.unmask_vbus_irq	= tuna_otg_unmask_vbus_irq,
+	.vbus_present		= tuna_otg_vbus_present,
 };
 
 static struct i2c_board_info __initdata tuna_connector_i2c4_boardinfo[] = {
