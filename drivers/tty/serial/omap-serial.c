@@ -640,6 +640,7 @@ static int serial_omap_startup(struct uart_port *port)
 	serial_out(up, UART_IER, up->ier);
 
 	/* Enable module level wake up */
+	up->wer_restore = up->wer;
 	serial_out(up, UART_OMAP_WER, up->wer);
 
 	serial_omap_port_disable(up);
@@ -659,6 +660,7 @@ static void serial_omap_shutdown(struct uart_port *port)
 	 * Disable interrupts & wakeup events from this port
 	 */
 	up->ier = 0;
+	up->wer_restore = 0;
 	serial_out(up, UART_OMAP_WER, 0);
 	serial_out(up, UART_IER, 0);
 
@@ -1504,6 +1506,7 @@ static int serial_omap_probe(struct platform_device *pdev)
 	up->wake_peer = omap_up_info->wake_peer;
 	up->rts_mux_driver_control = omap_up_info->rts_mux_driver_control;
 	up->rts_pullup_in_suspend = 0;
+	up->wer_restore = 0;
 
 	if (omap_up_info->use_dma) {
 		up->uart_dma.uart_dma_tx = dma_tx->start;
@@ -1635,7 +1638,7 @@ static void omap_uart_restore_context(struct uart_omap_port *up)
 	serial_out(up, UART_EFR, up->efr);
 	serial_out(up, UART_LCR, up->lcr);
 	/* Enable module level wake up */
-	serial_out(up, UART_OMAP_WER, up->wer);
+	serial_out(up, UART_OMAP_WER, up->wer_restore);
 	if (up->use_dma) {
 		if (up->errata & OMAP4_UART_ERRATA_i659_TX_THR) {
 			serial_out(up, UART_MDR3, SET_DMA_TX_THRESHOLD);

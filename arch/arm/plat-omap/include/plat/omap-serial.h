@@ -170,6 +170,7 @@ struct uart_omap_port {
 	unsigned		rts_pullup_in_suspend:1;
 
 	unsigned int		errata;
+	unsigned char		wer_restore;
 	void (*enable_wakeup)(struct platform_device *, bool);
 	bool (*chk_wakeup)(struct platform_device *);
 	void (*wake_peer)(struct uart_port *);
