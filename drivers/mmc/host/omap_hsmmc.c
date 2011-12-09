@@ -2348,8 +2348,8 @@ static int omap_hsmmc_suspend(struct device *dev)
 		if (mmc_slot(host).mmc_data.built_in)
 			host->mmc->pm_flags |= MMC_PM_KEEP_POWER;
 		ret = mmc_suspend_host(host->mmc);
-		mmc_host_enable(host->mmc);
 		if (ret == 0) {
+			mmc_host_enable(host->mmc);
 			omap_hsmmc_disable_irq(host);
 			OMAP_HSMMC_WRITE(host->base, HCTL,
 				OMAP_HSMMC_READ(host->base, HCTL) & ~SDBP);
@@ -2366,13 +2366,6 @@ static int omap_hsmmc_suspend(struct device *dev)
 					dev_dbg(mmc_dev(host->mmc),
 						"Unmask interrupt failed\n");
 			}
-
-			/*
-			 * Directly call platform_bus suspend. runtime PM
-			 * PM lock is held during system suspend, so will
-			 * not be auto-matically called
-			 */
-			mmc_host_disable(host->mmc);
 		}
 
 	}
