@@ -298,25 +298,57 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 		if (d->mgrs[mgr_ix].swap_rb)
 			swap_rb_in_ovl_info(d->ovls + i);
 
+		/* copy prior overlay to avoid mapping layers twice to 1D */
+		if (oi->addressing == OMAP_DSS_BUFADDR_OVL_IX) {
+			unsigned int j = oi->ba;
+			if (j >= i) {
+				WARN(1, "Invalid clone layer (%u)", j);
+				goto skip_buffer;
+			}
+
+			oi->ba = d->ovls[j].ba;
+			oi->uv = d->ovls[j].uv;
+			goto skip_map1d;
+		} else if (oi->addressing == OMAP_DSS_BUFADDR_FB) {
+			/* get fb */
+			int fb_ix = (oi->ba >> 28);
+			int fb_uv_ix = (oi->uv >> 28);
+			struct fb_info *fbi = NULL, *fbi_uv = NULL;
+			size_t size = oi->cfg.height * oi->cfg.stride;
+			if (fb_ix >= num_registered_fb ||
+			    (oi->cfg.color_mode == OMAP_DSS_COLOR_NV12 &&
+			     fb_uv_ix >= num_registered_fb)) {
+				WARN(1, "display has no framebuffer");
+				goto skip_buffer;
+			}
+
+			fbi = fbi_uv = registered_fb[fb_ix];
+			if (oi->cfg.color_mode == OMAP_DSS_COLOR_NV12)
+				fbi_uv = registered_fb[fb_uv_ix];
+
+			if (size + oi->ba > fbi->fix.smem_len ||
+			    (oi->cfg.color_mode == OMAP_DSS_COLOR_NV12 &&
+			     (size >> 1) + oi->uv > fbi_uv->fix.smem_len)) {
+				WARN(1, "image outside of framebuffer memory");
+				goto skip_buffer;
+			}
+
+			oi->ba += fbi->fix.smem_start;
+			oi->uv += fbi_uv->fix.smem_start;
+			goto skip_map1d;
+		}
+
 		/* map non-TILER buffers to 1D */
 
 		/* skip 2D and disabled layers */
 		if (!pas[i] || !oi->cfg.enabled)
 			goto skip_map1d;
 
-		/* framebuffer is marked with uv = 0 and is contiguous */
-		if (!oi->uv) {
-			oi->ba = pas[i]->mem[0] + (oi->ba & ~PAGE_MASK);
-			goto skip_map1d;
-		}
-
 		if (!slot) {
 			if (down_timeout(&free_slots_sem,
 						msecs_to_jiffies(100))) {
 				dev_warn(DEV(cdev), "could not obtain tiler slot");
-				/* disable unpinned layers */
-				oi->cfg.enabled = false;
-				goto skip_map1d;
+				goto skip_buffer;
 			}
 			mutex_lock(&mtx);
 			slot = list_first_entry(&free_slots, typeof(*slot), q);
@@ -332,9 +364,7 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 		if (slot_used + size > slot->size) {
 			dev_err(DEV(cdev), "tiler slot not big enough for frame %d + %d > %d",
 				slot_used, size, slot->size);
-			/* disable unpinned layers */
-			oi->cfg.enabled = false;
-			goto skip_map1d;
+			goto skip_buffer;
 		}
 
 		/* "map" into TILER 1D - will happen after loop */
@@ -343,6 +373,10 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 		memcpy(slot->page_map + slot_used, pas[i]->mem,
 		       sizeof(*slot->page_map) * size);
 		slot_used += size;
+		goto skip_map1d;
+
+skip_buffer:
+		oi->cfg.enabled = false;
 skip_map1d:
 
 		if (oi->cfg.enabled)
