@@ -91,6 +91,10 @@
 #define TWL6030_VBUS_IRQ	(TWL6030_IRQ_BASE + USB_PRES_INTR_OFFSET)
 #define TWL6030_VBUS_FLAGS	(IRQF_TRIGGER_FALLING | IRQF_ONESHOT)
 
+#define TWL_REG_CONTROLLER_INT_MASK	0x00
+#define TWL_CONTROLLER_MVBUS_DET	BIT(1)
+#define TWL_CONTROLLER_RSVD		BIT(5)
+
 #define TWL_REG_CONTROLLER_STAT1	0x03
 #define TWL_STAT1_VBUS_DET		BIT(2)
 
@@ -172,6 +176,8 @@ static struct attribute *manual_mode_attributes[] = {
 static const struct attribute_group manual_mode_group = {
 	.attrs = manual_mode_attributes,
 };
+
+static bool tuna_twl_chgctrl_init;
 
 static void tuna_mux_usb(int state)
 {
@@ -366,6 +372,21 @@ static void tuna_otg_mask_vbus_irq(void)
 
 static void tuna_otg_unmask_vbus_irq(void)
 {
+	if (!tuna_twl_chgctrl_init) {
+		int r;
+
+		r = twl_i2c_write_u8(TWL_MODULE_MAIN_CHARGE,
+				     (u8) ~(TWL_CONTROLLER_RSVD |
+					    TWL_CONTROLLER_MVBUS_DET),
+				     TWL_REG_CONTROLLER_INT_MASK);
+
+		if (r)
+			pr_err_once("%s: Error writing twl charge ctrl int mask\n",
+				    __func__);
+		else
+			tuna_twl_chgctrl_init = true;
+	}
+
 	twl6030_interrupt_unmask(TWL6030_CHARGER_CTRL_INT_MASK,
 				REG_INT_MSK_LINE_C);
 	twl6030_interrupt_unmask(TWL6030_CHARGER_CTRL_INT_MASK,
