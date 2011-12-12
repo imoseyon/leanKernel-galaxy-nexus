@@ -332,17 +332,29 @@ static void hdmi_compute_pll(struct omap_dss_device *dssdev, int phy,
 
 static void hdmi_load_hdcp_keys(struct omap_dss_device *dssdev)
 {
+	int aksv;
 	DSSDBG("hdmi_load_hdcp_keys\n");
 	/* load the keys and reset the wrapper to populate the AKSV registers*/
 	if (hdmi.hdmi_power_on_cb) {
-		if (!hdmi_ti_4xx_check_aksv_data(&hdmi.hdmi_data) &&
+		aksv = hdmi_ti_4xx_check_aksv_data(&hdmi.hdmi_data);
+		if ((aksv == HDMI_AKSV_ZERO) &&
 		    hdmi.custom_set &&
 		    hdmi.hdmi_power_on_cb()) {
 			hdmi_ti_4xxx_set_wait_soft_reset(&hdmi.hdmi_data);
-			hdmi.wp_reset_done = true;
+			aksv = hdmi_ti_4xx_check_aksv_data(&hdmi.hdmi_data);
+			hdmi.wp_reset_done = (aksv == HDMI_AKSV_VALID) ?
+				true : false;
 			DSSINFO("HDMI_WRAPPER RESET DONE\n");
-		}
+		} else if (aksv == HDMI_AKSV_VALID)
+			hdmi.wp_reset_done = true;
+		else if (aksv == HDMI_AKSV_ERROR)
+			hdmi.wp_reset_done = false;
+
+		if (!hdmi.wp_reset_done)
+			DSSERR("*** INVALID AKSV: "
+				"Do not perform HDCP AUTHENTICATION\n");
 	}
+
 }
 
 static int hdmi_power_on(struct omap_dss_device *dssdev)
@@ -647,8 +659,7 @@ void omapdss_hdmi_display_disable(struct omap_dss_device *dssdev)
 		goto done;
 
 	hdmi.enabled = false;
-	if (dssdev->state == OMAP_DSS_DISPLAY_SUSPENDED)
-		hdmi.wp_reset_done = false;
+	hdmi.wp_reset_done = false;
 
 	hdmi_power_off(dssdev);
 	if (dssdev->sync_lost_error == 0)
