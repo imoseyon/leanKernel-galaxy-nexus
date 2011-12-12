@@ -1318,10 +1318,10 @@ void hdmi_ti_4xxx_audio_enable(struct hdmi_ip_data *ip_data, bool enable)
 }
 EXPORT_SYMBOL(hdmi_ti_4xxx_audio_enable);
 
-bool hdmi_ti_4xx_check_aksv_data(struct hdmi_ip_data *ip_data)
+int hdmi_ti_4xx_check_aksv_data(struct hdmi_ip_data *ip_data)
 {
 	u32 aksv_data[5];
-	int i, j;
+	int i, j, ret;
 	int one = 0, zero = 0;
 	/* check if HDCP AKSV registers are populated.
 	 * If not load the keys and reset the wrapper.
@@ -1338,10 +1338,10 @@ bool hdmi_ti_4xx_check_aksv_data(struct hdmi_ip_data *ip_data)
 	if (one != zero)
 		pr_warn("HDCP: invalid AKSV\n");
 
-	if (one == zero)
-		return true;
-	else
-		return false;
+	ret = (one == zero) ? HDMI_AKSV_VALID :
+		(one == 0) ? HDMI_AKSV_ZERO : HDMI_AKSV_ERROR;
+
+	return ret;
 
 }
 EXPORT_SYMBOL(hdmi_ti_4xx_check_aksv_data);
