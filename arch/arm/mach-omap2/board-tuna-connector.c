@@ -783,20 +783,22 @@ static void sii9234_connect(bool on, u8 *devcap)
 	struct clockdomain *l3_1_clkdm = clkdm_lookup("l3_1_clkdm");
 
 	if (on) {
-		if(devcap &&
-		   devcap[MHL_DEVCAP_ADOPTER_ID_H] == 0x33 &&
-		   devcap[MHL_DEVCAP_ADOPTER_ID_L] == 0x33) {
+		val = USB_EVENT_VBUS;
+		if (devcap) {
+			u16 adopter_id =
+				(devcap[MHL_DEVCAP_ADOPTER_ID_H] << 8) |
+				devcap[MHL_DEVCAP_ADOPTER_ID_L];
+			u16 device_id =
+				(devcap[MHL_DEVCAP_DEVICE_ID_H] << 8) |
+				devcap[MHL_DEVCAP_DEVICE_ID_L];
 
-			if (devcap[MHL_DEVCAP_RESERVED] == 2)
-				val = USB_EVENT_CHARGER;
-			else
-				val = USB_EVENT_VBUS;
+			if (adopter_id == 0x3333 || adopter_id == 321) {
+				if (devcap[MHL_DEVCAP_RESERVED] == 2)
+					val = USB_EVENT_CHARGER;
 
-			if (devcap[MHL_DEVCAP_DEVICE_ID_H] == 0x12 &&
-			    devcap[MHL_DEVCAP_DEVICE_ID_L] == 0x34)
-				dock = 1;
-		} else {
-			val = USB_EVENT_VBUS;
+				if (device_id == 0x1234)
+					dock = 1;
+			}
 		}
 		clkdm_deny_idle(l3_1_clkdm);
 	} else {
