@@ -780,10 +780,6 @@ static void sii9234_connect(bool on, u8 *devcap)
 	unsigned long val;
 	int dock = 0;
 
-	tuna_otg->otg.state = OTG_STATE_B_IDLE;
-	tuna_otg->otg.default_a = false;
-	tuna_otg->otg.last_event = on ? USB_EVENT_VBUS : USB_EVENT_NONE;
-
 	if (on) {
 		if(devcap &&
 		   devcap[MHL_DEVCAP_ADOPTER_ID_H] == 0x33 &&
@@ -803,6 +799,10 @@ static void sii9234_connect(bool on, u8 *devcap)
 	} else {
 		val = USB_EVENT_NONE;
 	}
+
+	tuna_otg->otg.state = OTG_STATE_B_IDLE;
+	tuna_otg->otg.default_a = false;
+	tuna_otg->otg.last_event = val;
 
 	atomic_notifier_call_chain(&tuna_otg->otg.notifier,
 				   val, tuna_otg->otg.gadget);
