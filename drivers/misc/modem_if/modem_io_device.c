@@ -320,7 +320,9 @@ static int rx_iodev_skb_raw(struct io_device *iod)
 		else
 			skb->protocol = htons(ETH_P_IP);
 
-		if (iod->net_typ != UMTS_NETWORK) {
+		if (iod->net_typ == UMTS_NETWORK) {
+			skb_reset_mac_header(skb);
+		} else {
 			ehdr = (void *)skb_push(skb, sizeof(struct ethhdr));
 			memcpy(ehdr->h_dest, ndev->dev_addr, ETH_ALEN);
 			memcpy(ehdr->h_source, source, ETH_ALEN);
