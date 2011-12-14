@@ -29,6 +29,7 @@
 #include <mach/gpio.h>
 #include <asm/mach/irq.h>
 #include <plat/omap-pm.h>
+#include <plat/usb.h> /* for omap4_trigger_ioctrl */
 
 #include "../mux.h"
 
@@ -1320,6 +1321,19 @@ static void omap2_gpio_set_wakeupenables(struct gpio_bank *bank)
 
 	pad_wakeup = __raw_readl(bank->base + bank->regs->irqenable);
 
+	/*
+	 * HACK: Ignore gpios that have multiple sources.
+	 * Gpio 0-3 and 86 are special and may be used as gpio
+	 * interrupts without being connected to the pad that
+	 * mux points to.
+	 */
+	if (cpu_is_omap44xx()) {
+		if (bank->id == 0)
+			pad_wakeup &= ~0xf;
+		if (bank->id == 2)
+			pad_wakeup &= ~BIT(22);
+	}
+
 	for_each_set_bit(i, &pad_wakeup, bank->width) {
 		if (!omap_mux_get_wakeupenable(bank->mux[i])) {
 			bank->context.pad_set_wakeupenable |= BIT(i);
@@ -1561,6 +1575,14 @@ int omap2_gpio_prepare_for_idle(int off_mode, bool suspend)
 
 		if (omap2_gpio_set_edge_wakeup(bank, suspend))
 			ret = -EBUSY;
+	}
+
+	if (cpu_is_omap44xx())
+		omap4_trigger_ioctrl();
+
+	list_for_each_entry(bank, &omap_gpio_list, node) {
+		if (!bank->mod_usage)
+			continue;
 
 		if (bank->loses_context)
 			if (pm_runtime_put_sync_suspend(bank->dev) < 0)
