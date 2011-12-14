@@ -968,6 +968,16 @@ void omap_mux_set_gpio(u16 val, int gpio)
 		pr_err("%s: Could not set gpio%i\n", __func__, gpio);
 }
 
+bool omap_mux_get_wakeupevent(struct omap_mux *m)
+{
+	u16 val;
+	if (IS_ERR_OR_NULL(m) || !cpu_is_omap44xx())
+		return false;
+
+	val = omap_mux_read(m->partition, m->reg_offset);
+	return val & OMAP_WAKEUP_EVENT;
+}
+
 /* Has no locking, don't use on a pad that is remuxed (by hwmod or otherwise) */
 bool omap_mux_get_wakeupenable(struct omap_mux *m)
 {

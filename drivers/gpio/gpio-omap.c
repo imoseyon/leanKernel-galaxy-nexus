@@ -1398,6 +1398,8 @@ static int omap_gpio_pm_runtime_resume(struct device *dev)
 	struct gpio_bank *bank = platform_get_drvdata(pdev);
 	u32 l = 0, gen, gen0, gen1;
 	int j;
+	unsigned long pad_wakeup;
+	int i;
 
 	for (j = 0; j < hweight_long(bank->dbck_enable_mask); j++)
 		clk_enable(bank->dbck);
@@ -1420,6 +1422,11 @@ static int omap_gpio_pm_runtime_resume(struct device *dev)
 	 * this silicon bug. */
 	l ^= bank->saved_datain;
 	l &= bank->enabled_non_wakeup_gpios;
+
+	pad_wakeup = bank->enabled_non_wakeup_gpios;
+	for_each_set_bit(i, &pad_wakeup, bank->width)
+		if (omap_mux_get_wakeupevent(bank->mux[i]))
+			l |= BIT(i);
 
 	/*
 	 * No need to generate IRQs for the rising edge for gpio IRQs
