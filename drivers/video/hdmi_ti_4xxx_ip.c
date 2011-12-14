@@ -1333,6 +1333,9 @@ bool hdmi_ti_4xx_check_aksv_data(struct hdmi_ip_data *ip_data)
 		pr_debug("%x ", aksv_data[i] & 0xFF);
 	}
 
+	if (one != zero)
+		pr_warn("HDCP: invalid AKSV\n");
+
 	if (one == zero)
 		return true;
 	else
