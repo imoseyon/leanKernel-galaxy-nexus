@@ -286,6 +286,11 @@ int omap_mux_clear_wakeupenable(struct omap_mux *m);
  */
 bool omap_mux_get_wakeupenable(struct omap_mux *m);
 
+/** omap_mux_get_wakeupevent() - get the wakeupevent bit from a mux struct
+ * @m:			mux struct
+ */
+bool omap_mux_get_wakeupevent(struct omap_mux *m);
+
 /**
  * omap_mux_set_gpio() - set mux register value based on GPIO number
  * @val:		New mux register value
