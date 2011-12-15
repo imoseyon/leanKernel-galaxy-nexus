@@ -139,13 +139,30 @@ void omap4_trigger_ioctrl(void)
 	/* Trigger WUCLKIN enable */
 	omap4_prminst_rmw_inst_reg_bits(OMAP4430_WUCLK_CTRL_MASK, OMAP4430_WUCLK_CTRL_MASK,
 		OMAP4430_PRM_PARTITION, OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_IO_PMCTRL_OFFSET);
-	omap_test_timeout(
-		((omap4_prminst_read_inst_reg(OMAP4430_PRM_PARTITION, OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_IO_PMCTRL_OFFSET)
-		>> OMAP4430_WUCLK_STATUS_SHIFT) == 1),
-		MAX_IOPAD_LATCH_TIME, i);
+	omap_test_timeout((((omap4_prminst_read_inst_reg(OMAP4430_PRM_PARTITION,
+						   OMAP4430_PRM_DEVICE_INST,
+						   OMAP4_PRM_IO_PMCTRL_OFFSET) &
+				OMAP4430_WUCLK_STATUS_MASK) >>
+				OMAP4430_WUCLK_STATUS_SHIFT) == 1),
+			MAX_IOPAD_LATCH_TIME, i);
+	if (i == MAX_IOPAD_LATCH_TIME)
+		pr_err("%s: Max IO latch time reached for WUCLKIN enable\n",
+			__func__);
+
 	/* Trigger WUCLKIN disable */
 	omap4_prminst_rmw_inst_reg_bits(OMAP4430_WUCLK_CTRL_MASK, 0x0,
 		OMAP4430_PRM_PARTITION, OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_IO_PMCTRL_OFFSET);
+
+	/* Ensure this is cleared */
+	omap_test_timeout((((omap4_prminst_read_inst_reg(OMAP4430_PRM_PARTITION,
+						   OMAP4430_PRM_DEVICE_INST,
+						   OMAP4_PRM_IO_PMCTRL_OFFSET) &
+				OMAP4430_WUCLK_STATUS_MASK) >>
+				OMAP4430_WUCLK_STATUS_SHIFT) == 0),
+			MAX_IOPAD_LATCH_TIME, i);
+	if (i == MAX_IOPAD_LATCH_TIME)
+		pr_err("%s: Max IO latch time reached for WUCLKIN disable\n",
+			__func__);
 	return;
 }
 

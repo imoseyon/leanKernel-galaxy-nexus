@@ -29,6 +29,7 @@
 #include <mach/gpio.h>
 #include <asm/mach/irq.h>
 #include <plat/omap-pm.h>
+#include <plat/usb.h> /* for omap4_trigger_ioctrl */
 
 #include "../mux.h"
 
@@ -1320,6 +1321,19 @@ static void omap2_gpio_set_wakeupenables(struct gpio_bank *bank)
 
 	pad_wakeup = __raw_readl(bank->base + bank->regs->irqenable);
 
+	/*
+	 * HACK: Ignore gpios that have multiple sources.
+	 * Gpio 0-3 and 86 are special and may be used as gpio
+	 * interrupts without being connected to the pad that
+	 * mux points to.
+	 */
+	if (cpu_is_omap44xx()) {
+		if (bank->id == 0)
+			pad_wakeup &= ~0xf;
+		if (bank->id == 2)
+			pad_wakeup &= ~BIT(22);
+	}
+
 	for_each_set_bit(i, &pad_wakeup, bank->width) {
 		if (!omap_mux_get_wakeupenable(bank->mux[i])) {
 			bank->context.pad_set_wakeupenable |= BIT(i);
@@ -1384,6 +1398,8 @@ static int omap_gpio_pm_runtime_resume(struct device *dev)
 	struct gpio_bank *bank = platform_get_drvdata(pdev);
 	u32 l = 0, gen, gen0, gen1;
 	int j;
+	unsigned long pad_wakeup;
+	int i;
 
 	for (j = 0; j < hweight_long(bank->dbck_enable_mask); j++)
 		clk_enable(bank->dbck);
@@ -1406,6 +1422,11 @@ static int omap_gpio_pm_runtime_resume(struct device *dev)
 	 * this silicon bug. */
 	l ^= bank->saved_datain;
 	l &= bank->enabled_non_wakeup_gpios;
+
+	pad_wakeup = bank->enabled_non_wakeup_gpios;
+	for_each_set_bit(i, &pad_wakeup, bank->width)
+		if (omap_mux_get_wakeupevent(bank->mux[i]))
+			l |= BIT(i);
 
 	/*
 	 * No need to generate IRQs for the rising edge for gpio IRQs
@@ -1561,6 +1582,14 @@ int omap2_gpio_prepare_for_idle(int off_mode, bool suspend)
 
 		if (omap2_gpio_set_edge_wakeup(bank, suspend))
 			ret = -EBUSY;
+	}
+
+	if (cpu_is_omap44xx())
+		omap4_trigger_ioctrl();
+
+	list_for_each_entry(bank, &omap_gpio_list, node) {
+		if (!bank->mod_usage)
+			continue;
 
 		if (bank->loses_context)
 			if (pm_runtime_put_sync_suspend(bank->dev) < 0)
