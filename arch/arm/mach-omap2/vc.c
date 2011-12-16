@@ -260,7 +260,7 @@ static int omap_vc_bypass_send_value(struct voltagedomain *voltdm,
 	 * NOTE: This is legacy code. The loop count and retry count needs
 	 * to be revisited.
 	 */
-	while (!(vc_bypass_value & vc_valid)) {
+	while (vc_bypass_value & vc_valid) {
 		loop_cnt++;
 
 		if (retries_cnt > 10) {
