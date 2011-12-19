@@ -78,7 +78,7 @@ u32 tiler_best2pack(u16 o, u16 a, u16 b, u16 w, u16 *n, u16 *_area)
 /* reserve 2d blocks */
 static void reserve_blocks(u32 n, enum tiler_fmt fmt, u32 width, u32 height,
 			   u32 gid,
-			   struct process_info *pi)
+			   struct security_info *si)
 {
 	u32 bpt, res = 0, i;
 	u16 a, band, w, h, n_try;
@@ -103,7 +103,7 @@ static void reserve_blocks(u32 n, enum tiler_fmt fmt, u32 width, u32 height,
 		return;
 
 	/* get group id */
-	gi = ops->get_gi(pi, gid);
+	gi = ops->get_gi(si, gid);
 	if (!gi)
 		return;
 
@@ -131,11 +131,11 @@ static void reserve_blocks(u32 n, enum tiler_fmt fmt, u32 width, u32 height,
 }
 
 /* unreserve blocks for a group id */
-static void unreserve_blocks(u32 gid, struct process_info *pi)
+static void unreserve_blocks(u32 gid, struct security_info *si)
 {
 	struct gid_info *gi;
 
-	gi = ops->get_gi(pi, gid);
+	gi = ops->get_gi(si, gid);
 	if (!gi)
 		return;
 

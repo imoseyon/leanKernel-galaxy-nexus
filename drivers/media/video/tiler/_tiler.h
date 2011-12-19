@@ -45,37 +45,44 @@
 
 #define TILER_FORMATS		(TILFMT_MAX - TILFMT_MIN + 1)
 
-/* per process (thread group) info */
-struct process_info {
+enum secure_id_type {
+	SECURE_BY_PID = 0,
+	SECURE_BY_TOKEN
+};
+
+/* security info */
+struct security_info {
 	struct list_head list;		/* other processes */
 	struct list_head groups;	/* my groups */
 	struct list_head bufs;		/* my registered buffers */
-	pid_t pid;			/* really: thread group ID */
+	int token;			/* really: thread group ID or user
+					   provided token */
 	u32 refs;			/* open tiler devices, 0 for processes
 					   tracked via kernel APIs */
 	bool kernel;			/* tracking kernel objects */
+	enum secure_id_type sec_type;	/* security type, by pid or by token */
 };
 
 struct __buf_info {
-	struct list_head by_pid;		/* list of buffers per pid */
+	struct list_head by_sid;		/* list of buffers per sid */
 	struct tiler_buf_info buf_info;
 	struct mem_info *mi[TILER_MAX_NUM_BLOCKS];	/* blocks */
 };
 
 /* per group info (within a process) */
 struct gid_info {
-	struct list_head by_pid;	/* other groups */
-	struct list_head areas;		/* all areas in this pid/gid */
+	struct list_head by_sid;	/* other groups */
+	struct list_head areas;		/* all areas in this sid/gid */
 	struct list_head reserved;	/* areas pre-reserved */
-	struct list_head onedim;	/* all 1D areas in this pid/gid */
+	struct list_head onedim;	/* all 1D areas in this sid/gid */
 	u32 gid;			/* group ID */
 	int refs;			/* instances directly using this ptr */
-	struct process_info *pi;	/* parent */
+	struct security_info *si;	/* parent */
 };
 
 /* info for an area reserved from a container */
 struct area_info {
-	struct list_head by_gid;	/* areas in this pid/gid */
+	struct list_head by_gid;	/* areas in this sid/gid */
 	struct list_head blocks;	/* blocks in this area */
 	u32 nblocks;			/* # of blocks in this area */
 
@@ -111,16 +118,16 @@ struct tiler_ops {
 	/* block operations */
 	s32 (*alloc) (enum tiler_fmt fmt, u32 width, u32 height,
 			u32 key,
-			u32 gid, struct process_info *pi,
+			u32 gid, struct security_info *si,
 			struct mem_info **info);
 	s32 (*pin) (enum tiler_fmt fmt, u32 width, u32 height,
-			u32 key, u32 gid, struct process_info *pi,
+			u32 key, u32 gid, struct security_info *si,
 			struct mem_info **info, u32 usr_addr);
 	void (*reserve_nv12) (u32 n, u32 width, u32 height,
-					u32 gid, struct process_info *pi);
+					u32 gid, struct security_info *si);
 	void (*reserve) (u32 n, enum tiler_fmt fmt, u32 width, u32 height,
-			 u32 gid, struct process_info *pi);
-	void (*unreserve) (u32 gid, struct process_info *pi);
+			 u32 gid, struct security_info *si);
+	void (*unreserve) (u32 gid, struct security_info *si);
 
 	/* block access operations */
 	struct mem_info * (*lock) (u32 key, u32 id, struct gid_info *gi);
@@ -136,7 +143,7 @@ struct tiler_ops {
 			 u8 *p);
 #endif
 	/* group operations */
-	struct gid_info * (*get_gi) (struct process_info *pi, u32 gid);
+	struct gid_info * (*get_gi) (struct security_info *si, u32 gid);
 	void (*release_gi) (struct gid_info *gi);
 	void (*destroy_group) (struct gid_info *pi);
 
@@ -174,11 +181,10 @@ void tiler_reserve_init(struct tiler_ops *tiler);
 void tiler_nv12_init(struct tiler_ops *tiler);
 u32 tiler_best2pack(u16 o, u16 a, u16 b, u16 w, u16 *n, u16 *_area);
 void tiler_ioctl_init(struct tiler_ops *tiler);
-struct process_info *__get_pi(pid_t pid, bool kernel);
+struct security_info *__get_si(int token, bool kernel,
+				enum secure_id_type sec_type);
 void _m_unregister_buf(struct __buf_info *_b);
 s32 tiler_notify_event(int event, void *data);
-void _m_free_process_info(struct process_info *pi);
-
-struct process_info *__get_pi(pid_t pid, bool kernel);
+void _m_free_security_info(struct security_info *pi);
 
 #endif
