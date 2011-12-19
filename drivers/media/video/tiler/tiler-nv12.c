@@ -334,7 +334,7 @@ static u16 nv12_together(u16 o, u16 a, u16 w, u16 n, u16 *area, u8 *packing)
 
 /* reserve nv12 blocks */
 static void reserve_nv12(u32 n, u32 width, u32 height,
-					u32 gid, struct process_info *pi)
+					u32 gid, struct security_info *si)
 {
 	u16 w, h, band, a, o = 0;
 	struct gid_info *gi;
@@ -353,7 +353,7 @@ static void reserve_nv12(u32 n, u32 width, u32 height,
 		return;
 
 	/* get group context */
-	gi = ops->get_gi(pi, gid);
+	gi = ops->get_gi(si, gid);
 	if (!gi)
 		return;
 

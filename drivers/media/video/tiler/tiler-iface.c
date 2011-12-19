@@ -33,20 +33,21 @@ static bool security = CONFIG_TILER_SECURITY;
 
 module_param(security, bool, 0644);
 MODULE_PARM_DESC(security,
-	"Separate allocations by different processes into different pages");
+	"Separate allocations by different security ids (pid or token)");
 
 static struct list_head procs;	/* list of process info structs */
 static struct tiler_ops *ops;	/* shared methods and variables */
 
 /*
- *  process_info handling methods
+ *  security_info handling methods
  *  ==========================================================================
  */
 
-/* get process info, and increment refs for device tracking */
-struct process_info *__get_pi(pid_t pid, bool kernel)
+/* get security info, and increment refs for device tracking */
+struct security_info *__get_si(int token, bool kernel,
+				enum secure_id_type sec_type)
 {
-	struct process_info *pi;
+	struct security_info *si;
 
 	/*
 	 * treat all processes as the same, kernel processes are still treated
@@ -54,32 +55,35 @@ struct process_info *__get_pi(pid_t pid, bool kernel)
 	 * closes the tiler driver
 	 */
 	if (!security)
-		pid = 0;
+		token = 0;
 
 	/* find process context */
 	mutex_lock(&ops->mtx);
-	list_for_each_entry(pi, &procs, list) {
-		if (pi->pid == pid && pi->kernel == kernel)
+	list_for_each_entry(si, &procs, list) {
+		if (si->token == token &&
+			si->kernel == kernel &&
+			si->sec_type == sec_type)
 			goto done;
 	}
 
 	/* create process context */
-	pi = kmalloc(sizeof(*pi), GFP_KERNEL);
-	if (!pi)
+	si = kmalloc(sizeof(*si), GFP_KERNEL);
+	if (!si)
 		goto done;
-	memset(pi, 0, sizeof(*pi));
+	memset(si, 0, sizeof(*si));
 
-	pi->pid = pid;
-	pi->kernel = kernel;
-	INIT_LIST_HEAD(&pi->groups);
-	INIT_LIST_HEAD(&pi->bufs);
-	list_add(&pi->list, &procs);
+	si->token = token;
+	si->sec_type = sec_type;
+	si->kernel = kernel;
+	INIT_LIST_HEAD(&si->groups);
+	INIT_LIST_HEAD(&si->bufs);
+	list_add(&si->list, &procs);
 done:
 	/* increment reference count */
-	if (pi && !kernel)
-		pi->refs++;
+	if (si && !kernel)
+		si->refs++;
 	mutex_unlock(&ops->mtx);
-	return pi;
+	return si;
 }
 
 /**
@@ -89,38 +93,38 @@ done:
  *
  *    caller MUST already have mtx
  */
-void _m_free_process_info(struct process_info *pi)
+void _m_free_security_info(struct security_info *si)
 {
 	struct gid_info *gi, *gi_;
 #ifdef CONFIG_TILER_ENABLE_USERSPACE
 	struct __buf_info *_b = NULL, *_b_ = NULL;
 
-	if (!list_empty(&pi->bufs))
+	if (!list_empty(&si->bufs))
 		tiler_notify_event(TILER_DEVICE_CLOSE, NULL);
 
 	/* unregister all buffers */
-	list_for_each_entry_safe(_b, _b_, &pi->bufs, by_pid)
+	list_for_each_entry_safe(_b, _b_, &si->bufs, by_sid)
 		_m_unregister_buf(_b);
 #endif
-	BUG_ON(!list_empty(&pi->bufs));
+	BUG_ON(!list_empty(&si->bufs));
 
 	/* free all allocated blocks, and remove unreferenced ones */
-	list_for_each_entry_safe(gi, gi_, &pi->groups, by_pid)
+	list_for_each_entry_safe(gi, gi_, &si->groups, by_sid)
 		ops->destroy_group(gi);
 
-	BUG_ON(!list_empty(&pi->groups));
-	list_del(&pi->list);
-	kfree(pi);
+	BUG_ON(!list_empty(&si->groups));
+	list_del(&si->list);
+	kfree(si);
 }
 
 static void destroy_processes(void)
 {
-	struct process_info *pi, *pi_;
+	struct security_info *si, *si_;
 
 	mutex_lock(&ops->mtx);
 
-	list_for_each_entry_safe(pi, pi_, &procs, list)
-		_m_free_process_info(pi);
+	list_for_each_entry_safe(si, si_, &procs, list)
+		_m_free_security_info(si);
 	BUG_ON(!list_empty(&procs));
 
 	mutex_unlock(&ops->mtx);
@@ -168,10 +172,10 @@ EXPORT_SYMBOL(tiler_virt2phys);
 void tiler_reservex(u32 n, enum tiler_fmt fmt, u32 width, u32 height,
 		   u32 gid, pid_t pid)
 {
-	struct process_info *pi = __get_pi(pid, true);
+	struct security_info *si = __get_si(pid, true, SECURE_BY_PID);
 
-	if (pi)
-		ops->reserve(n, fmt, width, height, gid, pi);
+	if (si)
+		ops->reserve(n, fmt, width, height, gid, si);
 }
 EXPORT_SYMBOL(tiler_reservex);
 
@@ -185,10 +189,10 @@ EXPORT_SYMBOL(tiler_reserve);
 void tiler_reservex_nv12(u32 n, u32 width, u32 height,
 			u32 gid, pid_t pid)
 {
-	struct process_info *pi = __get_pi(pid, true);
+	struct security_info *si = __get_si(0, true, SECURE_BY_PID);
 
-	if (pi)
-		ops->reserve_nv12(n, width, height, gid, pi);
+	if (si)
+		ops->reserve_nv12(n, width, height, gid, si);
 }
 EXPORT_SYMBOL(tiler_reservex_nv12);
 
@@ -203,16 +207,16 @@ s32 tiler_allocx(struct tiler_block_t *blk, enum tiler_fmt fmt,
 				u32 gid, pid_t pid)
 {
 	struct mem_info *mi;
-	struct process_info *pi;
+	struct security_info *si;
 	s32 res;
 
 	BUG_ON(!blk || blk->phys);
 
-	pi = __get_pi(pid, true);
-	if (!pi)
+	si = __get_si(pid, true, SECURE_BY_PID);
+	if (!si)
 		return -ENOMEM;
 
-	res = ops->alloc(fmt, blk->width, blk->height, blk->key, gid, pi, &mi);
+	res = ops->alloc(fmt, blk->width, blk->height, blk->key, gid, si, &mi);
 	if (mi) {
 		blk->phys = mi->blk.phys;
 		blk->id = mi->blk.id;
@@ -231,16 +235,16 @@ s32 tiler_mapx(struct tiler_block_t *blk, enum tiler_fmt fmt, u32 gid,
 				pid_t pid, u32 usr_addr)
 {
 	struct mem_info *mi;
-	struct process_info *pi;
+	struct security_info *si;
 	s32 res;
 
 	BUG_ON(!blk || blk->phys);
 
-	pi = __get_pi(pid, true);
-	if (!pi)
+	si = __get_si(pid, true, SECURE_BY_PID);
+	if (!si)
 		return -ENOMEM;
 
-	res = ops->pin(fmt, blk->width, blk->height, blk->key, gid, pi, &mi,
+	res = ops->pin(fmt, blk->width, blk->height, blk->key, gid, si, &mi,
 								usr_addr);
 	if (mi) {
 		blk->phys = mi->blk.phys;

@@ -410,6 +410,28 @@ tiler_blk_handle tiler_alloc_block_area(enum tiler_fmt fmt, u32 width,
 					u32 *virt_array);
 
 /**
+ * Allocate an area of container space in the Tiler with a specific alignment
+ * and user specified security token
+ *
+ * @param fmt		Tiler bpp mode
+ * @param width		Width in pixels
+ * @param height	Height in pixels
+ * @param ssptr		Value of tiler physical address of allocation
+ * @param virt_array	Array of physical address for the start of each virtual
+			page
+ * @align		Alignment in bytes
+ * @token		Security token
+ *
+ * @return handle	Handle to tiler block information.  NULL on error.
+ *
+ * NOTE: For 1D allocations, specify the full size in the width field, and
+ *       specify a height of 1.
+ */
+tiler_blk_handle tiler_alloc_block_area_aligned(enum tiler_fmt fmt, u32 width,
+			u32 height, u32 *ssptr, u32 *virt_array, u32 align,
+			u32 token);
+
+/**
  * Free a reserved area in the Tiler
  *
  * @param handle	Handle to tiler block information
