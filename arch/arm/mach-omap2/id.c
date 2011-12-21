@@ -246,6 +246,7 @@ static void __init omap4_check_features(void)
 			break;
 		case 1:
 		default:
+			omap4_features |= OMAP4_HAS_MPU_1_5GHZ;
 			/* Standard device */
 			omap4_features |= OMAP4_HAS_MPU_1_2GHZ;
 			break;
