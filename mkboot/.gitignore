@@ -1,0 +1,4 @@
+boot.img
+boot.img-kernel
+newramdisk.cpio.gz
+zImage
