@@ -207,12 +207,10 @@ on boot
     chmod 0664 /sys/module/lowmemorykiller/parameters/adj
     chown root system /sys/module/lowmemorykiller/parameters/minfree
     chmod 0664 /sys/module/lowmemorykiller/parameters/minfree
-    write /sys/module/lowmemorykiller/parameters/minfree 2000,4000,20000,20000,20000,25000
-    write /sys/module/lowmemorykiller/parameters/minfile 2000,4000,20000,20000,20000,25000
+    write /sys/module/lowmemorykiller/parameters/minfree 8099,10132,20000,20000,20000,25000
 
     # Tweak background writeout
     write /proc/sys/vm/dirty_expire_centisecs 200
-    write /proc/sys/vm/dirty_background_ratio  5
     write /proc/sys/vm/dirty_background_ratio  65
     write /proc/sys/vm/dirty_ratio  90
     write /proc/sys/vm/vfs_cache_pressure  25
