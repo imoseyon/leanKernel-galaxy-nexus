@@ -3,4 +3,3 @@ echo "making ramdisk"
 ./mkbootimg --cmdline 'no_console_suspend=1 console=null' --kernel zImage --ramdisk newramdisk.cpio.gz -o boot.img 
 echo "copying files to /tmp"
 cp boot.img /tmp
-cp *.ko /tmp
