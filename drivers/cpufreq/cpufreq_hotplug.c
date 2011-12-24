@@ -46,7 +46,7 @@
 #define DEFAULT_HOTPLUG_IN_SAMPLING_PERIODS		(5)
 
 /* default number of sampling periods to average before hotplug-out decision */
-#define DEFAULT_HOTPLUG_OUT_SAMPLING_PERIODS		(20)
+#define DEFAULT_HOTPLUG_OUT_SAMPLING_PERIODS		(200)
 
 static void do_dbs_timer(struct work_struct *work);
 static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
