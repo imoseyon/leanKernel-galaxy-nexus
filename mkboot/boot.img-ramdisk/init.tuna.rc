@@ -80,8 +80,6 @@ on fs
 	mkdir /data/radio 0775 radio radio
 	mkdir /data/radio/log 0775 radio radio
 
-	chmod 0755 /charger
-
 # add symlink for HDCP key
         symlink /factory/hdcp.keys /system/vendor/firmware/hdcp.keys
 
