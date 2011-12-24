@@ -1,6 +1,6 @@
 #
 # Automatically generated make config: don't edit
-# Linux/arm 3.0.13 Kernel Configuration
+# Linux/arm 3.0.14 Kernel Configuration
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -2540,7 +2540,7 @@ CONFIG_HAVE_ARCH_KGDB=y
 # CONFIG_TEST_KSTRTOX is not set
 # CONFIG_STRICT_DEVMEM is not set
 # CONFIG_ARM_UNWIND is not set
-CONFIG_DEBUG_USER=y
+# CONFIG_DEBUG_USER is not set
 # CONFIG_DEBUG_LL is not set
 # CONFIG_OC_ETM is not set
 
