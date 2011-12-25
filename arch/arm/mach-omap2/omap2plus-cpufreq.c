@@ -503,8 +503,8 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 				dep_table[i].main_vdd_volt = volt_cur*1000;
 
 			/* Alter current voltage in voltdm, if appropriate */
-			if(volt_old == mpu_voltdm->curr_volt) {
-				mpu_voltdm->curr_volt = volt_cur*1000;
+			if(volt_old == mpu_voltdm->curr_volt->volt_nominal) {
+				mpu_voltdm->curr_volt->volt_nominal = volt_cur*1000;
 			}
 
 			/* Non-standard sysfs interface: advance buf */
