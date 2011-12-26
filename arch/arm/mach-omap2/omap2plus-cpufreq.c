@@ -456,8 +456,10 @@ static ssize_t show_uv_mv_table(struct cpufreq_policy *policy, char *buf)
 	for(i--; i >= 0; i--) {
 		if(freq_table[i].frequency != CPUFREQ_ENTRY_INVALID) {
 			/* Find the opp for this frequency */
+			rcu_read_lock();
 			opp_cur = opp_find_freq_exact(mpu_dev,
 				freq_table[i].frequency*1000, true);
+			rcu_read_unlock();
 			/* sprint the voltage (mV)/frequency (MHz) pairs */
 			volt_cur = opp_cur->u_volt;
 			out += sprintf(out, "%umhz: %lu mV\n",
@@ -489,8 +491,10 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 			}
 
 			/* Alter voltage. First do it in our opp */
+			rcu_read_lock();
 			opp_cur = opp_find_freq_exact(mpu_dev,
 				freq_table[i].frequency*1000, true);
+			rcu_read_unlock();
 			opp_cur->u_volt = volt_cur*1000;
 
 			/* Then we need to alter voltage domains */
