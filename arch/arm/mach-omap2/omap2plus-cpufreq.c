@@ -478,10 +478,14 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 	char size_cur[16];
 	struct opp *opp_cur;
 	struct voltagedomain *mpu_voltdm;
+
 	mpu_voltdm = voltdm_lookup("mpu");
 
 	while(freq_table[i].frequency != CPUFREQ_TABLE_END)
 		i++;
+	pr_info("[imosey] Current Nominal Voltage: %d\n", mpu_voltdm->curr_volt->volt_nominal);
+	pr_info("[imosey] Current Calibrated Voltage: %d\n", mpu_voltdm->curr_volt->volt_calibrated);
+	pr_info("[imosey] Current DynNominal Voltage: %d\n", mpu_voltdm->curr_volt->volt_dynamic_nominal);
 
 	for(i--; i >= 0; i--) {
 		if(freq_table[i].frequency != CPUFREQ_ENTRY_INVALID) {
@@ -494,8 +498,8 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 			rcu_read_lock();
 			opp_cur = opp_find_freq_exact(mpu_dev,
 				freq_table[i].frequency*1000, true);
-			rcu_read_unlock();
 			opp_cur->u_volt = volt_cur*1000;
+			rcu_read_unlock();
 
 			/* Then we need to alter voltage domains */
 			/* Save our old voltage */
@@ -505,6 +509,22 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 				volt_data[i].volt_nominal = volt_cur*1000;
 			mpu_voltdm->vdd->dep_vdd_info->
 				dep_table[i].main_vdd_volt = volt_cur*1000;
+
+//			pr_info("[imosey] volt_cur: %lu, volt_old: %lu\n", volt_cur,volt_old);
+			if (mpu_voltdm->vdd->dep_vdd_info->
+				dep_table[i].dep_vdd_volt > volt_cur*1000) {
+				//ugly hack for now
+				if (volt_cur < 1100) {
+					if (volt_cur < 850) 
+					   mpu_voltdm->vdd->dep_vdd_info->
+						dep_table[i].dep_vdd_volt = 650000;
+					else
+					   mpu_voltdm->vdd->dep_vdd_info->
+						dep_table[i].dep_vdd_volt = 850000;
+				} else mpu_voltdm->vdd->dep_vdd_info->
+						dep_table[i].dep_vdd_volt = 1100000;
+//				pr_info("[imosey] volt_cur: %lu, new_dep: %d\n", volt_cur, mpu_voltdm->vdd->dep_vdd_info->dep_table[i].dep_vdd_volt);
+			}
 
 			/* Alter current voltage in voltdm, if appropriate */
 			if(volt_old == mpu_voltdm->curr_volt->volt_nominal) {
@@ -520,6 +540,7 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 				__func__, freq_table[i].frequency);
 		}
 	}
+
 	return count;
 }
 
