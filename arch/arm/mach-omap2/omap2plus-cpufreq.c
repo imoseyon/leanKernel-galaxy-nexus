@@ -41,6 +41,7 @@
 #include <mach/hardware.h>
 
 #include "dvfs.h"
+#include "smartreflex.h"
 
 #ifdef CONFIG_SMP
 struct lpj_info {
@@ -478,15 +479,20 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 	char size_cur[16];
 	struct opp *opp_cur;
 	struct voltagedomain *mpu_voltdm;
+	struct omap_volt_data *vdata;
 
 	mpu_voltdm = voltdm_lookup("mpu");
 
 	while(freq_table[i].frequency != CPUFREQ_TABLE_END)
 		i++;
-	pr_info("[imosey] Current Nominal Voltage: %d\n", mpu_voltdm->curr_volt->volt_nominal);
-	pr_info("[imosey] Current Calibrated Voltage: %d\n", mpu_voltdm->curr_volt->volt_calibrated);
-	pr_info("[imosey] Current DynNominal Voltage: %d\n", mpu_voltdm->curr_volt->volt_dynamic_nominal);
 
+	pr_info("[imoseyon] Current Nominal Voltage: %d\n", 
+		mpu_voltdm->curr_volt->volt_nominal);
+	pr_info("[imoseyon] Current Calibrated Voltage: %d\n", 
+		mpu_voltdm->curr_volt->volt_calibrated);
+	pr_info("[imoseyon] Current DynNominal Voltage: %d\n", 
+		mpu_voltdm->curr_volt->volt_dynamic_nominal);
+ 
 	for(i--; i >= 0; i--) {
 		if(freq_table[i].frequency != CPUFREQ_ENTRY_INVALID) {
 			ret = sscanf(buf, "%lu", &volt_cur);
@@ -510,10 +516,9 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 			mpu_voltdm->vdd->dep_vdd_info->
 				dep_table[i].main_vdd_volt = volt_cur*1000;
 
-//			pr_info("[imosey] volt_cur: %lu, volt_old: %lu\n", volt_cur,volt_old);
 			if (mpu_voltdm->vdd->dep_vdd_info->
 				dep_table[i].dep_vdd_volt > volt_cur*1000) {
-				//ugly hack for now
+				// imoseyon - ugly hack (fix later! yeah right)
 				if (volt_cur < 1100) {
 					if (volt_cur < 850) 
 					   mpu_voltdm->vdd->dep_vdd_info->
@@ -523,7 +528,6 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 						dep_table[i].dep_vdd_volt = 850000;
 				} else mpu_voltdm->vdd->dep_vdd_info->
 						dep_table[i].dep_vdd_volt = 1100000;
-//				pr_info("[imosey] volt_cur: %lu, new_dep: %d\n", volt_cur, mpu_voltdm->vdd->dep_vdd_info->dep_table[i].dep_vdd_volt);
 			}
 
 			/* Alter current voltage in voltdm, if appropriate */
@@ -534,13 +538,33 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 			/* Non-standard sysfs interface: advance buf */
 			ret = sscanf(buf, "%s", size_cur);
 			buf += (strlen(size_cur)+1);
+
+			// imoseyon - force smartreflex to recalibrate based on new voltages
+			if (freq_table[i].frequency <= policy->max && 
+				freq_table[i].frequency >= policy->min) {
+				policy->cur = freq_table[i].frequency;
+				vdata = omap_voltage_get_curr_vdata(mpu_voltdm);
+				if (!vdata) {
+				  pr_err("%s: [imoseyon] unable to find current volt for vdd_%s\n", 
+					__func__, mpu_voltdm->name);
+				  return -ENXIO;
+				}
+
+				omap_sr_disable(mpu_voltdm);
+				omap_voltage_calib_reset(mpu_voltdm);
+				voltdm_reset(mpu_voltdm);
+				omap_sr_enable(mpu_voltdm, vdata);
+				pr_info("[imoseyon] calibration reset for %s at %d.\n",  
+					mpu_voltdm->name, policy->cur);
+				msleep(2000);
+			}
+
 		}
 		else {
 			pr_err("%s: frequency entry invalid for %u\n",
 				__func__, freq_table[i].frequency);
 		}
 	}
-
 	return count;
 }
 
