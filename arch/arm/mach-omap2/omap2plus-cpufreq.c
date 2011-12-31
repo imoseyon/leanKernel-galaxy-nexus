@@ -547,7 +547,6 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 				if (!vdata) {
 				  pr_err("%s: [imoseyon] unable to find current volt for vdd_%s\n", 
 					__func__, mpu_voltdm->name);
-				  return -ENXIO;
 				}
 
 				omap_sr_disable(mpu_voltdm);
