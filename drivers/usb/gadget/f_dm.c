@@ -159,9 +159,9 @@ static int dm_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 static void dm_disable(struct usb_function *f)
 {
 	struct f_dm	*dm = func_to_dm(f);
-	struct usb_composite_dev *cdev = f->config->cdev;
+//	struct usb_composite_dev *cdev = f->config->cdev;
 
-	DBG(cdev, "generic ttyGS%d deactivated\n", dm->port_num);
+//	DBG(cdev, "generic ttyGS%d deactivated\n", dm->port_num);
 	gserial_disconnect(&dm->port);
 }
 
@@ -198,8 +198,8 @@ dm_bind(struct usb_configuration *c, struct usb_function *f)
 		goto fail;
 	dm->port.out = ep;
 	ep->driver_data = cdev;	/* claim */
-	printk(KERN_INFO "[%s]   in =0x%x , out =0x%x\n", __func__,
-				dm->port.in, dm->port.out);
+//	printk(KERN_INFO "[%s]   in =0x%x , out =0x%x\n", __func__,
+//				dm->port.in, dm->port.out);
 
 	/* copy descriptors, and track endpoint copies */
 	f->descriptors = usb_copy_descriptors(dm_fs_function);
