@@ -16,6 +16,7 @@ zipfile="imoseyon_leanKernel_v${1}gnexus.zip"
 if [ ! $4 ]; then
 	echo "making zip file"
 	cp boot.img ../zip
+	cp boot.img /tmp
 	cd ../zip
 	rm -f *.zip
 	zip -r $zipfile *
