@@ -519,8 +519,8 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 			if (mpu_voltdm->vdd->dep_vdd_info->
 				dep_table[i].dep_vdd_volt > volt_cur*1000) {
 				// imoseyon - ugly hack (fix later! yeah right)
-				if (volt_cur < 1100) {
-					if (volt_cur < 850) 
+				if (volt_cur < 1127) {
+					if (volt_cur < 962) 
 					   mpu_voltdm->vdd->dep_vdd_info->
 						dep_table[i].dep_vdd_volt = 650000;
 					else
