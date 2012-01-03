@@ -525,9 +525,9 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 						dep_table[i].dep_vdd_volt = 650000;
 					else
 					   mpu_voltdm->vdd->dep_vdd_info->
-						dep_table[i].dep_vdd_volt = 850000;
+						dep_table[i].dep_vdd_volt = 962000;
 				} else mpu_voltdm->vdd->dep_vdd_info->
-						dep_table[i].dep_vdd_volt = 1100000;
+						dep_table[i].dep_vdd_volt = 1127000;
 			}
 
 			/* Alter current voltage in voltdm, if appropriate */
