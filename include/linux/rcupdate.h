@@ -196,10 +196,23 @@ extern void rcu_sched_qs(int cpu);
 extern void rcu_bh_qs(int cpu);
 extern void rcu_check_callbacks(int cpu, int user);
 struct notifier_block;
-extern void rcu_idle_enter(void);
-extern void rcu_idle_exit(void);
-extern void rcu_irq_enter(void);
-extern void rcu_irq_exit(void);
+
+#ifdef CONFIG_NO_HZ
+
+extern void rcu_enter_nohz(void);
+extern void rcu_exit_nohz(void);
+
+#else /* #ifdef CONFIG_NO_HZ */
+
+static inline void rcu_enter_nohz(void)
+{
+}
+
+static inline void rcu_exit_nohz(void)
+{
+}
+
+#endif /* #else #ifdef CONFIG_NO_HZ */
 
 /*
  * Infrastructure to implement the synchronize_() primitives in
@@ -239,15 +252,6 @@ static inline void destroy_rcu_head_on_stack(struct rcu_head *head)
 
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 
-#ifdef CONFIG_PROVE_RCU
-extern int rcu_is_cpu_idle(void);
-#else /* !CONFIG_PROVE_RCU */
-static inline int rcu_is_cpu_idle(void)
-{
-	return 0;
-}
-#endif /* else !CONFIG_PROVE_RCU */
-
 extern struct lockdep_map rcu_lock_map;
 # define rcu_read_acquire() \
 		lock_acquire(&rcu_lock_map, 0, 0, 2, 1, NULL, _THIS_IP_)
@@ -282,8 +286,6 @@ static inline int rcu_read_lock_held(void)
 {
 	if (!debug_lockdep_rcu_enabled())
 		return 1;
-	if (rcu_is_cpu_idle())
-		return 0;
 	return lock_is_held(&rcu_lock_map);
 }
 
@@ -307,19 +309,6 @@ extern int rcu_read_lock_bh_held(void);
  *
  * Check debug_lockdep_rcu_enabled() to prevent false positives during boot
  * and while lockdep is disabled.
- *
- * Note that if the CPU is in the idle loop from an RCU point of
- * view (ie: that we are in the section between rcu_idle_enter() and
- * rcu_idle_exit()) then rcu_read_lock_held() returns false even if the CPU
- * did an rcu_read_lock().  The reason for this is that RCU ignores CPUs
- * that are in such a section, considering these as in extended quiescent
- * state, so such a CPU is effectively never in an RCU read-side critical
- * section regardless of what RCU primitives it invokes.  This state of
- * affairs is required --- we need to keep an RCU-free window in idle
- * where the CPU may possibly enter into low power mode. This way we can
- * notice an extended quiescent state to other CPUs that started a grace
- * period. Otherwise we would delay any grace period as long as we run in
- * the idle task.
  */
 #ifdef CONFIG_PREEMPT
 static inline int rcu_read_lock_sched_held(void)
@@ -328,8 +317,6 @@ static inline int rcu_read_lock_sched_held(void)
 
 	if (!debug_lockdep_rcu_enabled())
 		return 1;
-	if (rcu_is_cpu_idle())
-		return 0;
 	if (debug_locks)
 		lockdep_opinion = lock_is_held(&rcu_sched_lock_map);
 	return lockdep_opinion || preempt_count() != 0 || irqs_disabled();

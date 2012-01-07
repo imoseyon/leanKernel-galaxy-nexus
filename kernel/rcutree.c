@@ -69,7 +69,7 @@ static struct lock_class_key rcu_node_class[NUM_RCU_LVLS];
 		NUM_RCU_LVL_3, \
 		NUM_RCU_LVL_4, /* == MAX_RCU_LVLS */ \
 	}, \
-	.fqs_state = RCU_GP_IDLE, \
+	.signaled = RCU_GP_IDLE, \
 	.gpnum = -300, \
 	.completed = -300, \
 	.onofflock = __RAW_SPIN_LOCK_UNLOCKED(&structname##_state.onofflock), \
@@ -195,10 +195,12 @@ void rcu_note_context_switch(int cpu)
 }
 EXPORT_SYMBOL_GPL(rcu_note_context_switch);
 
+#ifdef CONFIG_NO_HZ
 DEFINE_PER_CPU(struct rcu_dynticks, rcu_dynticks) = {
-	.dynticks_nesting = LLONG_MAX / 2,
+	.dynticks_nesting = 1,
 	.dynticks = ATOMIC_INIT(1),
 };
+#endif /* #ifdef CONFIG_NO_HZ */
 
 static int blimit = 10;		/* Maximum callbacks per rcu_do_batch. */
 static int qhimark = 10000;	/* If this many pending, ignore blimit. */
@@ -326,11 +328,11 @@ static int rcu_implicit_offline_qs(struct rcu_data *rdp)
 		return 1;
 	}
 
-	/*
-	 * The CPU is online, so send it a reschedule IPI.  This forces
-	 * it through the scheduler, and (inefficiently) also handles cases
-	 * where idle loops fail to inform RCU about the CPU being idle.
-	 */
+	/* If preemptible RCU, no point in sending reschedule IPI. */
+	if (rdp->preemptible)
+		return 0;
+
+	/* The CPU is online, so send it a reschedule IPI. */
 	if (rdp->cpu != smp_processor_id())
 		smp_send_reschedule(rdp->cpu);
 	else
@@ -341,97 +343,51 @@ static int rcu_implicit_offline_qs(struct rcu_data *rdp)
 
 #endif /* #ifdef CONFIG_SMP */
 
-/*
- * rcu_idle_enter_common - inform RCU that current CPU is moving towards idle
+#ifdef CONFIG_NO_HZ
+
+/**
+ * rcu_enter_nohz - inform RCU that current CPU is entering nohz
  *
- * If the new value of the ->dynticks_nesting counter now is zero,
- * we really have entered idle, and must do the appropriate accounting.
- * The caller must have disabled interrupts.
+ * Enter nohz mode, in other words, -leave- the mode in which RCU
+ * read-side critical sections can occur.  (Though RCU read-side
+ * critical sections can occur in irq handlers in nohz mode, a possibility
+ * handled by rcu_irq_enter() and rcu_irq_exit()).
  */
-static void rcu_idle_enter_common(struct rcu_dynticks *rdtp)
+void rcu_enter_nohz(void)
 {
-	if (rdtp->dynticks_nesting) {
-		trace_rcu_dyntick("--=", rdtp->dynticks_nesting);
+	unsigned long flags;
+	struct rcu_dynticks *rdtp;
+
+	local_irq_save(flags);
+	rdtp = &__get_cpu_var(rcu_dynticks);
+	if (--rdtp->dynticks_nesting) {
+		local_irq_restore(flags);
 		return;
 	}
-	trace_rcu_dyntick("Start", rdtp->dynticks_nesting);
-	if (!idle_cpu(smp_processor_id())) {
-		WARN_ON_ONCE(1);	/* must be idle task! */
-		trace_rcu_dyntick("Error on entry: not idle task",
-				   rdtp->dynticks_nesting);
-		ftrace_dump(DUMP_ALL);
-	}
+	trace_rcu_dyntick("Start");
 	/* CPUs seeing atomic_inc() must see prior RCU read-side crit sects */
 	smp_mb__before_atomic_inc();  /* See above. */
 	atomic_inc(&rdtp->dynticks);
 	smp_mb__after_atomic_inc();  /* Force ordering with next sojourn. */
 	WARN_ON_ONCE(atomic_read(&rdtp->dynticks) & 0x1);
-}
-
-/**
- * rcu_idle_enter - inform RCU that current CPU is entering idle
- *
- * Enter idle mode, in other words, -leave- the mode in which RCU
- * read-side critical sections can occur.  (Though RCU read-side
- * critical sections can occur in irq handlers in idle, a possibility
- * handled by irq_enter() and irq_exit().)
- *
- * We crowbar the ->dynticks_nesting field to zero to allow for
- * the possibility of usermode upcalls having messed up our count
- * of interrupt nesting level during the prior busy period.
- */
-void rcu_idle_enter(void)
-{
-	unsigned long flags;
-	struct rcu_dynticks *rdtp;
-
-	local_irq_save(flags);
-	rdtp = &__get_cpu_var(rcu_dynticks);
-	rdtp->dynticks_nesting = 0;
-	rcu_idle_enter_common(rdtp);
-	local_irq_restore(flags);
-}
-
-/**
- * rcu_irq_exit - inform RCU that current CPU is exiting irq towards idle
- *
- * Exit from an interrupt handler, which might possibly result in entering
- * idle mode, in other words, leaving the mode in which read-side critical
- * sections can occur.
- *
- * This code assumes that the idle loop never does anything that might
- * result in unbalanced calls to irq_enter() and irq_exit().  If your
- * architecture violates this assumption, RCU will give you what you
- * deserve, good and hard.  But very infrequently and irreproducibly.
- *
- * Use things like work queues to work around this limitation.
- *
- * You have been warned.
- */
-void rcu_irq_exit(void)
-{
-	unsigned long flags;
-	struct rcu_dynticks *rdtp;
-
-	local_irq_save(flags);
-	rdtp = &__get_cpu_var(rcu_dynticks);
-	rdtp->dynticks_nesting--;
-	WARN_ON_ONCE(rdtp->dynticks_nesting < 0);
-	rcu_idle_enter_common(rdtp);
 	local_irq_restore(flags);
 }
 
 /*
- * rcu_idle_exit_common - inform RCU that current CPU is moving away from idle
+ * rcu_exit_nohz - inform RCU that current CPU is leaving nohz
  *
- * If the new value of the ->dynticks_nesting counter was previously zero,
- * we really have exited idle, and must do the appropriate accounting.
- * The caller must have disabled interrupts.
+ * Exit nohz mode, in other words, -enter- the mode in which RCU
+ * read-side critical sections normally occur.
  */
-static void rcu_idle_exit_common(struct rcu_dynticks *rdtp, long long oldval)
+void rcu_exit_nohz(void)
 {
-	if (oldval) {
-		trace_rcu_dyntick("++=", rdtp->dynticks_nesting);
+	unsigned long flags;
+	struct rcu_dynticks *rdtp;
+
+	local_irq_save(flags);
+	rdtp = &__get_cpu_var(rcu_dynticks);
+	if (rdtp->dynticks_nesting++) {
+		local_irq_restore(flags);
 		return;
 	}
 	smp_mb__before_atomic_inc();  /* Force ordering w/previous sojourn. */
@@ -439,71 +395,7 @@ static void rcu_idle_exit_common(struct rcu_dynticks *rdtp, long long oldval)
 	/* CPUs seeing atomic_inc() must see later RCU read-side crit sects */
 	smp_mb__after_atomic_inc();  /* See above. */
 	WARN_ON_ONCE(!(atomic_read(&rdtp->dynticks) & 0x1));
-	trace_rcu_dyntick("End", oldval);
-	if (!idle_cpu(smp_processor_id())) {
-		WARN_ON_ONCE(1);	/* must be idle task! */
-		trace_rcu_dyntick("Error on exit: not idle task", oldval);
-		ftrace_dump(DUMP_ALL);
-	}
-}
-
-/**
- * rcu_idle_exit - inform RCU that current CPU is leaving idle
- *
- * Exit idle mode, in other words, -enter- the mode in which RCU
- * read-side critical sections can occur.
- *
- * We crowbar the ->dynticks_nesting field to LLONG_MAX/2 to allow for
- * the possibility of usermode upcalls messing up our count
- * of interrupt nesting level during the busy period that is just
- * now starting.
- */
-void rcu_idle_exit(void)
-{
-	unsigned long flags;
-	struct rcu_dynticks *rdtp;
-	long long oldval;
-
-	local_irq_save(flags);
-	rdtp = &__get_cpu_var(rcu_dynticks);
-	oldval = rdtp->dynticks_nesting;
-	WARN_ON_ONCE(oldval != 0);
-	rdtp->dynticks_nesting = LLONG_MAX / 2;
-	rcu_idle_exit_common(rdtp, oldval);
-	local_irq_restore(flags);
-}
-
-/**
- * rcu_irq_enter - inform RCU that current CPU is entering irq away from idle
- *
- * Enter an interrupt handler, which might possibly result in exiting
- * idle mode, in other words, entering the mode in which read-side critical
- * sections can occur.
- *
- * Note that the Linux kernel is fully capable of entering an interrupt
- * handler that it never exits, for example when doing upcalls to
- * user mode!  This code assumes that the idle loop never does upcalls to
- * user mode.  If your architecture does do upcalls from the idle loop (or
- * does anything else that results in unbalanced calls to the irq_enter()
- * and irq_exit() functions), RCU will give you what you deserve, good
- * and hard.  But very infrequently and irreproducibly.
- *
- * Use things like work queues to work around this limitation.
- *
- * You have been warned.
- */
-void rcu_irq_enter(void)
-{
-	unsigned long flags;
-	struct rcu_dynticks *rdtp;
-	long long oldval;
-
-	local_irq_save(flags);
-	rdtp = &__get_cpu_var(rcu_dynticks);
-	oldval = rdtp->dynticks_nesting;
-	rdtp->dynticks_nesting++;
-	WARN_ON_ONCE(rdtp->dynticks_nesting == 0);
-	rcu_idle_exit_common(rdtp, oldval);
+	trace_rcu_dyntick("End");
 	local_irq_restore(flags);
 }
 
@@ -550,37 +442,27 @@ void rcu_nmi_exit(void)
 	WARN_ON_ONCE(atomic_read(&rdtp->dynticks) & 0x1);
 }
 
-#ifdef CONFIG_PROVE_RCU
-
 /**
- * rcu_is_cpu_idle - see if RCU thinks that the current CPU is idle
+ * rcu_irq_enter - inform RCU of entry to hard irq context
  *
- * If the current CPU is in its idle loop and is neither in an interrupt
- * or NMI handler, return true.
+ * If the CPU was idle with dynamic ticks active, this updates the
+ * rdtp->dynticks to let the RCU handling know that the CPU is active.
  */
-int rcu_is_cpu_idle(void)
+void rcu_irq_enter(void)
 {
-	int ret;
-
-	preempt_disable();
-	ret = (atomic_read(&__get_cpu_var(rcu_dynticks).dynticks) & 0x1) == 0;
-	preempt_enable();
-	return ret;
+	rcu_exit_nohz();
 }
-EXPORT_SYMBOL(rcu_is_cpu_idle);
-
-#endif /* #ifdef CONFIG_PROVE_RCU */
 
 /**
- * rcu_is_cpu_rrupt_from_idle - see if idle or immediately interrupted from idle
+ * rcu_irq_exit - inform RCU of exit from hard irq context
  *
- * If the current CPU is idle or running at a first-level (not nested)
- * interrupt from idle, return true.  The caller must have at least
- * disabled preemption.
+ * If the CPU was idle with dynamic ticks active, update the rdp->dynticks
+ * to put let the RCU handling be aware that the CPU is going back to idle
+ * with no ticks.
  */
-int rcu_is_cpu_rrupt_from_idle(void)
+void rcu_irq_exit(void)
 {
-	return __get_cpu_var(rcu_dynticks).dynticks_nesting <= 1;
+	rcu_enter_nohz();
 }
 
 #ifdef CONFIG_SMP
@@ -629,6 +511,24 @@ static int rcu_implicit_dynticks_qs(struct rcu_data *rdp)
 }
 
 #endif /* #ifdef CONFIG_SMP */
+
+#else /* #ifdef CONFIG_NO_HZ */
+
+#ifdef CONFIG_SMP
+
+static int dyntick_save_progress_counter(struct rcu_data *rdp)
+{
+	return 0;
+}
+
+static int rcu_implicit_dynticks_qs(struct rcu_data *rdp)
+{
+	return rcu_implicit_offline_qs(rdp);
+}
+
+#endif /* #ifdef CONFIG_SMP */
+
+#endif /* #else #ifdef CONFIG_NO_HZ */
 
 int rcu_cpu_stall_suppress __read_mostly;
 
@@ -966,8 +866,8 @@ rcu_start_gp(struct rcu_state *rsp, unsigned long flags)
 	/* Advance to a new grace period and initialize state. */
 	rsp->gpnum++;
 	trace_rcu_grace_period(rsp->name, rsp->gpnum, "start");
-	WARN_ON_ONCE(rsp->fqs_state == RCU_GP_INIT);
-	rsp->fqs_state = RCU_GP_INIT; /* Hold off force_quiescent_state. */
+	WARN_ON_ONCE(rsp->signaled == RCU_GP_INIT);
+	rsp->signaled = RCU_GP_INIT; /* Hold off force_quiescent_state. */
 	rsp->jiffies_force_qs = jiffies + RCU_JIFFIES_TILL_FORCE_QS;
 	record_gp_stall_check_time(rsp);
 
@@ -977,7 +877,7 @@ rcu_start_gp(struct rcu_state *rsp, unsigned long flags)
 		rnp->qsmask = rnp->qsmaskinit;
 		rnp->gpnum = rsp->gpnum;
 		rnp->completed = rsp->completed;
-		rsp->fqs_state = RCU_SIGNAL_INIT; /* force_quiescent_state OK */
+		rsp->signaled = RCU_SIGNAL_INIT; /* force_quiescent_state OK. */
 		rcu_start_gp_per_cpu(rsp, rnp, rdp);
 		rcu_preempt_boost_start_gp(rnp);
 		trace_rcu_grace_period_init(rsp->name, rnp->gpnum,
@@ -1027,7 +927,7 @@ rcu_start_gp(struct rcu_state *rsp, unsigned long flags)
 
 	rnp = rcu_get_root(rsp);
 	raw_spin_lock(&rnp->lock);		/* irqs already disabled. */
-	rsp->fqs_state = RCU_SIGNAL_INIT; /* force_quiescent_state now OK. */
+	rsp->signaled = RCU_SIGNAL_INIT; /* force_quiescent_state now OK. */
 	raw_spin_unlock(&rnp->lock);		/* irqs remain disabled. */
 	raw_spin_unlock_irqrestore(&rsp->onofflock, flags);
 }
@@ -1091,7 +991,7 @@ static void rcu_report_qs_rsp(struct rcu_state *rsp, unsigned long flags)
 
 	rsp->completed = rsp->gpnum;  /* Declare the grace period complete. */
 	trace_rcu_grace_period(rsp->name, rsp->completed, "end");
-	rsp->fqs_state = RCU_GP_IDLE;
+	rsp->signaled = RCU_GP_IDLE;
 	rcu_start_gp(rsp, flags);  /* releases root node's rnp->lock. */
 }
 
@@ -1321,7 +1221,7 @@ static void __rcu_offline_cpu(int cpu, struct rcu_state *rsp)
 	else
 		raw_spin_unlock_irqrestore(&rnp->lock, flags);
 	if (need_report & RCU_OFL_TASKS_EXP_GP)
-		rcu_report_exp_rnp(rsp, rnp, true);
+		rcu_report_exp_rnp(rsp, rnp);
 	rcu_node_kthread_setaffinity(rnp, -1);
 }
 
@@ -1434,14 +1334,16 @@ static void rcu_do_batch(struct rcu_state *rsp, struct rcu_data *rdp)
  * (user mode or idle loop for rcu, non-softirq execution for rcu_bh).
  * Also schedule RCU core processing.
  *
- * This function must be called from hardirq context.  It is normally
+ * This function must be called with hardirqs disabled.  It is normally
  * invoked from the scheduling-clock interrupt.  If rcu_pending returns
  * false, there is no point in invoking rcu_check_callbacks().
  */
 void rcu_check_callbacks(int cpu, int user)
 {
 	trace_rcu_utilization("Start scheduler-tick");
-	if (user || rcu_is_cpu_rrupt_from_idle()) {
+	if (user ||
+	    (idle_cpu(cpu) && rcu_scheduler_active &&
+	     !in_softirq() && hardirq_count() <= (1 << HARDIRQ_SHIFT))) {
 
 		/*
 		 * Get here if this CPU took its interrupt from user
@@ -1555,7 +1457,7 @@ static void force_quiescent_state(struct rcu_state *rsp, int relaxed)
 		goto unlock_fqs_ret;  /* no GP in progress, time updated. */
 	}
 	rsp->fqs_active = 1;
-	switch (rsp->fqs_state) {
+	switch (rsp->signaled) {
 	case RCU_GP_IDLE:
 	case RCU_GP_INIT:
 
@@ -1571,7 +1473,7 @@ static void force_quiescent_state(struct rcu_state *rsp, int relaxed)
 		force_qs_rnp(rsp, dyntick_save_progress_counter);
 		raw_spin_lock(&rnp->lock);  /* irqs already disabled */
 		if (rcu_gp_in_progress(rsp))
-			rsp->fqs_state = RCU_FORCE_QS;
+			rsp->signaled = RCU_FORCE_QS;
 		break;
 
 	case RCU_FORCE_QS:
@@ -2011,9 +1913,9 @@ rcu_boot_init_percpu_data(int cpu, struct rcu_state *rsp)
 	for (i = 0; i < RCU_NEXT_SIZE; i++)
 		rdp->nxttail[i] = &rdp->nxtlist;
 	rdp->qlen = 0;
+#ifdef CONFIG_NO_HZ
 	rdp->dynticks = &per_cpu(rcu_dynticks, cpu);
-	WARN_ON_ONCE(rdp->dynticks->dynticks_nesting != LLONG_MAX / 2);
-	WARN_ON_ONCE(atomic_read(&rdp->dynticks->dynticks) != 1);
+#endif /* #ifdef CONFIG_NO_HZ */
 	rdp->cpu = cpu;
 	rdp->rsp = rsp;
 	raw_spin_unlock_irqrestore(&rnp->lock, flags);
@@ -2040,8 +1942,6 @@ rcu_init_percpu_data(int cpu, struct rcu_state *rsp, int preemptible)
 	rdp->qlen_last_fqs_check = 0;
 	rdp->n_force_qs_snap = rsp->n_force_qs;
 	rdp->blimit = blimit;
-	WARN_ON_ONCE(rdp->dynticks->dynticks_nesting != LLONG_MAX / 2);
-	WARN_ON_ONCE((atomic_read(&rdp->dynticks->dynticks) & 0x1) != 1);
 	raw_spin_unlock(&rnp->lock);		/* irqs remain disabled. */
 
 	/*
