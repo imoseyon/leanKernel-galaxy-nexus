@@ -474,6 +474,7 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 	const char *buf, size_t count)
 {
 	int i = 0;
+	int j;
 	unsigned long volt_cur, volt_old;
 	int ret;
 	char size_cur[16];
@@ -554,19 +555,21 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 				if (!vdata) {
 				  pr_err("%s: [imoseyon] unable to find current volt for vdd_%s\n", 
 					__func__, mpu_voltdm->name);
-				}
-				// if nominal volt is too large bail
-				if (volt_old > mpu_voltdm->curr_volt->volt_nominal) {
-				  omap_sr_disable(mpu_voltdm);
-				  omap_voltage_calib_reset(mpu_voltdm);
-				  voltdm_reset(mpu_voltdm);
-				  omap_sr_enable(mpu_voltdm, vdata);
-				  pr_info("[imoseyon] calibration reset for %s at %d.\n",  
+				} else {
+			         for (j=0; j<2; j++)
+				  // if nominal volt is too large bail
+				  if (volt_old > mpu_voltdm->curr_volt->volt_nominal) {
+				    omap_sr_disable(mpu_voltdm);
+				    omap_voltage_calib_reset(mpu_voltdm);
+				    voltdm_reset(mpu_voltdm);
+				    omap_sr_enable(mpu_voltdm, vdata);
+				    pr_info("[imoseyon] calibration reset for %s at %d.\n",  
 					mpu_voltdm->name, policy->cur);
-				  msleep(2500);
-				  pr_info("[imoseyon] calibration should have finished.\n\n");
-				} else
-				  pr_info("[imoseyon] nominal volt too high - bailing!\n");
+				    msleep(2000);
+				    pr_info("[imoseyon] calibration should have finished.\n\n");
+				  } else
+				    pr_info("[imoseyon] nominal volt too high - bailing!\n");
+				}
 			}
 		}
 		else {
