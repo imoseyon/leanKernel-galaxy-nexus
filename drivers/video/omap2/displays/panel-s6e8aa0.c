@@ -72,7 +72,7 @@ static int s6e8aa0_update(struct omap_dss_device *dssdev,
 static struct omap_video_timings s6e8aa0_timings = {
 	.x_res = 720,
 	.y_res = 1280,
-	.pixel_clock = 80842,
+	.pixel_clock = 79494,
 	.hfp = 158,
 	.hsw = 2,
 	.hbp = 160,
