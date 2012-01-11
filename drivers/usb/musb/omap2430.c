@@ -259,15 +259,7 @@ static void musb_otg_notifier_work(struct work_struct *data_notifier_work)
 	case USB_EVENT_ID:
 		dev_dbg(musb->controller, "ID GND\n");
 
-		if (is_otg_enabled(musb)) {
-#ifdef CONFIG_USB_GADGET_MUSB_HDRC
-			if (musb->gadget_driver) {
-				pm_runtime_get_sync(musb->controller);
-				otg_init(musb->xceiv);
-				omap2430_musb_set_vbus(musb, 1);
-			}
-#endif
-		} else {
+                if (!is_otg_enabled(musb) || musb->gadget_driver) {
 			pm_runtime_get_sync(musb->controller);
 			otg_init(musb->xceiv);
 			omap2430_musb_set_vbus(musb, 1);
@@ -385,7 +377,6 @@ err2:
 	destroy_workqueue(musb->otg_notifier_wq);
 err1:
 	otg_put_transceiver(musb->xceiv);
-	pm_runtime_disable(dev);
 	return status;
 }
 
@@ -401,20 +392,19 @@ static void omap2430_musb_enable(struct musb *musb)
 
 	case USB_EVENT_ID:
 		otg_init(musb->xceiv);
-		if (data->interface_type == MUSB_INTERFACE_UTMI) {
-			devctl = musb_readb(musb->mregs, MUSB_DEVCTL);
-			/* start the session */
-			devctl |= MUSB_DEVCTL_SESSION;
-			musb_writeb(musb->mregs, MUSB_DEVCTL, devctl);
-			while (musb_readb(musb->mregs, MUSB_DEVCTL) &
-						MUSB_DEVCTL_BDEVICE) {
-				cpu_relax();
+		if (data->interface_type != MUSB_INTERFACE_UTMI)
+			break;
+		devctl = musb_readb(musb->mregs, MUSB_DEVCTL);
+		/* start the session */
+		devctl |= MUSB_DEVCTL_SESSION;
+		musb_writeb(musb->mregs, MUSB_DEVCTL, devctl);
+		while (musb_readb(musb->mregs, MUSB_DEVCTL) &
+				MUSB_DEVCTL_BDEVICE) {
+			cpu_relax();
 
-				if (time_after(jiffies, timeout)) {
-					dev_err(musb->controller,
-					"configured as A device timeout");
-					break;
-				}
+			if (time_after(jiffies, timeout)) {
+				dev_err(dev, "configured as A device timeout");
+				break;
 			}
 		}
 		break;
@@ -531,7 +521,6 @@ static int __exit omap2430_remove(struct platform_device *pdev)
 	platform_device_del(glue->musb);
 	platform_device_put(glue->musb);
 	pm_runtime_put(&pdev->dev);
-	pm_runtime_disable(&pdev->dev);
 	kfree(glue);
 
 	return 0;
