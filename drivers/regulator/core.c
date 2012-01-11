@@ -882,8 +882,12 @@ static int set_machine_constraints(struct regulator_dev *rdev,
 	int ret = 0;
 	struct regulator_ops *ops = rdev->desc->ops;
 
-	rdev->constraints = kmemdup(constraints, sizeof(*constraints),
-				    GFP_KERNEL);
+	if (constraints)
+		rdev->constraints = kmemdup(constraints, sizeof(*constraints),
+					    GFP_KERNEL);
+	else
+		rdev->constraints = kzalloc(sizeof(*constraints),
+					    GFP_KERNEL);
 	if (!rdev->constraints)
 		return -ENOMEM;
 
@@ -892,7 +896,7 @@ static int set_machine_constraints(struct regulator_dev *rdev,
 		goto out;
 
 	/* do we need to setup our suspend state */
-	if (constraints->initial_state) {
+	if (rdev->constraints->initial_state) {
 		ret = suspend_prepare(rdev, rdev->constraints->initial_state);
 		if (ret < 0) {
 			rdev_err(rdev, "failed to set suspend state\n");
@@ -900,7 +904,7 @@ static int set_machine_constraints(struct regulator_dev *rdev,
 		}
 	}
 
-	if (constraints->initial_mode) {
+	if (rdev->constraints->initial_mode) {
 		if (!ops->set_mode) {
 			rdev_err(rdev, "no set_mode operation\n");
 			ret = -EINVAL;
@@ -951,9 +955,8 @@ static int set_supply(struct regulator_dev *rdev,
 	rdev_info(rdev, "supplied by %s\n", rdev_get_name(supply_rdev));
 
 	rdev->supply = create_regulator(supply_rdev, &rdev->dev, "SUPPLY");
-	if (IS_ERR(rdev->supply)) {
-		err = PTR_ERR(rdev->supply);
-		rdev->supply = NULL;
+	if (rdev->supply == NULL) {
+		err = -ENOMEM;
 		return err;
 	}
 
@@ -1220,6 +1223,7 @@ found:
 	if (regulator == NULL) {
 		regulator = ERR_PTR(-ENOMEM);
 		module_put(rdev->owner);
+		goto out;
 	}
 
 	rdev->open_count++;
@@ -1725,6 +1729,7 @@ int regulator_is_supported_voltage(struct regulator *regulator,
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(regulator_is_supported_voltage);
 
 static int _regulator_do_set_voltage(struct regulator_dev *rdev,
 				     int min_uV, int max_uV)
@@ -2428,6 +2433,43 @@ err:
 EXPORT_SYMBOL_GPL(regulator_bulk_disable);
 
 /**
+ * regulator_bulk_force_disable - force disable multiple regulator consumers
+ *
+ * @num_consumers: Number of consumers
+ * @consumers:     Consumer data; clients are stored here.
+ * @return         0 on success, an errno on failure
+ *
+ * This convenience API allows consumers to forcibly disable multiple regulator
+ * clients in a single API call.
+ * NOTE: This should be used for situations when device damage will
+ * likely occur if the regulators are not disabled (e.g. over temp).
+ * Although regulator_force_disable function call for some consumers can
+ * return error numbers, the function is called for all consumers.
+ */
+int regulator_bulk_force_disable(int num_consumers,
+			   struct regulator_bulk_data *consumers)
+{
+	int i;
+	int ret;
+
+	for (i = 0; i < num_consumers; i++)
+		consumers[i].ret =
+			    regulator_force_disable(consumers[i].consumer);
+
+	for (i = 0; i < num_consumers; i++) {
+		if (consumers[i].ret != 0) {
+			ret = consumers[i].ret;
+			goto out;
+		}
+	}
+
+	return 0;
+out:
+	return ret;
+}
+EXPORT_SYMBOL_GPL(regulator_bulk_force_disable);
+
+/**
  * regulator_bulk_free - free multiple regulator consumers
  *
  * @num_consumers: Number of consumers
@@ -2638,6 +2680,7 @@ struct regulator_dev *regulator_register(struct regulator_desc *regulator_desc,
 	struct device *dev, const struct regulator_init_data *init_data,
 	void *driver_data)
 {
+	const struct regulation_constraints *constraints = NULL;
 	static atomic_t regulator_no = ATOMIC_INIT(0);
 	struct regulator_dev *rdev;
 	int ret, i;
@@ -2650,9 +2693,6 @@ struct regulator_dev *regulator_register(struct regulator_desc *regulator_desc,
 
 	if (regulator_desc->type != REGULATOR_VOLTAGE &&
 	    regulator_desc->type != REGULATOR_CURRENT)
-		return ERR_PTR(-EINVAL);
-
-	if (!init_data)
 		return ERR_PTR(-EINVAL);
 
 	/* Only one of each should be implemented */
@@ -2687,7 +2727,7 @@ struct regulator_dev *regulator_register(struct regulator_desc *regulator_desc,
 	INIT_DELAYED_WORK(&rdev->disable_work, regulator_disable_work);
 
 	/* preform any regulator specific init */
-	if (init_data->regulator_init) {
+	if (init_data && init_data->regulator_init) {
 		ret = init_data->regulator_init(rdev->reg_data);
 		if (ret < 0)
 			goto clean;
@@ -2707,7 +2747,10 @@ struct regulator_dev *regulator_register(struct regulator_desc *regulator_desc,
 	dev_set_drvdata(&rdev->dev, rdev);
 
 	/* set regulator constraints */
-	ret = set_machine_constraints(rdev, &init_data->constraints);
+	if (init_data)
+		constraints = &init_data->constraints;
+
+	ret = set_machine_constraints(rdev, constraints);
 	if (ret < 0)
 		goto scrub;
 
@@ -2716,7 +2759,7 @@ struct regulator_dev *regulator_register(struct regulator_desc *regulator_desc,
 	if (ret < 0)
 		goto scrub;
 
-	if (init_data->supply_regulator) {
+	if (init_data && init_data->supply_regulator) {
 		struct regulator_dev *r;
 		int found = 0;
 
@@ -2738,18 +2781,28 @@ struct regulator_dev *regulator_register(struct regulator_desc *regulator_desc,
 		ret = set_supply(rdev, r);
 		if (ret < 0)
 			goto scrub;
+
+		/* Enable supply if rail is enabled */
+		if (rdev->desc->ops->is_enabled &&
+				rdev->desc->ops->is_enabled(rdev)) {
+			ret = regulator_enable(rdev->supply);
+			if (ret < 0)
+				goto scrub;
+		}
 	}
 
 	/* add consumers devices */
-	for (i = 0; i < init_data->num_consumer_supplies; i++) {
-		ret = set_consumer_device_supply(rdev,
-			init_data->consumer_supplies[i].dev,
-			init_data->consumer_supplies[i].dev_name,
-			init_data->consumer_supplies[i].supply);
-		if (ret < 0) {
-			dev_err(dev, "Failed to set supply %s\n",
+	if (init_data) {
+		for (i = 0; i < init_data->num_consumer_supplies; i++) {
+			ret = set_consumer_device_supply(rdev,
+				init_data->consumer_supplies[i].dev,
+				init_data->consumer_supplies[i].dev_name,
 				init_data->consumer_supplies[i].supply);
-			goto unset_supplies;
+			if (ret < 0) {
+				dev_err(dev, "Failed to set supply %s\n",
+					init_data->consumer_supplies[i].supply);
+				goto unset_supplies;
+			}
 		}
 	}
 
