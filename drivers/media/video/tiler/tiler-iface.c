@@ -175,7 +175,7 @@ void tiler_reservex(u32 n, enum tiler_fmt fmt, u32 width, u32 height,
 	struct security_info *si = __get_si(pid, true, SECURE_BY_PID);
 
 	if (si)
-		ops->reserve(n, fmt, width, height, gid, si);
+		ops->reserve(n, fmt, width, height, PAGE_SIZE, 0, gid, si);
 }
 EXPORT_SYMBOL(tiler_reservex);
 
