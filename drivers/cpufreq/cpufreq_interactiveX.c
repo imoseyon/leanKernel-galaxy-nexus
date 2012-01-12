@@ -544,10 +544,14 @@ static void interactivex_suspend(int suspend)
 {
         if (!enabled) return;
 	if (!suspend) { 
+		mutex_lock(&set_speed_lock);
 		cpu_up(1);
+		mutex_unlock(&set_speed_lock);
                 pr_info("[imoseyon] interactivex awake cpu1 up\n");
 	} else {
+		mutex_lock(&set_speed_lock);
 		cpu_down(1);
+		mutex_unlock(&set_speed_lock);
                 pr_info("[imoseyon] interactivex suspended cpu1 down\n");
 	}
 }
