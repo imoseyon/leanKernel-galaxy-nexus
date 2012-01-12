@@ -420,6 +420,7 @@ tiler_blk_handle tiler_alloc_block_area(enum tiler_fmt fmt, u32 width,
  * @param virt_array	Array of physical address for the start of each virtual
 			page
  * @align		Alignment in bytes
+ * @offset		Offset into 4KiB
  * @token		Security token
  *
  * @return handle	Handle to tiler block information.  NULL on error.
@@ -429,7 +430,7 @@ tiler_blk_handle tiler_alloc_block_area(enum tiler_fmt fmt, u32 width,
  */
 tiler_blk_handle tiler_alloc_block_area_aligned(enum tiler_fmt fmt, u32 width,
 			u32 height, u32 *ssptr, u32 *virt_array, u32 align,
-			u32 token);
+			u32 offset, u32 token);
 
 /**
  * Free a reserved area in the Tiler

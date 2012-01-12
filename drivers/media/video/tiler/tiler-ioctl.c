@@ -422,6 +422,8 @@ static long tiler_ioctl(struct file *filp, u32 cmd, unsigned long arg)
 				     block_info.fmt,
 				     block_info.dim.area.width,
 				     block_info.dim.area.height,
+					PAGE_SIZE,
+					0,
 				     block_info.group_id, si);
 		break;
 	/* unreserve blocks */

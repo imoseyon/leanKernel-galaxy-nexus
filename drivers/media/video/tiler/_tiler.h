@@ -126,7 +126,7 @@ struct tiler_ops {
 	void (*reserve_nv12) (u32 n, u32 width, u32 height,
 					u32 gid, struct security_info *si);
 	void (*reserve) (u32 n, enum tiler_fmt fmt, u32 width, u32 height,
-			 u32 gid, struct security_info *si);
+			u32 align, u32 offs, u32 gid, struct security_info *si);
 	void (*unreserve) (u32 gid, struct security_info *si);
 
 	/* block access operations */
@@ -136,7 +136,7 @@ struct tiler_ops {
 	void (*unlock_free) (struct mem_info *mi, bool free);
 
 	s32 (*lay_2d) (enum tiler_fmt fmt, u16 n, u16 w, u16 h, u16 band,
-			u16 align, struct gid_info *gi,
+			u16 align, u16 offs, struct gid_info *gi,
 			struct list_head *pos);
 #ifdef CONFIG_TILER_ENABLE_NV12
 	s32 (*lay_nv12) (int n, u16 w, u16 w1, u16 h, struct gid_info *gi,
@@ -153,7 +153,8 @@ struct tiler_ops {
 
 	/* area operations */
 	s32 (*analize) (enum tiler_fmt fmt, u32 width, u32 height,
-			u16 *x_area, u16 *y_area, u16 *band, u16 *align);
+			u16 *x_area, u16 *y_area, u16 *band, u16 *align,
+			u16 *offs, u16 *remainder);
 
 	/* process operations */
 	void (*cleanup) (void);
