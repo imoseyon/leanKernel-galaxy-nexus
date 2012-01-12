@@ -579,4 +579,10 @@ source "drivers/misc/lis3lv02d/Kconfig"
 source "drivers/misc/carma/Kconfig"
 source "drivers/misc/modem_if/Kconfig"
 
+config COLOR_CONTROL
+	bool "Support for Color Control"
+	default y
+	help
+	  Say Y here to enable Color Control
+
 endif # MISC_DEVICES
