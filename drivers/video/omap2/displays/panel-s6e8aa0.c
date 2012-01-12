@@ -186,6 +186,12 @@ const u8 s6e8aa0_mtp_lock[] = {
 	0xA5,
 };
 
+#ifdef CONFIG_COLOR_CONTROL
+struct omap_dss_device * lcd_dev;
+
+int hacky_v1_offset[3] = {0, 0, 0};
+#endif
+
 static int s6e8aa0_write_reg(struct omap_dss_device *dssdev, u8 reg, u8 val)
 {
 	u8 buf[2];
@@ -759,7 +765,11 @@ static void s6e8aa0_setup_gamma_regs(struct s6e8aa0_data *s6, u8 gamma_regs[],
 				__func__, adj, v0, v[V1], c);
 			adj = clamp_t(int, adj, adj_min, adj_max);
 		}
+#ifdef CONFIG_COLOR_CONTROL
+		gamma_regs[gamma_reg_index(c, V1)] = ((adj + hacky_v1_offset[c]) > 0 && (adj <=255)) ? (adj + hacky_v1_offset[c]) : adj;
+#else
 		gamma_regs[gamma_reg_index(c, V1)] = adj;
+#endif
 		v[V1] = v1adj_to_v1(adj + offset, v0);
 
 		v[V255] = s6e8aa0_gamma_lookup(s6, brightness, BV_255, c);
@@ -921,6 +931,24 @@ static int s6e8aa0_update_brightness(struct omap_dss_device *dssdev)
 	s6e8aa0_update_elvss(dssdev);
 	return 0;
 }
+
+#ifdef CONFIG_COLOR_CONTROL
+void colorcontrol_update(int * v1_offsets)
+{
+    int i;
+
+    for (i = 0; i < 3; i++)
+	{
+	    hacky_v1_offset[i] = v1_offsets[i];
+	}
+
+    if (lcd_dev->state == OMAP_DSS_DISPLAY_ACTIVE)
+	s6e8aa0_update_brightness(lcd_dev);
+
+    return;
+}
+EXPORT_SYMBOL(colorcontrol_update);
+#endif
 
 static u64 s6e8aa0_voltage_lookup(struct s6e8aa0_data *s6, int c, u32 v)
 {
@@ -1625,6 +1653,10 @@ static int s6e8aa0_probe(struct omap_dss_device *dssdev)
 
 	if (cpu_is_omap44xx())
 		s6->force_update = true;
+
+#ifdef CONFIG_COLOR_CONTROL
+	lcd_dev = dssdev;
+#endif
 
 	dev_dbg(&dssdev->dev, "s6e8aa0_probe\n");
 	return ret;
