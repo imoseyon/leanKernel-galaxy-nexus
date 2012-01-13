@@ -135,6 +135,12 @@ static bool pm_suspending(void)
 	return true;
 }
 
+bool pm_suspended_storage(void)
+{
+	if ((gfp_allowed_mask & GFP_IOFS) == GFP_IOFS)
+		return false;
+	return true;
+}
 #else
 
 static bool pm_suspending(void)
