@@ -346,6 +346,55 @@ ENTRY(omap4_cpu_resume)
 	cmp	r0, #1				@ is CPU0 already UP?
 	beq	ppa_cp15_cpu1_configure		@ CPU1 HS go to next stage
 	/*
+	 * When CPU1 is released to control of HLOS in the case of OSWR
+	 * and OFF mode, PPA below v1.7.3[1] is not performing all
+	 * Memory coherency and TLB operations required.
+	 *
+	 * A WA to recover cleanly from this scenario is to switch CPU1 back to
+	 * previous OFF state. This forces a reset of CPU1, which in turn
+	 * forces CPU1 not to override MMU descriptors already in place in
+	 * internal RAM setup by CPU0. CPU1 will also sync to the in-place
+	 * descriptors on the next wakeup. CPU1 wakeup is done by
+	 * later kernel subsystems depending on suspend or cpuidle path
+	 * being exercised.
+	 * NOTE - for OSWR, state provided is 2, and for OFF, state is 3,
+	 * Since the bug impacts OFF and OSWR, we need to force a 0x3 to
+	 * shut off CPU1
+	 *
+	 * Since many distributions may not be able to update PPA OR would like
+	 * to support platforms with older PPA, we provide a config option.
+	 * This is simpler and makes the current code remain cleaner in
+	 * comparison to a flag based handling in CPU1 recovery for
+	 * board + PPA revision combinations.
+	 *
+	 * Having this config option enabled even on platforms with fixed PPA
+	 * should not impact stability, however, ability to make CPU1 available
+	 * for operations a little earlier is curtailed.
+	 *
+	 * Foot note [1]:
+	 * v1.7.3 is the official TI PPA version. Custom PPA could have
+	 * the relevant changes ported over to it.
+	 */
+#ifdef CONFIG_OMAP4_PPA_CPU1_ONLINE_BUG
+	mov	r0, #0x03		@ target CPU1 to OFF(mpusspd=OSWR/OFF)
+	mov	r1, #0x00		@ Secure L1 is already clean
+	ldr	r12, =SCU_POWER_SECURE_INDEX
+	dsb
+	smc	#0
+
+	isb				@ Necessary barriers before wfi
+	dsb
+	dmb
+	wfi				@ wait for interrupt
+	nop
+	nop
+
+	/*
+	 * IF we came out of WFI immediately, something unknown happend.
+	 * Fall through AND loop back to the checks. Failing which retry WFI.
+	 */
+#endif
+	/*
 	 * CPU0 and CPU1 are release together from OFF mode, however,
 	 * CPU0 can be busy doing restore operations while waking
 	 * from OFF mode, However, for many PPA services we need
