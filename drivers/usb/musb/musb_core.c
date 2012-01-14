@@ -2075,8 +2075,6 @@ musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 		wake_lock_init(&musb->musb_wakelock, WAKE_LOCK_SUSPEND,
 						"musb_autosuspend_wake_lock");
 
-	pm_runtime_put(musb->controller);
-
 	status = musb_init_debugfs(musb);
 	if (status < 0)
 		goto fail4;
