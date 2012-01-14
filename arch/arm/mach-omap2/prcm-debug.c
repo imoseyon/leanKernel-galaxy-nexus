@@ -1115,17 +1115,15 @@ static struct d_clkd_info cd_cortexa9 = {
 	.intgens = {NULL},
 };
 
-/* CD_L4SEC not in TRM, below based on Linux code. */
-
 static struct d_clkd_info cd_l4sec = {
 	.name = "CD_L4SEC",
 	.prcm_partition	  = OMAP4430_CM2_PARTITION,
 	.cm_inst	  = OMAP4430_CM2_L4PER_INST,
 	.clkdm_offs	  = OMAP4430_CM2_L4PER_L4SEC_CDOFFS,
-	.activity	  = 0x200,
+	.activity	  = 0x300,
 	.mods = {&mod_aes1, &mod_aes2, &mod_des3des, &mod_pkaeip29, &mod_rng,
 		 &mod_sha2md51, &mod_cryptodma, NULL},
-	.intgens = {NULL}, // TBD: No docs
+	.intgens = {NULL},
 };
 
 #if 0 /* Don't appear to be valid */
