@@ -470,6 +470,10 @@ static s32 __analize_area(enum tiler_fmt fmt, u32 width, u32 height,
 	if (!width || !height)
 		return -EINVAL;
 
+	/* validate tiler format */
+	if ((fmt < TILFMT_8BIT) || (fmt > TILFMT_PAGE))
+		return -EINVAL;
+
 	if (fmt == TILFMT_PAGE) {
 		/* for 1D area keep the height (1), width is in tiler slots */
 		*x_area = DIV_ROUND_UP(width, tiler.page);
