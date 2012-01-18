@@ -38,6 +38,24 @@
 #define OMAP4_VDD_CORE_SR_VOLT_REG	0x61
 #define OMAP4_VDD_CORE_SR_CMD_REG	0x62
 
+#define TWL6030_REG_VCORE1_CFG_GRP			0x52
+#define TWL6030_REG_VCORE1_CFG_TRANS			0x53
+#define TWL6030_REG_VCORE2_CFG_GRP			0x58
+#define TWL6030_REG_VCORE2_CFG_TRANS			0x59
+#define TWL6030_REG_VCORE3_CFG_GRP			0x5e
+#define TWL6030_REG_VCORE3_CFG_TRANS			0x5f
+#define TWL6030_BIT_APE_GRP				BIT(0)
+/*
+ * Setup CFG_TRANS mode as follows:
+ * 0x00 (OFF) when in OFF state(bit offset 4) and in sleep (bit offset 2)
+ * 0x01 (PWM/PFM Auto) when in ACTive state (bit offset 0)
+ * Dont trust Bootloader or reset values to set them up for kernel.
+ */
+#define TWL6030_REG_VCOREx_CFG_TRANS_MODE		(0x00 << 4 | \
+							 0x00 << 2 | \
+							 0x01 << 0)
+#define TWL6030_REG_VCOREx_CFG_TRANS_MODE_DESC "OFF=OFF SLEEP=OFF ACT=AUTO"
+
 static bool is_offset_valid;
 static u8 smps_offset;
 /*
@@ -49,6 +67,55 @@ static bool __initdata twl_sr_enable_autoinit;
 #define TWL4030_DCDC_GLOBAL_CFG        0x06
 #define REG_SMPS_OFFSET         0xE0
 #define SMARTREFLEX_ENABLE     BIT(3)
+
+/**
+ * struct twl_reg_setup_array - NULL terminated array giving configuration
+ * @addr:	reg address to write to
+ * @val:	value to write with
+ * @desc:	description of this reg for error printing
+ *		NOTE: a NULL pointer in this indicates end of array.
+ *
+ * VCORE register configurations as per need.
+ */
+struct twl_reg_setup_array {
+	u8 addr;
+	u8 val;
+	char *desc;
+};
+
+/**
+ * _twl_set_regs() - helper to setup a config array
+ * @gendesc:	generic description - used with error message
+ * @sarray:	NULL terminated array of configuration values
+ *
+ * Configures TWL with a set of values terminated. If any write fails,
+ * this continues till the last and returns back with the last error
+ * value.
+ */
+static int __init _twl_set_regs(char *gendesc,
+		struct twl_reg_setup_array *sarray)
+{
+	int i = 0;
+	int ret1;
+	int ret = 0;
+
+	while (sarray->desc) {
+		ret1 = twl_i2c_write_u8(TWL6030_MODULE_ID0,
+					sarray->val,
+					sarray->addr);
+		if (ret1) {
+			pr_err("%s: %s: failed(%d), array index=%d, desc=%s, "
+					"reg=0x%02x, val=0x%02x\n",
+				__func__, gendesc, ret1, i,
+				sarray->desc, sarray->addr, sarray->val);
+			ret = ret1;
+		}
+		sarray++;
+		i++;
+	}
+
+	return ret;
+}
 
 static unsigned long twl4030_vsel_to_uv(const u8 vsel)
 {
@@ -263,7 +330,8 @@ static struct omap_voltdm_pmic omap446x_core_pmic = {
 	.on_volt		= 1200000,
 	.onlp_volt		= 1200000,
 	.ret_volt		= 830000,
-	.off_volt		= 0,
+	/* OMAP4 + TWL + TPS limitation keep off_volt same as ret_volt */
+	.off_volt		= 830000,
 	.volt_setup_time	= 0,
 	.switch_on_time		= 549,
 	.vp_erroroffset		= OMAP4_VP_CONFIG_ERROROFFSET,
@@ -302,6 +370,77 @@ static int __init twl_set_sr(struct voltagedomain *voltdm)
 	return r;
 }
 
+
+/* OMAP4430 - All vcores: 1, 2 and 3 should go down with PREQ */
+static __initdata struct twl_reg_setup_array omap4430_twl6030_setup[] = {
+	{
+		.addr = TWL6030_REG_VCORE1_CFG_GRP,
+		.val = TWL6030_BIT_APE_GRP,
+		.desc = "Pull VCORE1 down along with App processor's PREQ1",
+	},
+	{
+		.addr = TWL6030_REG_VCORE1_CFG_TRANS,
+		.val = TWL6030_REG_VCOREx_CFG_TRANS_MODE,
+		.desc = "VCORE1" TWL6030_REG_VCOREx_CFG_TRANS_MODE_DESC,
+	},
+	{
+		.addr = TWL6030_REG_VCORE2_CFG_GRP,
+		.val = TWL6030_BIT_APE_GRP,
+		.desc = "Pull VCORE2 down along with App processor's PREQ1",
+	},
+	{
+		.addr = TWL6030_REG_VCORE2_CFG_TRANS,
+		.val = TWL6030_REG_VCOREx_CFG_TRANS_MODE,
+		.desc = "VCORE2" TWL6030_REG_VCOREx_CFG_TRANS_MODE_DESC,
+	},
+	{
+		.addr = TWL6030_REG_VCORE3_CFG_GRP,
+		.val = TWL6030_BIT_APE_GRP,
+		.desc = "Pull VCORE3 down along with App processor's PREQ1",
+	},
+	{
+		.addr = TWL6030_REG_VCORE3_CFG_TRANS,
+		.val = TWL6030_REG_VCOREx_CFG_TRANS_MODE,
+		.desc = "VCORE3" TWL6030_REG_VCOREx_CFG_TRANS_MODE_DESC,
+	},
+	{ .desc = NULL} /* TERMINATOR */
+};
+
+static int __init twl_set_4430vcore(struct voltagedomain *voltdm)
+{
+	return _twl_set_regs("OMAP4430 ", omap4430_twl6030_setup);
+}
+
+/* OMAP4460 - VCORE3 is unused, 1 and 2 should go down with PREQ */
+static __initdata struct twl_reg_setup_array omap4460_twl6030_setup[] = {
+	{
+		.addr = TWL6030_REG_VCORE1_CFG_GRP,
+		.val = TWL6030_BIT_APE_GRP,
+		.desc = "Pull VCORE1 down along with App processor's PREQ1",
+	},
+	{
+		.addr = TWL6030_REG_VCORE1_CFG_TRANS,
+		.val = TWL6030_REG_VCOREx_CFG_TRANS_MODE,
+		.desc = "VCORE1" TWL6030_REG_VCOREx_CFG_TRANS_MODE_DESC,
+	},
+	{
+		.addr = TWL6030_REG_VCORE2_CFG_GRP,
+		.val = TWL6030_BIT_APE_GRP,
+		.desc = "Pull VCORE2 down along with App processor's PREQ1",
+	},
+	{
+		.addr = TWL6030_REG_VCORE2_CFG_TRANS,
+		.val = TWL6030_REG_VCOREx_CFG_TRANS_MODE,
+		.desc = "VCORE2" TWL6030_REG_VCOREx_CFG_TRANS_MODE_DESC,
+	},
+	{ .desc = NULL} /* TERMINATOR */
+};
+
+static int __init twl_set_4460vcore(struct voltagedomain *voltdm)
+{
+	return _twl_set_regs("OMAP4460 ", omap4460_twl6030_setup);
+}
+
 #define OMAP3_TWL4030_USED	(CHIP_GE_OMAP3430ES2 |	\
 				CHIP_GE_OMAP3630ES1_1 |	\
 				CHIP_IS_OMAP3630ES1)
@@ -327,11 +466,13 @@ static __initdata struct omap_pmic_map omap_twl_map[] = {
 		.name = "core",
 		.omap_chip = OMAP_CHIP_INIT(CHIP_IS_OMAP443X),
 		.pmic_data = &omap443x_core_pmic,
+		.special_action = twl_set_4430vcore,
 	},
 	{
 		.name = "core",
 		.omap_chip = OMAP_CHIP_INIT(CHIP_IS_OMAP446X),
 		.pmic_data = &omap446x_core_pmic,
+		.special_action = twl_set_4460vcore,
 	},
 	{
 		.name = "iva",
