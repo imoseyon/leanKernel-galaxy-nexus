@@ -372,6 +372,23 @@ config OMAP_FIQ_DEBUGGER
 	help
 	  Enables the serial FIQ debugger on OMAP"
 
+config OMAP4_PPA_CPU1_ONLINE_BUG
+	bool "Enable Support for CPU1 ONLINE WA for OSWR/OFF"
+	depends on ARCH_OMAP4
+	depends on OMAP_ALLOW_OSWR
+	default y
+	help
+	  If an non GP OMAP4 device is used and PPA revision is < v1.7.3,
+	  the device does not perform the memory maintenance and TLB sync
+	  operations required before releasing CPU1 to HLOS. This results
+	  in crash while resuming from OFF mode.
+
+	  Disable this option *ONLY IF* you meet the minimum PPA version
+	  requirement.
+
+	  If, on the other hand, you do not understand the change, leave the
+	  default as enabled.
+
 endmenu
 
 endif
