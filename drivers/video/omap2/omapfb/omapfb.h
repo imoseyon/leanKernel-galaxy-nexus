@@ -30,6 +30,7 @@
 #include <linux/rwsem.h>
 
 #include <video/omapdss.h>
+#include <linux/switch.h>
 
 #ifdef DEBUG
 extern unsigned int omapfb_debug;
@@ -97,6 +98,11 @@ struct omapfb2_device {
 		struct omap_dss_device *dssdev;
 		u8 bpp;
 	} bpp_overrides[10];
+
+	bool vsync_active;
+	int vsync_state;
+	wait_queue_head_t vsync_wq;
+	struct switch_dev vsync_switch;
 };
 
 struct omapfb_colormode {
