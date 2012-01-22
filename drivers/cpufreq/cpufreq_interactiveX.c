@@ -64,6 +64,7 @@ static struct mutex set_speed_lock;
 
 // used for suspend code
 static unsigned int enabled = 0;
+static unsigned int suspendfreq = 700000;
 
 /* Hi speed to bump to from lo speed when load burst (default max) */
 static u64 hispeed_freq;
@@ -542,18 +543,36 @@ static struct attribute_group interactivex_attr_group = {
 
 static void interactivex_suspend(int suspend)
 {
+        unsigned int cpu;
+        cpumask_t tmp_mask;
+        struct cpufreq_interactivex_cpuinfo *pcpu;
+
         if (!enabled) return;
-	if (!suspend) { 
+	  if (!suspend) { 
 		mutex_lock(&set_speed_lock);
-		cpu_up(1);
+		if (num_online_cpus() < 2) cpu_up(1);
+		for_each_cpu(cpu, &tmp_mask) {
+		  pcpu = &per_cpu(cpuinfo, cpu);
+		  smp_rmb();
+		  if (!pcpu->governor_enabled)
+		    continue;
+		  __cpufreq_driver_target(pcpu->policy, hispeed_freq, CPUFREQ_RELATION_L);
+		}
 		mutex_unlock(&set_speed_lock);
                 pr_info("[imoseyon] interactivex awake cpu1 up\n");
-	} else {
+	  } else {
 		mutex_lock(&set_speed_lock);
-		cpu_down(1);
+		for_each_cpu(cpu, &tmp_mask) {
+		  pcpu = &per_cpu(cpuinfo, cpu);
+		  smp_rmb();
+		  if (!pcpu->governor_enabled)
+		    continue;
+		  __cpufreq_driver_target(pcpu->policy, suspendfreq, CPUFREQ_RELATION_H);
+		}
+		if (num_online_cpus() > 1) cpu_down(1);
 		mutex_unlock(&set_speed_lock);
                 pr_info("[imoseyon] interactivex suspended cpu1 down\n");
-	}
+	  }
 }
 
 static void interactivex_early_suspend(struct early_suspend *handler) {
