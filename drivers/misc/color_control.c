@@ -1,6 +1,6 @@
 /* drivers/misc/color_control.c
  *
- * Copyright 2012  Ezekeel
+ * Copyright 2012  Ezekeel (based on supercurio's idea)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
