@@ -559,6 +559,12 @@ static int sdp4430_bt_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
+static int sdp4430_spdif_init(struct snd_soc_pcm_runtime *rtd)
+{
+	rtd->pmdown_time = 0;
+	return 0;
+}
+
 static int sdp4430_stream_event(struct snd_soc_dapm_context *dapm)
 {
 	/*
@@ -788,6 +794,7 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 		.platform_name = "omap-pcm-audio",
 		.ignore_suspend = 1,
 		.no_codec = 1,
+		.init = sdp4430_spdif_init,
 	},
 
 /*
