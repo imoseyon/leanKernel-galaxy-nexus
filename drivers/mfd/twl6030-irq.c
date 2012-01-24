@@ -103,6 +103,9 @@ static int twl6030_irq_pm_notifier(struct notifier_block *notifier,
 	case PM_SUSPEND_PREPARE:
 		chained_wakeups = atomic_read(&twl6030_wakeirqs);
 
+		/* Infrequent enough to not burden kmsg. */
+		pr_info("%s(): wakeirqs=%d irq_wake_enabled=%d\n", __func__,
+			chained_wakeups, twl_irq_wake_enabled);
 		if (chained_wakeups && !twl_irq_wake_enabled) {
 			if (enable_irq_wake(twl_irq))
 				pr_err("twl6030 IRQ wake enable failed\n");

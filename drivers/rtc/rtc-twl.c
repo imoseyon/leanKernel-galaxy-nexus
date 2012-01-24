@@ -209,6 +209,9 @@ static int twl_rtc_alarm_irq_enable(struct device *dev, unsigned enabled)
 		ret = set_rtc_irq_bit(BIT_RTC_INTERRUPTS_REG_IT_ALARM_M);
 	else
 		ret = mask_rtc_irq_bit(BIT_RTC_INTERRUPTS_REG_IT_ALARM_M);
+	if (ret)
+		dev_err(dev, "%s(): enabled=%d ret=%d\n", __func__, enabled,
+			ret);
 
 	return ret;
 }
@@ -295,6 +298,18 @@ out:
 	return ret;
 }
 
+void twl_print_alarm(char *msg, struct rtc_wkalrm *alm)
+{
+	pr_info("%s%d-%02d-%02d %02d:%02d:%02d %s\n", msg,
+		1900 + alm->time.tm_year,
+		1 + alm->time.tm_mon,
+		alm->time.tm_mday,
+		alm->time.tm_hour,
+		alm->time.tm_min,
+		alm->time.tm_sec,
+		alm->enabled ? "on" : "off"
+		);
+}
 /*
  * Gets current TWL RTC alarm time.
  */
@@ -322,6 +337,7 @@ static int twl_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alm)
 	if (rtc_irq_bits & BIT_RTC_INTERRUPTS_REG_IT_ALARM_M)
 		alm->enabled = 1;
 
+	twl_print_alarm("twl_rtc_read_alarm(): ", alm);
 	return ret;
 }
 
@@ -330,6 +346,7 @@ static int twl_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alm)
 	unsigned char alarm_data[ALL_TIME_REGS + 1];
 	int ret;
 
+	twl_print_alarm("twl_rtc_set_alarm(): ", alm);
 	ret = twl_rtc_alarm_irq_enable(dev, 0);
 	if (ret)
 		goto out;
