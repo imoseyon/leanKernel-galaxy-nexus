@@ -359,6 +359,7 @@ static cntry_locales_custom_t tuna_wifi_translate_custom_table[] = {
 	{"AR", "XY", 3},
 	{"MX", "XY", 3},
 	{"JP", "EU", 0},
+	{"IL", "IL", 0},
 	{"BR", "KR", 25}
 };
 
