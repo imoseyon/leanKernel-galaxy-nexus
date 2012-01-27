@@ -387,6 +387,14 @@ on property:service.adb.root=1
     restart adbd
     write /sys/class/android_usb/android0/enable 1
 
+# adb over network	
+on property:service.adb.tcp.port=5555	
+    stop adbd
+    start adbd
+on property:service.adb.tcp.port=-1	
+    stop adbd
+    start adbd
+
 service servicemanager /system/bin/servicemanager
     class core
     user system
