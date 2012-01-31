@@ -265,7 +265,6 @@ void omap4_enter_sleep(unsigned int cpu, unsigned int power_state, bool suspend)
 		if (omap_sr_disable_reset_volt(mpu_voltdm))
 			goto abort_device_off;
 
-		omap_sr_disable_reset_volt(mpu_voltdm);
 		omap_vc_set_auto_trans(mpu_voltdm,
 			OMAP_VC_CHANNEL_AUTO_TRANSITION_RETENTION);
 	}
