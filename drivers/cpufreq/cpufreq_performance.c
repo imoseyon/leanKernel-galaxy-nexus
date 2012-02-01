@@ -14,13 +14,32 @@
 #include <linux/module.h>
 #include <linux/cpufreq.h>
 #include <linux/init.h>
+#include <linux/earlysuspend.h>
+#include <linux/cpu.h>
 
+static void performance_suspend()
+{
+	if (num_online_cpus() > 1) cpu_down(1);
+	pr_info("[imoseyon] performancex suspended cpu1 down\n");
+}
+
+static void performance_early_suspend(struct early_suspend *handler) {
+     performance_suspend();
+}
+
+static struct early_suspend performancex_power_suspend = {
+        .suspend = performance_early_suspend,
+        .level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 1,
+};
 
 static int cpufreq_governor_performance(struct cpufreq_policy *policy,
 					unsigned int event)
 {
 	switch (event) {
 	case CPUFREQ_GOV_START:
+                register_early_suspend(&performancex_power_suspend);
+                pr_info("[imoseyon] performancex start\n");
+		break;
 	case CPUFREQ_GOV_LIMITS:
 		pr_debug("setting to %u kHz because of event %u\n",
 						policy->max, event);
@@ -37,11 +56,10 @@ static int cpufreq_governor_performance(struct cpufreq_policy *policy,
 static
 #endif
 struct cpufreq_governor cpufreq_gov_performance = {
-	.name		= "performance",
+	.name		= "performanceX",
 	.governor	= cpufreq_governor_performance,
 	.owner		= THIS_MODULE,
 };
-
 
 static int __init cpufreq_gov_performance_init(void)
 {
