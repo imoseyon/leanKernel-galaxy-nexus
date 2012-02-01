@@ -389,6 +389,15 @@ config OMAP4_PPA_CPU1_ONLINE_BUG
 
 	  If, on the other hand, you do not understand the change, leave the
 	  default as enabled.
+
+config OMAP4_ARM_ERRATA_742230
+	bool "Enables the workaround for ARM errata 742230 on GP devices"
+	help
+	  Enables the ARM errata 742230 on OMAP443x and OMAP446x (GP) devices.
+	  This involves setting bit 4 of the CP15 diagnostic control register.
+	  This is handled for HS devices in the PPA code and does not need to be
+	  enabled."
+
 endmenu
 
 config FORCE_FAST_CHARGE

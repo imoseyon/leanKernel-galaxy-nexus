@@ -421,6 +421,34 @@ ppa_cp15_cpu1_configure:
 	/* Fall through to continue with boot */
 
 continue_boot:
+	ldr     r8, =OMAP44XX_SAR_RAM_BASE
+	ldr	r9, [r8, #OMAP_TYPE_OFFSET]
+	cmp	r9, #0x1			@ Check for HS device
+	beq     skip_gp_diagnostic_ctrl_setup
+
+	/* Compute the ARM revision  */
+	mov	r3, #0
+	mrc	p15, 0, r1, c0, c0, 0		@ read main ID register
+	and	r2, r1, #0x00f00000		@ variant
+	and	r3, r1, #0x0000000f		@ revision
+	orr	r3, r3, r2, lsr #20-4		@ r3: has variant and revision
+
+	mov	r0, #0
+#ifdef CONFIG_OMAP4_ARM_ERRATA_742230
+	cmp	r3, #0x10			@ present in r1p0 onwards
+	blt	ignore_742230
+	cmp	r3, #0x22			@ not present after r2p2
+	orrle	r0, r0, #0x10			@ Set bit 4
+ignore_742230:
+#endif
+	cmp	r0, #0
+	beq     skip_gp_diagnostic_ctrl_setup
+	mov r12, #HAL_DIAGREG_0
+	dsb
+	smc #0
+	dsb
+
+skip_gp_diagnostic_ctrl_setup:
 
 #ifdef CONFIG_CACHE_L2X0
 	/*
@@ -691,5 +719,30 @@ ENTRY(omap_do_wfi)
 
 	ldmfd	sp!, {pc}
 ENDPROC(omap_do_wfi)
+
+/*
+ * ============================
+ * == ARM get revision id    ==
+ * ============================
+ *
+ * unsigned int omap_get_arm_rev()
+ *
+ * This function returns the ARM revision id ROM,
+ * eg, 0x20 for arm r2p0, 0x21 for arm r2p1, 0x30 for arm r3p0
+ */
+ENTRY(omap_get_arm_rev)
+	stmfd   sp!, {lr}
+	mov	r0, #0
+	mrc	p15, 0, r1, c0, c0, 0		@ read main ID register
+	and	r2, r1, #0xff000000		@ ARM?
+	teq	r2, #0x41000000
+	bne	not_arm
+	and	r2, r1, #0x00f00000		@ variant
+	and	r3, r1, #0x0000000f		@ revision
+	orr	r3, r3, r2, lsr #20-4		@ combine variant and revision
+	mov 	r0, r3
+not_arm:
+	ldmfd   sp!, {pc}
+ENDPROC(omap_get_arm_rev)
 
 #endif

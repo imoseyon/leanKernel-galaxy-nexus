@@ -38,6 +38,10 @@
 #define NO_FLAG				0x0
 
 /*
+ * Secure HAL API entry ids
+ */
+#define HAL_DIAGREG_0                   0x114
+/*
  * SAR restore phase USB HOST static port
  * configuration
  */
@@ -98,7 +102,6 @@ extern void omap_secondary_startup(void);
 extern u32 omap_modify_auxcoreboot0(u32 set_mask, u32 clear_mask);
 extern void omap_auxcoreboot_addr(u32 cpu_addr);
 extern u32 omap_read_auxcoreboot0(void);
-
 #ifdef CONFIG_PM
 extern int omap4_mpuss_init(void);
 extern int omap4_enter_lowpower(unsigned int cpu, unsigned int power_state);
@@ -139,6 +142,25 @@ static inline u32 omap4_secure_dispatcher(u32 idx, u32 flag, u32 nargs,
 }
 #endif	/* CONFIG_PM */
 #endif	/* CONFIG_SMP */
+
+extern u32 omap_get_arm_rev(void);
+
+/*
+ * omap4_get_diagctrl0_errata_flags: Routine to get the flag value of the CP15
+ * diagnostic control register.
+ *
+ * Return the value to be set into the CP15 Diagnostic control 0 reg
+ */
+static inline unsigned int omap4_get_diagctrl0_errata_flags(void)
+{
+	unsigned int ret  = 0;
+	u32 arm_rev = omap_get_arm_rev();
+#ifdef CONFIG_OMAP4_ARM_ERRATA_742230
+	if ((arm_rev >= 0x10) && (arm_rev <= 0x22))
+		ret |= (1 << 4);
+#endif
+	return ret;
+}
 
 extern int omap4_prcm_freq_update(void);
 

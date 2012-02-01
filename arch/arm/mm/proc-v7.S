@@ -355,7 +355,30 @@ __v7_setup:
 	orrlt	r10, r10, #1 << 11		@ set bit #11
 	mcrlt	p15, 0, r10, c15, c0, 1		@ write diagnostic register
 #endif
+#if (defined(CONFIG_OMAP4_ARM_ERRATA_742230))
+	stmia	r12, {r0-r4}
+	ldr	r0, =0x4a0022c4			@ Ctrl module status reg addr
+	ldr	r1, [r0]
+	and	r1, r1, #0x700			@ Bits 10:8 = Processor type
+	cmp	r1, #0x300			@ GP devices have this to be 3
+	bne	zero_diagctrl0
+	mrc	p15, 0, r0, c15, c0, 1		@ read diagnostic register
+#ifdef CONFIG_OMAP4_ARM_ERRATA_742230
+	cmp	r6, #0x22
+	orrle	r0, r0, #1 << 4			@ set bit #4
+#endif
+	cmp	r0, #0
+	beq	zero_diagctrl0
+	mov	r10, r12
+	mov	r12, #0x114			@ prep for SMC call to 0x114
+	dsb
+	smc	#0
+	dsb
+	mov	r12, r10
 
+zero_diagctrl0:
+	ldmia	r12, {r0-r4}
+#endif
 3:	mov	r10, #0
 	mcr	p15, 0, r10, c7, c5, 0		@ I+BTB cache invalidate
 	dsb
