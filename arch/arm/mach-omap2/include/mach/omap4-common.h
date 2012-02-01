@@ -163,6 +163,10 @@ static inline unsigned int omap4_get_diagctrl0_errata_flags(void)
 	if (arm_rev < 0x30)	/* ARM revision less that r3p0 */
 		ret |= (1 << 11);
 #endif
+#ifdef CONFIG_OMAP4_ARM_ERRATA_743622
+	if ((arm_rev & 0xF0) == 0x20)	/* All ARM rev r2px impacted */
+		ret |= (1 << 6);
+#endif
 	return ret;
 }
 

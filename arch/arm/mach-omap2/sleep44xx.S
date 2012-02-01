@@ -445,6 +445,13 @@ ignore_742230:
 	cmp	r3, #0x30			@ present prior to r3p0
 	orrlt	r0, r0, #0x800			@ Set bit 11
 #endif
+#ifdef 	CONFIG_OMAP4_ARM_ERRATA_743622
+	cmp	r3, #0x20			@ present in r2p0 onwards
+	blt	ignore_743622
+	cmp	r3, #0x30			@ not preset in r3p0 onwards
+	orrlt	r0, r0, #0x40			@ Set bit 6
+ignore_743622:
+#endif
 	cmp	r0, #0
 	beq     skip_gp_diagnostic_ctrl_setup
 	mov r12, #HAL_DIAGREG_0

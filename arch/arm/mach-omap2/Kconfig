@@ -406,6 +406,14 @@ config OMAP4_ARM_ERRATA_751472
 	  This is handled for HS devices in the PPA code and does not need to be
 	  enabled."
 
+config OMAP4_ARM_ERRATA_743622
+	bool "Enabled the workaround for ARM errata 743622 on GP devices"
+	help
+	  Enables the workaround for ARM errata 743622 on OMAP4.
+	  This involves setting bit 6 of the CP15 diagnostic control register.
+	  This is handled for HS devices in the PPA code and does not need to be
+	  enabled."
+
 endmenu
 
 config FORCE_FAST_CHARGE
