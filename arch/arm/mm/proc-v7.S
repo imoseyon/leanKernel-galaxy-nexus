@@ -355,7 +355,8 @@ __v7_setup:
 	orrlt	r10, r10, #1 << 11		@ set bit #11
 	mcrlt	p15, 0, r10, c15, c0, 1		@ write diagnostic register
 #endif
-#if (defined(CONFIG_OMAP4_ARM_ERRATA_742230))
+#if (defined(CONFIG_OMAP4_ARM_ERRATA_742230) || \
+	defined(CONFIG_OMAP4_ARM_ERRATA_751472))
 	stmia	r12, {r0-r4}
 	ldr	r0, =0x4a0022c4			@ Ctrl module status reg addr
 	ldr	r1, [r0]
@@ -366,6 +367,10 @@ __v7_setup:
 #ifdef CONFIG_OMAP4_ARM_ERRATA_742230
 	cmp	r6, #0x22
 	orrle	r0, r0, #1 << 4			@ set bit #4
+#endif
+#ifdef CONFIG_OMAP4_ARM_ERRATA_751472
+	cmp	r6, #0x30			@ present prior to r3p0
+	orrlt	r0, r0, #1 << 11		@ set bit #11
 #endif
 	cmp	r0, #0
 	beq	zero_diagctrl0

@@ -441,6 +441,10 @@ continue_boot:
 	orrle	r0, r0, #0x10			@ Set bit 4
 ignore_742230:
 #endif
+#ifdef 	CONFIG_OMAP4_ARM_ERRATA_751472
+	cmp	r3, #0x30			@ present prior to r3p0
+	orrlt	r0, r0, #0x800			@ Set bit 11
+#endif
 	cmp	r0, #0
 	beq     skip_gp_diagnostic_ctrl_setup
 	mov r12, #HAL_DIAGREG_0
