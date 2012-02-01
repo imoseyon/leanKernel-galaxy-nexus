@@ -17,18 +17,24 @@
 #include <linux/earlysuspend.h>
 #include <linux/cpu.h>
 
-static void performance_suspend()
+static void performance_suspend(int state)
 {
-	if (num_online_cpus() > 1) cpu_down(1);
-	pr_info("[imoseyon] performancex suspended cpu1 down\n");
+	if (state) {
+	  if (num_online_cpus() > 1) cpu_down(1);
+	  pr_info("[imoseyon] performancex suspended cpu1 down\n");
+	}
 }
 
 static void performance_early_suspend(struct early_suspend *handler) {
-     performance_suspend();
+     performance_suspend(1);
+}
+static void performance_late_resume(struct early_suspend *handler) {
+     performance_suspend(0);
 }
 
 static struct early_suspend performancex_power_suspend = {
         .suspend = performance_early_suspend,
+        .resume = performance_late_resume,
         .level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 1,
 };
 
