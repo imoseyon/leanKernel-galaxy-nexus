@@ -328,27 +328,37 @@ ENDPROC(omap4_cpu_suspend)
 
 ENTRY(omap4_cpu_resume)
 	/*
-	 * CPU1 must check if CPU0 is alive/awaken.
+	 * Each CPU get the device type from SAR RAM and store in r9
+	 */
+	ldr	r8, =OMAP44XX_SAR_RAM_BASE
+	ldr	r9, [r8, #OMAP_TYPE_OFFSET]
+	/*
+	 * CPU1 must check if CPU0 is alive/awake,
 	 * if PL310 is OFF, MPUSS was OFF and CPU0 is still off,
 	 * CPU1 must go to sleep and wait for CPU0.
-	 * CPU0 is needed for any PPA API to work.
+	 * Only CPU0 should enable cache controller.
 	 */
-	mrc     p15, 0, r0, c0, c0, 5	@ Get cpuID
-	ands    r0, r0, #0x0f		@ Continue boot if CPU0
+	mrc	p15, 0, r0, c0, c0, 5	@ Get cpuID
+	ands	r0, r0, #0x0f		@ Continue boot if CPU0
+	bne	is_cpu0_up		@ CPU1: Must check if CPU0 is up
+	cmp	r9, #0x1		@ CPU0: Check for HS device in r9
 	beq	continue_boot
-	ldr     r8, =OMAP44XX_SAR_RAM_BASE
-	ldr	r9, [r8, #OMAP_TYPE_OFFSET]
-	cmp	r9, #0x1		@ Check for HS device
-	bne	continue_boot		@ Continue on GP devcies
+	bne	gp_cp15_configure
+is_cpu0_up:
 	ldr	r2, =OMAP44XX_L2CACHE_BASE
 	ldr	r0, [r2, #L2X0_CTRL]
 	and	r0, #0x0f
 	cmp	r0, #1				@ is CPU0 already UP?
-	beq	ppa_cp15_cpu1_configure		@ CPU1 HS go to next stage
+	beq	cpu1_configure_cp15
 	/*
 	 * When CPU1 is released to control of HLOS in the case of OSWR
 	 * and OFF mode, PPA below v1.7.3[1] is not performing all
 	 * Memory coherency and TLB operations required.
+	 *
+	 * For GP devices (PPA never present) this WA path is also taken if
+	 * CPU1 wakes up first, this mechanism should be used to synchronize
+	 * booting by shutting off CPU1 thus allowing CPU0 to boot first
+	 * and restore OMAP context.
 	 *
 	 * A WA to recover cleanly from this scenario is to switch CPU1 back to
 	 * previous OFF state. This forces a reset of CPU1, which in turn
@@ -401,31 +411,30 @@ ENTRY(omap4_cpu_resume)
 	 * CPU0, so, we ask CPU1 to loop back to stagger CPU1 behind CPU0
 	 */
 	b omap4_cpu_resume
-
+cpu1_configure_cp15:
+	/*
+	 * Select right API to set cp15 depending on device type
+	 */
+	cmp	r9, #0x1		@ Check for HS device in r9
+	bne	gp_cp15_configure	@ Jump to GP API
 ppa_cp15_cpu1_configure:
 	/*
-	 * Configure CP15 for CPU1 on HS devices:
 	 * In HS devices CPU0's CP15 is configured at wakeup by PPA, CPU1 must
-	 * call PPA to configure it.
-	 * In 4430 devices CPU1 this call also enables the access to SMP bit,
-	 * on 4460 devices, CPU1 will have SMP bit access by default.
+	 * call PPA to configure it and CPU0 must be online for any PPA API to
+	 * work. In 4430 devices CPU1 this call also enables the access to SMP
+	 * bit, on 4460 devices, CPU1 will have SMP bit access by default.
 	 */
-	mov     r0, #PPA_SERVICE_DEFAULT_POR_NS_SMP
+	mov	r0, #PPA_SERVICE_DEFAULT_POR_NS_SMP
 	adr	r3, ppa_zero_params		@ Pointer to parameters
 	LM_CALL_PPA_SERVICE_PA
 	isb
 	dsb
 	cmp	r0, #0x0			@ API returns 0 on success.
-	bne	ppa_cp15_cpu1_configure		@ retry if we did succeed
-
-	/* Fall through to continue with boot */
-
-continue_boot:
-	ldr     r8, =OMAP44XX_SAR_RAM_BASE
-	ldr	r9, [r8, #OMAP_TYPE_OFFSET]
-	cmp	r9, #0x1			@ Check for HS device
-	beq     skip_gp_diagnostic_ctrl_setup
-
+	bne	ppa_cp15_cpu1_configure		@ retry if we did not succeed
+	/* HS device cp15 done, jump to continue_boot */
+	b	continue_boot
+gp_cp15_configure:
+	/* In GP devices, both CPUs must configure their CP15 */
 	/* Compute the ARM revision  */
 	mov	r3, #0
 	mrc	p15, 0, r1, c0, c0, 0		@ read main ID register
@@ -453,14 +462,13 @@ ignore_742230:
 ignore_743622:
 #endif
 	cmp	r0, #0
-	beq     skip_gp_diagnostic_ctrl_setup
-	mov r12, #HAL_DIAGREG_0
+	beq	continue_boot
+	mov	r12, #HAL_DIAGREG_0
 	dsb
-	smc #0
+	smc	#0
 	dsb
 
-skip_gp_diagnostic_ctrl_setup:
-
+continue_boot:
 #ifdef CONFIG_CACHE_L2X0
 	/*
 	 * Restore the L2 AUXCTRL and enable the L2 cache.
@@ -487,6 +495,7 @@ check_por:
 	adr	r3, POR_params
 	str	r4, [r3, #0x04]
 	LM_CALL_PPA_SERVICE_PA
+
 skip_por:
 	ldr	r3, =OMAP44XX_SAR_RAM_BASE
 	ldr	r0, [r3, #L2X0_AUXCTRL_OFFSET]
@@ -523,7 +532,6 @@ skip_l2en:
 	mcreq	p15, 0, r0, c1, c0, 1
 	isb
 skip_ns_smp_enable:
-
 	/*
 	 * Check the wakeup cpuid and use appropriate
 	 * SAR BANK location for context restore.
