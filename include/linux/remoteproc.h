@@ -268,6 +268,7 @@ struct rproc {
 	int last_trace_len0, last_trace_len1;
 	void *cdump_buf0, *cdump_buf1;
 	int cdump_len0, cdump_len1;
+	struct mutex tlock;
 	struct completion firmware_loading_complete;
 	struct work_struct error_work;
 	struct blocking_notifier_head nbh;
