@@ -55,9 +55,6 @@ MODULE_PARM_DESC(grain, "Granularity (bytes)");
 module_param_named(alloc_debug, tiler_alloc_debug, uint, 0644);
 MODULE_PARM_DESC(alloc_debug, "Allocation debug flag");
 
-struct tiler_dev {
-	struct cdev cdev;
-};
 static struct dentry *dbgfs;
 static struct dentry *dbg_map;
 
@@ -67,9 +64,14 @@ static struct list_head blocks;		/* all tiler blocks */
 static struct list_head orphan_areas;	/* orphaned 2D areas */
 static struct list_head orphan_onedim;	/* orphaned 1D areas */
 
+#ifdef CONFIG_TILER_ENABLE_USERSPACE
+struct tiler_dev {
+	struct cdev cdev;
+};
 static s32 tiler_major;
 static s32 tiler_minor;
 static struct tiler_dev *tiler_device;
+#endif
 static struct class *tilerdev_class;
 static struct mutex mtx;
 static struct tcm *tcm[TILER_FORMATS];
@@ -77,6 +79,7 @@ static struct tmm *tmm[TILER_FORMATS];
 static u32 *dmac_va;
 static dma_addr_t dmac_pa;
 static DEFINE_MUTEX(dmac_mtx);
+static dev_t dev;
 
 /*
  *  TMM connectors
@@ -1506,7 +1509,6 @@ static struct platform_driver tiler_driver_ldm = {
 
 static s32 __init tiler_init(void)
 {
-	dev_t dev  = 0;
 	s32 r = -1;
 	struct device *device = NULL;
 	struct tcm_pt div_pt;
@@ -1582,8 +1584,13 @@ static s32 __init tiler_init(void)
 	tiler.nv12_packed = tcm[TILFMT_8BIT] == tcm[TILFMT_16BIT];
 #endif
 
+	if (!sita || !tmm_pat) {
+		r = -ENOMEM;
+		goto error;
+	}
+#ifdef CONFIG_TILER_ENABLE_USERSPACE
 	tiler_device = kmalloc(sizeof(*tiler_device), GFP_KERNEL);
-	if (!tiler_device || !sita || !tmm_pat) {
+	if (!tiler_device) {
 		r = -ENOMEM;
 		goto error;
 	}
@@ -1604,6 +1611,7 @@ static s32 __init tiler_init(void)
 	r = cdev_add(&tiler_device->cdev, dev, 1);
 	if (r)
 		printk(KERN_ERR "cdev_add():failed\n");
+#endif
 
 	tilerdev_class = class_create(THIS_MODULE, "tiler");
 
@@ -1639,7 +1647,9 @@ static s32 __init tiler_init(void)
 error:
 	/* TODO: error handling for device registration */
 	if (r) {
+#ifdef CONFIG_TILER_ENABLE_USERSPACE
 		kfree(tiler_device);
+#endif
 		tcm_deinit(sita);
 		tmm_deinit(tmm_pat);
 		dma_free_coherent(NULL, tiler.width * tiler.height *
@@ -1685,9 +1695,11 @@ static void __exit tiler_exit(void)
 
 	mutex_destroy(&mtx);
 	platform_driver_unregister(&tiler_driver_ldm);
+#ifdef CONFIG_TILER_ENABLE_USERSPACE
 	cdev_del(&tiler_device->cdev);
 	kfree(tiler_device);
-	device_destroy(tilerdev_class, MKDEV(tiler_major, tiler_minor));
+#endif
+	device_destroy(tilerdev_class, dev);
 	class_destroy(tilerdev_class);
 }
 

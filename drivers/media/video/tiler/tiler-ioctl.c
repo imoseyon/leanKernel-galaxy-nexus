@@ -171,6 +171,7 @@ void _m_unregister_buf(struct __buf_info *_b)
  *  ==========================================================================
  */
 
+#ifdef CONFIG_TILER_ENABLE_USERSPACE
 /* mmap tiler buffer into user's virtual space */
 static s32 tiler_mmap(struct file *filp, struct vm_area_struct *vma)
 {
@@ -498,12 +499,15 @@ static const struct file_operations tiler_fops = {
 	.release = tiler_release,
 	.mmap = tiler_mmap,
 };
+#endif
 
 
 void tiler_ioctl_init(struct tiler_ops *tiler)
 {
 	ops = tiler;
+#ifdef CONFIG_TILER_ENABLE_USERSPACE
 	ops->fops = &tiler_fops;
+#endif
 
 #ifdef CONFIG_TILER_SECURE
 	offset_lookup = ssptr_lookup = false;
