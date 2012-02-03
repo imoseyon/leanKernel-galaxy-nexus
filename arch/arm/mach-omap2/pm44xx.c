@@ -86,7 +86,7 @@ static struct clockdomain *emif_clkdm, *mpuss_clkdm;
 /*
 * HSI - OMAP4430-2.2BUG00055:
 * HSI: DSP Swakeup generated is the same than MPU Swakeup.
-* System can’t enter in off mode due to the DSP.
+* System can't enter in off mode due to the DSP.
 */
 #define OMAP4_PM_ERRATUM_HSI_SWAKEUP_iXXX	BIT(2)
 
@@ -123,6 +123,20 @@ static struct clockdomain *emif_clkdm, *mpuss_clkdm;
  */
 #define OMAP4_PM_ERRATUM_LPDDR_CLK_IO_iXXX		BIT(5)
 #define LPDDR_WD_PULL_DOWN				0x02
+
+/* TI Errata i612 - Wkup Clk Recycling Needed After Warm Reset
+ * CRITICALITY: Low
+ * REVISIONS IMPACTED: OMAP4430 all
+ * Hardware does not recycle the I/O wake-up clock upon a global warm reset.
+ * When a warm reset is done, wakeups of daisy I/Os are disabled,
+ * but without the wake-up clock running, this change is not latched.
+ * Hence there is a possibility of seeing unexpected I/O wake-up events
+ * after warm reset.
+ *
+ * As W/A the call to omap4_trigger_ioctrl() has been added
+ * at PM initialization time for I/O pads daisy chain reseting.
+ **/
+#define OMAP4_PM_ERRATUM_IO_WAKEUP_CLOCK_NOT_RECYCLED_i612	BIT(7)
 
 u8 pm44xx_errata;
 #define is_pm44xx_erratum(erratum) (pm44xx_errata & OMAP4_PM_ERRATUM_##erratum)
@@ -1059,6 +1073,9 @@ no_32k:
 	omap4_prminst_write_inst_reg(0x3, OMAP4430_PRM_PARTITION,
 		OMAP4430_PRM_DEVICE_INST, OMAP4_PRM_PWRREQCTRL_OFFSET);
 
+	/* Handle errata i612 */
+	if (is_pm44xx_erratum(IO_WAKEUP_CLOCK_NOT_RECYCLED_i612))
+		omap4_trigger_ioctrl();
 }
 
 
@@ -1275,10 +1292,13 @@ static void __init omap4_pm_setup_errata(void)
 				 OMAP4_PM_ERRATUM_HSI_SWAKEUP_iXXX |
 				 OMAP4_PM_ERRATUM_LPDDR_CLK_IO_iXXX;
 
-	/* Dynamic Dependency errata for all silicon !=443x */
-	if (cpu_is_omap443x())
+	if (cpu_is_omap443x()) {
+		/* Dynamic Dependency errata for all silicon !=443x */
 		pm44xx_errata |= OMAP4_PM_ERRATUM_MPU_EMIF_NO_DYNDEP_i688;
-	else
+		/* Enable errata i612 */
+		pm44xx_errata |=
+			OMAP4_PM_ERRATUM_IO_WAKEUP_CLOCK_NOT_RECYCLED_i612;
+	} else
 		pm44xx_errata |= OMAP4_PM_ERRATUM_MPU_EMIF_NO_DYNDEP_IDLE_iXXX;
 }
 
