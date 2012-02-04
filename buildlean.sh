@@ -23,6 +23,8 @@ if [ ! $4 ]; then
 	rm -f /tmp/*.zip
 	cp *.zip /tmp
 fi
+[[ $1 == *dev* ]] && exit
+[[ $1 == *rc* ]] && exit
 md5=`md5sum /tmp/boot.img | awk '{ print \$1 }'`
 cp /tmp/boot.img /tmp/boot-${1}.img
 if [[ $1 == *exp* ]]; then
