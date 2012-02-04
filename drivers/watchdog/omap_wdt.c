@@ -283,6 +283,7 @@ static long omap_wdt_ioctl(struct file *file, unsigned int cmd,
 		if (cpu_is_omap24xx())
 			return put_user(omap_prcm_get_reset_sources(),
 					(int __user *)arg);
+		return put_user(0, (int __user *)arg);
 	case WDIOC_KEEPALIVE:
 		pm_runtime_get_sync(wdev->dev);
 		spin_lock(&wdt_lock);
@@ -420,6 +421,7 @@ static int __devinit omap_wdt_probe(struct platform_device *pdev)
 	return 0;
 
 err_misc:
+	pm_runtime_disable(wdev->dev);
 	platform_set_drvdata(pdev, NULL);
 
 	if (wdev->irq)
@@ -457,6 +459,7 @@ static int __devexit omap_wdt_remove(struct platform_device *pdev)
 	struct omap_wdt_dev *wdev = platform_get_drvdata(pdev);
 	struct resource *res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 
+	pm_runtime_disable(wdev->dev);
 	if (!res)
 		return -ENOENT;
 

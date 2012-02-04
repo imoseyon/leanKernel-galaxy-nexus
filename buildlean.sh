@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 sed -i s/CONFIG_LOCALVERSION=\".*\"/CONFIG_LOCALVERSION=\"-imoseyon-${1}\"/ .config
 
@@ -22,4 +22,15 @@ if [ ! $4 ]; then
 	zip -r $zipfile *
 	rm -f /tmp/*.zip
 	cp *.zip /tmp
+fi
+md5=`md5sum /tmp/boot.img | awk '{ print \$1 }'`
+cp /tmp/boot.img /tmp/boot-${1}.img
+if [[ $1 == *exp* ]]; then
+  if [[ $1 == *180* ]]; then
+    echo "http://imoseyon.host4droid.com/exp/boot-${1}.img $md5 ${1}" > /tmp/latest180
+  else 
+    echo "http://imoseyon.host4droid.com/exp/boot-${1}.img $md5 ${1}" > /tmp/latest230
+  fi
+else 
+    echo "http://imoseyon.host4droid.com/boot-${1}.img $md5 ${1}" > /tmp/latest
 fi

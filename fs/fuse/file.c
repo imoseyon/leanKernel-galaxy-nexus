@@ -1608,6 +1608,10 @@ static loff_t fuse_file_llseek(struct file *file, loff_t offset, int origin)
 		offset += i_size_read(inode);
 		break;
 	case SEEK_CUR:
+		if (offset == 0) {
+			retval = file->f_pos;
+			goto exit;
+		}
 		offset += file->f_pos;
 	}
 	retval = -EINVAL;
@@ -1831,7 +1835,7 @@ long fuse_do_ioctl(struct file *file, unsigned int cmd, unsigned long arg,
 	BUILD_BUG_ON(sizeof(struct fuse_ioctl_iovec) * FUSE_IOCTL_MAX_IOV > PAGE_SIZE);
 
 	err = -ENOMEM;
-	pages = kzalloc(sizeof(pages[0]) * FUSE_MAX_PAGES_PER_REQ, GFP_KERNEL);
+	pages = kcalloc(FUSE_MAX_PAGES_PER_REQ, sizeof(pages[0]), GFP_KERNEL);
 	iov_page = (struct iovec *) __get_free_page(GFP_KERNEL);
 	if (!pages || !iov_page)
 		goto out;

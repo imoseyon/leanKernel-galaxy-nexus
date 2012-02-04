@@ -109,7 +109,6 @@ xfs_inode_free_callback(
 	struct inode		*inode = container_of(head, struct inode, i_rcu);
 	struct xfs_inode	*ip = XFS_I(inode);
 
-	INIT_LIST_HEAD(&inode->i_dentry);
 	kmem_zone_free(xfs_inode_zone, ip);
 }
 
