@@ -18,6 +18,7 @@
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/sched.h>
+#include <linux/syscore_ops.h>
 
 #include <asm/sched_clock.h>
 
@@ -120,9 +121,40 @@ static DEFINE_CLOCK_DATA(cd);
 #define SC_MULT		4000000000u
 #define SC_SHIFT	17
 
+static u32 sched_clock_cyc_offset;
+static u32 sched_clock_cyc_suspend;
+static bool sched_clock_suspended;
+
+static int sched_clock_suspend(void)
+{
+	sched_clock_suspended = true;
+	sched_clock_cyc_suspend = clocksource_32k.read(&clocksource_32k) -
+			sched_clock_cyc_offset;
+
+	return 0;
+}
+
+static void sched_clock_resume(void)
+{
+	sched_clock_cyc_offset = clocksource_32k.read(&clocksource_32k) -
+			sched_clock_cyc_suspend;
+	sched_clock_suspended = false;
+}
+
+static struct syscore_ops sched_clock_syscore_ops = {
+	.suspend = sched_clock_suspend,
+	.resume = sched_clock_resume,
+};
+
 static inline unsigned long long notrace _omap_32k_sched_clock(void)
 {
-	u32 cyc = clocksource_32k.read(&clocksource_32k);
+	u32 cyc;
+	if (!sched_clock_suspended)
+		cyc = clocksource_32k.read(&clocksource_32k) -
+				sched_clock_cyc_offset;
+	else
+		cyc = sched_clock_cyc_suspend;
+
 	return cyc_to_fixed_sched_clock(&cd, cyc, (u32)~0, SC_MULT, SC_SHIFT);
 }
 
@@ -140,7 +172,8 @@ unsigned long long notrace omap_32k_sched_clock(void)
 
 static void notrace omap_update_sched_clock(void)
 {
-	u32 cyc = clocksource_32k.read(&clocksource_32k);
+	u32 cyc = clocksource_32k.read(&clocksource_32k) -
+			sched_clock_cyc_offset;
 	update_sched_clock(&cd, cyc, (u32)~0);
 }
 
@@ -207,6 +240,8 @@ int __init omap_init_clocksource_32k(void)
 
 		init_fixed_sched_clock(&cd, omap_update_sched_clock, 32,
 				       32768, SC_MULT, SC_SHIFT);
+
+		register_syscore_ops(&sched_clock_syscore_ops);
 	}
 	return 0;
 }
