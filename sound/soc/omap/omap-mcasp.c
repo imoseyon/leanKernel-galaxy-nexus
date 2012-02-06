@@ -289,20 +289,12 @@ static int mcasp_compute_clock_dividers(long fclk_rate, int tgt_sample_rate,
 	BUG_ON(!out_div_lo);
 	BUG_ON(!out_div_hi);
 
-	/* Start by making sure the fclk is divisible by 128 (the number of
-	 * clocks present in a single S/PDIF frame.
-	 */
-	if (fclk_rate & 0x7F)
-		return -EINVAL;
-
-	fclk_rate >>= 7;
-
-	/* rounded division: fclk_rate / tgt_sample_rate + 0.5 */
-	divisor = (2 * fclk_rate + tgt_sample_rate) / (2 * tgt_sample_rate);
+	/* A single S/PDIF frame requires 128 clocks */
+	divisor = DIV_ROUND_CLOSEST(fclk_rate, tgt_sample_rate << 7);
 	if (!divisor)
 		return -EINVAL;
 
-	sample_rate = fclk_rate / divisor;
+	sample_rate = (fclk_rate >> 7) / divisor;
 
 	/* ppm calculation in two steps to avoid overflow */
 	ppm = abs(tgt_sample_rate - sample_rate);
