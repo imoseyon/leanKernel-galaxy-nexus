@@ -49,6 +49,18 @@ config FS_POSIX_ACL
 config EXPORTFS
 	tristate
 
+config FILE_SYNC_DISABLE
+	bool "Disable single file sync (EXPERIMENTAL)"
+	depends on EXPERIMENTAL
+	default n
+	help
+	  This option disables per-file sync. Filesystem buffers will be
+	  flushed all at once by the kernel or by calling the sync() syscall.
+
+	  WARNING: enabling this option may cause loss of data!!!
+
+	  Answer N if unsure.
+
 config FILE_LOCKING
 	bool "Enable POSIX file locking API" if EXPERT
 	default y
