@@ -523,11 +523,11 @@ int hsi_do_cawake_process(struct hsi_port *pport)
 		spin_lock(&hsi_ctrl->lock);
 
 		/*
-		 * HSI - OMAP4430-2.2BUG00055:
-		 * HSI: DSP Swakeup generated is the same than MPU Swakeup.
-		 * System can’t enter in off mode due to the DSP.
-		 */
-		if (IS_HSI_PM44XX_ERRATUM(OMAP4_PM_ERRATUM_HSI_SWAKEUP_iXXX))
+		* HSI - OMAP4430-2.2BUG00055: i702
+		* HSI: DSP Swakeup generated is the same than MPU Swakeup.
+		* System cannot enter in off mode due to the DSP.
+		*/
+		if (is_hsi_errata(hsi_ctrl, HSI_ERRATUM_i702_PM_HSI_SWAKEUP))
 			omap_pm_clear_dsp_wake_up();
 
 	} else {
