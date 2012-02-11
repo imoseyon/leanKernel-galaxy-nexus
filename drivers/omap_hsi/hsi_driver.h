@@ -252,7 +252,9 @@ bool hsi_is_hsi_port_busy(struct hsi_port *pport);
 bool hsi_is_hsi_controller_busy(struct hsi_dev *hsi_ctrl);
 bool hsi_is_hst_port_busy(struct hsi_port *pport);
 bool hsi_is_hst_controller_busy(struct hsi_dev *hsi_ctrl);
-
+void hsi_driver_ack_interrupt(struct hsi_port *pport, u32 flag, bool backup);
+bool hsi_driver_is_interrupt_pending(struct hsi_port *pport, u32 flag,
+					bool backup);
 int hsi_driver_enable_interrupt(struct hsi_port *pport, u32 flag);
 int hsi_driver_disable_interrupt(struct hsi_port *pport, u32 flag);
 int hsi_driver_enable_read_interrupt(struct hsi_channel *hsi_channel,
