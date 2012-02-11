@@ -711,9 +711,10 @@ static u32 hsi_process_int_event(struct hsi_port *pport)
 
 	/* If another CAWAKE interrupt occured while previous is still being
 	 * processed, mark it for extra processing */
-	if (hsi_driver_is_interrupt_pending(pport, HSI_CAWAKEDETECTED, true)) {
+	if (hsi_driver_is_interrupt_pending(pport, HSI_CAWAKEDETECTED, true) &&
+		(status_reg & HSI_CAWAKEDETECTED)) {
 		dev_warn(pport->hsi_controller->dev, "New CAWAKE interrupt "
-			 "detected during interrupt procesing\n");
+			 "detected during interrupt processing\n");
 		/* Force processing of backup CAWAKE interrupt */
 		cawake_double_int = true;
 	}
