@@ -37,10 +37,12 @@ case $option in
 	;;
 esac
 
+[ ! -s "/sdcard/lk" ] && exit
 MD5=`$BB awk '{ print \$2 }' /sdcard/lk`
 VER=`$BB awk '{ print \$3 }' /sdcard/lk`
 echo "v$VER. Please wait..."
 $BB wget -q -O /sdcard/lkboot.img `$BB awk '{ print \$1 }' /sdcard/lk`
+[ ! -s "/sdcard/lkboot.img" ] && exit
 SUM=`$BB md5sum /sdcard/lkboot.img | $BB awk '{ print \$1 }'`
 echo
 if [ "$MD5" == "$SUM" ]; then
