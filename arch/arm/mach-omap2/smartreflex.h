@@ -286,9 +286,4 @@ static inline bool is_sr_enabled(struct voltagedomain *voltdm)
 }
 #endif
 
-#ifdef CONFIG_OMAP_SMARTREFLEX_CLASS1P5
-extern void sr_class1p5_margin_set(unsigned int margin);
-#else
-static inline void sr_class1p5_margin_set(unsigned int margin) { }
-#endif
 #endif
