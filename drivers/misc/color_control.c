@@ -11,26 +11,63 @@
 #include <linux/device.h>
 #include <linux/miscdevice.h>
 
-#define COLORCONTROL_VERSION 1
+#define COLORCONTROL_VERSION 2
 
-extern void colorcontrol_update(int * v1_offsets);
+extern void colorcontrol_update(bool multiplier_updated);
 
-static int v1_offsets[] = {0, 0, 0};
+static int * v1_offset;
 
-static ssize_t colorcontrol_v1offsets_read(struct device * dev, struct device_attribute * attr, char * buf)
+static u32 * color_multiplier;
+
+void colorcontrol_register_offset(int * offset)
 {
-    return sprintf(buf, "%i %i %i\n", v1_offsets[0], v1_offsets[1], v1_offsets[2]);
+    v1_offset = offset;
+
+    return;
+}
+EXPORT_SYMBOL(colorcontrol_register_offset);
+
+void colorcontrol_register_multiplier(u32 * multiplier)
+{
+    color_multiplier = multiplier;
+
+    return;
+}
+EXPORT_SYMBOL(colorcontrol_register_multiplier);
+
+static ssize_t colorcontrol_offset_read(struct device * dev, struct device_attribute * attr, char * buf)
+{
+    return sprintf(buf, "%i %i %i\n", v1_offset[0], v1_offset[1], v1_offset[2]);
 }
 
-static ssize_t colorcontrol_v1offsets_write(struct device * dev, struct device_attribute * attr, const char * buf, size_t size)
+static ssize_t colorcontrol_offset_write(struct device * dev, struct device_attribute * attr, const char * buf, size_t size)
 {
-    unsigned int data;
-
-    if(sscanf(buf, "%i %i %i\n", &v1_offsets[0], &v1_offsets[1], &v1_offsets[2]) == 3) 
+    if(sscanf(buf, "%i %i %i\n", &v1_offset[0], &v1_offset[1], &v1_offset[2]) == 3) 
 	{
 	    pr_info("COLORCONTROL V1 offsets changed\n");
 
-	    colorcontrol_update(v1_offsets);
+	    colorcontrol_update(false);
+	} 
+    else 
+	{
+	    pr_info("%s: invalid input\n", __FUNCTION__);
+	}
+
+    return size;
+}
+
+static ssize_t colorcontrol_multiplier_read(struct device * dev, struct device_attribute * attr, char * buf)
+{
+    return sprintf(buf, "%u %u %u\n", color_multiplier[0], color_multiplier[1], color_multiplier[2]);
+}
+
+static ssize_t colorcontrol_multiplier_write(struct device * dev, struct device_attribute * attr, const char * buf, size_t size)
+{
+    if(sscanf(buf, "%u %u %u\n", &color_multiplier[0], &color_multiplier[1], &color_multiplier[2]) == 3) 
+	{
+	    pr_info("COLORCONTROL color multipliers changed\n");
+
+	    colorcontrol_update(true);
 	} 
     else 
 	{
@@ -45,12 +82,14 @@ static ssize_t colorcontrol_version(struct device * dev, struct device_attribute
     return sprintf(buf, "%u\n", COLORCONTROL_VERSION);
 }
 
-static DEVICE_ATTR(v1_offsets, S_IRUGO | S_IWUGO, colorcontrol_v1offsets_read, colorcontrol_v1offsets_write);
+static DEVICE_ATTR(v1_offset, S_IRUGO | S_IWUGO, colorcontrol_offset_read, colorcontrol_offset_write);
+static DEVICE_ATTR(multiplier, S_IRUGO | S_IWUGO, colorcontrol_multiplier_read, colorcontrol_multiplier_write);
 static DEVICE_ATTR(version, S_IRUGO , colorcontrol_version, NULL);
 
 static struct attribute *colorcontrol_attributes[] = 
     {
-	&dev_attr_v1_offsets.attr,
+	&dev_attr_v1_offset.attr,
+	&dev_attr_multiplier.attr,
 	&dev_attr_version.attr,
 	NULL
     };
