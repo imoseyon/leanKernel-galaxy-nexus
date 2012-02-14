@@ -561,7 +561,7 @@ static inline u8 get_achievable_state(u8 available_states, u8 req_min_state,
 }
 
 /**
- * omap4_configure_pwdm_suspend() - Program powerdomain on suspend
+ * omap4_configure_pwrst() - Program powerdomain to their supported state
  * @is_off_mode: is this an OFF mode transition?
  *
  * Program all powerdomain to required power domain state: This logic
@@ -570,7 +570,7 @@ static inline u8 get_achievable_state(u8 available_states, u8 req_min_state,
  * each domain to the state requested. if the requested state is not
  * available, it will check for the higher state.
  */
-static void omap4_configure_pwdm_suspend(bool is_off_mode)
+static void omap4_configure_pwrst(bool is_off_mode)
 {
 	struct power_state *pwrst;
 	u32 state;
@@ -711,7 +711,7 @@ static int omap4_pm_suspend(void)
 		omap2_pm_wakeup_on_timer(wakeup_timer_seconds,
 					 wakeup_timer_milliseconds);
 
-	omap4_configure_pwdm_suspend(off_mode_enabled);
+	omap4_configure_pwrst(off_mode_enabled);
 
 	/* Enable Device OFF */
 	if (off_mode_enabled)
@@ -850,7 +850,7 @@ static int __init pwrdms_setup(struct powerdomain *pwrdm, void *unused)
 			(!strcmp(pwrdm->name, "cpu1_pwrdm")))
 		pwrst->next_state = PWRDM_POWER_ON;
 	else
-		pwrst->next_state = PWRDM_POWER_RET;
+		omap4_configure_pwrst(off_mode_enabled);
 	list_add(&pwrst->node, &pwrst_list);
 
 	return omap_set_pwrdm_state(pwrst->pwrdm, pwrst->next_state);
