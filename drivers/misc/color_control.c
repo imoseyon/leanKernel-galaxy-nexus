@@ -19,6 +19,8 @@ static int * v1_offset;
 
 static u32 * color_multiplier;
 
+static u32 original_multiplier[3];
+
 void colorcontrol_register_offset(int * offset)
 {
     v1_offset = offset;
@@ -29,7 +31,12 @@ EXPORT_SYMBOL(colorcontrol_register_offset);
 
 void colorcontrol_register_multiplier(u32 * multiplier)
 {
+    int i;
+
     color_multiplier = multiplier;
+
+    for (i = 0; i < 3; i++)
+	original_multiplier[i] = color_multiplier[i];
 
     return;
 }
@@ -42,8 +49,14 @@ static ssize_t colorcontrol_offset_read(struct device * dev, struct device_attri
 
 static ssize_t colorcontrol_offset_write(struct device * dev, struct device_attribute * attr, const char * buf, size_t size)
 {
-    if(sscanf(buf, "%i %i %i\n", &v1_offset[0], &v1_offset[1], &v1_offset[2]) == 3) 
+    int i;
+    int new_offset[3];
+
+    if(sscanf(buf, "%i %i %i\n", &new_offset[0], &new_offset[1], &new_offset[2]) == 3) 
 	{
+	    for (i = 0; i < 3; i++)
+		v1_offset[i] = new_offset[i];
+
 	    pr_info("COLORCONTROL V1 offsets changed\n");
 
 	    colorcontrol_update(false);
@@ -63,8 +76,15 @@ static ssize_t colorcontrol_multiplier_read(struct device * dev, struct device_a
 
 static ssize_t colorcontrol_multiplier_write(struct device * dev, struct device_attribute * attr, const char * buf, size_t size)
 {
-    if(sscanf(buf, "%u %u %u\n", &color_multiplier[0], &color_multiplier[1], &color_multiplier[2]) == 3) 
+    int i;
+
+    u32 new_multiplier[3];
+
+    if(sscanf(buf, "%u %u %u\n", &new_multiplier[0], &new_multiplier[1], &new_multiplier[2]) == 3) 
 	{
+	    for (i = 0; i < 3; i++)
+		color_multiplier[i] = min(new_multiplier[i], original_multiplier[i]);
+
 	    pr_info("COLORCONTROL color multipliers changed\n");
 
 	    colorcontrol_update(true);
