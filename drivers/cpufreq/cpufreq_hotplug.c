@@ -13,6 +13,8 @@
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
+ *
+ * Modified for early suspend support and tweaks by imoseyon (imoseyon@gmail.com)
  */
 
 #include <linux/kernel.h>
@@ -29,6 +31,12 @@
 #include <linux/sched.h>
 #include <linux/err.h>
 #include <linux/slab.h>
+#include <linux/earlysuspend.h>
+
+// used for suspend code
+static unsigned int susp_enabled = 0;
+static unsigned int suspended = 0;
+static unsigned int suspend_cpu_up = 95;
 
 /* greater than 80% avg load across online CPUs increases frequency */
 #define DEFAULT_UP_FREQ_MIN_LOAD			(80)
@@ -56,7 +64,7 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 static
 #endif
 struct cpufreq_governor cpufreq_gov_hotplug = {
-       .name                   = "hotplug",
+       .name                   = "hotplugx",
        .governor               = cpufreq_governor_dbs,
        .owner                  = THIS_MODULE,
 };
@@ -511,7 +519,9 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		dbs_tuners_ins.hotplug_load_index = 0;
 
 	/* check if auxiliary CPU is needed based on avg_load */
-	if (avg_load > dbs_tuners_ins.up_threshold) {
+	/* imoseyon - support cpu_up even if suspended if load is super high */
+	if (!suspended || (suspended && avg_load > suspend_cpu_up))
+	  if (avg_load > dbs_tuners_ins.up_threshold) {
 		/* should we enable auxillary CPUs? */
 		if (num_online_cpus() < 2 && hotplug_in_avg_load >
 				dbs_tuners_ins.up_threshold) {
@@ -604,6 +614,33 @@ static inline void dbs_timer_exit(struct cpu_dbs_info_s *dbs_info)
 	cancel_delayed_work_sync(&dbs_info->work);
 }
 
+static void hotplug_suspend(int suspend)
+{
+	if (!susp_enabled) return;
+        if (!suspend) {
+		suspended = 0;
+		if (num_online_cpus() < 2) cpu_up(1);
+		pr_info("[imoseyon] hotplugx awake cpu1 up\n");
+	} else {
+		suspended = 1;
+                if (num_online_cpus() > 1) cpu_down(1);
+		pr_info("[imoseyon] hotplugx suspended cpu1 down\n");
+	}
+}
+static void hotplug_early_suspend(struct early_suspend *handler) {
+     hotplug_suspend(1);
+}
+
+static void hotplug_late_resume(struct early_suspend *handler) {
+     hotplug_suspend(0);
+}
+
+static struct early_suspend hotplug_power_suspend = {
+        .suspend = hotplug_early_suspend,
+        .resume = hotplug_late_resume,
+        .level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 1,
+};
+
 static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 				   unsigned int event)
 {
@@ -663,6 +700,9 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 
 		mutex_init(&this_dbs_info->timer_mutex);
 		dbs_timer_init(this_dbs_info);
+		susp_enabled = 1;
+                register_early_suspend(&hotplug_power_suspend);
+                pr_info("[imoseyon] hotplugx start\n");
 		break;
 
 	case CPUFREQ_GOV_STOP:
@@ -681,6 +721,9 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		 * will result in it remaining offline until the user onlines
 		 * it again.  It is up to the user to do this (for now).
 		 */
+	        susp_enabled = 0;
+                unregister_early_suspend(&hotplug_power_suspend);
+                pr_info("[imoseyon] hotplugx inactive\n");
 		break;
 
 	case CPUFREQ_GOV_LIMITS:

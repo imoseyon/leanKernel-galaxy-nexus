@@ -561,7 +561,7 @@ static inline u8 get_achievable_state(u8 available_states, u8 req_min_state,
 }
 
 /**
- * omap4_configure_pwdm_suspend() - Program powerdomain on suspend
+ * omap4_configure_pwrst() - Program powerdomain to their supported state
  * @is_off_mode: is this an OFF mode transition?
  *
  * Program all powerdomain to required power domain state: This logic
@@ -570,7 +570,7 @@ static inline u8 get_achievable_state(u8 available_states, u8 req_min_state,
  * each domain to the state requested. if the requested state is not
  * available, it will check for the higher state.
  */
-static void omap4_configure_pwdm_suspend(bool is_off_mode)
+static void omap4_configure_pwrst(bool is_off_mode)
 {
 	struct power_state *pwrst;
 	u32 state;
@@ -711,7 +711,7 @@ static int omap4_pm_suspend(void)
 		omap2_pm_wakeup_on_timer(wakeup_timer_seconds,
 					 wakeup_timer_milliseconds);
 
-	omap4_configure_pwdm_suspend(off_mode_enabled);
+	omap4_configure_pwrst(off_mode_enabled);
 
 	/* Enable Device OFF */
 	if (off_mode_enabled)
@@ -850,7 +850,7 @@ static int __init pwrdms_setup(struct powerdomain *pwrdm, void *unused)
 			(!strcmp(pwrdm->name, "cpu1_pwrdm")))
 		pwrst->next_state = PWRDM_POWER_ON;
 	else
-		pwrst->next_state = PWRDM_POWER_RET;
+		omap4_configure_pwrst(off_mode_enabled);
 	list_add(&pwrst->node, &pwrst_list);
 
 	return omap_set_pwrdm_state(pwrst->pwrdm, pwrst->next_state);
@@ -1253,6 +1253,8 @@ static void __init omap4_pm_setup_errata(void)
 static int __init omap4_pm_init(void)
 {
 	int ret = 0;
+	int ret2 = 0;
+	struct device *iva_dev, *dsp_dev;
 	struct clockdomain *l3_1_clkdm;
 	struct clockdomain *ducati_clkdm, *l3_2_clkdm, *l4_per, *l4_cfg;
 
@@ -1418,6 +1420,14 @@ static int __init omap4_pm_init(void)
 	omap_pm_is_ready_status = true;
 	/* let the other CPU know as well */
 	smp_wmb();
+
+        // imoseyon hack to unstuck dsp and iva freq
+//        dsp_dev = omap4_get_dsp_device();
+        iva_dev = omap2_get_iva_device();
+//        ret2 = omap_device_scale(dsp_dev, dsp_dev, 0);
+//        pr_info("[imoseyon] return code from dsp scale: %d\n", ret2);
+        ret2 = omap_device_scale(iva_dev, iva_dev, 0);
+        pr_info("[imoseyon] return code from iva scale: %d\n", ret2);
 
 err2:
 	return ret;

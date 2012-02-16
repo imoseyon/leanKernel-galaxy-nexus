@@ -385,6 +385,28 @@ static int calib_volt_debug_get(void *data, u64 *val)
 }
 DEFINE_SIMPLE_ATTRIBUTE(calib_volt_debug_fops, calib_volt_debug_get, NULL,
 								"%llu\n");
+static int margin_volt_debug_get(void *data, u64 *val)
+{
+	struct voltagedomain *voltdm = (struct voltagedomain *) data;
+	struct omap_volt_data *vdata;
+
+	if (!voltdm) {
+		pr_warning("Wrong paramater passed\n");
+		return -EINVAL;
+	}
+
+	vdata = omap_voltage_get_curr_vdata(voltdm);
+	if (IS_ERR_OR_NULL(vdata)) {
+		pr_warning("%s: unable to get volt for vdd_%s\n",
+			   __func__, voltdm->name);
+		return -ENODEV;
+	}
+	*val = vdata->volt_margin;
+
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(margin_volt_debug_fops, margin_volt_debug_get, NULL,
+								"%llu\n");
 
 static int nom_volt_debug_get(void *data, u64 *val)
 {
@@ -441,6 +463,9 @@ static void __init voltdm_debugfs_init(struct dentry *voltage_dir,
 	(void) debugfs_create_file("curr_calibrated_volt", S_IRUGO,
 				voltdm->debug_dir, (void *) voltdm,
 				&calib_volt_debug_fops);
+	(void) debugfs_create_file("curr_margin_volt", S_IRUGO,
+				voltdm->debug_dir, (void *) voltdm,
+				&margin_volt_debug_fops);
 }
 
 /**
