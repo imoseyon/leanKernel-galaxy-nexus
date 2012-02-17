@@ -11,9 +11,11 @@
 #include <linux/device.h>
 #include <linux/miscdevice.h>
 
-#define COLORCONTROL_VERSION 2
+#define COLORCONTROL_VERSION 3
 
 extern void colorcontrol_update(bool multiplier_updated);
+
+static bool safety_enabled = true;
 
 static int * v1_offset;
 
@@ -83,11 +85,71 @@ static ssize_t colorcontrol_multiplier_write(struct device * dev, struct device_
     if(sscanf(buf, "%u %u %u\n", &new_multiplier[0], &new_multiplier[1], &new_multiplier[2]) == 3) 
 	{
 	    for (i = 0; i < 3; i++)
-		color_multiplier[i] = min(new_multiplier[i], original_multiplier[i]);
+		{
+		    if (safety_enabled)
+			color_multiplier[i] = min(new_multiplier[i], original_multiplier[i]);
+		    else
+			color_multiplier[i] = new_multiplier[i];
+		}
 
 	    pr_info("COLORCONTROL color multipliers changed\n");
 
 	    colorcontrol_update(true);
+	} 
+    else 
+	{
+	    pr_info("%s: invalid input\n", __FUNCTION__);
+	}
+
+    return size;
+}
+
+static ssize_t colorcontrol_safety_read(struct device * dev, struct device_attribute * attr, char * buf)
+{
+    return sprintf(buf, "%u\n", (safety_enabled ? 1 : 0));
+}
+
+static ssize_t colorcontrol_safety_write(struct device * dev, struct device_attribute * attr, const char * buf, size_t size)
+{
+    unsigned int data;
+
+    int i;
+
+    bool multipliers_modified = false;
+
+    if(sscanf(buf, "%u\n", &data) == 1) 
+	{
+	    pr_devel("%s: %u \n", __FUNCTION__, data);
+	    
+	    if (data == 1) 
+		{
+		    pr_info("%s: COLORCONTROL safety enabled\n", __FUNCTION__);
+
+		    safety_enabled = true;
+
+		    for (i = 0; i < 3; i++)
+			{
+			    if (color_multiplier[i] > original_multiplier[i])
+				{
+				    color_multiplier[i] = original_multiplier[i];
+
+				    multipliers_modified = true;
+				}
+			}
+
+		    if (multipliers_modified)
+			colorcontrol_update(true);
+		} 
+	    else if (data == 0) 
+		{
+		    pr_info("%s: COLORCONTROL safety disabled\n", __FUNCTION__);
+
+		    safety_enabled = false;
+		} 
+	    else 
+		{
+		    pr_info("%s: invalid input range %u\n", __FUNCTION__, data);
+		}
 	} 
     else 
 	{
@@ -104,12 +166,14 @@ static ssize_t colorcontrol_version(struct device * dev, struct device_attribute
 
 static DEVICE_ATTR(v1_offset, S_IRUGO | S_IWUGO, colorcontrol_offset_read, colorcontrol_offset_write);
 static DEVICE_ATTR(multiplier, S_IRUGO | S_IWUGO, colorcontrol_multiplier_read, colorcontrol_multiplier_write);
+static DEVICE_ATTR(safety_enabled, S_IRUGO | S_IWUGO, colorcontrol_safety_read, colorcontrol_safety_write);
 static DEVICE_ATTR(version, S_IRUGO , colorcontrol_version, NULL);
 
 static struct attribute *colorcontrol_attributes[] = 
     {
 	&dev_attr_v1_offset.attr,
 	&dev_attr_multiplier.attr,
+	&dev_attr_safety_enabled.attr,
 	&dev_attr_version.attr,
 	NULL
     };
