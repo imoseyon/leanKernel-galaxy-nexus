@@ -40,6 +40,12 @@ esac
 [ ! -s "/sdcard/lk" ] && exit
 MD5=`$BB awk '{ print \$2 }' /sdcard/lk`
 VER=`$BB awk '{ print \$3 }' /sdcard/lk`
+CUR=`$BB uname -a | $BB awk -F'-' '{ print \$3 }'`
+if [ "$CUR" == "$VER" ]; then
+  echo
+  echo "Aborted. You're already running $CUR."
+  exit
+fi
 echo "v$VER. Please wait..."
 $BB wget -q -O /sdcard/lkboot.img `$BB awk '{ print \$1 }' /sdcard/lk`
 [ ! -s "/sdcard/lkboot.img" ] && exit
