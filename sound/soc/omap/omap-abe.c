@@ -69,13 +69,11 @@ static struct omap_pcm_dma_data omap_abe_dai_dma_params[7][2] = {
 	{
 		.name = "Media Playback",
 		.dma_req = OMAP44XX_DMA_ABE_REQ_0,
-		.data_type = OMAP_DMA_DATA_TYPE_S32,
 		.sync_mode = OMAP_DMA_SYNC_PACKET,
 	},
 	{
 		.name = "Media Capture1",
 		.dma_req = OMAP44XX_DMA_ABE_REQ_3,
-		.data_type = OMAP_DMA_DATA_TYPE_S32,
 		.sync_mode = OMAP_DMA_SYNC_PACKET,
 	},
 },
@@ -84,7 +82,6 @@ static struct omap_pcm_dma_data omap_abe_dai_dma_params[7][2] = {
 	{
 		.name = "Media Capture2",
 		.dma_req = OMAP44XX_DMA_ABE_REQ_4,
-		.data_type = OMAP_DMA_DATA_TYPE_S32,
 		.sync_mode = OMAP_DMA_SYNC_PACKET,
 	},
 },
@@ -92,13 +89,11 @@ static struct omap_pcm_dma_data omap_abe_dai_dma_params[7][2] = {
 	{
 		.name = "Voice Playback",
 		.dma_req = OMAP44XX_DMA_ABE_REQ_1,
-		.data_type = OMAP_DMA_DATA_TYPE_S32,
 		.sync_mode = OMAP_DMA_SYNC_PACKET,
 	},
 	{
 		.name = "Voice Capture",
 		.dma_req = OMAP44XX_DMA_ABE_REQ_2,
-		.data_type = OMAP_DMA_DATA_TYPE_S32,
 		.sync_mode = OMAP_DMA_SYNC_PACKET,
 	},
 },
@@ -106,7 +101,6 @@ static struct omap_pcm_dma_data omap_abe_dai_dma_params[7][2] = {
 	{
 		.name = "Tones Playback",
 		.dma_req = OMAP44XX_DMA_ABE_REQ_5,
-		.data_type = OMAP_DMA_DATA_TYPE_S32,
 		.sync_mode = OMAP_DMA_SYNC_PACKET,
 	},{},
 },
@@ -114,7 +108,6 @@ static struct omap_pcm_dma_data omap_abe_dai_dma_params[7][2] = {
 	{
 		.name = "Vibra Playback",
 		.dma_req = OMAP44XX_DMA_ABE_REQ_6,
-		.data_type = OMAP_DMA_DATA_TYPE_S32,
 		.sync_mode = OMAP_DMA_SYNC_PACKET,
 	},{},
 },
@@ -122,13 +115,11 @@ static struct omap_pcm_dma_data omap_abe_dai_dma_params[7][2] = {
 	{
 		.name = "MODEM Playback",
 		.dma_req = OMAP44XX_DMA_ABE_REQ_1,
-		.data_type = OMAP_DMA_DATA_TYPE_S32,
 		.sync_mode = OMAP_DMA_SYNC_PACKET,
 	},
 	{
 		.name = "MODEM Capture",
 		.dma_req = OMAP44XX_DMA_ABE_REQ_2,
-		.data_type = OMAP_DMA_DATA_TYPE_S32,
 		.sync_mode = OMAP_DMA_SYNC_PACKET,
 	},
 },
@@ -136,7 +127,6 @@ static struct omap_pcm_dma_data omap_abe_dai_dma_params[7][2] = {
 	{
 		.name = "Low Power Playback",
 		.dma_req = OMAP44XX_DMA_ABE_REQ_0,
-		.data_type = OMAP_DMA_DATA_TYPE_S32,
 		.sync_mode = OMAP_DMA_SYNC_PACKET,
 	},{},
 },};
@@ -1022,6 +1012,7 @@ static int omap_abe_dai_hw_params(struct snd_pcm_substream *substream,
 	abe_data_format_t format;
 	abe_dma_t dma_sink;
 	abe_dma_t dma_params;
+	int data_type = OMAP_DMA_DATA_TYPE_S32;
 	int ret;
 
 	dev_dbg(dai->dev, "%s: %s\n", __func__, dai->name);
@@ -1032,7 +1023,7 @@ static int omap_abe_dai_hw_params(struct snd_pcm_substream *substream,
 	case 1:
 		if (params_format(params) == SNDRV_PCM_FORMAT_S16_LE) {
 			format.samp_format = MONO_RSHIFTED_16;
-			dma_data->data_type = OMAP_DMA_DATA_TYPE_S16;
+			data_type = OMAP_DMA_DATA_TYPE_S16;
 		} else {
 			format.samp_format = MONO_MSB;
 		}
@@ -1141,6 +1132,7 @@ static int omap_abe_dai_hw_params(struct snd_pcm_substream *substream,
 	/* configure frontend SDMA data */
 	dma_data->port_addr = (unsigned long)dma_params.data;
 	dma_data->packet_size = dma_params.iter;
+	dma_data->data_type = data_type;
 
 	if (dai->id == ABE_FRONTEND_DAI_MODEM) {
 		/* call hw_params on McBSP with correct DMA data */
