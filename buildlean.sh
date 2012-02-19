@@ -9,6 +9,8 @@ sed -i s/CONFIG_LOCALVERSION=\".*\"/CONFIG_LOCALVERSION=\"\"/ .config
 cp .config arch/arm/configs/tuna_defconfig
 
 cd mkboot
+chmod 744 boot.img-ramdisk/sbin/lkflash
+chmod 744 boot.img-ramdisk/sbin/checkv
 echo "making boot image"
 ./img.sh
 
