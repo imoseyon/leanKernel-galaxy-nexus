@@ -1,0 +1,39 @@
+#!/sbin/busybox ash
+# checkv - check nominal and calibrated voltage for each freq
+# 	 - also slightly stress each freq to accelerate calibration
+#
+# author - imoseyon@gmail.com
+#
+
+bb="/sbin/busybox"
+echo "leanKernel Voltage Checker"
+echo "--------------------------"
+echo "Nominal Voltage - This is the voltage we choose as the starting point."
+echo "Calibrated Voltage - Best voltage chosen by SmartReflex."
+echo
+echo "Make sure that your screen is turned on..."
+echo
+
+sdir="/sys/devices/system/cpu/cpu0/cpufreq"
+minf="${sdir}/scaling_min_freq"
+maxf="${sdir}/scaling_max_freq"
+nvoltage="/sys/kernel/debug/voltage/vdd_mpu/curr_nominal_volt"
+cvoltage="/sys/kernel/debug/voltage/vdd_mpu/curr_calibrated_volt"
+
+allfreqs=`cat ${sdir}/scaling_available_frequencies`
+curmin=`cat $minf`
+curmax=`cat $maxf`
+
+for i in $allfreqs; do
+  [ $i -lt $curmin ] && continue
+  [ $i -gt $curmax ] && break
+  $bb echo "$i" > $maxf
+  $bb echo "$i" > $minf
+  $bb dd if=/dev/zero of=/dev/null bs=1k count=300000 2> /dev/null
+  ncurvolt=`cat $nvoltage`
+  ccurvolt=`cat $cvoltage`
+  $bb echo "$i: nominal $ncurvolt, calibrated $ccurvolt"  
+done
+
+echo $curmin > $minf
+echo $curmax > $maxf
