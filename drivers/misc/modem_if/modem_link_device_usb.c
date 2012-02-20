@@ -706,7 +706,7 @@ static irqreturn_t usb_resume_irq(int irq, void *data)
 	val = gpio_get_value(usb_ld->pdata->gpio_host_wakeup);
 	irq_set_irq_type(irq, val ? IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH);
 	dev = &usb_ld->usbdev->dev;
-	wake_lock_timeout(&usb_ld->gpiolock, 100);
+	wake_lock_timeout(&usb_ld->gpiolock, HZ / 2);
 
 	pr_debug("< H-WUP %d\n", val);
 
