@@ -8,6 +8,9 @@ STABLE="http://imoseyon.host4droid.com/latest"
 EXP180="http://imoseyon.host4droid.com/exp/latest180"
 EXP230="http://imoseyon.host4droid.com/exp/latest230"
 
+CUR=`$BB uname -a | $BB awk -F'-' '{ print \$3 }'`
+
+while [ 1 ]; do
 echo
 echo "leanKernel flasher"
 echo "------------------"
@@ -15,36 +18,48 @@ echo "------------------"
 echo "1) latest stable (recommended)"
 echo "2) latest experimental 180mhz" 
 echo "3) latest experimental 230mhz" 
+echo "4) check/display versions" 
 
 echo
 echo "FLASH AT YOUR OWN RISK. I'm not responsible for my mistakes or yours. ;)"
 echo
-echo -n "Please enter a number between 1 and 3 (or press enter to exit): "
+echo -n "Please enter a number between 1 and 4 (or press enter to exit): "
 
 read option
 case $option in
   1)
 	$BB wget -q -O /sdcard/lk $STABLE
 	echo; echo -n "Downloading stable "
+	break
 	;;
   2) 
 	$BB wget -q -O /sdcard/lk $EXP180
 	echo; echo -n "Downloading experimental 180mhz "
+	break
 	;;
   3) 
 	$BB wget -q -O /sdcard/lk $EXP230
 	echo; echo -n "Downloading experimental 230mhz "
+	break
+	;;
+  4) 
+  	echo "Please wait..."
+	vstable=`$BB wget -q -O - $STABLE | $BB awk '{ print \$3 }'`
+	v180=`$BB wget -q -O - $EXP180 | $BB awk '{ print \$3 }'`
+	v230=`$BB wget -q -O - $EXP230 | $BB awk '{ print \$3 }'`
+	echo; echo ">>> Current version: $CUR, Latest stable: $vstable, Exp: $v180 $v230"	
+	sleep 2
 	;;
   *)
 	echo "BYE"
 	exit
 	;;
 esac
+done
 
 [ ! -s "/sdcard/lk" ] && exit
 MD5=`$BB awk '{ print \$2 }' /sdcard/lk`
 VER=`$BB awk '{ print \$3 }' /sdcard/lk`
-CUR=`$BB uname -a | $BB awk -F'-' '{ print \$3 }'`
 if [ "$CUR" == "$VER" ]; then
   echo
   echo "Aborted. You're already running $CUR."
