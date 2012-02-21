@@ -330,7 +330,6 @@ static int rx_submit (struct usbnet *dev, struct urb *urb, gfp_t flags)
 		usb_free_urb (urb);
 		return -ENOMEM;
 	}
-	skb_reserve (skb, NET_IP_ALIGN);
 
 	entry = (struct skb_data *) skb->cb;
 	entry->urb = urb;
@@ -386,6 +385,12 @@ static int rx_submit (struct usbnet *dev, struct urb *urb, gfp_t flags)
 
 static inline void rx_process (struct usbnet *dev, struct sk_buff *skb)
 {
+	if ((((unsigned long) skb->data) & 0x3) != NET_IP_ALIGN) {
+		/* we allocated this skb, therefore we have enough tailroom */
+		memmove(skb->data+NET_IP_ALIGN, skb->data, skb->len);
+		skb_reserve(skb, NET_IP_ALIGN);
+	}
+
 	if (dev->driver_info->rx_fixup &&
 	    !dev->driver_info->rx_fixup (dev, skb)) {
 		/* With RX_ASSEMBLE, rx_fixup() must update counters */
@@ -1077,6 +1082,28 @@ netdev_tx_t usbnet_start_xmit (struct sk_buff *skb,
 			}
 		}
 	}
+
+	/* data must be 4-byte aligned */
+	length = ((unsigned long)skb->data) & 0x3;
+	if (length) {
+		if (skb_cloned(skb) ||
+		    ((skb_headroom(skb) < length) &&
+		     (skb_tailroom(skb) < (4-length)))) {
+			struct sk_buff *skb2;
+			/* copy skb with proper alignment */
+			skb2 = skb_copy_expand(skb, 0, 4, GFP_ATOMIC);
+			dev_kfree_skb_any(skb);
+			skb = skb2;
+			if (!skb)
+				goto drop;
+		} else {
+			/* move data inside buffer */
+			length = ((skb_headroom(skb) >= length) ? 0 : 4)-length;
+			memmove(skb->data+length, skb->data, skb->len);
+			skb_reserve(skb, length);
+		}
+	}
+
 	length = skb->len;
 
 	if (!(urb = usb_alloc_urb (0, GFP_ATOMIC))) {
