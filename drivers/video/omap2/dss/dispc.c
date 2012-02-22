@@ -1657,6 +1657,9 @@ static void _dispc_set_rotation_attrs(enum omap_plane plane, u8 rotation,
 			row_repeat = true;
 		else
 			row_repeat = false;
+	} else if (color_mode == OMAP_DSS_COLOR_NV12) {
+		/* WA for OMAP4+ UV plane overread HW bug */
+		vidrot = 1;
 	}
 
 	REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(plane), vidrot, 13, 12);
