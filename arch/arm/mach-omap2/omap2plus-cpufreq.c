@@ -542,7 +542,7 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 			buf += (strlen(size_cur)+1);
 
 			// imoseyon - force smartreflex to recalibrate based on new voltages
-			if (freq_table[i].frequency <= 1200000 && 
+			if (freq_table[i].frequency <= policymax && 
 				freq_table[i].frequency >= policymin) {
 				vdata = omap_voltage_get_curr_vdata(mpu_voltdm);
 				if (!vdata) {
