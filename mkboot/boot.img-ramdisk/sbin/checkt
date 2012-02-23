@@ -1,0 +1,3 @@
+#/sbin/busybox ash
+echo "current cpu temp: "`cat /sys/devices/platform/omap/omap_temp_sensor.0/temperature`
+echo "# of times you were throttled recently: "`dmesg | /sbin/busybox grep -c "too high"`
