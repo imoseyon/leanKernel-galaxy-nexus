@@ -11,6 +11,7 @@ cp .config arch/arm/configs/tuna_defconfig
 cd mkboot
 chmod 744 boot.img-ramdisk/sbin/lkflash
 chmod 744 boot.img-ramdisk/sbin/checkv
+chmod 744 boot.img-ramdisk/sbin/checkt
 echo "making boot image"
 ./img.sh
 
