@@ -136,7 +136,7 @@ int omap_tiler_alloc(struct ion_heap *heap,
 	data->stride = tiler_block_vstride(info->tiler_handle);
 
 	/* create an ion handle  for the allocation */
-	handle = ion_alloc(client, 0, 0, 1 << OMAP_ION_HEAP_TILER);
+	handle = ion_alloc(client, 0, 0, 1 << heap->id);
 	if (IS_ERR_OR_NULL(handle)) {
 		ret = PTR_ERR(handle);
 		pr_err("%s: failure to allocate handle to manage tiler"
