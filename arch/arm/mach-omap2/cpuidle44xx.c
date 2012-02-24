@@ -358,7 +358,7 @@ wake_cpu1:
 		 * cpu1 mucks with page tables while it is starting,
 		 * prevent cpu0 executing any processes until cpu1 is up
 		 */
-		while (omap4_idle_requested_cx[1])
+		while (omap4_idle_requested_cx[1] && omap4_idle_ready_count)
 			cpu_relax();
 	}
 
