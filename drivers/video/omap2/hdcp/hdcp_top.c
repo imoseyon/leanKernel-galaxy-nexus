@@ -286,6 +286,8 @@ static void hdcp_work_queue(struct work_struct *work)
 
 	mutex_lock(&hdcp.lock);
 
+	hdcp_request_dss();
+
 	DBG("hdcp_work_queue() - START - %u hdmi=%d hdcp=%d auth=%d evt= %x %d"
 	    " hdcp_ctrl=%02x",
 		jiffies_to_msecs(jiffies),
@@ -411,6 +413,7 @@ static void hdcp_work_queue(struct work_struct *work)
 		(event & 0xFF00) >> 8,
 		event & 0xFF);
 
+	hdcp_release_dss();
 	mutex_unlock(&hdcp.lock);
 }
 
