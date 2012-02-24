@@ -83,9 +83,11 @@ static __init void omap4460_mpu_dpll_trim_override(void)
 	switch (val) {
 	case OMAP4_DPLL_MPU_TRIMMED_VAL_3P0:
 		/* all ok.. */
+		pr_info("[imoseyon] trim_val 3P0\n");
 		break;
 	case OMAP4_DPLL_MPU_TRIMMED_VAL_2P4:
 		/* Cross check! */
+		pr_info("[imoseyon] trim_val 2P4 (1.5Ghz capable, hw trimmed)\n");
 		if (omap4_has_mpu_1_5ghz()) {
 			WARN(1, "%s: OMAP is 1.5GHz capable, trimmed=1.2GHz!\n",
 				__func__);
@@ -96,6 +98,7 @@ static __init void omap4460_mpu_dpll_trim_override(void)
 			__func__, val);
 		/* fall through and use override */
 	case 0:
+		pr_info("[imoseyon] trim_val unknown (1.5Ghz capable, sw trimmed)\n");
 		/*
 		 * For PRE_RTP devices: Not trimmed, use s/w override!
 		 * We only support unto 1.2GHz with s/w override,
