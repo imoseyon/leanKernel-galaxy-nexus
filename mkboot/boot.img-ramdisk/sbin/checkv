@@ -1,11 +1,11 @@
-#!/sbin/busybox ash
+#!/sbin/bb/busybox ash
 # checkv - check nominal and calibrated voltage for each freq
 # 	 - also slightly stress each freq to accelerate calibration
 #
 # author - imoseyon@gmail.com
 #
 
-bb="/sbin/busybox"
+bb="/sbin/bb/busybox"
 echo "leanKernel Voltage Checker"
 echo "--------------------------"
 echo "Nominal Voltage - This is the voltage we choose as the starting point."
