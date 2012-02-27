@@ -1,0 +1,8 @@
+#/sbin/bb/busybox ash
+echo "current cpu temp: "`cat /sys/devices/platform/omap/omap_temp_sensor.0/temperature`
+echo "# of times you were throttled recently: "`dmesg | /sbin/bb/busybox grep -c "too high"`
+echo
+CPU=`dmesg | /sbin/bb/busybox grep "trim_val" | /sbin/bb/busybox cut -d \] -f 3`
+[ "$CPU" ] && echo "CPU Trim Type:$CPU" || echo "Trim Type unknown - run this script just after boot" 
+SI=`dmesg | /sbin/bb/busybox grep "si_type" | /sbin/bb/busybox cut -d \] -f 3`
+[ "$SI" ] && echo "CPU Silicon Type:$SI" || echo "Silicon Type unknown - run this script just after boot" 

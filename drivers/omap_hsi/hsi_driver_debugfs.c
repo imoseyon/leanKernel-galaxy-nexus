@@ -255,7 +255,7 @@ static ssize_t hsi_port_counters_read(struct file *filep, char __user * buff,
 	unsigned int port = hsi_port->port_number;
 	struct platform_device *pdev = to_platform_device(hsi_ctrl->dev);
 	char str[50];
-	unsigned long reg;
+	unsigned int reg;
 
 	if (*offp > 0) {
 		ret = 0;
@@ -270,11 +270,11 @@ static ssize_t hsi_port_counters_read(struct file *filep, char __user * buff,
 
 	if (hsi_driver_device_is_hsi(pdev)) {
 		sprintf(str, "FT:%d, TB:%d, FB:%d\n",
-			(int)(reg & HSI_COUNTERS_FT_MASK) >>
+			(unsigned int)(reg & HSI_COUNTERS_FT_MASK) >>
 			HSI_COUNTERS_FT_OFFSET,
-			(int)(reg & HSI_COUNTERS_TB_MASK) >>
+			(unsigned int)(reg & HSI_COUNTERS_TB_MASK) >>
 			HSI_COUNTERS_TB_OFFSET,
-			(int)(reg & HSI_COUNTERS_FB_MASK) >>
+			(unsigned int)(reg & HSI_COUNTERS_FB_MASK) >>
 			HSI_COUNTERS_FB_OFFSET);
 	} else {
 		sprintf(str, "timeout:%d\n", (int)reg);
@@ -366,12 +366,24 @@ static ssize_t hsi_port_counters_write(struct file *filep,
 			ret = -EINVAL;
 			goto hsi_cnt_w_bk1;
 		}
-		strict_strtoul(words[0], 0, &ft);
-		strict_strtoul(words[1], 0, &tb);
-		strict_strtoul(words[2], 0, &fb);
-		reg = ((ft << HSI_COUNTERS_FT_OFFSET & HSI_COUNTERS_FT_MASK) |
-		       (tb << HSI_COUNTERS_TB_OFFSET & HSI_COUNTERS_TB_MASK) |
-		       (fb << HSI_COUNTERS_FB_OFFSET & HSI_COUNTERS_FB_MASK));
+
+		if (strict_strtoul(words[0], 0, &ft) ||
+		    strict_strtoul(words[1], 0, &tb) ||
+		    strict_strtoul(words[2], 0, &fb)) {
+			dev_warn(hsi_ctrl->dev, "Not an unsigned long\n");
+			ret = -EINVAL;
+			goto hsi_cnt_w_bk1;
+		}
+
+		ft = clamp_val(ft, 0,
+				HSI_COUNTERS_FT_MASK >> HSI_COUNTERS_FT_OFFSET);
+		tb = clamp_val(tb, 0,
+				HSI_COUNTERS_TB_MASK >> HSI_COUNTERS_TB_OFFSET);
+		fb = clamp_val(fb, 0,
+				HSI_COUNTERS_FB_MASK >> HSI_COUNTERS_FB_OFFSET);
+		reg = (((ft << HSI_COUNTERS_FT_OFFSET) & HSI_COUNTERS_FT_MASK) |
+		       ((tb << HSI_COUNTERS_TB_OFFSET) & HSI_COUNTERS_TB_MASK) |
+		       ((fb << HSI_COUNTERS_FB_OFFSET) & HSI_COUNTERS_FB_MASK));
 	} else {
 		if (nwords != 1) {
 			dev_warn(hsi_ctrl->dev, "HSI counters write usage: "
@@ -379,9 +391,15 @@ static ssize_t hsi_port_counters_write(struct file *filep,
 			ret = -EINVAL;
 			goto hsi_cnt_w_bk1;
 		}
-		strict_strtoul(words[0], 0, &reg);
+		if (strict_strtoul(words[0], 0, &reg)) {
+			dev_warn(hsi_ctrl->dev, "Not an unsigned long\n");
+			ret = -EINVAL;
+			goto hsi_cnt_w_bk1;
+		}
+		reg = clamp_val(reg, 0,
+			(HSI_SSI_RX_TIMEOUT_MASK >> HSI_SSI_RX_TIMEOUT_OFFSET));
 	}
-	hsi_outl(reg, base, HSI_HSR_COUNTERS_REG(port));
+	hsi_outl((unsigned int)reg, base, HSI_HSR_COUNTERS_REG(port));
 	ret = count;
 	*offp += count;
 

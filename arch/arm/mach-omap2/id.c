@@ -240,6 +240,7 @@ static void __init omap4_check_features(void)
 			read_tap_reg(OMAP4_CTRL_MODULE_CORE_STD_FUSE_PROD_ID_1);
 		switch ((si_type & (3 << 16)) >> 16) {
 		case 2:
+			pr_info("[imoseyon] si_type: High performance\n");
 			/* High performance device */
 			omap4_features |= OMAP4_HAS_IVA_430MHZ;
 			omap4_features |= OMAP4_HAS_IVA_500MHZ;
@@ -248,6 +249,7 @@ static void __init omap4_check_features(void)
 			break;
 		case 1:
 		default:
+			pr_info("[imoseyon] si_type: Standard (bummer...)\n");
 //			omap4_features |= OMAP4_HAS_MPU_1_5GHZ;
 			/* Standard device */
 			omap4_features |= OMAP4_HAS_MPU_1_2GHZ;

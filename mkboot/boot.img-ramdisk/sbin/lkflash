@@ -1,9 +1,9 @@
-#!/sbin/busybox ash
+#!/sbin/bb/busybox ash
 # lkflash - flash latest leanKernel
 # 
 # author - imoseyon@gmail.com
 #
-BB="/sbin/busybox"
+BB="/sbin/bb/busybox"
 STABLE="http://imoseyon.host4droid.com/latest"
 EXP180="http://imoseyon.host4droid.com/exp/latest180"
 EXP230="http://imoseyon.host4droid.com/exp/latest230"
