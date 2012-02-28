@@ -1,8 +1,11 @@
 #/sbin/bb/busybox ash
+bb="/sbin/bb/busybox"
 echo "current cpu temp: "`cat /sys/devices/platform/omap/omap_temp_sensor.0/temperature`
-echo "# of times you were throttled recently: "`dmesg | /sbin/bb/busybox grep -c "too high"`
+echo "# of times you were throttled recently: "`dmesg | $bb grep -c "too high"`
 echo
-CPU=`dmesg | /sbin/bb/busybox grep "trim_val" | /sbin/bb/busybox cut -d \] -f 3`
+CPU=`dmesg | $bb grep "trim_val" | $bb cut -d \] -f 3`
 [ "$CPU" ] && echo "CPU Trim Type:$CPU" || echo "Trim Type unknown - run this script just after boot" 
-SI=`dmesg | /sbin/bb/busybox grep "si_type" | /sbin/bb/busybox cut -d \] -f 3`
+SI=`dmesg | $bb grep "si_type" | $bb cut -d \] -f 3`
 [ "$SI" ] && echo "CPU Silicon Type:$SI" || echo "Silicon Type unknown - run this script just after boot" 
+echo; echo "Some debug info (completely unrelated to above) -->"
+echo "Number of awake clocks: "`cat /sys/kernel/debug/clock/summary | $bb awk '/([1-9]$)|( [1-9]0$)/' | $bb wc -l` 
