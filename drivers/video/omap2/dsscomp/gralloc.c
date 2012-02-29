@@ -563,10 +563,12 @@ void dsscomp_gralloc_init(struct dsscomp_dev *cdev_)
 {
 	int i;
 
+	if (!cdev_)
+		return;
+
 	/* save at least cdev pointer */
 	if (!cdev && cdev_) {
 		cdev = cdev_;
-
 #ifdef CONFIG_HAS_EARLYSUSPEND
 		register_early_suspend(&early_suspend_info);
 #endif
