@@ -77,6 +77,7 @@ loglevel 3
     write /proc/sys/kernel/sched_compat_yield 1
     write /proc/sys/kernel/sched_child_runs_first 0
     write /proc/sys/kernel/randomize_va_space 2
+    write /sys/kernel/fast_charge/force_fast_charge 1
 
 # Create cgroup mount points for process groups
     mkdir /dev/cpuctl

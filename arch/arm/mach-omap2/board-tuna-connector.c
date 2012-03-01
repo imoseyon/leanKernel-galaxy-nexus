@@ -33,7 +33,7 @@
 #include <linux/i2c/twl.h>
 #include <linux/mutex.h>
 #include <linux/switch.h>
-
+#include <linux/fastchg.h>
 #include <plat/usb.h>
 
 #include "mux.h"
@@ -781,7 +781,11 @@ static void sii9234_connect(bool on, u8 *devcap)
 	int dock = 0;
 
 	if (on) {
+#ifdef CONFIG_FORCE_FAST_CHARGE
+		val = (force_fast_charge !=0) ? USB_EVENT_CHARGER : USB_EVENT_VBUS;
+#else
 		val = USB_EVENT_VBUS;
+#endif
 		if (devcap) {
 			u16 adopter_id =
 				(devcap[MHL_DEVCAP_ADOPTER_ID_H] << 8) |
