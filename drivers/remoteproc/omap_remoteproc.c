@@ -480,8 +480,10 @@ static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 		}
 		omap_dm_timer_set_source(timers[i].odt, OMAP_TIMER_SRC_SYS_CLK);
 #ifdef CONFIG_REMOTEPROC_WATCHDOG
-		/* GPT 9 and 11 are using as WDT */
-		if (timers[i].id == 9 || timers[i].id == 11) {
+		/* GPT 9 & 11 (ipu); GPT 6 (dsp) are used as watchdog timers */
+		if ((!strcmp(rproc->name, "dsp") && timers[i].id == 6) ||
+		    (!strcmp(rproc->name, "ipu") &&
+				(timers[i].id == 9 || timers[i].id == 11))) {
 			ret = request_irq(omap_dm_timer_get_irq(timers[i].odt),
 					 omap_rproc_watchdog_isr, IRQF_DISABLED,
 					"rproc-wdt", rproc);
@@ -546,8 +548,10 @@ static inline int omap_rproc_stop(struct rproc *rproc)
 
 	for (i = 0; i < pdata->timers_cnt; i++) {
 #ifdef CONFIG_REMOTEPROC_WATCHDOG
-		/* GPT 9 and 11 are used as WDT */
-		if (timers[i].id == 9 || timers[i].id == 11)
+		/* GPT 9 & 11 (ipu); GPT 6 (dsp) are used as watchdog timers */
+		if ((!strcmp(rproc->name, "dsp") && timers[i].id == 6) ||
+		    (!strcmp(rproc->name, "ipu") &&
+				(timers[i].id == 9 || timers[i].id == 11)))
 			free_irq(omap_dm_timer_get_irq(timers[i].odt), rproc);
 #endif
 		omap_dm_timer_free(timers[i].odt);
