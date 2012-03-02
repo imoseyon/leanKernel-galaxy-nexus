@@ -1424,6 +1424,26 @@ static void __init tuna_reserve(void)
 	omap_reserve();
 }
 
+#define PHOENIX_LAST_TURNOFF_STS	0x22
+
+static int __init tuna_print_last_turnon_sts(void)
+{
+	u8 turnon_sts;
+	int err;
+
+	err = twl_i2c_read_u8(TWL6030_MODULE_ID0, &turnon_sts,
+			PHOENIX_LAST_TURNOFF_STS);
+
+	if (!err) {
+		pr_info("PHOENIX_LAST_TURNOFF_STS: 0x%02x\n", turnon_sts);
+		twl_i2c_write_u8(TWL6030_MODULE_ID0, turnon_sts,
+				 PHOENIX_LAST_TURNOFF_STS);
+	}
+
+	return 0;
+}
+device_initcall(tuna_print_last_turnon_sts);
+
 MACHINE_START(TUNA, "Tuna")
 	/* Maintainer: Google, Inc */
 	.boot_params	= 0x80000100,
