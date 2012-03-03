@@ -1,12 +1,15 @@
 #!/bin/bash
 
+[[ `diff arch/arm/configs/tuna_defconfig .config ` ]] && \
+	{ echo "Unmatched defconfig!"; exit -1; } 
+
 sed -i s/CONFIG_LOCALVERSION=\".*\"/CONFIG_LOCALVERSION=\"-imoseyon-${1}\"/ .config
 
 make -j2
 
 cp arch/arm/boot/zImage mkboot/
 sed -i s/CONFIG_LOCALVERSION=\".*\"/CONFIG_LOCALVERSION=\"\"/ .config
-cp .config arch/arm/configs/tuna_defconfig
+#cp .config arch/arm/configs/tuna_defconfig
 
 cd mkboot
 chmod 744 boot.img-ramdisk/sbin/lkflash
@@ -39,7 +42,9 @@ if [[ $1 == *exp* ]]; then
   else
     mf="latestnotrim"
   fi
+  edir="/exp"
 else 
   mf="latest"
+  edir=""
 fi
-echo "http://imoseyon.host4droid.com/boot-${1}.img $md5 ${1}" > /tmp/$mf
+echo "http://imoseyon.host4droid.com${edir}/boot-${1}.img $md5 ${1}" > /tmp/$mf
