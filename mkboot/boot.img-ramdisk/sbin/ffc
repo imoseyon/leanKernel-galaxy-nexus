@@ -1,0 +1,9 @@
+#!/sbin/bb/busybox ash
+bb="/sbin/bb/busybox"
+if [[ `cat /sys/kernel/fast_charge/force_fast_charge` -eq 0 ]]; then
+  $bb echo 1 > /sys/kernel/fast_charge/force_fast_charge
+  echo "Fast USB Charge: ON" 
+else
+  $bb echo 0 > /sys/kernel/fast_charge/force_fast_charge
+  echo "Fast USB Charge: OFF" 
+fi
