@@ -99,7 +99,7 @@ static irqreturn_t nfc_irq_isr(int irq, void *dev)
 	 * take a 500ms wakelock, to give time for higher layers
 	 * to either take their own wakelock or finish processing
 	 */
-	wake_lock_timeout(&nfc_wake_lock, msecs_to_jiffies(500));
+	wake_lock_timeout(&nfc_wake_lock, msecs_to_jiffies(350));
 
 	return IRQ_HANDLED;
 }

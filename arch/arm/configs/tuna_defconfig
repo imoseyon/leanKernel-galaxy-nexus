@@ -1,6 +1,6 @@
 #
 # Automatically generated make config: don't edit
-# Linux/arm 3.0.21 Kernel Configuration
+# Linux/arm 3.0.22 Kernel Configuration
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -321,6 +321,7 @@ CONFIG_OMAP_TPS6236X=y
 CONFIG_OMAP_ALLOW_OSWR=y
 CONFIG_OMAP_FIQ_DEBUGGER=y
 CONFIG_OMAP4_PPA_CPU1_ONLINE_BUG=y
+CONFIG_FORCE_FAST_CHARGE=y
 
 #
 # System MMU

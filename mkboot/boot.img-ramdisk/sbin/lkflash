@@ -7,6 +7,7 @@ BB="/sbin/bb/busybox"
 STABLE="http://imoseyon.host4droid.com/latest"
 EXP180="http://imoseyon.host4droid.com/exp/latest180"
 EXP230="http://imoseyon.host4droid.com/exp/latest230"
+NOTRIM="http://imoseyon.host4droid.com/exp/latestnotrim"
 
 CUR=`$BB uname -a | $BB awk -F'-' '{ print \$3 }'`
 
@@ -18,7 +19,8 @@ echo "------------------"
 echo "1) latest stable (recommended)"
 echo "2) latest experimental 180mhz" 
 echo "3) latest experimental 230mhz" 
-echo "4) check/display versions" 
+echo "4) latest notrim" 
+echo "5) check/display versions" 
 
 echo
 echo "FLASH AT YOUR OWN RISK. I'm not responsible for my mistakes or yours. ;)"
@@ -43,11 +45,17 @@ case $option in
 	break
 	;;
   4) 
+	$BB wget -q -O /sdcard/lk $NOTRIM
+	echo; echo -n "Downloading notrim "
+	break
+	;;
+  5) 
   	echo "Please wait..."
 	vstable=`$BB wget -q -O - $STABLE | $BB awk '{ print \$3 }'`
 	v180=`$BB wget -q -O - $EXP180 | $BB awk '{ print \$3 }'`
 	v230=`$BB wget -q -O - $EXP230 | $BB awk '{ print \$3 }'`
-	echo; echo ">>> Current version: $CUR, Latest stable: $vstable, Exp: $v180 $v230"	
+	notrim=`$BB wget -q -O - $NOTRIM | $BB awk '{ print \$3 }'`
+	echo; echo ">>> Current version: $CUR, Latest stable: $vstable, Exp: $v180 $v230, Notrim: $notrim"	
 	sleep 2
 	;;
   *)
