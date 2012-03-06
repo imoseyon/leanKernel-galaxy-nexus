@@ -9,7 +9,7 @@ make -j2
 
 cp arch/arm/boot/zImage mkboot/
 sed -i s/CONFIG_LOCALVERSION=\".*\"/CONFIG_LOCALVERSION=\"\"/ .config
-#cp .config arch/arm/configs/tuna_defconfig
+cp .config arch/arm/configs/tuna_defconfig
 
 cd mkboot
 chmod 744 boot.img-ramdisk/sbin/lkflash
