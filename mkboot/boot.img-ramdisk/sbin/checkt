@@ -10,3 +10,5 @@ SI=`dmesg | $bb grep "si_type" | $bb cut -d \] -f 3`
 echo; echo "Some debug info (completely unrelated to above) -->"
 echo "Number of awake clocks: "`cat /sys/kernel/debug/clock/summary | $bb awk '/([1-9]$)|( [1-9]0$)/' | $bb wc -l` 
 uptime
+echo
+$bb uname -a
