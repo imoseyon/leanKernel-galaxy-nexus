@@ -19,6 +19,7 @@
 #include <linux/clk.h>
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
+#include <linux/pm_qos_params.h>
 #include <plat/common.h>
 #include <plat/omap_device.h>
 #include <plat/omap_hwmod.h>
@@ -192,6 +193,9 @@ struct omap_vdd_dvfs_info {
 
 static LIST_HEAD(omap_dvfs_info_list);
 DEFINE_MUTEX(omap_dvfs_lock);
+
+/* QoS expected */
+static struct pm_qos_request_list omap_dvfs_pm_qos_handle;
 
 /* Dvfs scale helper function */
 static int _dvfs_scale(struct device *req_dev, struct device *target_dev,
@@ -897,6 +901,8 @@ int omap_device_scale(struct device *req_dev, struct device *target_dev,
 
 	/* Lock me to ensure cross domain scaling is secure */
 	mutex_lock(&omap_dvfs_lock);
+	/* I would like CPU to be active always at this point */
+	pm_qos_update_request(&omap_dvfs_pm_qos_handle, 0);
 
 	rcu_read_lock();
 	opp = opp_find_freq_ceil(target_dev, &freq);
@@ -984,6 +990,8 @@ int omap_device_scale(struct device *req_dev, struct device *target_dev,
 	}
 	/* Fall through */
 out:
+	/* Remove the latency requirement */
+	pm_qos_update_request(&omap_dvfs_pm_qos_handle, PM_QOS_DEFAULT_VALUE);
 	mutex_unlock(&omap_dvfs_lock);
 	return ret;
 }
@@ -1179,6 +1187,7 @@ int __init omap_dvfs_register_device(struct device *dev, char *voltdm_name,
 	struct clk *clk = NULL;
 	struct voltagedomain *voltdm;
 	int ret = 0;
+	static __initdata bool qos_create;
 
 	if (!voltdm_name) {
 		dev_err(dev, "%s: Bad voltdm name!\n", __func__);
@@ -1252,6 +1261,13 @@ int __init omap_dvfs_register_device(struct device *dev, char *voltdm_name,
 	temp_dev->clk = clk;
 	list_add_tail(&temp_dev->node, &dvfs_info->dev_list);
 
+	/* Simpler to have a single request for all domains */
+	if (!qos_create) {
+		pm_qos_add_request(&omap_dvfs_pm_qos_handle,
+				PM_QOS_CPU_DMA_LATENCY,
+				PM_QOS_DEFAULT_VALUE);
+		qos_create = true;
+	}
 	/* Fall through */
 out:
 	mutex_unlock(&omap_dvfs_lock);
