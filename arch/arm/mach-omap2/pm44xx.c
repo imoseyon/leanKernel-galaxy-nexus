@@ -1291,8 +1291,6 @@ static void __init omap4_pm_setup_errata(void)
 static int __init omap4_pm_init(void)
 {
 	int ret = 0;
-	int ret2 = 0;
-	struct device *iva_dev, *dsp_dev;
 	struct clockdomain *l3_1_clkdm;
 	struct clockdomain *ducati_clkdm, *l3_2_clkdm, *l4_per, *l4_cfg;
 
@@ -1458,14 +1456,6 @@ static int __init omap4_pm_init(void)
 	omap_pm_is_ready_status = true;
 	/* let the other CPU know as well */
 	smp_wmb();
-
-        // imoseyon hack to unstuck dsp and iva freq
-//        dsp_dev = omap4_get_dsp_device();
-        iva_dev = omap2_get_iva_device();
-//        ret2 = omap_device_scale(dsp_dev, dsp_dev, 0);
-//        pr_info("[imoseyon] return code from dsp scale: %d\n", ret2);
-        ret2 = omap_device_scale(iva_dev, iva_dev, 0);
-        pr_info("[imoseyon] return code from iva scale: %d\n", ret2);
 
 err2:
 	return ret;
