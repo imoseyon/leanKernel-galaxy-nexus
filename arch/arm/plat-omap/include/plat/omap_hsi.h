@@ -462,7 +462,7 @@
 				HSI_SYS_MPU_U_ENABLE_REG(port, irq))
 
 #define HSI_SYS_MPU_STATUS_CH_REG(port, irq, channel)      \
-			      (((channel) < HSI_SSI_CHANNELS_MAX) ?    \
+			      ((channel < HSI_SSI_CHANNELS_MAX) ?    \
 			      HSI_SYS_MPU_STATUS_REG(port, irq) :    \
 			      HSI_SYS_MPU_U_STATUS_REG(port, irq))
 /**

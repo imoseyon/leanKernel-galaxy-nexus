@@ -129,7 +129,6 @@ struct hsi_channel {
  * @cawake_gpio_irq: IRQ number for cawake gpio events
  * @cawake_status: Tracks CAWAKE line status
  * @cawake_off_event: True if CAWAKE event was detected from OFF mode
- * @cawake_double_int: True if new CAWAKE detected while tasklet still executing
  * @acwake_status: Bitmap to track ACWAKE line status per channel
  * @in_int_tasklet: True if interrupt tasklet for this port is currently running
  * @in_cawake_tasklet: True if CAWAKE tasklet for this port is currently running
@@ -153,7 +152,6 @@ struct hsi_port {
 	int cawake_gpio_irq;
 	int cawake_status;
 	bool cawake_off_event;
-	bool cawake_double_int;
 	unsigned int acwake_status;	/* HSI_TODO : fine tune init values */
 	bool in_int_tasklet;
 	bool in_cawake_tasklet;
@@ -254,9 +252,7 @@ bool hsi_is_hsi_port_busy(struct hsi_port *pport);
 bool hsi_is_hsi_controller_busy(struct hsi_dev *hsi_ctrl);
 bool hsi_is_hst_port_busy(struct hsi_port *pport);
 bool hsi_is_hst_controller_busy(struct hsi_dev *hsi_ctrl);
-void hsi_driver_ack_interrupt(struct hsi_port *pport, u32 flag, bool backup);
-bool hsi_driver_is_interrupt_pending(struct hsi_port *pport, u32 flag,
-					bool backup);
+
 int hsi_driver_enable_interrupt(struct hsi_port *pport, u32 flag);
 int hsi_driver_disable_interrupt(struct hsi_port *pport, u32 flag);
 int hsi_driver_enable_read_interrupt(struct hsi_channel *hsi_channel,
