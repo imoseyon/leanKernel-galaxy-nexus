@@ -171,7 +171,7 @@ static struct omap_opp_def __initdata omap443x_opp_def_list[] = {
 #define OMAP4460_VDD_MPU_OPPTURBO_UV		1080000
 #define OMAP4460_VDD_MPU_OPPNITRO_UV		1210000
 #define OMAP4460_VDD_MPU_OPPNITRO_UV2		1220000
-#define OMAP4460_VDD_MPU_OPPOC_UV		1325000
+#define OMAP4460_VDD_MPU_OPPOC_UV		1320000
 #define OMAP4460_VDD_MPU_OPPOC_UV2		1420000
 
 struct omap_volt_data omap446x_vdd_mpu_volt_data[] = {
