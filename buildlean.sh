@@ -4,11 +4,13 @@
 	{ echo "Unmatched defconfig!"; exit -1; } 
 
 sed -i s/CONFIG_LOCALVERSION=\".*\"/CONFIG_LOCALVERSION=\"-imoseyon-${1}\"/ .config
+sed -i /UNLOCK_180/d .config
 
 make -j2
 
 cp arch/arm/boot/zImage mkboot/
 sed -i s/CONFIG_LOCALVERSION=\".*\"/CONFIG_LOCALVERSION=\"\"/ .config
+sed -i /UNLOCK_180/d .config
 cp .config arch/arm/configs/tuna_defconfig
 
 cd mkboot
