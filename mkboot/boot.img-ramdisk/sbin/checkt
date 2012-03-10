@@ -7,8 +7,11 @@ CPU=`dmesg | $bb grep "trim_val" | $bb cut -d \] -f 3`
 [ "$CPU" ] && echo "CPU Trim Type:$CPU" || echo "Trim Type unknown - run this script just after boot" 
 SI=`dmesg | $bb grep "si_type" | $bb cut -d \] -f 3`
 [ "$SI" ] && echo "CPU Silicon Type:$SI" || echo "Silicon Type unknown - run this script just after boot" 
-echo; echo "Some debug info (completely unrelated to above) -->"
+echo; echo "------"
+echo "Some debug info below (mostly for imoseyon):"
+echo "------"
 echo "Number of awake clocks: "`cat /sys/kernel/debug/clock/summary | $bb awk '/([1-9]$)|( [1-9]0$)/' | $bb wc -l` 
-uptime
-echo
-$bb uname -a
+echo "------"
+uptime 
+echo "------"
+$bb uname -a | $bb awk '{ print $3 }'
