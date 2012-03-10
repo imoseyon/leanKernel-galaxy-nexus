@@ -15,13 +15,23 @@
 
 #include "control.h"
 #include "pm.h"
+#include <mach/ctrl_module_core_44xx.h>
 
 #define OMAP4_DPLL_MPU_TRIMMED_VAL_2P4	(0x1 << 18)
 #define OMAP4_DPLL_MPU_TRIMMED_VAL_3P0	(0x3 << 18)
 #define OMAP4_DPLL_MPU_TRIMMED_MASK	(BIT(19) | BIT(18))
+/*
+ * Trim value has to be written to CONTROL_EFUSE_2 according to
+ * OMAP4430 errata i684 (version B)
+ * OMAP4430 units with ProdID[51:50]=11 are not affected
+ */
+#define OMAP4_LPDDR2_I684_FIX_VALUE	0x004E4000
+#define OMAP4_PROD_ID_I684_MASK		0x000C0000
+
 
 static bool bgap_trim_sw_overide;
 static bool dpll_trim_override;
+static bool ddr_io_trim_override;
 
 /**
  * omap4_ldo_trim_configure() - Handle device trim variance
@@ -57,12 +67,12 @@ int omap4_ldo_trim_configure(void)
 	val |=  0x1C << OMAP4_AVDAC_TRIM_BYTE3_SHIFT;
 	omap4_ctrl_pad_writel(val,
 		OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_EFUSE_1);
-	/*
-	 * For all ESx.y trimmed and untrimmed units LPDDR IO and
-	 * Smart IO override efuse.
-	 */
-	val = OMAP4_LPDDR2_PTV_P5_MASK | OMAP4_LPDDR2_PTV_N5_MASK;
-	omap4_ctrl_pad_writel(val, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_EFUSE_2);
+
+	/* DDR I/O Trim override as per erratum i684 */
+	if (ddr_io_trim_override) {
+		omap4_ctrl_pad_writel(OMAP4_LPDDR2_I684_FIX_VALUE,
+			OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_EFUSE_2);
+	}
 
 	/* Required for DPLL_MPU to lock at 2.4 GHz */
 	if (dpll_trim_override)
@@ -140,6 +150,30 @@ static __init int omap4_ldo_trim_init(void)
 	/* If not already trimmed, use s/w override */
 	if (cpu_is_omap446x())
 		omap4460_mpu_dpll_trim_override();
+
+	/*
+	 * Errata i684 (revision B)
+	 * Impacts all OMAP4430ESx.y trimmed and untrimmed excluding units
+	 * with with ProdID[51:50]=11
+	 * OMAP4460/70 are not impacted.
+	 *
+	 * ProdID:
+	 * 51 50
+	 * 0  0  Incorrect trim, SW WA needed.
+	 * 0  1  Fixed test program issue of overlapping of LPDDR & SmartIO
+	 *	 efuse fields, SW WA needed for LPDDR.
+	 * 1  1  New LPDDR trim formula to compensate for vertical vs horizontal
+	 *	 cell layout. No overwrite required.
+	 */
+	if (cpu_is_omap443x()) {
+		u32 prod_id;
+
+		prod_id = omap_ctrl_readl(
+				OMAP4_CTRL_MODULE_CORE_STD_FUSE_PROD_ID_1);
+		prod_id &= OMAP4_PROD_ID_I684_MASK;
+		if (prod_id != OMAP4_PROD_ID_I684_MASK)
+			ddr_io_trim_override = true;
+	}
 
 	return omap4_ldo_trim_configure();
 }
