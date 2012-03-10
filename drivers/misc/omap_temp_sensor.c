@@ -65,6 +65,11 @@ static void throttle_delayed_work_fn(struct work_struct *work);
 #define OMAP_ADC_START_VALUE	530
 #define OMAP_ADC_END_VALUE	923
 
+static int cold_threshold = BGAP_THRESHOLD_T_COLD;
+static int hot_threshold = BGAP_THRESHOLD_T_HOT;
+struct omap_temp_sensor *ctrl_sensor;
+int temp_limit = 0;
+
 /*
  * omap_temp_sensor structure
  * @pdev - Platform device pointer
@@ -214,8 +219,12 @@ static void omap_configure_temp_sensor_thresholds(struct omap_temp_sensor
 {
 	u32 temp = 0, t_hot, t_cold, tshut_hot, tshut_cold;
 
-	t_hot = temp_to_adc_conversion(BGAP_THRESHOLD_T_HOT);
-	t_cold = temp_to_adc_conversion(BGAP_THRESHOLD_T_COLD);
+	if (temp_limit > 0) {
+	  cold_threshold = temp_limit - 5000;
+	  hot_threshold = temp_limit;
+	}
+	t_hot = temp_to_adc_conversion(hot_threshold);
+	t_cold = temp_to_adc_conversion(cold_threshold);
 
 	if ((t_hot == -EINVAL) || (t_cold == -EINVAL)) {
 		pr_err("%s:Temp thresholds out of bounds\n", __func__);
@@ -234,6 +243,13 @@ static void omap_configure_temp_sensor_thresholds(struct omap_temp_sensor
 			| (tshut_cold << OMAP4_TSHUT_COLD_SHIFT));
 	omap_temp_sensor_writel(temp_sensor, temp, BGAP_TSHUT_OFFSET);
 }
+
+void tempcontrol_update(int tlimit)
+{
+  temp_limit = tlimit;
+  omap_configure_temp_sensor_thresholds(ctrl_sensor);
+}
+EXPORT_SYMBOL(tempcontrol_update);
 
 static void omap_configure_temp_sensor_counter(struct omap_temp_sensor
 					       *temp_sensor, u32 counter)
@@ -390,7 +406,7 @@ static void throttle_delayed_work_fn(struct work_struct *work)
 					     throttle_work.work);
 	curr = omap_read_current_temp(temp_sensor);
 
-	if (curr >= BGAP_THRESHOLD_T_HOT || curr < 0) {
+	if (curr >= hot_threshold || curr < 0) {
 		pr_warn("%s: OMAP temp read %d exceeds the threshold\n",
 			__func__, curr);
 		omap_thermal_throttle();
@@ -462,6 +478,8 @@ static int __devinit omap_temp_sensor_probe(struct platform_device *pdev)
 	}
 
 	temp_sensor = kzalloc(sizeof(struct omap_temp_sensor), GFP_KERNEL);
+	ctrl_sensor = temp_sensor;
+
 	if (!temp_sensor)
 		return -ENOMEM;
 
