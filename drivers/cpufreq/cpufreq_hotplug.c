@@ -38,6 +38,7 @@ static unsigned int susp_enabled = 0;
 static unsigned int suspended = 0;
 static unsigned int registration = 0;
 static unsigned int suspend_cpu_up = 95;
+static unsigned int highfreq = 1350000;
 
 /* greater than 80% avg load across online CPUs increases frequency */
 #define DEFAULT_UP_FREQ_MIN_LOAD			(80)
@@ -539,6 +540,11 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 
 	/* check for frequency increase based on max_load */
 	if (max_load > dbs_tuners_ins.up_threshold) {
+		// imosey go to highest freq only if load is really high
+		if (max_load < suspend_cpu_up && highfreq <= policy->max) 
+			__cpufreq_driver_target(policy, highfreq,
+					CPUFREQ_RELATION_H);
+		else
 		/* increase to highest frequency supported */
 		if (policy->cur < policy->max)
 			__cpufreq_driver_target(policy, policy->max,
