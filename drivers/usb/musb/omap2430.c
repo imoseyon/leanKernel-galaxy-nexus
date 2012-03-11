@@ -423,6 +423,11 @@ static void omap2430_musb_enable(struct musb *musb)
 		otg_init(musb->xceiv);
 		break;
 
+	case USB_EVENT_CHARGER:
+		dev_dbg(musb->controller, "Dedicated charger connect\n");
+		musb->is_ac_charger = true;
+		break;
+
 	default:
 		break;
 	}

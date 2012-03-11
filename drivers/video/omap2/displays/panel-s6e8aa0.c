@@ -37,6 +37,9 @@
 #include <linux/i2c.h>
 #include <linux/uaccess.h>
 
+#ifdef CONFIG_COLOR_CONTROL
+#include <linux/color_control.h>
+#endif
 
 #include <video/omapdss.h>
 
@@ -185,6 +188,14 @@ const u8 s6e8aa0_mtp_lock[] = {
 	0xA5,
 	0xA5,
 };
+
+#ifdef CONFIG_COLOR_CONTROL
+struct omap_dss_device * lcd_dev;
+
+struct s6e8aa0_data * s6_data;
+
+int v1_offset[3] = {0, 0, 0};
+#endif
 
 static int s6e8aa0_write_reg(struct omap_dss_device *dssdev, u8 reg, u8 val)
 {
@@ -759,7 +770,11 @@ static void s6e8aa0_setup_gamma_regs(struct s6e8aa0_data *s6, u8 gamma_regs[],
 				__func__, adj, v0, v[V1], c);
 			adj = clamp_t(int, adj, adj_min, adj_max);
 		}
+#ifdef CONFIG_COLOR_CONTROL
+		gamma_regs[gamma_reg_index(c, V1)] = ((adj + v1_offset[c]) > 0 && (adj <=255)) ? (adj + v1_offset[c]) : adj;
+#else
 		gamma_regs[gamma_reg_index(c, V1)] = adj;
+#endif
 		v[V1] = v1adj_to_v1(adj + offset, v0);
 
 		v[V255] = s6e8aa0_gamma_lookup(s6, brightness, BV_255, c);
@@ -1116,6 +1131,20 @@ static void s6e8aa0_adjust_brightness_from_mtp(struct s6e8aa0_data *s6)
 	sort(s6->brightness_table + 1, s6->brightness_table_size - 1,
 	     sizeof(*s6->brightness_table), s6e8aa0_cmp_gamma_entry, NULL);
 }
+
+#ifdef CONFIG_COLOR_CONTROL
+void colorcontrol_update(bool multiplier_updated)
+{
+    if (multiplier_updated)
+	s6e8aa0_adjust_brightness_from_mtp(s6_data);
+
+    if (lcd_dev->state == OMAP_DSS_DISPLAY_ACTIVE)
+	s6e8aa0_update_brightness(lcd_dev);
+
+    return;
+}
+EXPORT_SYMBOL(colorcontrol_update);
+#endif
 
 static s16 s9_to_s16(s16 v)
 {
@@ -1625,6 +1654,14 @@ static int s6e8aa0_probe(struct omap_dss_device *dssdev)
 
 	if (cpu_is_omap44xx())
 		s6->force_update = true;
+
+#ifdef CONFIG_COLOR_CONTROL
+	lcd_dev = dssdev;
+	s6_data = s6;
+
+	colorcontrol_register_offset(v1_offset);
+	colorcontrol_register_multiplier(s6->pdata->factory_info->color_adj.mult);
+#endif
 
 	dev_dbg(&dssdev->dev, "s6e8aa0_probe\n");
 	return ret;
