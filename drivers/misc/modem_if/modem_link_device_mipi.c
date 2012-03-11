@@ -78,7 +78,7 @@ static void mipi_hsi_terminate_communication(
 
 	switch (iod->format) {
 	case IPC_BOOT:
-		if (&mipi_ld->hsi_channles[HSI_FLASHLESS_CHANNEL].opened)
+		if (mipi_ld->hsi_channles[HSI_FLASHLESS_CHANNEL].opened)
 			if_hsi_close_channel(&mipi_ld->hsi_channles[
 					HSI_FLASHLESS_CHANNEL]);
 		if (wake_lock_active(&mipi_ld->wlock))
@@ -86,7 +86,7 @@ static void mipi_hsi_terminate_communication(
 		break;
 
 	case IPC_RAMDUMP:
-		if (&mipi_ld->hsi_channles[HSI_CP_RAMDUMP_CHANNEL].opened)
+		if (mipi_ld->hsi_channles[HSI_CP_RAMDUMP_CHANNEL].opened)
 			if_hsi_close_channel(&mipi_ld->hsi_channles[
 					HSI_CP_RAMDUMP_CHANNEL]);
 		if (wake_lock_active(&mipi_ld->wlock))
@@ -466,6 +466,9 @@ static int hsi_init_handshake(struct mipi_link_device *mipi_ld, int mode)
 	case HSI_INIT_MODE_FLASHLESS_BOOT:
 		mipi_ld->ld.com_state = COM_BOOT;
 
+		if (timer_pending(&mipi_ld->hsi_acwake_down_timer))
+			del_timer(&mipi_ld->hsi_acwake_down_timer);
+
 		if (mipi_ld->hsi_channles[HSI_FLASHLESS_CHANNEL].opened) {
 			hsi_ioctl(mipi_ld->hsi_channles[
 			HSI_FLASHLESS_CHANNEL].dev, HSI_IOCTL_SW_RESET,
@@ -677,7 +680,8 @@ static void hsi_conn_err_recovery(struct mipi_link_device *mipi_ld)
 		pr_err("[MIPI-HSI] hsi_read fail : %d\n", ret);
 
 	for (i = 1; i < HSI_NUM_OF_USE_CHANNELS; i++) {
-		if ((mipi_ld->hsi_channles[i].recv_step == STEP_RX) &&
+		if ((mipi_ld->hsi_channles[i].recv_step ==
+				STEP_WAIT_FOR_CONN_READY) &&
 				(mipi_ld->hsi_channles[i].rx_count)) {
 			pr_err("[MIPI-HSI] there was rx pending. ch:%d, len:%d",
 					i, mipi_ld->hsi_channles[i].rx_count);
@@ -775,6 +779,11 @@ static void if_hsi_cmd_work(struct work_struct *work)
 			break;
 		}
 		pr_debug("[MIPI-HSI] take command : %08x\n", hsi_cmd->command);
+
+		if (((hsi_cmd->command & 0xF0000000) >> 28) ==
+					HSI_LL_MSG_CONN_CLOSED)
+			mipi_ld->hsi_channles[(hsi_cmd->command & 0x0F000000)
+				>> 24].recv_step = STEP_SEND_TO_CONN_CLOSED;
 
 		ret = if_hsi_write(channel, &hsi_cmd->command, 4);
 		if (ret < 0) {
@@ -908,7 +917,6 @@ static int if_hsi_rx_cmd_handle(struct mipi_link_device *mipi_ld, u32 cmd,
 	switch (cmd) {
 	case HSI_LL_MSG_OPEN_CONN_OCTET:
 		switch (channel->recv_step) {
-		case STEP_SEND_TO_CONN_CLOSED:
 		case STEP_IDLE:
 			channel->recv_step = STEP_TO_ACK;
 
@@ -932,7 +940,7 @@ static int if_hsi_rx_cmd_handle(struct mipi_link_device *mipi_ld, u32 cmd,
 			}
 
 			channel->packet_size = param;
-			channel->recv_step = STEP_RX;
+			channel->recv_step = STEP_WAIT_FOR_CONN_READY;
 			if (param % 4)
 				param += (4 - (param % 4));
 			channel->rx_count = param;
@@ -945,6 +953,7 @@ static int if_hsi_rx_cmd_handle(struct mipi_link_device *mipi_ld, u32 cmd,
 			return 0;
 
 		case STEP_NOT_READY:
+		case STEP_SEND_TO_CONN_CLOSED:
 			ret = if_hsi_send_command(mipi_ld, HSI_LL_MSG_NAK, ch,
 						param);
 			if (ret) {
@@ -954,10 +963,11 @@ static int if_hsi_rx_cmd_handle(struct mipi_link_device *mipi_ld, u32 cmd,
 			}
 			return 0;
 
-		default:
-			pr_err("[MIPI-HSI] wrong state : %08x, recv_step : %d\n",
-						cmd, channel->recv_step);
+		case STEP_RX:
+			pr_err("[MIPI-HSI] wrong open cmd in rx step\n");
+			return -1;
 
+		default:
 			ret = if_hsi_send_command(mipi_ld, HSI_LL_MSG_ACK, ch,
 						param);
 			if (ret) {
@@ -965,7 +975,27 @@ static int if_hsi_rx_cmd_handle(struct mipi_link_device *mipi_ld, u32 cmd,
 							ret);
 				return ret;
 			}
-			pr_err("[MIPI-HSI] Send ACK AGAIN\n");
+			pr_err("[MIPI-HSI] wrong state : %08x, recv_step : %d, "
+				"size : %d\n", cmd, channel->recv_step, param);
+
+			if (channel->packet_size != param) {
+				pr_err("[MIPI-HSI] %d open-cmd param changed "
+					"packet_size : %d, param : %d\n",
+					channel->channel_id,
+					channel->packet_size, param);
+
+				hsi_read_cancel(channel->dev);
+				pr_err("[MIPI-HSI] read cancel\n");
+
+				channel->packet_size = param;
+				channel->recv_step = STEP_WAIT_FOR_CONN_READY;
+				if (param % 4)
+					param += (4 - (param % 4));
+				channel->rx_count = param;
+				hsi_read(channel->dev, channel->rx_data,
+						channel->rx_count / 4);
+				pr_err("[MIPI-HSI] read again with new len\n");
+			}
 			return -1;
 		}
 
@@ -999,6 +1029,8 @@ static int if_hsi_rx_cmd_handle(struct mipi_link_device *mipi_ld, u32 cmd,
 		case STEP_WAIT_FOR_CONN_CLOSED:
 			pr_debug("[MIPI-HSI] got close\n");
 
+			mod_timer(&mipi_ld->hsi_acwake_down_timer, jiffies +
+					HSI_ACWAKE_DOWN_TIMEOUT);
 			channel->send_step = STEP_IDLE;
 			up(&channel->close_conn_done_sem);
 			return 0;
@@ -1228,6 +1260,8 @@ static void if_hsi_write_done(struct hsi_device *dev, unsigned int size)
 		(((*channel->tx_data & 0xF0000000) >> 28) ==
 			HSI_LL_MSG_CONN_CLOSED) &&
 			mipi_ld->ld.com_state == COM_ONLINE) {
+		mod_timer(&mipi_ld->hsi_acwake_down_timer, jiffies +
+					HSI_ACWAKE_DOWN_TIMEOUT);
 		mipi_ld->hsi_channles[
 		(*channel->tx_data & 0x0F000000) >> 24].recv_step = STEP_IDLE;
 	}
@@ -1405,8 +1439,6 @@ static void if_hsi_read_done(struct hsi_device *dev, unsigned int size)
 		pr_debug("[MIPI-HSI] receive command data : 0x%x\n",
 					*channel->rx_data);
 
-		channel->recv_step = STEP_SEND_TO_CONN_CLOSED;
-
 		ch = channel->channel_id;
 		param = 0;
 		ret = if_hsi_send_command(mipi_ld, HSI_LL_MSG_CONN_CLOSED,
@@ -1423,7 +1455,7 @@ static void if_hsi_read_done(struct hsi_device *dev, unsigned int size)
 		pr_debug("[MIPI-HSI] iodevice format : %d\n", iod->format);
 
 		if (iod->format == format_type) {
-			channel->recv_step = STEP_NOT_READY;
+			channel->recv_step = STEP_RX;
 
 			pr_debug("[MIPI-HSI] RECV DATA : %08x(%d)-%d\n",
 				*channel->rx_data, channel->packet_size,
@@ -1439,14 +1471,25 @@ static void if_hsi_read_done(struct hsi_device *dev, unsigned int size)
 						channel->packet_size);
 			if (ret < 0) {
 				pr_err("[MIPI-HSI] recv call fail : %d\n", ret);
+
+				ch = channel->channel_id;
+				param = 0;
+				ret = if_hsi_send_command(mipi_ld,
+					HSI_LL_MSG_CONN_CLOSED, ch, param);
+				if (ret)
+					pr_err("[MIPI-HSI] send_cmd fail=%d\n",
+						ret);
+
 				print_hex_dump_bytes("[HSI]",
 					DUMP_PREFIX_OFFSET,
 					channel->rx_data, channel->packet_size);
+
+				/* to clean the all wrong packet */
+				channel->packet_size = 0;
 				hsi_conn_err_recovery(mipi_ld);
+				return;
 			}
 			channel->packet_size = 0;
-
-			channel->recv_step = STEP_SEND_TO_CONN_CLOSED;
 
 			ch = channel->channel_id;
 			param = 0;
