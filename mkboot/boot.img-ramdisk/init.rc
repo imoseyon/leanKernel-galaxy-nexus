@@ -9,6 +9,7 @@ on early-init
     write /sys/devices/system/cpu/cpu1/cpufreq/scaling_min_freq 350000
     write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor interactive
     write /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor interactive
+    write /sys/class/misc/tempcontrol/templimit 75000
 
     start ueventd
 
