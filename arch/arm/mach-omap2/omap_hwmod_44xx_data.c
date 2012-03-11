@@ -1448,8 +1448,11 @@ static struct omap_hwmod_irq_info omap44xx_dsp_irqs[] = {
 };
 
 static struct omap_hwmod_rst_info omap44xx_dsp_resets[] = {
-	{ .name = "dsp", .rst_shift = 0 },
 	{ .name = "mmu_cache", .rst_shift = 1 },
+};
+
+static struct omap_hwmod_rst_info omap44xx_dsp_c0_resets[] = {
+	{ .name = "dsp", .rst_shift = 0 },
 };
 
 static struct omap_hwmod_addr_space omap44xx_dsp_addrs[] = {
@@ -1495,6 +1498,21 @@ static struct omap_hwmod_ocp_if omap44xx_l4_cfg__dsp = {
 /* dsp slave ports */
 static struct omap_hwmod_ocp_if *omap44xx_dsp_slaves[] = {
 	&omap44xx_l4_cfg__dsp,
+};
+
+/* Pseudo hwmod for reset control purpose only */
+static struct omap_hwmod omap44xx_dsp_c0_hwmod = {
+	.name		= "dsp_c0",
+	.class		= &omap44xx_dsp_hwmod_class,
+	.flags		= HWMOD_INIT_NO_RESET,
+	.rst_lines	= omap44xx_dsp_c0_resets,
+	.rst_lines_cnt	= ARRAY_SIZE(omap44xx_dsp_c0_resets),
+	.prcm = {
+		.omap4 = {
+			.rstctrl_reg = OMAP4430_RM_TESLA_RSTCTRL,
+		},
+	},
+	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
 };
 
 static struct omap_hwmod omap44xx_dsp_hwmod = {
@@ -3172,9 +3190,15 @@ static struct omap_hwmod_irq_info omap44xx_ipu_irqs[] = {
 	{ .irq = 100 + OMAP44XX_IRQ_GIC_START },
 };
 
-static struct omap_hwmod_rst_info omap44xx_ipu_resets[] = {
+static struct omap_hwmod_rst_info omap44xx_ipu_c0_resets[] = {
 	{ .name = "cpu0", .rst_shift = 0 },
+};
+
+static struct omap_hwmod_rst_info omap44xx_ipu_c1_resets[] = {
 	{ .name = "cpu1", .rst_shift = 1 },
+};
+
+static struct omap_hwmod_rst_info omap44xx_ipu_resets[] = {
 	{ .name = "mmu_cache", .rst_shift = 2 },
 };
 
@@ -3204,6 +3228,36 @@ static struct omap_hwmod_ocp_if omap44xx_l3_main_2__ipu = {
 /* ipu slave ports */
 static struct omap_hwmod_ocp_if *omap44xx_ipu_slaves[] = {
 	&omap44xx_l3_main_2__ipu,
+};
+
+/* Pseudo hwmod for reset control purpose only */
+static struct omap_hwmod omap44xx_ipu_c0_hwmod = {
+	.name		= "ipu_c0",
+	.class		= &omap44xx_ipu_hwmod_class,
+	.flags		= HWMOD_INIT_NO_RESET,
+	.rst_lines	= omap44xx_ipu_c0_resets,
+	.rst_lines_cnt	= ARRAY_SIZE(omap44xx_ipu_c0_resets),
+	.prcm		= {
+		.omap4 = {
+			.rstctrl_reg = OMAP4430_RM_DUCATI_RSTCTRL,
+		},
+	},
+	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
+};
+
+/* Pseudo hwmod for reset control purpose only */
+static struct omap_hwmod omap44xx_ipu_c1_hwmod = {
+	.name		= "ipu_c1",
+	.class		= &omap44xx_ipu_hwmod_class,
+	.flags		= HWMOD_INIT_NO_RESET,
+	.rst_lines	= omap44xx_ipu_c1_resets,
+	.rst_lines_cnt	= ARRAY_SIZE(omap44xx_ipu_c1_resets),
+	.prcm		= {
+		.omap4 = {
+			.rstctrl_reg = OMAP4430_RM_DUCATI_RSTCTRL,
+		},
+	},
+	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
 };
 
 static struct omap_hwmod omap44xx_ipu_hwmod = {
@@ -3341,9 +3395,15 @@ static struct omap_hwmod_irq_info omap44xx_iva_irqs[] = {
 };
 
 static struct omap_hwmod_rst_info omap44xx_iva_resets[] = {
-	{ .name = "seq0", .rst_shift = 0 },
-	{ .name = "seq1", .rst_shift = 1 },
 	{ .name = "logic", .rst_shift = 2 },
+};
+
+static struct omap_hwmod_rst_info omap44xx_iva_seq0_resets[] = {
+	{ .name = "seq0", .rst_shift = 0 },
+};
+
+static struct omap_hwmod_rst_info omap44xx_iva_seq1_resets[] = {
+	{ .name = "seq1", .rst_shift = 1 },
 };
 
 /* iva -> sl2if */
@@ -3382,6 +3442,36 @@ static struct omap_hwmod_ocp_if omap44xx_l3_main_2__iva = {
 static struct omap_hwmod_ocp_if *omap44xx_iva_slaves[] = {
 	&omap44xx_dsp__iva,
 	&omap44xx_l3_main_2__iva,
+};
+
+/* Pseudo hwmod for reset control purpose only */
+static struct omap_hwmod omap44xx_iva_seq0_hwmod = {
+	.name		= "iva_seq0",
+	.class		= &omap44xx_iva_hwmod_class,
+	.flags		= HWMOD_INIT_NO_RESET,
+	.rst_lines	= omap44xx_iva_seq0_resets,
+	.rst_lines_cnt	= ARRAY_SIZE(omap44xx_iva_seq0_resets),
+	.prcm = {
+		.omap4 = {
+			.rstctrl_reg = OMAP4430_RM_IVAHD_RSTCTRL,
+		},
+	},
+	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
+};
+
+/* Pseudo hwmod for reset control purpose only */
+static struct omap_hwmod omap44xx_iva_seq1_hwmod = {
+	.name		= "iva_seq1",
+	.class		= &omap44xx_iva_hwmod_class,
+	.flags		= HWMOD_INIT_NO_RESET,
+	.rst_lines	= omap44xx_iva_seq1_resets,
+	.rst_lines_cnt	= ARRAY_SIZE(omap44xx_iva_seq1_resets),
+	.prcm = {
+		.omap4 = {
+			.rstctrl_reg = OMAP4430_RM_IVAHD_RSTCTRL,
+		},
+	},
+	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
 };
 
 static struct omap_hwmod omap44xx_iva_hwmod = {
@@ -6036,6 +6126,7 @@ static __initdata struct omap_hwmod *omap44xx_hwmods[] = {
 
 	/* dsp class */
 	&omap44xx_dsp_hwmod,
+	&omap44xx_dsp_c0_hwmod,
 
 	/* dss class */
 	&omap44xx_dss_hwmod,
@@ -6073,6 +6164,8 @@ static __initdata struct omap_hwmod *omap44xx_hwmods[] = {
 
 	/* ipu class */
 	&omap44xx_ipu_hwmod,
+	&omap44xx_ipu_c0_hwmod,
+	&omap44xx_ipu_c1_hwmod,
 
 	/* iss class */
 	&omap44xx_iss_hwmod,
@@ -6082,6 +6175,8 @@ static __initdata struct omap_hwmod *omap44xx_hwmods[] = {
 
 	/* iva class */
 	&omap44xx_iva_hwmod,
+	&omap44xx_iva_seq0_hwmod,
+	&omap44xx_iva_seq1_hwmod,
 
 	/* sl2if class */
 	&omap44xx_sl2if_hwmod,

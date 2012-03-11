@@ -690,147 +690,6 @@ static void _disable_optional_clocks(struct omap_hwmod *oh)
 }
 
 /**
- * _get_mpu_irq_by_name - fetch MPU interrupt line number by name
- * @oh: struct omap_hwmod * to operate on
- * @name: pointer to the name of the MPU interrupt number to fetch (optional)
- * @irq: pointer to an unsigned int to store the MPU IRQ number to
- *
- * Retrieve a MPU hardware IRQ line number named by @name associated
- * with the IP block pointed to by @oh.  The IRQ number will be filled
- * into the address pointed to by @dma.  When @name is non-null, the
- * IRQ line number associated with the named entry will be returned.
- * If @name is null, the first matching entry will be returned.  Data
- * order is not meaningful in hwmod data, so callers are strongly
- * encouraged to use a non-null @name whenever possible to avoid
- * unpredictable effects if hwmod data is later added that causes data
- * ordering to change.  Returns 0 upon success or a negative error
- * code upon error.
- */
-static int _get_mpu_irq_by_name(struct omap_hwmod *oh, const char *name,
-				unsigned int *irq)
-{
-	int i;
-	bool found = false;
-
-	if (!oh->mpu_irqs)
-		return -ENOENT;
-
-	i = 0;
-	while (oh->mpu_irqs[i].irq != -1) {
-		if (name == oh->mpu_irqs[i].name ||
-		    !strcmp(name, oh->mpu_irqs[i].name)) {
-			found = true;
-			break;
-		}
-		i++;
-	}
-
-	if (!found)
-		return -ENOENT;
-
-	*irq = oh->mpu_irqs[i].irq;
-
-	return 0;
-}
-
-/**
- * _get_sdma_req_by_name - fetch SDMA request line ID by name
- * @oh: struct omap_hwmod * to operate on
- * @name: pointer to the name of the SDMA request line to fetch (optional)
- * @dma: pointer to an unsigned int to store the request line ID to
- *
- * Retrieve an SDMA request line ID named by @name on the IP block
- * pointed to by @oh.  The ID will be filled into the address pointed
- * to by @dma.  When @name is non-null, the request line ID associated
- * with the named entry will be returned.  If @name is null, the first
- * matching entry will be returned.  Data order is not meaningful in
- * hwmod data, so callers are strongly encouraged to use a non-null
- * @name whenever possible to avoid unpredictable effects if hwmod
- * data is later added that causes data ordering to change.  Returns 0
- * upon success or a negative error code upon error.
- */
-static int _get_sdma_req_by_name(struct omap_hwmod *oh, const char *name,
-				 unsigned int *dma)
-{
-	int i;
-	bool found = false;
-
-	if (!oh->sdma_reqs)
-		return -ENOENT;
-
-	i = 0;
-	while (oh->sdma_reqs[i].dma_req != -1) {
-		if (name == oh->sdma_reqs[i].name ||
-		    !strcmp(name, oh->sdma_reqs[i].name)) {
-			found = true;
-			break;
-		}
-		i++;
-	}
-
-	if (!found)
-		return -ENOENT;
-
-	*dma = oh->sdma_reqs[i].dma_req;
-
-	return 0;
-}
-
-/**
- * _get_addr_space_by_name - fetch address space start & end by name
- * @oh: struct omap_hwmod * to operate on
- * @name: pointer to the name of the address space to fetch (optional)
- * @pa_start: pointer to a u32 to store the starting address to
- * @pa_end: pointer to a u32 to store the ending address to
- *
- * Retrieve address space start and end addresses for the IP block
- * pointed to by @oh.  The data will be filled into the addresses
- * pointed to by @pa_start and @pa_end.  When @name is non-null, the
- * address space data associated with the named entry will be
- * returned.  If @name is null, the first matching entry will be
- * returned.  Data order is not meaningful in hwmod data, so callers
- * are strongly encouraged to use a non-null @name whenever possible
- * to avoid unpredictable effects if hwmod data is later added that
- * causes data ordering to change.  Returns 0 upon success or a
- * negative error code upon error.
- */
-static int _get_addr_space_by_name(struct omap_hwmod *oh, const char *name,
-				   u32 *pa_start, u32 *pa_end)
-{
-	int i, j;
-	struct omap_hwmod_ocp_if *os;
-	bool found = false;
-
-	for (i = 0; i < oh->slaves_cnt; i++) {
-		os = oh->slaves[i];
-
-		if (!os->addr)
-			return -ENOENT;
-
-		j = 0;
-		while (os->addr[j].pa_start != os->addr[j].pa_end) {
-			if (name == os->addr[j].name ||
-			    !strcmp(name, os->addr[j].name)) {
-				found = true;
-				break;
-			}
-			j++;
-		}
-
-		if (found)
-			break;
-	}
-
-	if (!found)
-		return -ENOENT;
-
-	*pa_start = os->addr[j].pa_start;
-	*pa_end = os->addr[j].pa_end;
-
-	return 0;
-}
-
-/**
  * _find_mpu_port_index - find hwmod OCP slave port ID intended for MPU use
  * @oh: struct omap_hwmod *
  *
@@ -871,16 +730,19 @@ static int __init _find_mpu_port_index(struct omap_hwmod *oh)
  * Return the virtual address of the base of the register target of
  * device @oh, or NULL on error.
  */
-static struct omap_hwmod_addr_space * __init _find_mpu_rt_addr_space(struct omap_hwmod *oh)
+static void __iomem * __init _find_mpu_rt_base(struct omap_hwmod *oh, u8 index)
 {
 	struct omap_hwmod_ocp_if *os;
 	struct omap_hwmod_addr_space *mem;
-        int found = 0, i = 0;
+	int i;
+	int found = 0;
+	void __iomem *va_start;
 
-        if (!oh || oh->_int_flags & _HWMOD_NO_MPU_PORT || oh->slaves_cnt == 0)
+	if (!oh || oh->slaves_cnt == 0)
 		return NULL;
 
-        os = oh->slaves[oh->_mpu_port_index];
+	os = oh->slaves[index];
+
 	for (i = 0, mem = os->addr; i < os->addr_cnt; i++, mem++) {
 		if (mem->flags & ADDR_TYPE_RT) {
 			found = 1;
@@ -888,7 +750,20 @@ static struct omap_hwmod_addr_space * __init _find_mpu_rt_addr_space(struct omap
 		}
 	}
 
-        return (found) ? mem : NULL;
+	if (found) {
+		va_start = ioremap(mem->pa_start, mem->pa_end - mem->pa_start);
+		if (!va_start) {
+			pr_err("omap_hwmod: %s: Could not ioremap\n", oh->name);
+			return NULL;
+		}
+		pr_debug("omap_hwmod: %s: MPU register target at va %p\n",
+			 oh->name, va_start);
+	} else {
+		pr_debug("omap_hwmod: %s: no MPU register target found\n",
+			 oh->name);
+	}
+
+	return (found) ? va_start : NULL;
 }
 
 /**
@@ -1359,29 +1234,13 @@ dis_opt_clks:
  */
 static int _reset(struct omap_hwmod *oh)
 {
-	int i;
+	int ret;
 
 	pr_debug("omap_hwmod: %s: resetting\n", oh->name);
 
-        if (oh->class->reset)
-                oh->class->reset(oh);
-        else if (!oh->rst_lines_cnt)
-                _ocp_softreset(oh);
-        else
-                for (i = 0; i < oh->rst_lines_cnt; i++)
-                        _assert_hardreset(oh, oh->rst_lines[i].name);
- 
-        /*
-         * OCP_SYSCONFIG bits need to be reprogrammed after a
-         * softreset.  The _enable() function should be split to avoid
-         * the rewrite of the OCP_SYSCONFIG register.
-         */
-        if (oh->class->sysc) {
-                _update_sysc_cache(oh);
-                _enable_sysc(oh);
-        }
- 
-        return 0;
+	ret = (oh->class->reset) ? oh->class->reset(oh) : _ocp_softreset(oh);
+
+	return ret;
 }
 
 /**
@@ -1394,7 +1253,7 @@ static int _reset(struct omap_hwmod *oh)
  */
 static int _enable(struct omap_hwmod *oh)
 {
-        int r;
+	int r;
 	int hwsup = 0;
 
 	if (oh->_state != _HWMOD_STATE_INITIALIZED &&
@@ -1407,14 +1266,22 @@ static int _enable(struct omap_hwmod *oh)
 
 	pr_debug("omap_hwmod: %s: enabling\n", oh->name);
 
+	/*
+	 * If an IP contains only one HW reset line, then de-assert it in order
+	 * to allow to enable the clocks. Otherwise the PRCM will return
+	 * Intransition status, and the init will failed.
+	 */
+	if ((oh->_state == _HWMOD_STATE_INITIALIZED ||
+	     oh->_state == _HWMOD_STATE_DISABLED) && oh->rst_lines_cnt == 1)
+		_deassert_hardreset(oh, oh->rst_lines[0].name);
+
 	_add_initiator_dep(oh, mpu_oh);
 	if (oh->_clk && oh->_clk->clkdm) {
 		hwsup = clkdm_is_idle(oh->_clk->clkdm);
 		clkdm_wakeup(oh->_clk->clkdm);
 	}
 	_enable_clocks(oh);
-
-        r = (oh->rst_lines_cnt == 0) ? _wait_target_ready(oh) : 1;
+	r = _wait_target_ready(oh);
 	if (!r) {
 		if (oh->_clk && oh->_clk->clkdm && hwsup)
 			clkdm_allow_idle(oh->_clk->clkdm);
@@ -1524,7 +1391,7 @@ int omap_hwmod_set_ocp_autoidle(struct omap_hwmod *oh, u8 autoidle)
  */
 static int _shutdown(struct omap_hwmod *oh)
 {
-        int ret, i;
+	int ret;
 	u8 prev_state;
 
 	if (oh->_state != _HWMOD_STATE_IDLE &&
@@ -1554,8 +1421,12 @@ static int _shutdown(struct omap_hwmod *oh)
 		_shutdown_sysc(oh);
 	}
 
-        for (i = 0; i < oh->rst_lines_cnt; i++)
-                _assert_hardreset(oh, oh->rst_lines[i].name);
+	/*
+	 * If an IP contains only one HW reset line, then assert it
+	 * before disabling the clocks and shutting down the IP.
+	 */
+	if (oh->rst_lines_cnt == 1)
+		_assert_hardreset(oh, oh->rst_lines[0].name);
 
 	/* clocks and deps are already disabled in idle */
 	if (oh->_state == _HWMOD_STATE_ENABLED) {
@@ -1575,150 +1446,70 @@ static int _shutdown(struct omap_hwmod *oh)
 }
 
 /**
- * _init_mpu_rt_base - populate the virtual address for a hwmod
- * @oh: struct omap_hwmod * to locate the virtual address
- *
- * Cache the virtual address used by the MPU to access this IP block's
- * registers.  This address is needed early so the OCP registers that
- * are part of the device's address space can be ioremapped properly.
- * No return value.
- */
-static void __init _init_mpu_rt_base(struct omap_hwmod *oh, void *data)
-{
-        struct omap_hwmod_addr_space *mem;
-        void __iomem *va_start;
- 
-        if (!oh)
-                return;
- 
-	if (oh->_int_flags & _HWMOD_NO_MPU_PORT)
-		return;
-
-        mem = _find_mpu_rt_addr_space(oh);
-        if (!mem) {
-                pr_debug("omap_hwmod: %s: no MPU register target found\n",
-                         oh->name);
-                return;
-        }
- 
-        va_start = ioremap(mem->pa_start, mem->pa_end - mem->pa_start);
-        if (!va_start) {
-                pr_err("omap_hwmod: %s: Could not ioremap\n", oh->name);
-                return;
-        }
- 
-        pr_debug("omap_hwmod: %s: MPU register target at va %p\n",
-                 oh->name, va_start);
-
-        oh->_mpu_rt_va = va_start;
-}
-
-/**
- * _setup_iclk_autoidle - configure an IP block's interface clocks
+ * _setup - do initial configuration of omap_hwmod
  * @oh: struct omap_hwmod *
  *
- * Set up the module's interface clocks.  XXX This function is still mostly
- * a stub; implementing this properly requires iclk autoidle usecounting in
- * the clock code.   No return value.
+ * Writes the CLOCKACTIVITY bits @clockact to the hwmod @oh
+ * OCP_SYSCONFIG register.  Returns 0.
  */
-static void __init _setup_iclk_autoidle(struct omap_hwmod *oh)
+static int _setup(struct omap_hwmod *oh, void *data)
 {
-	int i;
+	int i, r;
+	u8 postsetup_state;
 
-	if (oh->_state != _HWMOD_STATE_INITIALIZED)
-		return;
+	if (oh->_state != _HWMOD_STATE_CLKS_INITED)
+		return 0;
 
-	for (i = 0; i < oh->slaves_cnt; i++) {
-		struct omap_hwmod_ocp_if *os = oh->slaves[i];
-		struct clk *c = os->_clk;
+	/* Set iclk autoidle mode */
+	if (oh->slaves_cnt > 0) {
+		for (i = 0; i < oh->slaves_cnt; i++) {
+			struct omap_hwmod_ocp_if *os = oh->slaves[i];
+			struct clk *c = os->_clk;
 
-		if (!c)
-			continue;
+			if (!c)
+				continue;
 
-		if (os->flags & OCPIF_SWSUP_IDLE) {
-			/* XXX omap_iclk_deny_idle(c); */
-		} else {
-			/* XXX omap_iclk_allow_idle(c); */
-			clk_enable(c);
+			if (os->flags & OCPIF_SWSUP_IDLE) {
+				/* XXX omap_iclk_deny_idle(c); */
+			} else {
+				/* XXX omap_iclk_allow_idle(c); */
+				clk_enable(c);
+			}
 		}
 	}
 
-	return;
-}
+	oh->_state = _HWMOD_STATE_INITIALIZED;
 
-/**
- * _setup_reset - reset an IP block during the setup process
- * @oh: struct omap_hwmod *
- *
- * Reset the IP block corresponding to the hwmod @oh during the setup
- * process.  The IP block is first enabled so it can be successfully
- * reset.  Returns 0 upon success or a negative error code upon
- * failure.
- */
-static int __init _setup_reset(struct omap_hwmod *oh)
-{
-	int r = 0;
+	/*
+	 * In the case of hwmod with hardreset that should not be
+	 * de-assert at boot time, we have to keep the module
+	 * initialized, because we cannot enable it properly with the
+	 * reset asserted. Exit without warning because that behavior is
+	 * expected.
+	 */
+	if ((oh->flags & HWMOD_INIT_NO_RESET) && oh->rst_lines_cnt == 1)
+		return 0;
 
-	if (oh->_state != _HWMOD_STATE_INITIALIZED)
-		return -EINVAL;
-
-        if (oh->rst_lines_cnt == 0) {
-                r = _enable(oh);
-                if (r) {
-                        pr_warning("omap_hwmod: %s: cannot be enabled for reset (%d)\n",
-                                   oh->name, oh->_state);
-                        return -EINVAL;
-                }
+	r = _enable(oh);
+	if (r) {
+		pr_warning("omap_hwmod: %s: cannot be enabled (%d)\n",
+			   oh->name, oh->_state);
+		return 0;
 	}
 
-	if (!(oh->flags & HWMOD_INIT_NO_RESET))
-		r = _reset(oh);
+	if (!(oh->flags & HWMOD_INIT_NO_RESET)) {
+		_reset(oh);
 
-	return r;
-}
-
-/**
- * _setup_postsetup - transition to the appropriate state after _setup
- * @oh: struct omap_hwmod *
- *
- * Place an IP block represented by @oh into a "post-setup" state --
- * either IDLE, ENABLED, or DISABLED.  ("post-setup" simply means that
- * this function is called at the end of _setup().)  The postsetup
- * state for an IP block can be changed by calling
- * omap_hwmod_enter_postsetup_state() early in the boot process,
- * before one of the omap_hwmod_setup*() functions are called for the
- * IP block.
- *
- * The IP block stays in this state until a PM runtime-based driver is
- * loaded for that IP block.  A post-setup state of IDLE is
- * appropriate for almost all IP blocks with runtime PM-enabled
- * drivers, since those drivers are able to enable the IP block.  A
- * post-setup state of ENABLED is appropriate for kernels with PM
- * runtime disabled.  The DISABLED state is appropriate for unusual IP
- * blocks such as the MPU WDTIMER on kernels without WDTIMER drivers
- * included, since the WDTIMER starts running on reset and will reset
- * the MPU if left active.
- *
- * This post-setup mechanism is deprecated.  Once all of the OMAP
- * drivers have been converted to use PM runtime, and all of the IP
- * block data and interconnect data is available to the hwmod code, it
- * should be possible to replace this mechanism with a "lazy reset"
- * arrangement.  In a "lazy reset" setup, each IP block is enabled
- * when the driver first probes, then all remaining IP blocks without
- * drivers are either shut down or enabled after the drivers have
- * loaded.  However, this cannot take place until the above
- * preconditions have been met, since otherwise the late reset code
- * has no way of knowing which IP blocks are in use by drivers, and
- * which ones are unused.
- *
- * No return value.
- */
-static void __init _setup_postsetup(struct omap_hwmod *oh)
-{
-	u8 postsetup_state;
-
-	if (oh->rst_lines_cnt > 0)
-		return;
+		/*
+		 * OCP_SYSCONFIG bits need to be reprogrammed after a softreset.
+		 * The _enable() function should be split to
+		 * avoid the rewrite of the OCP_SYSCONFIG register.
+		 */
+		if (oh->class->sysc) {
+			_update_sysc_cache(oh);
+			_enable_sysc(oh);
+		}
+	}
 
 	postsetup_state = oh->_postsetup_state;
 	if (postsetup_state == _HWMOD_STATE_UNKNOWN)
@@ -1739,68 +1530,6 @@ static void __init _setup_postsetup(struct omap_hwmod *oh)
 	else if (postsetup_state != _HWMOD_STATE_ENABLED)
 		WARN(1, "hwmod: %s: unknown postsetup state %d! defaulting to enabled\n",
 		     oh->name, postsetup_state);
-
-	return;
-}
-
-/**
- * _init - initialize internal data for the hwmod @oh
- * @oh: struct omap_hwmod *
- * @n: (unused)
- *
- * Look up the clocks and the address space used by the MPU to access
- * registers belonging to the hwmod @oh.  @oh must already be
- * registered at this point.  This is the first of two phases for
- * hwmod initialization.  Code called here does not touch any hardware
- * registers, it simply prepares internal data structures.  Returns 0
- * upon success or if the hwmod isn't registered, or -EINVAL upon
- * failure.
- */
-static int __init _init(struct omap_hwmod *oh, void *n)
-{
-	int r;
-
-	if (oh->_state != _HWMOD_STATE_REGISTERED)
-		return 0;
-
-	_init_mpu_rt_base(oh, NULL);
-
-	r = _init_clocks(oh, NULL);
-	if (IS_ERR_VALUE(r)) {
-		WARN(1, "omap_hwmod: %s: couldn't init clocks\n", oh->name);
-		return -EINVAL;
-	}
-
-	oh->_state = _HWMOD_STATE_INITIALIZED;
-
-	return 0;
-}
-
-/**
- * _setup - prepare IP block hardware for use
- * @oh: struct omap_hwmod *
- * @n: (unused, pass NULL)
- *
- * Configure the IP block represented by @oh.  This may include
- * enabling the IP block, resetting it, and placing it into a
- * post-setup state, depending on the type of IP block and applicable
- * flags.  IP blocks are reset to prevent any previous configuration
- * by the bootloader or previous operating system from interfering
- * with power management or other parts of the system.  The reset can
- * be avoided; see omap_hwmod_no_setup_reset().  This is the second of
- * two phases for hwmod initialization.  Code called here generally
- * affects the IP block hardware, or system integration hardware
- * associated with the IP block.  Returns 0.
- */
-static int __init _setup(struct omap_hwmod *oh, void *n)
-{
-	if (oh->_state != _HWMOD_STATE_INITIALIZED)
-		return 0;
-
-	_setup_iclk_autoidle(oh);
-
-	if (!_setup_reset(oh))
-		_setup_postsetup(oh);
 
 	return 0;
 }
@@ -1998,13 +1727,20 @@ int __init omap_hwmod_register(struct omap_hwmod **ohs)
  * Must be called only from omap_hwmod_setup_*() so ioremap works properly.
  * Assumes the caller takes care of locking if needed.
  */
-static void __init _ensure_mpu_hwmod_is_setup(struct omap_hwmod *oh)
+static int __init _populate_mpu_rt_base(struct omap_hwmod *oh, void *data)
 {
-        if (!mpu_oh || mpu_oh->_state == _HWMOD_STATE_UNKNOWN) {
-                pr_err("omap_hwmod: %s: MPU initiator hwmod %s not yet registered\n",
-                       __func__, MPU_INITIATOR_NAME);
-        } else if (mpu_oh->_state == _HWMOD_STATE_REGISTERED && oh != mpu_oh)
-                omap_hwmod_setup_one(MPU_INITIATOR_NAME);
+	if (oh->_state != _HWMOD_STATE_REGISTERED)
+		return 0;
+
+	if (oh->_int_flags & _HWMOD_NO_MPU_PORT)
+		return 0;
+
+	oh->_mpu_rt_va = _find_mpu_rt_base(oh, oh->_mpu_port_index);
+	if (!oh->_mpu_rt_va)
+		pr_warning("omap_hwmod: %s found no _mpu_rt_va for %s\n",
+				__func__, oh->name);
+
+	return 0;
 }
 
 /**
@@ -2019,8 +1755,15 @@ static void __init _ensure_mpu_hwmod_is_setup(struct omap_hwmod *oh)
 int __init omap_hwmod_setup_one(const char *oh_name)
 {
 	struct omap_hwmod *oh;
+	int r;
 
 	pr_debug("omap_hwmod: %s: %s\n", oh_name, __func__);
+
+	if (!mpu_oh) {
+		pr_err("omap_hwmod: %s: cannot setup_one: MPU initiator hwmod %s not yet registered\n",
+		       oh_name, MPU_INITIATOR_NAME);
+		return -EINVAL;
+	}
 
 	oh = _lookup(oh_name);
 	if (!oh) {
@@ -2028,10 +1771,21 @@ int __init omap_hwmod_setup_one(const char *oh_name)
 		return -EINVAL;
 	}
 
+	if (mpu_oh->_state == _HWMOD_STATE_REGISTERED && oh != mpu_oh)
+		omap_hwmod_setup_one(MPU_INITIATOR_NAME);
 
-        _ensure_mpu_hwmod_is_setup(oh);
+	r = _populate_mpu_rt_base(oh, NULL);
+	if (IS_ERR_VALUE(r)) {
+		WARN(1, "omap_hwmod: %s: couldn't set mpu_rt_base\n", oh_name);
+		return -EINVAL;
+	}
 
-        _init(oh, NULL);
+	r = _init_clocks(oh, NULL);
+	if (IS_ERR_VALUE(r)) {
+		WARN(1, "omap_hwmod: %s: couldn't init clocks\n", oh_name);
+		return -EINVAL;
+	}
+
 	_setup(oh, NULL);
 
 	return 0;
@@ -2046,10 +1800,20 @@ int __init omap_hwmod_setup_one(const char *oh_name)
  */
 static int __init omap_hwmod_setup_all(void)
 {
+	int r;
 
-        _ensure_mpu_hwmod_is_setup(NULL);
+	if (!mpu_oh) {
+		pr_err("omap_hwmod: %s: MPU initiator hwmod %s not yet registered\n",
+		       __func__, MPU_INITIATOR_NAME);
+		return -EINVAL;
+	}
 
-        omap_hwmod_for_each(_init, NULL);
+	r = omap_hwmod_for_each(_populate_mpu_rt_base, NULL);
+
+	r = omap_hwmod_for_each(_init_clocks, NULL);
+	WARN(IS_ERR_VALUE(r),
+	     "omap_hwmod: %s: _init_clocks failed\n", __func__);
+
 	omap_hwmod_for_each(_setup, NULL);
 
 	return 0;
@@ -2234,10 +1998,6 @@ int omap_hwmod_reset(struct omap_hwmod *oh)
 	return r;
 }
 
-/*
- * IP block data retrieval functions
- */
-
 /**
  * omap_hwmod_count_resources - count number of struct resources needed by hwmod
  * @oh: struct omap_hwmod *
@@ -2314,69 +2074,6 @@ int omap_hwmod_fill_resources(struct omap_hwmod *oh, struct resource *res)
 	}
 
 	return r;
-}
-
-/**
- * omap_hwmod_get_resource_byname - fetch IP block integration data by name
- * @oh: struct omap_hwmod * to operate on
- * @type: one of the IORESOURCE_* constants from include/linux/ioport.h
- * @name: pointer to the name of the data to fetch (optional)
- * @rsrc: pointer to a struct resource, allocated by the caller
- *
- * Retrieve MPU IRQ, SDMA request line, or address space start/end
- * data for the IP block pointed to by @oh.  The data will be filled
- * into a struct resource record pointed to by @rsrc.  The struct
- * resource must be allocated by the caller.  When @name is non-null,
- * the data associated with the matching entry in the IRQ/SDMA/address
- * space hwmod data arrays will be returned.  If @name is null, the
- * first array entry will be returned.  Data order is not meaningful
- * in hwmod data, so callers are strongly encouraged to use a non-null
- * @name whenever possible to avoid unpredictable effects if hwmod
- * data is later added that causes data ordering to change.  This
- * function is only intended for use by OMAP core code.  Device
- * drivers should not call this function - the appropriate bus-related
- * data accessor functions should be used instead.  Returns 0 upon
- * success or a negative error code upon error.
- */
-int omap_hwmod_get_resource_byname(struct omap_hwmod *oh, unsigned int type,
-				   const char *name, struct resource *rsrc)
-{
-	int r;
-	unsigned int irq, dma;
-	u32 pa_start, pa_end;
-
-	if (!oh || !rsrc)
-		return -EINVAL;
-
-	if (type == IORESOURCE_IRQ) {
-		r = _get_mpu_irq_by_name(oh, name, &irq);
-		if (r)
-			return r;
-
-		rsrc->start = irq;
-		rsrc->end = irq;
-	} else if (type == IORESOURCE_DMA) {
-		r = _get_sdma_req_by_name(oh, name, &dma);
-		if (r)
-			return r;
-
-		rsrc->start = dma;
-		rsrc->end = dma;
-	} else if (type == IORESOURCE_MEM) {
-		r = _get_addr_space_by_name(oh, name, &pa_start, &pa_end);
-		if (r)
-			return r;
-
-		rsrc->start = pa_start;
-		rsrc->end = pa_end;
-	} else {
-		return -EINVAL;
-	}
-
-	rsrc->flags = type;
-	rsrc->name = name;
-
-	return 0;
 }
 
 /**
@@ -2701,10 +2398,10 @@ int omap_hwmod_for_each_by_class(const char *classname,
  * @state: state that _setup() should leave the hwmod in
  *
  * Sets the hwmod state that @oh will enter at the end of _setup()
- * (called by omap_hwmod_setup_*()).  See also the documentation
- * for _setup_postsetup(), above.  Returns 0 upon success or
- * -EINVAL if there is a problem with the arguments or if the hwmod is
- * in the wrong state.
+ * (called by omap_hwmod_setup_*()).  Only valid to call between
+ * calling omap_hwmod_register() and omap_hwmod_setup_*().  Returns
+ * 0 upon success or -EINVAL if there is a problem with the arguments
+ * or if the hwmod is in the wrong state.
  */
 int omap_hwmod_set_postsetup_state(struct omap_hwmod *oh, u8 state)
 {
