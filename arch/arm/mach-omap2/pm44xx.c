@@ -1291,7 +1291,7 @@ static void __init omap4_pm_setup_errata(void)
 static int __init omap4_pm_init(void)
 {
 	int ret = 0;
-	struct clockdomain *l3_1_clkdm;
+	struct clockdomain *l3_1_clkdm, *l4wkup;
 	struct clockdomain *ducati_clkdm, *l3_2_clkdm, *l4_per, *l4_cfg;
 
 	if (!cpu_is_omap44xx())
@@ -1338,6 +1338,12 @@ static int __init omap4_pm_init(void)
 	 * doesn't work as expected. The hardware recommendation is
 	 * to keep above dependencies. Without this system locks up or
 	 * randomly crashes.
+	 *
+	 * On 44xx:
+	 * The L4 wakeup depedency is added to workaround the OCP sync hardware
+	 * BUG with 32K synctimer which lead to incorrect timer value read
+	 * from the 32K counter. The BUG applies for GPTIMER1 and WDT2 which
+	 * are part of L4 wakeup clockdomain.
 	 */
 	mpuss_clkdm = clkdm_lookup("mpuss_clkdm");
 	emif_clkdm = clkdm_lookup("l3_emif_clkdm");
@@ -1346,7 +1352,8 @@ static int __init omap4_pm_init(void)
 	ducati_clkdm = clkdm_lookup("ducati_clkdm");
 	l4_per = clkdm_lookup("l4_per_clkdm");
 	l4_cfg = clkdm_lookup("l4_cfg_clkdm");
-	if ((!mpuss_clkdm) || (!emif_clkdm) || (!l3_1_clkdm) ||
+	l4wkup = clkdm_lookup("l4_wkup_clkdm");
+	if ((!mpuss_clkdm) || (!emif_clkdm) || (!l3_1_clkdm) || (!l4wkup) ||
 		(!l3_2_clkdm) || (!ducati_clkdm) || (!l4_per) || (!l4_cfg))
 		goto err2;
 
@@ -1363,6 +1370,7 @@ static int __init omap4_pm_init(void)
 		ret |= clkdm_add_wkdep(mpuss_clkdm, l4_cfg);
 		ret |= clkdm_add_wkdep(ducati_clkdm, l4_per);
 		ret |= clkdm_add_wkdep(ducati_clkdm, l4_cfg);
+		ret |= clkdm_add_wkdep(mpuss_clkdm, l4wkup);
 		if (ret) {
 			pr_err("Failed to add MPUSS -> L3/EMIF, DUCATI -> L3"
 			       " and MPUSS -> L4* wakeup dependency\n");
@@ -1380,6 +1388,7 @@ static int __init omap4_pm_init(void)
 		/* There appears to be a problem between the MPUSS and L3_1 */
 		ret |= clkdm_add_wkdep(mpuss_clkdm, l3_1_clkdm);
 		ret |= clkdm_add_wkdep(mpuss_clkdm, l3_2_clkdm);
+		ret |= clkdm_add_wkdep(mpuss_clkdm, l4wkup);
 
 		/* There appears to be a problem between the Ducati and L3/L4 */
 		ret |= clkdm_add_wkdep(ducati_clkdm, l3_1_clkdm);
