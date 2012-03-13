@@ -474,7 +474,6 @@ static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
 	const char *buf, size_t count)
 {
 	int i = 0;
-	int j;
 	unsigned long volt_cur, volt_old;
 	int ret;
 	char size_cur[16];
