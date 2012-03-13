@@ -467,12 +467,12 @@ static void sr_v2_disable(struct omap_sr *sr)
 	else
 		sr_modify_reg(sr, ERRCONFIG_V2, ERRCONFIG_VPBOUNDINTEN_V2,
 				0x0);
-	sr_write_reg(sr, IRQENABLE_CLR, (IRQENABLE_MCUACCUMINT |
-			IRQENABLE_MCUVALIDINT |
-			IRQENABLE_MCUBOUNDSINT));
 	sr_write_reg(sr, IRQSTATUS, (IRQSTATUS_MCUACCUMINT |
 			IRQSTATUS_MCVALIDINT |
 			IRQSTATUS_MCBOUNDSINT));
+	sr_write_reg(sr, IRQENABLE_CLR, (IRQENABLE_MCUACCUMINT |
+			IRQENABLE_MCUVALIDINT |
+			IRQENABLE_MCUBOUNDSINT));
 
 	/*
 	 * Wait for SR to be disabled.
@@ -487,8 +487,8 @@ static void sr_v2_disable(struct omap_sr *sr)
 			__func__);
 
 	/* Disable MCUDisableAcknowledge interrupt & clear pending interrupt */
-	sr_write_reg(sr, IRQENABLE_CLR, IRQENABLE_MCUDISABLEACKINT);
 	sr_write_reg(sr, IRQSTATUS, IRQSTATUS_MCUDISABLEACKINT);
+	sr_write_reg(sr, IRQENABLE_CLR, IRQENABLE_MCUDISABLEACKINT);
 }
 
 static u32 sr_retrieve_nvalue(struct omap_sr *sr, u32 efuse_offs)
@@ -848,6 +848,9 @@ int sr_notifier_control(struct voltagedomain *voltdm, bool enable)
 		return -EINVAL;
 	}
 
+	if (!enable)
+		sr_write_reg(sr, IRQSTATUS, value);
+
 	switch (sr->ip_type) {
 	case SR_TYPE_V1:
 		value = notifier_to_irqen_v1(sr_class->notify_flags);
@@ -864,9 +867,6 @@ int sr_notifier_control(struct voltagedomain *voltdm, bool enable)
 				 __func__);
 		return -EINVAL;
 	}
-
-	if (!enable)
-		sr_write_reg(sr, IRQSTATUS, value);
 
 	if (enable != sr->irq_enabled) {
 		if (enable)
