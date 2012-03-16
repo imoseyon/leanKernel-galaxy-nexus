@@ -36,6 +36,7 @@
 // used for suspend code
 static unsigned int susp_enabled = 0;
 static unsigned int suspended = 0;
+static unsigned int registration = 0;
 static unsigned int suspend_cpu_up = 95;
 
 /* greater than 80% avg load across online CPUs increases frequency */
@@ -628,7 +629,7 @@ static void hotplug_suspend(int suspend)
 	}
 }
 static void hotplug_early_suspend(struct early_suspend *handler) {
-     hotplug_suspend(1);
+     if (!registration) hotplug_suspend(1);
 }
 
 static void hotplug_late_resume(struct early_suspend *handler) {
@@ -701,7 +702,9 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		mutex_init(&this_dbs_info->timer_mutex);
 		dbs_timer_init(this_dbs_info);
 		susp_enabled = 1;
+		registration = 1;
                 register_early_suspend(&hotplug_power_suspend);
+		registration = 0;
                 pr_info("[imoseyon] hotplugx start\n");
 		break;
 
