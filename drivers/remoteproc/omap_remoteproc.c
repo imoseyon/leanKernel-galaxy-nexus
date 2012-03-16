@@ -47,6 +47,7 @@ struct omap_rproc_priv {
 	u32 idle_mask;
 	void __iomem *suspend;
 	u32 suspend_mask;
+	u64 bootaddr;
 #endif
 };
 
@@ -183,6 +184,15 @@ static int omap_rproc_iommu_isr(struct iommu *iommu, u32 da, u32 errs, void *p)
 	return ret;
 }
 
+static inline void _load_boot_addr(struct rproc *rproc, u64 bootaddr)
+{
+	struct omap_rproc_pdata *pdata = rproc->dev->platform_data;
+
+	if (pdata->boot_reg)
+		omap_writel(bootaddr, pdata->boot_reg);
+	return;
+}
+
 int omap_rproc_activate(struct omap_device *od)
 {
 	int i, ret = 0;
@@ -190,8 +200,8 @@ int omap_rproc_activate(struct omap_device *od)
 	struct device *dev = rproc->dev;
 	struct omap_rproc_pdata *pdata = dev->platform_data;
 	struct omap_rproc_timers_info *timers = pdata->timers;
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	struct omap_rproc_priv *rpp = rproc->priv;
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	struct iommu *iommu;
 
 	if (!rpp->iommu) {
@@ -207,6 +217,11 @@ int omap_rproc_activate(struct omap_device *od)
 	if (!rpp->mbox)
 		rpp->mbox = omap_mbox_get(pdata->sus_mbox_name, NULL);
 #endif
+	/**
+	 * explicitly configure a boot address from which remoteproc
+	 * starts executing code when taken out of reset.
+	 */
+	_load_boot_addr(rproc, rpp->bootaddr);
 
 	/**
 	 * Domain is in HW SUP thus in hw_auto but
@@ -438,21 +453,13 @@ static irqreturn_t omap_rproc_watchdog_isr(int irq, void *p)
 }
 #endif
 
-static inline void _load_boot_addr(struct rproc *rproc, u64 bootaddr)
-{
-	struct omap_rproc_pdata *pdata = rproc->dev->platform_data;
-
-	if (pdata->boot_reg)
-		omap_writel(bootaddr, pdata->boot_reg);
-	return;
-}
-
 static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 {
 	struct device *dev = rproc->dev;
 	struct platform_device *pdev = to_platform_device(dev);
 	struct omap_rproc_pdata *pdata = dev->platform_data;
 	struct omap_rproc_timers_info *timers = pdata->timers;
+	struct omap_rproc_priv *rpp = rproc->priv;
 	int i;
 	int ret = 0;
 
@@ -493,7 +500,7 @@ static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 #endif
 	}
 
-	_load_boot_addr(rproc, bootaddr);
+	rpp->bootaddr = bootaddr;
 	ret = omap_device_enable(pdev);
 out:
 	if (ret) {
