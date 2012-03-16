@@ -10,6 +10,7 @@
 #include <linux/init.h>
 #include <linux/device.h>
 #include <linux/miscdevice.h>
+#include <linux/sound_control.h>
 
 #define SOUNDCONTROL_VERSION 1
 
