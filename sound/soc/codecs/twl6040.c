@@ -225,6 +225,8 @@ struct twl6040_data * snd_data;
 struct snd_soc_codec * snd_codec;
 
 unsigned int volume_boost = 0;
+
+static bool headset_plugged = false;
 #endif
 
 /*
@@ -943,12 +945,29 @@ EXPORT_SYMBOL(soundcontrol_updatevolume);
 
 void soundcontrol_updateperf(bool highperf_enabled)
 {
-    if (!headset_power_mode(snd_codec, highperf_enabled))
-	snd_data->headset_mode = highperf_enabled ? 1 : 0;
+    snd_data->headset_mode = highperf_enabled ? 1 : 0;
+
+    if (headset_plugged) {
+	headset_power_mode(snd_codec, snd_data->headset_mode);
+    }
 
     return;
 }
 EXPORT_SYMBOL(soundcontrol_updateperf);
+
+void soundcontrol_reportjack(int jack_type)
+{
+    if (jack_type == 0) {
+	headset_plugged = false;
+	headset_power_mode(snd_codec, 1);
+    } else { 
+	headset_plugged = true;
+	headset_power_mode(snd_codec, snd_data->headset_mode);
+    }
+
+    return;
+}
+EXPORT_SYMBOL(soundcontrol_reportjack);
 #endif
 
 static int twl6040_hs_dac_event(struct snd_soc_dapm_widget *w,
@@ -976,7 +995,15 @@ static int twl6040_power_mode_event(struct snd_soc_dapm_widget *w,
 		priv->non_lp--;
 		if (!strcmp(w->name, "Earphone Enable")) {
 			priv->power_mode_forced = 0;
+#ifdef CONFIG_SOUND_CONTROL
+			if (headset_plugged) {
+			    ret = headset_power_mode(codec, priv->headset_mode);
+			} else {
+			    ret = headset_power_mode(codec, 1);
+			}
+#else
 			ret = headset_power_mode(codec, priv->headset_mode);
+#endif
 		}
 	}
 
@@ -1849,7 +1876,11 @@ static int twl6040_probe(struct snd_soc_codec *codec)
 		priv->ep_step = 1;
 
 	/* default is low-power mode */
+#ifdef CONFIG_SOUND_CONTROL
+	priv->headset_mode = 0;
+#else
 	priv->headset_mode = 1;
+#endif
 	priv->sysclk_constraints = &lp_constraints;
 	priv->workqueue = create_singlethread_workqueue("twl6040-codec");
 
