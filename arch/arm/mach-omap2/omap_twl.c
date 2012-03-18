@@ -330,8 +330,7 @@ static struct omap_voltdm_pmic omap446x_core_pmic = {
 	.on_volt		= 1200000,
 	.onlp_volt		= 1200000,
 	.ret_volt		= 830000,
-	/* OMAP4 + TWL + TPS limitation keep off_volt same as ret_volt */
-	.off_volt		= 830000,
+	.off_volt		= 0,
 	.volt_setup_time	= 0,
 	.switch_on_time		= 549,
 	.vp_erroroffset		= OMAP4_VP_CONFIG_ERROROFFSET,
