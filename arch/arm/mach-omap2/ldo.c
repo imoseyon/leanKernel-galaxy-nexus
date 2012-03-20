@@ -54,6 +54,36 @@ static inline void _abb_set_availability(struct voltagedomain *voltdm,
 }
 
 /**
+ * _abb_wait_tranx() - wait for abb tranxdone event
+ * @voltdm:	voltage domain we are operating on
+ * @abb:	pointer to the abb instance
+ *
+ * Returns -ETIMEDOUT if the event is not set on time.
+ */
+static int _abb_wait_tranx(struct voltagedomain *voltdm,
+			    struct omap_ldo_abb_instance *abb)
+{
+	int timeout;
+	int ret;
+
+	timeout = 0;
+	while (timeout++ < abb->tranx_timeout) {
+		ret = abb->ops->check_txdone(abb->prm_irq_id);
+		if (ret)
+			break;
+
+		udelay(1);
+	}
+
+	if (timeout >= abb->tranx_timeout) {
+		pr_warning("%s:%s: ABB TRANXDONE waittimeout(timeout=%d)\n",
+			   __func__, voltdm->name, timeout);
+		return -ETIMEDOUT;
+	}
+	return 0;
+}
+
+/**
  * _abb_clear_tranx() - clear abb tranxdone event
  * @voltdm:	voltage domain we are operating on
  * @abb:	pointer to the abb instance
@@ -109,8 +139,12 @@ static int _abb_set_abb(struct voltagedomain *voltdm, int abb_type)
 	voltdm->rmw(abb->ctrl_bits->opp_change_mask,
 		    abb->ctrl_bits->opp_change_mask, abb->ctrl_reg);
 
+	/* Wait for conversion completion */
+	ret = _abb_wait_tranx(voltdm, abb);
+	WARN_ONCE(ret, "%s: voltdm %s ABB TRANXDONE was not set on time:%d\n",
+			__func__, voltdm->name, ret);
 	/* clear interrupt status */
-	ret = _abb_clear_tranx(voltdm, abb);
+	ret |= _abb_clear_tranx(voltdm, abb);
 
 	return ret;
 }
