@@ -1218,6 +1218,7 @@ int mpu_probe(struct i2c_client *client, const struct i2c_device_id *devid)
 	inv_mpu_close(&mpu->mldl_cfg, client->adapter,
 		      accel_adapter, compass_adapter, pressure_adapter);
  out_whoami_failed:
+	unregister_pm_notifier(&mpu->nb);
 	kfree(mpu);
 	mpu_private_data = NULL;
  out_alloc_data_failed:
@@ -1263,6 +1264,7 @@ static int mpu_remove(struct i2c_client *client)
 		pdata->accel.get_slave_descr = NULL;
 	}
 
+	unregister_pm_notifier(&mpu->nb);
 	misc_deregister(&mpu->dev);
 	kfree(mpu);
 
