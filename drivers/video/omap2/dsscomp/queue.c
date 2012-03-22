@@ -618,10 +618,20 @@ skip_ovl_set:
 		mgr->blank(mgr, true);
 
 	if (!r && (d->mode & DSSCOMP_SETUP_MODE_DISPLAY)) {
-		/* cannot handle update errors, so ignore them */
-		if (dssdev_manually_updated(dssdev) && drv->update)
-			drv->update(dssdev, d->win.x,
+		if (dssdev_manually_updated(dssdev) && drv->update) {
+			r = drv->update(dssdev, d->win.x,
 					d->win.y, d->win.w, d->win.h);
+			if (r) {
+				/* if failed to update, kick out
+				 * prior composition
+				 */
+				mgr->blank(mgr, false);
+				/* clear error as no need to
+				 * handle error state now
+				 */
+				r = 0;
+			}
+		}
 		else
 			/* wait for sync to do smooth animations */
 			mgr->wait_for_vsync(mgr);
