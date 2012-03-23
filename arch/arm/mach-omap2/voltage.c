@@ -260,8 +260,7 @@ struct omap_volt_data *omap_voltage_get_voltdata(struct voltagedomain *voltdm,
 	}
 
 	for (i = 0; vdd->volt_data[i].volt_nominal != 0; i++) {
-		if (vdd->volt_data[i].volt_nominal == volt ||
-		   omap_get_operation_voltage(&vdd->volt_data[i]) == volt)
+		if (vdd->volt_data[i].volt_nominal == volt)
 			return &vdd->volt_data[i];
 	}
 
