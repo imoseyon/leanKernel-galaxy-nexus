@@ -137,7 +137,7 @@ int voltdm_scale(struct voltagedomain *voltdm,
 			(void *)&notify);
 
 	if (voltdm->abb) {
-		ret = omap_ldo_abb_pre_scale(voltdm, target_volt);
+		ret = omap_ldo_abb_pre_scale(voltdm, target_v);
 		if (ret)
 			pr_err("%s: ABB prescale failed for vdd%s: %d\n",
 				__func__, voltdm->name, ret);
@@ -151,9 +151,8 @@ int voltdm_scale(struct voltagedomain *voltdm,
 				__func__, voltdm->name, ret);
 
 		if (voltdm->abb) {
-			unsigned long cv;
-			cv = omap_get_operation_voltage(voltdm->curr_volt);
-			ret = omap_ldo_abb_post_scale(voltdm, cv);
+			ret = omap_ldo_abb_post_scale(voltdm,
+						      voltdm->curr_volt);
 			if (ret)
 				pr_err("%s: ABB postscale fail for vdd%s:%d\n",
 					__func__, voltdm->name, ret);

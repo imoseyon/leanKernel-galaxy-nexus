@@ -160,15 +160,12 @@ static int _abb_set_abb(struct voltagedomain *voltdm, int abb_type)
  * of LDO functions
  */
 static int _abb_scale(struct voltagedomain *voltdm,
-		      unsigned long target_volt, bool is_prescale)
+		      struct omap_volt_data *target_vdata, bool is_prescale)
 {
 	int ret = 0;
-	struct omap_volt_data *target_vdata;
 	int curr_abb, target_abb;
 	struct omap_ldo_abb_instance *abb;
 
-	/* get per-voltage ABB data */
-	target_vdata = omap_voltage_get_voltdata(voltdm, target_volt);
 	if (IS_ERR_OR_NULL(target_vdata)) {
 		pr_err("%s:%s: Invalid volt data tv=%p!\n", __func__,
 		       voltdm->name, target_vdata);
@@ -185,8 +182,8 @@ static int _abb_scale(struct voltagedomain *voltdm,
 	target_abb = target_vdata->abb_type;
 
 	pr_debug("%s: %s: Enter: t_v=%ld scale=%d c_abb=%d t_abb=%d ret=%d\n",
-		 __func__, voltdm->name, target_volt, is_prescale, curr_abb,
-		 target_abb, ret);
+		 __func__, voltdm->name, omap_get_nominal_voltage(target_vdata),
+		 is_prescale, curr_abb, target_abb, ret);
 
 	/* If we were'nt booting and there is no change, we get out */
 	if (target_abb == curr_abb && voltdm->curr_volt)
@@ -224,8 +221,8 @@ static int _abb_scale(struct voltagedomain *voltdm,
 
 out:
 	pr_debug("%s: %s:Exit: t_v=%ld scale=%d c_abb=%d t_abb=%d ret=%d\n",
-		 __func__, voltdm->name, target_volt, is_prescale, curr_abb,
-		 target_abb, ret);
+		 __func__, voltdm->name, omap_get_nominal_voltage(target_vdata),
+		 is_prescale, curr_abb, target_abb, ret);
 	return ret;
 
 }
@@ -233,12 +230,12 @@ out:
 /**
  * omap_ldo_abb_pre_scale() - Enable required ABB strategy before voltage scale
  * @voltdm:		voltage domain to operate on
- * @target_volt:	target voltage we moved to.
+ * @target_volt:	target voltage data we moved to.
  */
 int omap_ldo_abb_pre_scale(struct voltagedomain *voltdm,
-			   unsigned long target_volt)
+			   struct omap_volt_data *target_vdata)
 {
-	return _abb_scale(voltdm, target_volt, true);
+	return _abb_scale(voltdm, target_vdata, true);
 }
 
 /**
@@ -247,9 +244,9 @@ int omap_ldo_abb_pre_scale(struct voltagedomain *voltdm,
  * @target_volt:	target voltage we are going to
  */
 int omap_ldo_abb_post_scale(struct voltagedomain *voltdm,
-			    unsigned long target_volt)
+			    struct omap_volt_data *target_vdata)
 {
-	return _abb_scale(voltdm, target_volt, false);
+	return _abb_scale(voltdm, target_vdata, false);
 }
 
 /**
