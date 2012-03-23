@@ -1,24 +1,28 @@
 #/sbin/bb/busybox ash
 bb="/sbin/bb/busybox"
+echo "------"
 echo "current cpu temp: "`cat /sys/devices/platform/omap/omap_temp_sensor.0/temperature`
 echo "# of times you were throttled recently: "`dmesg | $bb grep -c "too high"`
-echo
+echo "------"
 CPU=`dmesg | $bb grep "trim_val" | $bb cut -d \] -f 3`
 [ "$CPU" ] && echo "CPU Trim Type:$CPU" || echo "Trim Type unknown - run this script just after boot" 
 SI=`dmesg | $bb grep "si_type" | $bb cut -d \] -f 3`
 [ "$SI" ] && echo "CPU Silicon Type:$SI" || echo "Silicon Type unknown - run this script just after boot" 
-echo "------"
-echo "Some debug info below (mostly for imoseyon):"
-$bb echo -n "* "
+echo "------" 
 $bb uname -a | $bb awk '{ print $3 }'
-echo "* Number of awake clocks: "`cat /sys/kernel/debug/clock/summary | $bb awk '/([1-9]$)|( [1-9]0$)/' | $bb wc -l`
-$bb echo -n "* "
-uptime
-$bb echo -n "* Online CPUs: "
+echo "------"
+echo "Number of awake clocks: "`cat /sys/kernel/debug/clock/summary | $bb awk '/([1-9]$)|( [1-9]0$)/' | $bb wc -l`
+echo "------"
+uptime | $bb sed s/\ time//g
+echo "------"
+$bb echo -n "Online CPU: "
 cat /sys/devices/system/cpu/online
+echo "------"
 GOV=`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor`
 MAX=`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq`
 MIN=`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq`
-$bb echo "* Governor: $GOV, MaxFreq: $MAX, MinFreq: $MIN"
-TIS=`cat /sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state`
-$bb echo "* TiS: "${TIS// /\/}
+$bb echo "Governor: $GOV, MaxFreq: $MAX, MinFreq: $MIN"
+echo "------"
+TIS=`cat /sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state | $bb sed s/000//`
+$bb echo "TiS: "${TIS// /\/}
+echo "------"
