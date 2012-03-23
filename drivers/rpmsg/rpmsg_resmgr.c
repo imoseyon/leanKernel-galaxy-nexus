@@ -214,7 +214,6 @@ static int rprm_auxclk_request(struct rprm_elem *e, struct rprm_auxclk *obj)
 	if (ret) {
 		pr_err("%s: rate not supported by %s\n", __func__,
 					clk_src_name[obj->parent_src_clk]);
-		ret = -EINVAL;
 		goto error_aux_src_parent;
 	}
 
@@ -236,7 +235,7 @@ static int rprm_auxclk_request(struct rprm_elem *e, struct rprm_auxclk *obj)
 	ret = clk_set_rate(acd->aux_clk, (obj->clk_rate * MHZ));
 	if (ret) {
 		pr_err("%s: rate not supported by %s\n", __func__, clk_name);
-		goto error_aux_src_parent;
+		goto error_aux_enable;
 	}
 
 	ret = clk_enable(acd->aux_clk);
