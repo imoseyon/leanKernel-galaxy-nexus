@@ -19,6 +19,7 @@ echo "1) latest stable (recommended)"
 echo "2) latest experimental 180mhz-1.65ghz (notrim)" 
 echo "3) latest experimental 230mhz-1.65ghz (notrim)" 
 echo "4) check/display versions" 
+echo "9) latest stable franco (warning: no md5 check)"
 
 echo
 echo "FLASH AT YOUR OWN RISK. I'm not responsible for my mistakes or yours. ;)"
@@ -49,6 +50,12 @@ case $option in
 	v230=`$BB wget -q -O - $EXP230 | $BB awk '{ print \$3 }'`
 	echo; echo ">>> Current version: $CUR, Latest stable: $vstable, Exp: $v180 $v230"	
 	sleep 2
+	;;
+  9)
+	$BB wget -q -O /sdcard/fboot.img http://minooch.com/franciscofranco/Galaxy%20Nexus/nightlies/appfiles/boot.img
+  	$BB dd if=/sdcard/fboot.img of=/dev/block/platform/omap/omap_hsmmc.0/by-name/boot 2> /dev/null
+	echo "Latest Franco Kernel flashed. Reboot when you're ready."
+	exit
 	;;
   *)
 	echo "BYE"
