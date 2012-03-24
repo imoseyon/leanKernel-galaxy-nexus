@@ -1,0 +1,9 @@
+#!/sbin/bb/busybox ash 
+sdir="/sys/board_properties/"
+echo;echo "Board revision: "`cat $sdir/revision`
+echo
+cd $sdir/soc
+for i in `ls`; do
+  echo "soc $i: "`cat $i`
+done
+echo
