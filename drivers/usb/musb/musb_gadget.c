@@ -1955,6 +1955,7 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 			(musb->xceiv->last_event == USB_EVENT_CHARGER)) {
 		musb->xceiv->state = OTG_STATE_B_IDLE;
 		pm_runtime_put(musb->controller);
+	}
 
 	return 0;
 
