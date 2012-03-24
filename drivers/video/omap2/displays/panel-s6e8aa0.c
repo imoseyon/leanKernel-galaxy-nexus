@@ -771,7 +771,7 @@ static void s6e8aa0_setup_gamma_regs(struct s6e8aa0_data *s6, u8 gamma_regs[],
 			adj = clamp_t(int, adj, adj_min, adj_max);
 		}
 #ifdef CONFIG_COLOR_CONTROL
-		gamma_regs[gamma_reg_index(c, V1)] = ((adj + v1_offset[c]) > 0 && (adj <=255)) ? (adj + v1_offset[c]) : adj;
+		gamma_regs[gamma_reg_index(c, V1)] = min(max(adj +  v1_offset[c], 0), 255);
 #else
 		gamma_regs[gamma_reg_index(c, V1)] = adj;
 #endif
