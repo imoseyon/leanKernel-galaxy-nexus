@@ -848,24 +848,32 @@ int sr_notifier_control(struct voltagedomain *voltdm, bool enable)
 		return -EINVAL;
 	}
 
-	if (!enable)
-		sr_write_reg(sr, IRQSTATUS, value);
 
 	switch (sr->ip_type) {
 	case SR_TYPE_V1:
 		value = notifier_to_irqen_v1(sr_class->notify_flags);
-		sr_modify_reg(sr, ERRCONFIG_V1, value,
-				(enable) ? value : 0);
 		break;
 	case SR_TYPE_V2:
 		value = notifier_to_irqen_v2(sr_class->notify_flags);
-		sr_write_reg(sr, (enable) ? IRQENABLE_SET : IRQENABLE_CLR,
-				value);
 		break;
 	default:
 		 dev_warn(&sr->pdev->dev, "%s: unknown type of sr??\n",
 				 __func__);
 		return -EINVAL;
+	}
+
+	if (!enable)
+		sr_write_reg(sr, IRQSTATUS, value);
+
+	switch (sr->ip_type) {
+	case SR_TYPE_V1:
+		sr_modify_reg(sr, ERRCONFIG_V1, value,
+				(enable) ? value : 0);
+		break;
+	case SR_TYPE_V2:
+		sr_write_reg(sr, (enable) ? IRQENABLE_SET : IRQENABLE_CLR,
+				value);
+		break;
 	}
 
 	if (enable != sr->irq_enabled) {
