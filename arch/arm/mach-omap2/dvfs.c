@@ -884,6 +884,13 @@ static int _dvfs_scale(struct device *req_dev, struct device *target_dev,
 		_dep_scale_domains(target_dev, vdd);
 	}
 
+	/* Ensure that current voltage data pointer points to new volt */
+	if (curr_volt == new_volt && omap_get_nominal_voltage(new_vdata) !=
+			omap_get_nominal_voltage(curr_vdata)) {
+		voltdm->curr_volt = new_vdata;
+		omap_vp_update_errorgain(voltdm, new_vdata);
+	}
+
 	/* All clear.. go out gracefully */
 	goto out;
 
