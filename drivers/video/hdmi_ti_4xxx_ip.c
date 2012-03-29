@@ -1234,6 +1234,8 @@ void hdmi_ti_4xxx_core_audio_config(struct hdmi_ip_data *ip_data,
 	r = FLD_MOD(r, cfg->i2s_cfg.shift, 0, 0);
 	hdmi_write_reg(hdmi_av_base(ip_data), HDMI_CORE_AV_I2S_IN_CTRL, r);
 
+	hdmi_write_reg(hdmi_av_base(ip_data), HDMI_CORE_AV_SWAP_I2S, 0x29);
+
 	r = hdmi_read_reg(hdmi_av_base(ip_data), HDMI_CORE_AV_I2S_CHST5);
 	r = FLD_MOD(r, cfg->freq_sample, 7, 4);
 	r = FLD_MOD(r, cfg->i2s_cfg.word_length, 3, 1);
