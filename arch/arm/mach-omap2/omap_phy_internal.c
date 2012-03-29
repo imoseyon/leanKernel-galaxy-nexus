@@ -145,7 +145,7 @@ int omap4430_phy_suspend(struct device *dev, int suspend)
 		/* power on the phy */
 		if (__raw_readl(ctrl_base + CONTROL_DEV_CONF) & PHY_PD) {
 			__raw_writel(~PHY_PD, ctrl_base + CONTROL_DEV_CONF);
-			mdelay(200);
+			mdelay(300);
 		}
 
 		/* restore the context */

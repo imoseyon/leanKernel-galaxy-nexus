@@ -869,6 +869,8 @@ static int mms_ts_suspend(struct device *dev)
 	/* TODO: turn off the power (set vdd_en to 0) to the touchscreen
 	 * on suspend
 	 */
+	gpio_direction_output(info->pdata->gpio_vdd_en, 0);
+	pr_info("[imoseyon] Powered off touchscreen\n");
 
 	mutex_lock(&info->input_dev->mutex);
 	if (!info->input_dev->users)
@@ -892,6 +894,9 @@ static int mms_ts_resume(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct mms_ts_info *info = i2c_get_clientdata(client);
 	int ret = 0;
+
+        gpio_direction_output(info->pdata->gpio_vdd_en, 1);
+        pr_info("[imoseyon] Powered on touchscreen\n");
 
 	mutex_lock(&info->input_dev->mutex);
 	if (info->input_dev->users)

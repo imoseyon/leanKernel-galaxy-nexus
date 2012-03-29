@@ -26,3 +26,6 @@ echo "------"
 TIS=`cat /sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state | $bb sed s/000//`
 $bb echo "TiS: "${TIS// /\/}
 echo "------"
+echo "cpu stats: normal idle iowait irq"
+cat /proc/stat | /sbin/bb/busybox awk '/^cpu[0-1]/ { print $1" "$2" "$5" "$6" "$7 }'
+echo "------"
