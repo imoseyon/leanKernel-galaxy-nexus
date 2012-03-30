@@ -170,7 +170,7 @@ void __init omap4_tuna_input_init(void)
 	/* 0x12 == FPCB 3.2
 	 * 0xa1 == FPCB 3.1
 	 */
-	if (mms_ts_panel_id == 0x12)
+	if (mms_ts_panel_id == 0x12 || mms_ts_panel_id == 0xA2)
 		mms_ts_pdata.fw_name = "mms144_ts_rev32.fw";
 	else
 		mms_ts_pdata.fw_name = "mms144_ts_rev31.fw";
