@@ -689,7 +689,7 @@ static irqreturn_t musb_stage0_irq(struct musb *musb, u8 int_usb,
 		}
 		musb_writew(musb->mregs, MUSB_INTRTXE, musb->epmask);
 		musb_writew(musb->mregs, MUSB_INTRRXE, musb->epmask & 0xfffe);
-		musb_writeb(musb->mregs, MUSB_INTRUSBE, 0xf7);
+		musb_writeb(musb->mregs, MUSB_INTRUSBE, MUSB_INTR_ENABLED);
 #endif
 		musb->port1_status &= ~(USB_PORT_STAT_LOW_SPEED
 					|USB_PORT_STAT_HIGH_SPEED
@@ -922,7 +922,7 @@ void musb_start(struct musb *musb)
 	/*  Set INT enable registers, enable interrupts */
 	musb_writew(regs, MUSB_INTRTXE, musb->epmask);
 	musb_writew(regs, MUSB_INTRRXE, musb->epmask & 0xfffe);
-	musb_writeb(regs, MUSB_INTRUSBE, 0xf7);
+	musb_writeb(regs, MUSB_INTRUSBE, MUSB_INTR_ENABLED);
 
 	musb_writeb(regs, MUSB_TESTMODE, 0);
 

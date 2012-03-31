@@ -1442,6 +1442,7 @@ static void if_hsi_read_done(struct hsi_device *dev, unsigned int size)
 				print_hex_dump_bytes("[HSI]",
 					DUMP_PREFIX_OFFSET,
 					channel->rx_data, channel->packet_size);
+				hsi_conn_err_recovery(mipi_ld);
 			}
 			channel->packet_size = 0;
 

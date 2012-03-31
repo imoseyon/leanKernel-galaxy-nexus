@@ -235,6 +235,7 @@ struct hsi_platform_data {
 	u8 hsi_gdd_chan_count;
 	unsigned long default_hsi_fclk;
 	unsigned int fifo_mapping_strategy;
+	u32 errata;
 };
 
 /* HSI Bus */
@@ -252,7 +253,9 @@ bool hsi_is_hsi_port_busy(struct hsi_port *pport);
 bool hsi_is_hsi_controller_busy(struct hsi_dev *hsi_ctrl);
 bool hsi_is_hst_port_busy(struct hsi_port *pport);
 bool hsi_is_hst_controller_busy(struct hsi_dev *hsi_ctrl);
-
+void hsi_driver_ack_interrupt(struct hsi_port *pport, u32 flag, bool backup);
+bool hsi_driver_is_interrupt_pending(struct hsi_port *pport, u32 flag,
+					bool backup);
 int hsi_driver_enable_interrupt(struct hsi_port *pport, u32 flag);
 int hsi_driver_disable_interrupt(struct hsi_port *pport, u32 flag);
 int hsi_driver_enable_read_interrupt(struct hsi_channel *hsi_channel,
@@ -408,14 +411,16 @@ static inline int hsi_clocks_enable(struct device *dev, const char *s)
 	return hsi_clocks_enable_channel(dev, HSI_CH_NUMBER_NONE, s);
 }
 
+static inline int is_hsi_errata(struct hsi_dev *hsi_ctrl, unsigned int id)
+{
+	struct hsi_platform_data *pdata = dev_get_platdata(hsi_ctrl->dev);
+
+	return IS_HSI_ERRATA(pdata->errata, id);
+}
+
 #if defined(CONFIG_PM) && defined(CONFIG_ARCH_OMAP4)
-extern u8 pm44xx_errata;
-#define IS_HSI_PM44XX_ERRATUM(id)   (pm44xx_errata & (id))
-#define OMAP4_PM_ERRATUM_HSI_SWAKEUP_iXXX       BIT(2)
 extern void omap_pm_clear_dsp_wake_up(void);
 #else
-#define IS_HSI_PM44XX_ERRATUM(id)		0
-#define OMAP4_PM_ERRATUM_HSI_SWAKEUP_iXXX       0
 #define static inline void omap_pm_clear_dsp_wake_up(void) { }
 #endif
 
