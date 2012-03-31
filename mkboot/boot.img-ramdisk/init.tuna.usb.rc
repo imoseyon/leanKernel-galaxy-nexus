@@ -64,7 +64,16 @@ on property:sys.usb.config=ptp,adb
 on property:sys.usb.config=rndis,dm
     write /sys/class/android_usb/android0/enable 0
     write /sys/class/android_usb/android0/idVendor 04e8
-    write /sys/class/android_usb/android0/idProduct 6862
+    write /sys/class/android_usb/android0/idProduct 6864
     write /sys/class/android_usb/android0/functions $sys.usb.config
+    write /sys/class/android_usb/android0/enable 1
+    setprop sys.usb.state $sys.usb.config
+
+on property:sys.usb.config=rndis,acm,dm
+    write /sys/class/android_usb/android0/enable 0
+    write /sys/class/android_usb/android0/idVendor 04e8
+    write /sys/class/android_usb/android0/idProduct 6864
+    write /sys/class/android_usb/android0/functions $sys.usb.config
+    write /sys/class/android_usb/android0/f_acm/instances 1
     write /sys/class/android_usb/android0/enable 1
     setprop sys.usb.state $sys.usb.config
