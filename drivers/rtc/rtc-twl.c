@@ -201,6 +201,103 @@ static int mask_rtc_irq_bit(unsigned char bit)
 	return ret;
 }
 
+static void twl_rtc_alarm_verify(void)
+{
+	unsigned char rtc_data[sizeof(twl6030_rtc_reg_map) + 1] = { 0 };
+	struct rtc_time tn, ta;
+	unsigned long tn_sec, ta_sec;
+	long delta;
+	int ret;
+
+	ret = twl_i2c_read(TWL_MODULE_RTC, rtc_data,
+			   (rtc_reg_map[REG_SECONDS_REG]), ALL_TIME_REGS + 1);
+	if (ret < 0) {
+		pr_err("%s Error: read cur_time %d\n", __func__, ret);
+		return;
+	}
+	ret = twl_i2c_read(TWL_MODULE_RTC, rtc_data + ALL_TIME_REGS + 1,
+			   (rtc_reg_map[REG_ALARM_SECONDS_REG]), ALL_TIME_REGS);
+	if (ret < 0) {
+		pr_err("%s Error: read alarm_time %d\n", __func__, ret);
+		return;
+	}
+
+	tn.tm_sec = bcd2bin(rtc_data[REG_SECONDS_REG]);
+	ta.tm_sec = bcd2bin(rtc_data[REG_ALARM_SECONDS_REG]);
+	tn.tm_min = bcd2bin(rtc_data[REG_MINUTES_REG]);
+	ta.tm_min = bcd2bin(rtc_data[REG_ALARM_MINUTES_REG]);
+	tn.tm_hour = bcd2bin(rtc_data[REG_HOURS_REG]);
+	ta.tm_hour = bcd2bin(rtc_data[REG_ALARM_HOURS_REG]);
+	tn.tm_mday = bcd2bin(rtc_data[REG_DAYS_REG]);
+	ta.tm_mday = bcd2bin(rtc_data[REG_ALARM_DAYS_REG]);
+	tn.tm_mon = bcd2bin(rtc_data[REG_MONTHS_REG]) - 1;
+	ta.tm_mon = bcd2bin(rtc_data[REG_ALARM_MONTHS_REG]) - 1;
+	tn.tm_year = bcd2bin(rtc_data[REG_YEARS_REG]) + 100;
+	ta.tm_year = bcd2bin(rtc_data[REG_ALARM_YEARS_REG]) + 100;
+
+	rtc_tm_to_time(&tn, &tn_sec);
+	rtc_tm_to_time(&ta, &ta_sec);
+	delta = tn_sec - ta_sec;
+
+	pr_err("%s Now=%04d-%02d-%02d %02d:%02d:%02d "
+	       "Alarm=%04d-%02d-%02d %02d:%02d:%02d "
+	       "Delta=%ld sec\n",
+	       __func__,
+	       tn.tm_year + 1900, tn.tm_mon + 1, tn.tm_mday,
+	       tn.tm_hour, tn.tm_min, tn.tm_sec,
+	       ta.tm_year + 1900, ta.tm_mon + 1, ta.tm_mday,
+	       ta.tm_hour, ta.tm_min, ta.tm_sec, delta);
+
+	/* Allow for 60 second Worst case delta */
+	if (delta <= 60)
+		return;
+
+	ret = twl_i2c_read(TWL_MODULE_RTC, rtc_data + (ALL_TIME_REGS * 2) + 1,
+			   (rtc_reg_map[REG_RTC_CTRL_REG]), 5);
+	if (ret < 0) {
+		pr_err("%s Error: read ctrl regs %d\n", __func__, ret);
+		return;
+	}
+	pr_err("%s: REGISTER DUMP\n[REG_SECONDS_REG] = 0x%02x\n"
+	       "[REG_MINUTES_REG] = 0x%02x\n"
+	       "[REG_HOURS_REG] = 0x%02x\n"
+	       "[REG_DAYS_REG] = 0x%02x\n"
+	       "[REG_MONTHS_REG] = 0x%02x\n"
+	       "[REG_YEARS_REG] = 0x%02x\n"
+	       "[REG_WEEKS_REG] = 0x%02x\n"
+	       "[REG_ALARM_SECONDS_REG] = 0x%02x\n"
+	       "[REG_ALARM_MINUTES_REG] = 0x%02x\n"
+	       "[REG_ALARM_HOURS_REG] =0x%02x\n"
+	       "[REG_ALARM_DAYS_REG] = 0x%02x\n"
+	       "[REG_ALARM_MONTHS_REG] = 0x%02x\n"
+	       "[REG_ALARM_YEARS_REG] = 0x%02x\n"
+	       "[REG_RTC_CTRL_REG] = 0x%02x\n"
+	       "[REG_RTC_STATUS_REG] = 0x%02x\n"
+	       "[REG_RTC_INTERRUPTS_REG] = 0x%02x\n"
+	       "[REG_RTC_COMP_LSB_REG] = 0x%02x\n"
+	       "[REG_RTC_COMP_MSB_REG] = 0x%02x\n",
+	       __func__,
+	       rtc_data[REG_SECONDS_REG],
+	       rtc_data[REG_MINUTES_REG],
+	       rtc_data[REG_HOURS_REG],
+	       rtc_data[REG_DAYS_REG],
+	       rtc_data[REG_MONTHS_REG],
+	       rtc_data[REG_YEARS_REG],
+	       rtc_data[REG_WEEKS_REG],
+	       rtc_data[REG_ALARM_SECONDS_REG],
+	       rtc_data[REG_ALARM_MINUTES_REG],
+	       rtc_data[REG_ALARM_HOURS_REG],
+	       rtc_data[REG_ALARM_DAYS_REG],
+	       rtc_data[REG_ALARM_MONTHS_REG],
+	       rtc_data[REG_ALARM_YEARS_REG],
+	       rtc_data[REG_RTC_CTRL_REG],
+	       rtc_data[REG_RTC_STATUS_REG],
+	       rtc_data[REG_RTC_INTERRUPTS_REG],
+	       rtc_data[REG_RTC_COMP_LSB_REG],
+	       rtc_data[REG_RTC_COMP_MSB_REG]);
+	return;
+}
+
 static int twl_rtc_alarm_irq_enable(struct device *dev, unsigned enabled)
 {
 	int ret;
@@ -209,6 +306,9 @@ static int twl_rtc_alarm_irq_enable(struct device *dev, unsigned enabled)
 		ret = set_rtc_irq_bit(BIT_RTC_INTERRUPTS_REG_IT_ALARM_M);
 	else
 		ret = mask_rtc_irq_bit(BIT_RTC_INTERRUPTS_REG_IT_ALARM_M);
+	if (ret)
+		dev_err(dev, "%s(): enabled=%d ret=%d\n", __func__, enabled,
+			ret);
 
 	return ret;
 }
@@ -295,6 +395,18 @@ out:
 	return ret;
 }
 
+void twl_print_alarm(char *msg, struct rtc_wkalrm *alm)
+{
+	pr_info("%s%d-%02d-%02d %02d:%02d:%02d %s\n", msg,
+		1900 + alm->time.tm_year,
+		1 + alm->time.tm_mon,
+		alm->time.tm_mday,
+		alm->time.tm_hour,
+		alm->time.tm_min,
+		alm->time.tm_sec,
+		alm->enabled ? "on" : "off"
+		);
+}
 /*
  * Gets current TWL RTC alarm time.
  */
@@ -322,6 +434,7 @@ static int twl_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alm)
 	if (rtc_irq_bits & BIT_RTC_INTERRUPTS_REG_IT_ALARM_M)
 		alm->enabled = 1;
 
+	twl_print_alarm("twl_rtc_read_alarm(): ", alm);
 	return ret;
 }
 
@@ -330,6 +443,7 @@ static int twl_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alm)
 	unsigned char alarm_data[ALL_TIME_REGS + 1];
 	int ret;
 
+	twl_print_alarm("twl_rtc_set_alarm(): ", alm);
 	ret = twl_rtc_alarm_irq_enable(dev, 0);
 	if (ret)
 		goto out;
@@ -545,6 +659,8 @@ static int twl_rtc_suspend(struct platform_device *pdev, pm_message_t state)
 
 static int twl_rtc_resume(struct platform_device *pdev)
 {
+	if (rtc_irq_bits & BIT_RTC_INTERRUPTS_REG_IT_ALARM_M)
+		twl_rtc_alarm_verify();
 	set_rtc_irq_bit(irqstat);
 	return 0;
 }

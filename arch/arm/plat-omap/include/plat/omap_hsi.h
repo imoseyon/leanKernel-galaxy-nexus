@@ -462,9 +462,34 @@
 				HSI_SYS_MPU_U_ENABLE_REG(port, irq))
 
 #define HSI_SYS_MPU_STATUS_CH_REG(port, irq, channel)      \
-			      ((channel < HSI_SSI_CHANNELS_MAX) ?    \
+			      (((channel) < HSI_SSI_CHANNELS_MAX) ?    \
 			      HSI_SYS_MPU_STATUS_REG(port, irq) :    \
 			      HSI_SYS_MPU_U_STATUS_REG(port, irq))
+
+
+/* HSI errata handling */
+#define IS_HSI_ERRATA(errata, id)		(errata & (id))
+#define SET_HSI_ERRATA(errata, id)		(errata |= (id))
+
+/* HSI-C1BUG00088: i696: HSI: Issue with SW reset
+ * No recovery from SW reset under specific circumstances
+ * If a SW RESET is done while some HSI errors are still not
+ * acknowledged, the HSR FSM is stucked. */
+#define HSI_ERRATUM_i696_SW_RESET_FSM_STUCK		BIT(0)
+
+/* HSI-C1BUG00085: ixxx: HSI wakeup issue in 3 wires mode
+ * HSI will NOT generate the Swakeup for 2nd frame if it entered
+ * IDLE after 1st received frame */
+#define HSI_ERRATUM_ixxx_3WIRES_NO_SWAKEUP		BIT(1)
+
+/*
+* HSI - OMAP4430-2.2BUG00055: i702
+* HSI: DSP Swakeup generated is the same than MPU Swakeup.
+* System cannot enter in off mode due to the DSP.
+*/
+#define HSI_ERRATUM_i702_PM_HSI_SWAKEUP			BIT(2)
+
+
 /**
  *	struct omap_ssi_config - SSI board configuration
  *	@num_ports: Number of ports in use

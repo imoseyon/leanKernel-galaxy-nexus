@@ -577,6 +577,8 @@ static int fsa9480_detect_callback(struct otg_id_notifier_block *nb)
 				 * so we must detect loss of VBUS via an
 				 * external interrupt. */
 				enable_irq(usbsw->pdata->external_vbus_irq);
+				mutex_unlock(&usbsw->lock);
+				return OTG_ID_HANDLED;
 			} else if ((nb_info->detect_set->mask &
 					FSA9480_DETECT_AV_365K) &&
 					!usbsw->pdata->vbus_present()) {
@@ -764,6 +766,8 @@ static irqreturn_t vbus_irq_thread(int irq, void *data)
 	 * detect ID pin changes correctly after dock detach. */
 	_detected(usbsw, FSA9480_DETECT_NONE);
 	fsa9480_reset(usbsw);
+	enable_irq_wake(usbsw->client->irq);
+	enable_irq(usbsw->client->irq);
 	mutex_unlock(&usbsw->lock);
 
 	return IRQ_HANDLED;

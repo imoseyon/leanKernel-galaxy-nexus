@@ -476,10 +476,21 @@ static irqreturn_t max17040_alert(int irq, void *data)
 	struct max17040_chip *chip = data;
 	struct i2c_client *client = chip->client;
 
-	dev_info(&client->dev, "Low battery alert, shutting down...\n");
+	max17040_get_vcell(chip->client);
+	max17040_get_soc(chip->client);
 
+	dev_info(&client->dev, "Low battery alert fired: soc=%d vcell=%d\n",
+		 chip->soc, chip->vcell);
+
+	if (chip->soc != 0) {
+		dev_err(&client->dev, "false low battery alert, ignoring\n");
+		goto out;
+	}
+
+	dev_info(&client->dev, "shutting down due to low battery...\n");
 	kernel_power_off();
 
+out:
 	return IRQ_HANDLED;
 }
 
