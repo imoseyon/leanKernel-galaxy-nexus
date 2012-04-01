@@ -959,10 +959,14 @@ void soundcontrol_reportjack(int jack_type)
 {
     if (jack_type == 0) {
 	headset_plugged = false;
-	headset_power_mode(snd_codec, 1);
+
+	if (snd_codec != NULL)
+	    headset_power_mode(snd_codec, 1);
     } else { 
 	headset_plugged = true;
-	headset_power_mode(snd_codec, snd_data->headset_mode);
+
+	if (snd_codec != NULL && snd_data != NULL)
+	    headset_power_mode(snd_codec, snd_data->headset_mode);
     }
 
     return;
@@ -1940,6 +1944,10 @@ static int twl6040_probe(struct snd_soc_codec *codec)
 #ifdef CONFIG_SOUND_CONTROL
 	snd_data = priv;
 	snd_codec = codec;
+
+	if (headset_plugged) {
+	    headset_power_mode(codec, priv->headset_mode);
+	}
 #endif
 
 	return 0;
