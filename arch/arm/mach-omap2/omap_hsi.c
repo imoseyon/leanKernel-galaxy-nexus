@@ -129,6 +129,19 @@ static struct hsi_platform_data omap_hsi_platform_data = {
 };
 
 
+static u32 omap_hsi_configure_errata(void)
+{
+	u32 errata = 0;
+
+	if (cpu_is_omap44xx()) {
+		SET_HSI_ERRATA(errata, HSI_ERRATUM_i696_SW_RESET_FSM_STUCK);
+		SET_HSI_ERRATA(errata, HSI_ERRATUM_ixxx_3WIRES_NO_SWAKEUP);
+		SET_HSI_ERRATA(errata, HSI_ERRATUM_i702_PM_HSI_SWAKEUP);
+	}
+
+	return errata;
+}
+
 static struct platform_device *hsi_get_hsi_platform_device(void)
 {
 	struct device *dev;
@@ -432,6 +445,8 @@ static int __init omap_hsi_register(struct omap_hwmod *oh, void *user)
 		       OMAP_HSI_HWMOD_NAME);
 		return -EEXIST;
 	}
+
+	omap_hsi_platform_data.errata = omap_hsi_configure_errata();
 
 	od = omap_device_build(OMAP_HSI_PLATFORM_DEVICE_DRIVER_NAME, 0, oh,
 			       pdata, sizeof(*pdata), omap_hsi_latency,

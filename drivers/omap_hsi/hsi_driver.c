@@ -288,14 +288,18 @@ int hsi_softreset(struct hsi_dev *hsi_ctrl)
 	void __iomem *base = hsi_ctrl->base;
 	u32 status;
 
-	/* SW WA for HSI-C1BUG00088 OMAP4430 HSI : No recovery from SW reset */
-	/* under specific circumstances  */
-	for (port = 1; port <= hsi_ctrl->max_p; port++) {
-		hsi_outl_and(HSI_HSR_MODE_MODE_VAL_SLEEP, base,
-			     HSI_HSR_MODE_REG(port));
-		hsi_outl(HSI_HSR_ERROR_ALL, base, HSI_HSR_ERRORACK_REG(port));
+	/* HSI-C1BUG00088: i696 : HSI: Issue with SW reset
+	 * No recovery from SW reset under specific circumstances
+	 * If a SW RESET is done while some HSI errors are still not
+	 * acknowledged, the HSR FSM is stucked. */
+	if (is_hsi_errata(hsi_ctrl, HSI_ERRATUM_i696_SW_RESET_FSM_STUCK)) {
+		for (port = 1; port <= hsi_ctrl->max_p; port++) {
+			hsi_outl_and(HSI_HSR_MODE_MODE_VAL_SLEEP, base,
+				     HSI_HSR_MODE_REG(port));
+			hsi_outl(HSI_HSR_ERROR_ALL, base,
+				 HSI_HSR_ERRORACK_REG(port));
+		}
 	}
-
 	/* Reseting HSI Block */
 	hsi_outl_or(HSI_SOFTRESET, base, HSI_SYS_SYSCONFIG_REG);
 	do {
