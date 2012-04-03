@@ -704,9 +704,14 @@ static void sii9234_toggle_hpd(struct sii9234_data *sii9234)
 
 /* Must call with sii9234->lock held */
 static int sii9234_msc_req_locked(struct sii9234_data *sii9234, u8 req_type,
-				  u8 offset)
+				  u8 offset, u8 first_data, u8 second_data)
 {
 	int ret;
+	bool write_offset = req_type &
+		(START_READ_DEVCAP | START_WRITE_STAT_INT | START_WRITE_BURST);
+	bool write_first_data = req_type &
+		(START_WRITE_STAT_INT | START_MSC_MSG);
+	bool write_second_data = req_type & START_MSC_MSG;
 
 	if (sii9234->state != STATE_ESTABLISHED)
 		return -ENOENT;
@@ -722,7 +727,12 @@ static int sii9234_msc_req_locked(struct sii9234_data *sii9234, u8 req_type,
 
 	init_completion(&sii9234->msc_complete);
 
-	cbus_write_reg(sii9234, CBUS_MSC_OFFSET_REG, offset);
+	if (write_offset)
+		cbus_write_reg(sii9234, CBUS_MSC_OFFSET_REG, offset);
+	if (write_first_data)
+		cbus_write_reg(sii9234, CBUS_MSC_FIRST_DATA_OUT, first_data);
+	if (write_second_data)
+		cbus_write_reg(sii9234, CBUS_MSC_SECOND_DATA_OUT, second_data);
 	cbus_write_reg(sii9234, CBUS_MSC_COMMAND_START, req_type);
 
 	mutex_unlock(&sii9234->lock);
@@ -744,7 +754,7 @@ static int sii9234_devcap_read_locked(struct sii9234_data *sii9234, u8 offset)
 	if (offset > 0xf)
 		return -EINVAL;
 
-	ret = sii9234_msc_req_locked(sii9234, START_READ_DEVCAP, offset);
+	ret = sii9234_msc_req_locked(sii9234, START_READ_DEVCAP, offset, 0, 0);
 	if (ret < 0)
 		return ret;
 
