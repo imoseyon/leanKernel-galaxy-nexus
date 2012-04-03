@@ -905,6 +905,23 @@ int omapfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 					sizeof(p.display_info)))
 			r = -EFAULT;
 		break;
+
+	case OMAPFB_ENABLEVSYNC:
+		if (get_user(p.crt, (__u32 __user *)arg)) {
+			r = -EFAULT;
+			break;
+		}
+
+		if (p.crt) {
+			fbdev->vsync_active = true;
+			wmb();
+			wake_up(&fbdev->vsync_wq);
+		} else {
+			/* this will cause work function to exit */
+			fbdev->vsync_active = false;
+			wmb();
+		}
+		break;
 	}
 
 	default:

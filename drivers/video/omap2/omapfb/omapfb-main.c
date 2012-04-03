@@ -29,6 +29,8 @@
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/omapfb.h>
+#include <linux/wait.h>
+#include <linux/kthread.h>
 
 #include <video/omapdss.h>
 #include <plat/vram.h>
@@ -2276,6 +2278,30 @@ static int omapfb_init_display(struct omapfb2_device *fbdev,
 	return 0;
 }
 
+static bool omapfb_vsync_active(struct omapfb2_device *fbdev)
+{
+	rmb();
+	return fbdev->vsync_active;
+}
+
+static int omapfb_wait_for_vsync_thread(void *data)
+{
+	struct omapfb2_device *fbdev = data;
+	struct omap_dss_device *display = fbdev->displays[0];
+
+
+	/* TODO: provide mechanism for thread exit on driver remove */
+	while(true) {
+		wait_event(fbdev->vsync_wq, omapfb_vsync_active(fbdev));
+		display->manager->wait_for_vsync(display->manager);
+		fbdev->vsync_state = !fbdev->vsync_state;
+		switch_set_state(&fbdev->vsync_switch, fbdev->vsync_state);
+	}
+
+	return 0;
+}
+
+
 static int omapfb_probe(struct platform_device *pdev)
 {
 	struct omapfb2_device *fbdev = NULL;
@@ -2391,6 +2417,12 @@ static int omapfb_probe(struct platform_device *pdev)
 		goto cleanup;
 	}
 
+	init_waitqueue_head(&fbdev->vsync_wq);
+	fbdev->vsync_switch.name = "omapfb-vsync";
+	switch_dev_register(&fbdev->vsync_switch);
+
+	kthread_run(omapfb_wait_for_vsync_thread, fbdev, "omapfb-vsync");
+
 	return 0;
 
 cleanup:
@@ -2405,6 +2437,7 @@ static int omapfb_remove(struct platform_device *pdev)
 	struct omapfb2_device *fbdev = platform_get_drvdata(pdev);
 
 	/* FIXME: wait till completion of pending events */
+	/* TODO: terminate vsync thread */
 
 	omapfb_remove_sysfs(fbdev);
 
