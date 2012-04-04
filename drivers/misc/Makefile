@@ -59,3 +59,4 @@ obj-$(CONFIG_OMAP_DIE_TEMP_SENSOR)	+= omap_temp_sensor.o temp_control.o
 obj-$(CONFIG_LEDS_AN30259A)	+= leds-an30259a.o
 obj-$(CONFIG_COLOR_CONTROL)	+= color_control.o
 obj-$(CONFIG_SOUND_CONTROL)	+= sound_control.o
+obj-$(CONFIG_VIBRATOR_CONTROL)	+= vibrator_control.o
