@@ -24,6 +24,7 @@
 #include <linux/err.h>
 #include <linux/gpio.h>
 #include <linux/i2c.h>
+#include <linux/input.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/kernel.h>
@@ -328,6 +329,8 @@ struct sii9234_data {
 	struct completion		msc_complete;
 
 	u8				devcap[16];
+
+	struct input_dev		*input_dev;
 };
 
 static irqreturn_t sii9234_irq_thread(int irq, void *data);
@@ -1241,6 +1244,7 @@ static int __devinit sii9234_mhl_tx_i2c_probe(struct i2c_client *client,
 {
 	struct i2c_adapter *adapter = to_i2c_adapter(client->dev.parent);
 	struct sii9234_data *sii9234;
+	struct input_dev *input;
 	int ret;
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE_DATA))
@@ -1250,6 +1254,13 @@ static int __devinit sii9234_mhl_tx_i2c_probe(struct i2c_client *client,
 	if (!sii9234) {
 		dev_err(&client->dev, "failed to allocate driver data\n");
 		return -ENOMEM;
+	}
+
+	input = input_allocate_device();
+	if (!input) {
+		dev_err(&client->dev, "failed to allocate input device.\n");
+		ret = -ENOMEM;
+		goto err_exit0;
 	}
 
 	sii9234->pdata = client->dev.platform_data;
@@ -1271,13 +1282,28 @@ static int __devinit sii9234_mhl_tx_i2c_probe(struct i2c_client *client,
 				   IRQF_TRIGGER_HIGH | IRQF_ONESHOT,
 				   "sii9234", sii9234);
 	if (ret < 0)
-		goto err_exit2;
+		goto err_exit1;
 
 	disable_irq(client->irq);
 
 	sii9234->otg_id_nb.detect = sii9234_detection_callback;
 	sii9234->otg_id_nb.cancel = sii9234_cancel_callback;
 	sii9234->otg_id_nb.priority = sii9234->pdata->prio;
+
+	/* indicate that we generate key events */
+	set_bit(EV_KEY, input->evbit);
+	bitmap_fill(input->keybit, KEY_MAX);
+
+	sii9234->input_dev = input;
+	input_set_drvdata(input, sii9234);
+	input->name = "sii9234_rcp";
+	input->id.bustype = BUS_I2C;
+
+	ret = input_register_device(input);
+	if (ret < 0) {
+		dev_err(&client->dev, "fail to register input device\n");
+		goto err_exit1;
+	}
 
 	plist_node_init(&sii9234->otg_id_nb.p, sii9234->pdata->prio);
 
@@ -1290,7 +1316,11 @@ static int __devinit sii9234_mhl_tx_i2c_probe(struct i2c_client *client,
 	return 0;
 
 err_exit2:
+	input_unregister_device(input);
+	goto err_exit0;
 err_exit1:
+	input_free_device(input);
+err_exit0:
 	kfree(sii9234);
 	return ret;
 }
