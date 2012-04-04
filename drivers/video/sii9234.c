@@ -127,6 +127,9 @@
 #define   START_WRITE_STAT_INT	(1 << 3)
 #define   START_WRITE_BURST	(1 << 4)
 
+#define CBUS_MSC_RAP_POLL		0x00
+#define CBUS_MSC_RAP_CONTENT_ON		0x10
+#define CBUS_MSC_RAP_CONTENT_OFF	0x11
 #define CBUS_MSC_OFFSET_REG		0x13
 #define CBUS_MSC_FIRST_DATA_OUT		0x14
 #define CBUS_MSC_SECOND_DATA_OUT	0x15
@@ -305,11 +308,159 @@ enum mhl_state {
 	STATE_ESTABLISHED,
 };
 
+enum msc_subcommand {
+	/* MSC_MSG Sub-Command codes */
+	MSG_RCP =	0x10,
+	MSG_RCPK =	0x11,
+	MSG_RCPE =	0x12,
+	MSG_RAP =	0x20,
+	MSG_RAPK =	0x21,
+};
+
 static inline bool mhl_state_is_error(enum mhl_state state)
 {
 	return state == STATE_DISCOVERY_FAILED ||
 		state == STATE_CBUS_LOCKOUT;
 }
+
+struct msc_data {
+	u8 cmd;
+	u8 data;
+
+	struct list_head list;
+};
+
+static const u16 sii9234_rcp_def_keymap[] = {
+	KEY_SELECT,
+	KEY_UP,
+	KEY_DOWN,
+	KEY_LEFT,
+	KEY_RIGHT,
+	KEY_UNKNOWN,	/* right-up */
+	KEY_UNKNOWN,	/* right-down */
+	KEY_UNKNOWN,	/* left-up */
+	KEY_UNKNOWN,	/* left-down */
+	KEY_MENU,
+	KEY_UNKNOWN,	/* setup */
+	KEY_UNKNOWN,	/* contents */
+	KEY_UNKNOWN,	/* favorite */
+	KEY_EXIT,
+	KEY_RESERVED,	/* 0x0e */
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,	/* 0x1F */
+	KEY_NUMERIC_0,
+	KEY_NUMERIC_1,
+	KEY_NUMERIC_2,
+	KEY_NUMERIC_3,
+	KEY_NUMERIC_4,
+	KEY_NUMERIC_5,
+	KEY_NUMERIC_6,
+	KEY_NUMERIC_7,
+	KEY_NUMERIC_8,
+	KEY_NUMERIC_9,
+	KEY_DOT,
+	KEY_ENTER,
+	KEY_CLEAR,
+	KEY_RESERVED,	/* 0x2D */
+	KEY_RESERVED,
+	KEY_RESERVED,	/* 0x2F */
+	KEY_UNKNOWN,	/* channel up */
+	KEY_UNKNOWN,	/* channel down */
+	KEY_UNKNOWN,	/* previous channel */
+	KEY_UNKNOWN,	/* sound select */
+	KEY_UNKNOWN,	/* input select */
+	KEY_UNKNOWN,	/* show information */
+	KEY_UNKNOWN,	/* help */
+	KEY_UNKNOWN,	/* page up */
+	KEY_UNKNOWN,	/* page down */
+	KEY_RESERVED,	/* 0x39 */
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,	/* 0x3F */
+	KEY_RESERVED,	/* 0x40 */
+	KEY_UNKNOWN,	/* volume up */
+	KEY_UNKNOWN,	/* volume down */
+	KEY_UNKNOWN,	/* mute */
+	KEY_PLAY,
+	KEY_STOP,
+	KEY_PLAYPAUSE,
+	KEY_UNKNOWN,	/* record */
+	KEY_REWIND,
+	KEY_FASTFORWARD,
+	KEY_UNKNOWN,	/* eject */
+	KEY_NEXTSONG,
+	KEY_PREVIOUSSONG,
+	KEY_RESERVED,	/* 0x4D */
+	KEY_RESERVED,
+	KEY_RESERVED,	/* 0x4F */
+	KEY_UNKNOWN,	/* angle */
+	KEY_UNKNOWN,	/* subtitle */
+	KEY_RESERVED,	/* 0x52 */
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,	/* 0x5F */
+	KEY_PLAY,
+	KEY_PAUSE,
+	KEY_UNKNOWN,	/* record_function */
+	KEY_UNKNOWN,	/* pause_record_function */
+	KEY_STOP,
+	KEY_UNKNOWN,	/* mute_function */
+	KEY_UNKNOWN,	/* restore_volume_function */
+	KEY_UNKNOWN,	/* tune_function */
+	KEY_UNKNOWN,	/* select_media_function */
+	KEY_RESERVED,	/* 0x69 */
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,	/* 0x70 */
+	KEY_UNKNOWN,	/* F1 */
+	KEY_UNKNOWN,	/* F2 */
+	KEY_UNKNOWN,	/* F3 */
+	KEY_UNKNOWN,	/* F4 */
+	KEY_UNKNOWN,	/* F5 */
+	KEY_RESERVED,	/* 0x76 */
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,
+	KEY_RESERVED,	/* 0x7D */
+	KEY_VENDOR,
+	KEY_RESERVED,	/* 0x7F */
+};
+#define SII9234_RCP_NUM_KEYS ARRAY_SIZE(sii9234_rcp_def_keymap)
 
 struct sii9234_data {
 	struct sii9234_platform_data	*pdata;
@@ -330,7 +481,11 @@ struct sii9234_data {
 
 	u8				devcap[16];
 
+	struct work_struct		msc_work;
+	struct list_head		msc_data_list;
+
 	struct input_dev		*input_dev;
+	u16				keycode[SII9234_RCP_NUM_KEYS];
 };
 
 static irqreturn_t sii9234_irq_thread(int irq, void *data);
@@ -1022,6 +1177,122 @@ static void sii9234_cancel_callback(struct otg_id_notifier_block *nb)
 	mutex_unlock(&sii9234->lock);
 }
 
+static void rcp_key_report(struct sii9234_data *sii9234, u16 key)
+{
+	pr_debug("sii9234: report rcp key: %d\n", key);
+	input_report_key(sii9234->input_dev, key, 1);
+	input_report_key(sii9234->input_dev, key, 0);
+	input_sync(sii9234->input_dev);
+}
+
+static void cbus_process_rcp_key(struct sii9234_data *sii9234, u8 key)
+{
+	if (key < SII9234_RCP_NUM_KEYS &&
+			sii9234->keycode[key] != KEY_UNKNOWN &&
+			sii9234->keycode[key] != KEY_RESERVED) {
+		/* Report the key */
+		rcp_key_report(sii9234, sii9234->keycode[key]);
+	} else {
+		/*
+		* Send a RCPE(RCP Error Message) to Peer followed by
+		* RCPK with old key-code so that initiator(TV) can
+		* recognize failed key code.error code = 0x01 means
+		* Ineffective key code was received.
+		* See Table 21.(PRM)for details.
+		*/
+		sii9234_msc_req_locked(sii9234, START_MSC_MSG,
+				0, MSG_RCPE, 0x01);
+	}
+
+	/* Send the RCP ack */
+	sii9234_msc_req_locked(sii9234, START_MSC_MSG, 0, MSG_RCPK, key);
+}
+
+static u8 sii9234_tmds_control(struct sii9234_data *sii9234, bool enable)
+{
+	u8 ret = -1;
+
+	if (enable) {
+		ret = mhl_tx_set_reg(sii9234, MHL_TX_TMDS_CCTRL, (1<<4));
+		if (ret < 0)
+			return ret;
+		pr_debug("sii9234: MHL HPD High, enabled TMDS\n");
+		ret = mhl_tx_set_reg(sii9234, MHL_TX_INT_CTRL_REG,
+							(1<<4) | (1<<5));
+	} else {
+		ret = mhl_tx_clear_reg(sii9234, MHL_TX_TMDS_CCTRL, (1<<4));
+		if (ret < 0)
+			return ret;
+		pr_debug("sii9234 MHL HPD low, disabled TMDS\n");
+		ret = mhl_tx_clear_reg(sii9234, MHL_TX_INT_CTRL_REG,
+							(1<<4) | (1<<5));
+	}
+
+	return ret;
+}
+
+static void cbus_process_rap_key(struct sii9234_data *sii9234, u8 key)
+{
+	u8 err = 0x00; /* no error */
+
+	switch (key) {
+	case CBUS_MSC_RAP_POLL:
+		/* no action, just sent to elicit an ACK */
+		break;
+	case CBUS_MSC_RAP_CONTENT_ON:
+		sii9234_tmds_control(sii9234, true);
+		break;
+	case CBUS_MSC_RAP_CONTENT_OFF:
+		sii9234_tmds_control(sii9234, false);
+		break;
+	default:
+		pr_debug("sii9234: unrecognized RAP code %u\n", key);
+		err = 0x01; /* unrecognized action code */
+	}
+
+	sii9234_msc_req_locked(sii9234, START_MSC_MSG, 0, MSG_RAPK, err);
+}
+
+static void sii9234_msc_event(struct work_struct *work)
+{
+	struct msc_data *data, *next;
+	struct sii9234_data *sii9234 = container_of(work, struct sii9234_data,
+			msc_work);
+
+	mutex_lock(&sii9234->lock);
+
+	list_for_each_entry_safe(data, next, &sii9234->msc_data_list, list) {
+		switch (data->cmd) {
+		case MSG_RCP:
+			pr_debug("sii9234: RCP Arrived. KEY CODE:%d\n",
+					data->data);
+			cbus_process_rcp_key(sii9234, data->data);
+			break;
+		case MSG_RAP:
+			pr_debug("sii9234: RAP Arrived\n");
+			cbus_process_rap_key(sii9234, data->data);
+			break;
+		case MSG_RCPK:
+			pr_debug("sii9234: RCPK Arrived\n");
+			break;
+		case MSG_RCPE:
+			pr_debug("sii9234: RCPE Arrived\n");
+			break;
+		case MSG_RAPK:
+			pr_debug("sii9234: RAPK Arrived\n");
+			break;
+		default:
+			pr_debug("sii9234: MAC error\n");
+			break;
+		}
+
+		list_del(&data->list);
+		kfree(data);
+	}
+
+	mutex_unlock(&sii9234->lock);
+}
+
 static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 {
 	u8 cbus_intr1, cbus_intr2;
@@ -1055,8 +1326,25 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 		complete(&sii9234->msc_complete);
 	}
 
-	if (cbus_intr1 & MSC_MSG_RECD)
+	if (cbus_intr1 & MSC_MSG_RECD) {
+		struct msc_data *data;
+
 		pr_debug("sii9234: msc msg received\n");
+
+		data = kmalloc(sizeof(struct msc_data), GFP_KERNEL);
+		if (!data) {
+			dev_err(&sii9234->pdata->mhl_tx_client->dev,
+				"failed to allocate msc data");
+			ret = -ENOMEM;
+			goto err_exit;
+		}
+
+		cbus_read_reg(sii9234, CBUS_MSC_MSG_CMD_IN, &data->cmd);
+		cbus_read_reg(sii9234, CBUS_MSC_MSG_DATA_IN, &data->data);
+		list_add_tail(&data->list, &sii9234->msc_data_list);
+
+		schedule_work(&sii9234->msc_work);
+	}
 
 
 	if (cbus_intr2 & WRT_STAT_RECD) {
@@ -1072,6 +1360,7 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 	if (cbus_intr2 & WRT_BURST_RECD)
 		pr_debug("sii9234: write burst received\n");
 
+err_exit:
 	cbus_write_reg(sii9234, CBUS_MHL_INTR_REG_0, mhl_intr0);
 	cbus_write_reg(sii9234, CBUS_MHL_INTR_REG_1, mhl_intr1);
 	cbus_write_reg(sii9234, CBUS_INT_STATUS_1_REG, cbus_intr1);
@@ -1165,12 +1454,7 @@ static irqreturn_t sii9234_irq_thread(int irq, void *data)
 			 */
 
 			/* Enable TMDS */
-			ret = mhl_tx_set_reg(sii9234, MHL_TX_TMDS_CCTRL,
-					     (1<<4));
-			pr_debug("sii9234: MHL HPD High, enabled TMDS\n");
-
-			ret = mhl_tx_set_reg(sii9234, MHL_TX_INT_CTRL_REG,
-					     (1<<4) | (1<<5));
+			sii9234_tmds_control(sii9234, true);
 		} else {
 			/*Downstream HPD Low*/
 
@@ -1180,11 +1464,7 @@ static irqreturn_t sii9234_irq_thread(int irq, void *data)
 			 */
 
 			/* Disable TMDS */
-			ret = mhl_tx_clear_reg(sii9234, MHL_TX_TMDS_CCTRL,
-					       (1<<4));
-			pr_debug("sii9234 MHL HPD low, disabled TMDS\n");
-			ret = mhl_tx_clear_reg(sii9234, MHL_TX_INT_CTRL_REG,
-					       (1<<4) | (1<<5));
+			sii9234_tmds_control(sii9234, false);
 		}
 	}
 
@@ -1246,6 +1526,7 @@ static int __devinit sii9234_mhl_tx_i2c_probe(struct i2c_client *client,
 	struct sii9234_data *sii9234;
 	struct input_dev *input;
 	int ret;
+	u8 i;
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE_DATA))
 		return -EIO;
@@ -1278,6 +1559,9 @@ static int __devinit sii9234_mhl_tx_i2c_probe(struct i2c_client *client,
 	mutex_init(&sii9234->lock);
 	mutex_init(&sii9234->msc_lock);
 
+	INIT_WORK(&sii9234->msc_work, sii9234_msc_event);
+	INIT_LIST_HEAD(&sii9234->msc_data_list);
+
 	ret = request_threaded_irq(client->irq, NULL, sii9234_irq_thread,
 				   IRQF_TRIGGER_HIGH | IRQF_ONESHOT,
 				   "sii9234", sii9234);
@@ -1292,7 +1576,17 @@ static int __devinit sii9234_mhl_tx_i2c_probe(struct i2c_client *client,
 
 	/* indicate that we generate key events */
 	set_bit(EV_KEY, input->evbit);
-	bitmap_fill(input->keybit, KEY_MAX);
+	memcpy(sii9234->keycode, sii9234_rcp_def_keymap,
+			SII9234_RCP_NUM_KEYS *
+				sizeof(sii9234_rcp_def_keymap[0]));
+	input->keycode = sii9234->keycode;
+	input->keycodemax = SII9234_RCP_NUM_KEYS;
+	input->keycodesize = sizeof(sii9234->keycode[0]);
+	for (i = 0; i < SII9234_RCP_NUM_KEYS; i++) {
+		u16 keycode = sii9234->keycode[i];
+		if (keycode != KEY_UNKNOWN && keycode != KEY_RESERVED)
+			set_bit(keycode, input->keybit);
+	}
 
 	sii9234->input_dev = input;
 	input_set_drvdata(input, sii9234);
