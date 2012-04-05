@@ -74,6 +74,8 @@ static bool mms_die_on_flash_fail = true;
 module_param_named(die_on_flash_fail, mms_die_on_flash_fail, bool,
 		   S_IWUSR | S_IRUGO);
 
+static bool log_event_after_enable;
+
 struct mms_ts_info {
 	struct i2c_client		*client;
 	struct input_dev		*input_dev;
@@ -197,6 +199,11 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 	input_sync(info->input_dev);
 
 out:
+	if (log_event_after_enable) {
+		pr_info("%s(): sending touch info for %d fingers\n",
+			__func__, sz/FINGER_EVENT_SZ);
+		log_event_after_enable = false;
+	}
 	return IRQ_HANDLED;
 }
 
@@ -543,6 +550,9 @@ static int get_fw_version(struct mms_ts_info *info)
 static int mms_ts_enable(struct mms_ts_info *info)
 {
 	mutex_lock(&info->lock);
+	/* we don't care about barriers for the flag */
+	log_event_after_enable = true;
+	pr_info("%s(): on entry: enabled=%d\n", __func__, info->enabled);
 	if (info->enabled)
 		goto out;
 	/* wake up the touch controller. */
