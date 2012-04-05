@@ -121,7 +121,7 @@ static struct clockdomain *emif_clkdm, *mpuss_clkdm;
  *
  * CDDS no: OMAP4460-1.0BUG00291 (OMAP official errata ID yet to be available).
  */
-#define OMAP4_PM_ERRATUM_LPDDR_CLK_IO_iXXX		BIT(5)
+#define OMAP4_PM_ERRATUM_LPDDR_CLK_IO_i736		BIT(5)
 #define LPDDR_WD_PULL_DOWN				0x02
 
 /* TI Errata i612 - Wkup Clk Recycling Needed After Warm Reset
@@ -160,7 +160,7 @@ void syscontrol_lpddr_clk_io_errata(bool enable)
 {
 	u32 v = 0;
 
-	if (!is_pm44xx_erratum(LPDDR_CLK_IO_iXXX))
+	if (!is_pm44xx_erratum(LPDDR_CLK_IO_i736))
 		return;
 
 	v = omap4_ctrl_pad_readl(OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_LPDDR2IO1_2);
@@ -1290,7 +1290,7 @@ static void __init omap4_pm_setup_errata(void)
 	if (cpu_is_omap44xx())
 		pm44xx_errata |= OMAP4_PM_ERRATUM_IVA_AUTO_RET_iXXX |
 				 OMAP4_PM_ERRATUM_HSI_SWAKEUP_iXXX |
-				 OMAP4_PM_ERRATUM_LPDDR_CLK_IO_iXXX;
+				 OMAP4_PM_ERRATUM_LPDDR_CLK_IO_i736;
 
 	if (cpu_is_omap443x()) {
 		/* Dynamic Dependency errata for all silicon !=443x */
