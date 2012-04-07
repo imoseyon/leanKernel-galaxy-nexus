@@ -761,6 +761,52 @@ static int _dvfs_scale(struct device *req_dev, struct device *target_dev,
 		return PTR_ERR(curr_vdata);
 	}
 
+	/* Should I scale? */
+	if (omap_get_nominal_voltage(new_vdata) !=
+			omap_get_nominal_voltage(curr_vdata))
+		goto do_scale;
+
+	/* Check if any of the devices on voltdm frequency ops need to happen */
+	list_for_each_entry(temp_dev, &tdvfs_info->dev_list, node) {
+		struct device *dev;
+		struct opp *opp;
+		unsigned long freq = 0;
+
+		dev = temp_dev->dev;
+		if (!plist_head_empty(&temp_dev->freq_user_list)) {
+			node = plist_last(&temp_dev->freq_user_list);
+			freq = node->prio;
+		} else {
+			/*
+			 * Is the dev of dep domain target_device?
+			 * we'd probably have a voltage request without
+			 * a frequency dependency, scale appropriate frequency
+			 * if there are none pending
+			 */
+			if (target_dev == dev) {
+				rcu_read_lock();
+				opp = _volt_to_opp(dev, new_volt);
+				if (!IS_ERR(opp))
+					freq = opp_get_freq(opp);
+				rcu_read_unlock();
+			}
+			if (!freq)
+				continue;
+		}
+
+		if (freq == clk_get_rate(temp_dev->clk)) {
+			dev_dbg(dev, "%s: Already at the requested"
+				"rate %ld\n", __func__, freq);
+			continue;
+		}
+		goto do_scale;
+
+	}
+
+	/* Nothing really to do here! */
+	return 0;
+
+do_scale:
 	/* Disable smartreflex module across voltage and frequency scaling */
 	omap_sr_disable(voltdm);
 
@@ -886,6 +932,13 @@ static int _dvfs_scale(struct device *req_dev, struct device *target_dev,
 	if (omap_get_nominal_voltage(new_vdata) <
 			omap_get_nominal_voltage(curr_vdata)) {
 		_dep_scale_domains(target_dev, vdd);
+	}
+
+	/* Ensure that current voltage data pointer points to new volt */
+	if (curr_volt == new_volt && omap_get_nominal_voltage(new_vdata) !=
+			omap_get_nominal_voltage(curr_vdata)) {
+		voltdm->curr_volt = new_vdata;
+		omap_vp_update_errorgain(voltdm, new_vdata);
 	}
 
 	/* All clear.. go out gracefully */

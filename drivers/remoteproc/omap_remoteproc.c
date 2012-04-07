@@ -47,6 +47,7 @@ struct omap_rproc_priv {
 	u32 idle_mask;
 	void __iomem *suspend;
 	u32 suspend_mask;
+	u64 bootaddr;
 #endif
 };
 
@@ -183,6 +184,15 @@ static int omap_rproc_iommu_isr(struct iommu *iommu, u32 da, u32 errs, void *p)
 	return ret;
 }
 
+static inline void _load_boot_addr(struct rproc *rproc, u64 bootaddr)
+{
+	struct omap_rproc_pdata *pdata = rproc->dev->platform_data;
+
+	if (pdata->boot_reg)
+		omap_writel(bootaddr, pdata->boot_reg);
+	return;
+}
+
 int omap_rproc_activate(struct omap_device *od)
 {
 	int i, ret = 0;
@@ -190,8 +200,8 @@ int omap_rproc_activate(struct omap_device *od)
 	struct device *dev = rproc->dev;
 	struct omap_rproc_pdata *pdata = dev->platform_data;
 	struct omap_rproc_timers_info *timers = pdata->timers;
-#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	struct omap_rproc_priv *rpp = rproc->priv;
+#ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
 	struct iommu *iommu;
 
 	if (!rpp->iommu) {
@@ -207,6 +217,11 @@ int omap_rproc_activate(struct omap_device *od)
 	if (!rpp->mbox)
 		rpp->mbox = omap_mbox_get(pdata->sus_mbox_name, NULL);
 #endif
+	/**
+	 * explicitly configure a boot address from which remoteproc
+	 * starts executing code when taken out of reset.
+	 */
+	_load_boot_addr(rproc, rpp->bootaddr);
 
 	/**
 	 * Domain is in HW SUP thus in hw_auto but
@@ -437,12 +452,14 @@ static irqreturn_t omap_rproc_watchdog_isr(int irq, void *p)
 	return IRQ_HANDLED;
 }
 #endif
+
 static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 {
 	struct device *dev = rproc->dev;
 	struct platform_device *pdev = to_platform_device(dev);
 	struct omap_rproc_pdata *pdata = dev->platform_data;
 	struct omap_rproc_timers_info *timers = pdata->timers;
+	struct omap_rproc_priv *rpp = rproc->priv;
 	int i;
 	int ret = 0;
 
@@ -457,8 +474,11 @@ static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 	}
 
 #ifdef CONFIG_REMOTE_PROC_AUTOSUSPEND
-	_init_pm_flags(rproc);
+	ret = _init_pm_flags(rproc);
+	if (ret)
+		return ret;
 #endif
+
 	for (i = 0; i < pdata->timers_cnt; i++) {
 		timers[i].odt = omap_dm_timer_request_specific(timers[i].id);
 		if (!timers[i].odt) {
@@ -467,8 +487,10 @@ static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 		}
 		omap_dm_timer_set_source(timers[i].odt, OMAP_TIMER_SRC_SYS_CLK);
 #ifdef CONFIG_REMOTEPROC_WATCHDOG
-		/* GPT 9 and 11 are using as WDT */
-		if (timers[i].id == 9 || timers[i].id == 11) {
+		/* GPT 9 & 11 (ipu); GPT 6 (dsp) are used as watchdog timers */
+		if ((!strcmp(rproc->name, "dsp") && timers[i].id == 6) ||
+		    (!strcmp(rproc->name, "ipu") &&
+				(timers[i].id == 9 || timers[i].id == 11))) {
 			ret = request_irq(omap_dm_timer_get_irq(timers[i].odt),
 					 omap_rproc_watchdog_isr, IRQF_DISABLED,
 					"rproc-wdt", rproc);
@@ -478,6 +500,7 @@ static inline int omap_rproc_start(struct rproc *rproc, u64 bootaddr)
 #endif
 	}
 
+	rpp->bootaddr = bootaddr;
 	ret = omap_device_enable(pdev);
 out:
 	if (ret) {
@@ -532,8 +555,10 @@ static inline int omap_rproc_stop(struct rproc *rproc)
 
 	for (i = 0; i < pdata->timers_cnt; i++) {
 #ifdef CONFIG_REMOTEPROC_WATCHDOG
-		/* GPT 9 and 11 are used as WDT */
-		if (timers[i].id == 9 || timers[i].id == 11)
+		/* GPT 9 & 11 (ipu); GPT 6 (dsp) are used as watchdog timers */
+		if ((!strcmp(rproc->name, "dsp") && timers[i].id == 6) ||
+		    (!strcmp(rproc->name, "ipu") &&
+				(timers[i].id == 9 || timers[i].id == 11)))
 			free_irq(omap_dm_timer_get_irq(timers[i].odt), rproc);
 #endif
 		omap_dm_timer_free(timers[i].odt);
@@ -545,8 +570,15 @@ err:
 
 static int omap_rproc_set_lat(struct rproc *rproc, long val)
 {
-	pm_qos_update_request(rproc->qos_request, val);
-	return 0;
+	int ret = 0;
+
+	if (!strcmp(rproc->name, "ipu"))
+		pm_qos_update_request(rproc->qos_request, val);
+	else
+		ret = omap_pm_set_max_dev_wakeup_lat(rproc->dev,
+						rproc->dev, val);
+
+	return ret;
 }
 
 static int omap_rproc_set_l3_bw(struct rproc *rproc, long val)
