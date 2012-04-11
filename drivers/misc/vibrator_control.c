@@ -13,7 +13,7 @@
 
 #define VIBRATORCONTROL_VERSION 1
 
-#define MAX_VIBSTRENGTH 1500
+#define MAX_VIBSTRENGTH 1600
 #define MIN_VIBSTRENGTH 1000
 
 static int vib_strength;
@@ -30,20 +30,20 @@ EXPORT_SYMBOL(vibratorcontrol_register_vibstrength);
 
 static ssize_t vibratorcontrol_vibstrength_read(struct device * dev, struct device_attribute * attr, char * buf)
 {
-    return sprintf(buf, "%d\n", vib_strength);
+    return sprintf(buf, "%i\n", vib_strength);
 }
 
 static ssize_t vibratorcontrol_vibstrength_write(struct device * dev, struct device_attribute * attr, const char * buf, size_t size)
 {
-    int data;
+    unsigned int data;
 
-    if (sscanf(buf, "%d\n", &data) == 1)
+    if (sscanf(buf, "%u\n", &data) == 1)
 	{
 	    if (data != vib_strength)
 		{
 		    vib_strength = min(max(data, MIN_VIBSTRENGTH), MAX_VIBSTRENGTH);
 
-		    pr_info("VIBRATORCONTROL threshold changed to %d\n", vib_strength);
+		    pr_info("VIBRATORCONTROL vibrator strength changed to %i\n", vib_strength);
 
 		    vibratorcontrol_update(vib_strength);
 		}
