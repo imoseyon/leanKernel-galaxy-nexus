@@ -477,6 +477,7 @@ void dispc_get_trans_key(enum omap_channel ch,
 		u32 *trans_key);
 void dispc_enable_trans_key(enum omap_channel ch, bool enable);
 void dispc_enable_alpha_blending(enum omap_channel ch, bool enable);
+int  dispc_enable_gamma(enum omap_channel ch, u8 gamma_value);
 bool dispc_trans_key_enabled(enum omap_channel ch);
 bool dispc_alpha_blending_enabled(enum omap_channel ch);
 
