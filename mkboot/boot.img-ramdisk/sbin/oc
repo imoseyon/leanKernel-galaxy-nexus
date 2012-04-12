@@ -20,7 +20,7 @@ if [[ $1 == "gpu" ]]; then
 	  ;; 
 	2)
 	  echo "echo \"2\" > $gpusysfs" >> $gpuinit
-	  FREQ="384MHz"
+	  FREQ="512MHz"
 	  ;; 
 	*)
 	  echo "echo \"0\" > $gpusysfs" >> $gpuinit
