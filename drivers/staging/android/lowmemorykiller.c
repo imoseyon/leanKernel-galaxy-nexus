@@ -7,10 +7,10 @@
  * files take a comma separated list of numbers in ascending order.
  *
  * For example, write "0,8" to /sys/module/lowmemorykiller/parameters/adj and
- * "1024,4096" to /sys/module/lowmemorykiller/parameters/minfree to kill processes
- * with a oom_adj value of 8 or higher when the free memory drops below 4096 pages
- * and kill processes with a oom_adj value of 0 or higher when the free memory
- * drops below 1024 pages.
+ * "1024,4096" to /sys/module/lowmemorykiller/parameters/minfree to kill
+ * processes with a oom_adj value of 8 or higher when the free memory drops
+ * below 4096 pages and kill processes with a oom_adj value of 0 or higher
+ * when the free memory drops below 1024 pages.
  *
  * The driver considers memory used for caches to be free, but if a large
  * percentage of the cached memory is locked this can be very inaccurate
@@ -34,6 +34,8 @@
 #include <linux/mm.h>
 #include <linux/oom.h>
 #include <linux/sched.h>
+#include <linux/rcupdate.h>
+#include <linux/profile.h>
 #include <linux/notifier.h>
 
 static uint32_t lowmem_debug_level = 2;
@@ -81,7 +83,7 @@ task_notify_func(struct notifier_block *self, unsigned long val, void *data)
 
 static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 {
-	struct task_struct *p;
+	struct task_struct *tsk;
 	struct task_struct *selected = NULL;
 	int rem = 0;
 	int tasksize;
@@ -118,8 +120,8 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	}
 	if (sc->nr_to_scan > 0)
 		lowmem_print(3, "lowmem_shrink %lu, %x, ofree %d %d, ma %d\n",
-			     sc->nr_to_scan, sc->gfp_mask, other_free, other_file,
-			     min_adj);
+				sc->nr_to_scan, sc->gfp_mask, other_free,
+				other_file, min_adj);
 	rem = global_page_state(NR_ACTIVE_ANON) +
 		global_page_state(NR_ACTIVE_FILE) +
 		global_page_state(NR_INACTIVE_ANON) +
@@ -131,25 +133,24 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	}
 	selected_oom_adj = min_adj;
 
-	read_lock(&tasklist_lock);
-	for_each_process(p) {
-		struct mm_struct *mm;
-		struct signal_struct *sig;
+	rcu_read_lock();
+	for_each_process(tsk) {
+		struct task_struct *p;
 		int oom_adj;
 
-		task_lock(p);
-		mm = p->mm;
-		sig = p->signal;
-		if (!mm || !sig) {
-			task_unlock(p);
+		if (tsk->flags & PF_KTHREAD)
 			continue;
-		}
-		oom_adj = sig->oom_adj;
+
+		p = find_lock_task_mm(tsk);
+		if (!p)
+			continue;
+
+		oom_adj = p->signal->oom_adj;
 		if (oom_adj < min_adj) {
 			task_unlock(p);
 			continue;
 		}
-		tasksize = get_mm_rss(mm);
+		tasksize = get_mm_rss(p->mm);
 		task_unlock(p);
 		if (tasksize <= 0)
 			continue;
@@ -172,12 +173,12 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			     selected_oom_adj, selected_tasksize);
 		lowmem_deathpending = selected;
 		lowmem_deathpending_timeout = jiffies + HZ;
-		force_sig(SIGKILL, selected);
+		send_sig(SIGKILL, selected, 0);
 		rem -= selected_tasksize;
 	}
 	lowmem_print(4, "lowmem_shrink %lu, %x, return %d\n",
 		     sc->nr_to_scan, sc->gfp_mask, rem);
-	read_unlock(&tasklist_lock);
+	rcu_read_unlock();
 	return rem;
 }
 

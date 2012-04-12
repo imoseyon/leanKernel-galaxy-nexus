@@ -141,7 +141,7 @@ static void sr_class1p5_calib_work(struct work_struct *work)
 {
 	struct sr_class1p5_work_data *work_data =
 	    container_of(work, struct sr_class1p5_work_data, work.work);
-	unsigned long u_volt_safe = 0, u_volt_current = 0, u_volt_margin;
+	unsigned long u_volt_safe = 0, u_volt_current = 0, u_volt_margin = 0;
 	struct omap_volt_data *volt_data;
 	struct voltagedomain *voltdm;
 	int idx = 0;
@@ -265,10 +265,6 @@ stop_sampling:
 		if (work_data->u_volt_samples[idx] > u_volt_safe)
 			u_volt_safe = work_data->u_volt_samples[idx];
 	}
-	/* Use the nominal voltage as the safe voltage to recover bad osc */
-	if (u_volt_safe > volt_data->volt_nominal)
-		u_volt_safe = volt_data->volt_nominal;
-
 
 	/* Fall through to close up common stuff */
 done_calib:
@@ -294,16 +290,16 @@ done_calib:
 		} else {
 			u_volt_margin = volt_data->volt_margin;
 		}
-		/* Add margin IF we are lower than nominal */
-		if ((u_volt_safe + u_volt_margin) < volt_data->volt_nominal) {
-			u_volt_safe += u_volt_margin;
-		} else {
-			pr_err("%s: %s could not add %ld[%d] margin"
-				"to vnom %d curr_v=%ld\n",
-				__func__, voltdm->name, u_volt_margin,
-				volt_data->volt_margin, volt_data->volt_nominal,
-				u_volt_current);
-		}
+
+		u_volt_safe += u_volt_margin;
+	}
+	/* just warn, dont clamp down on voltage */
+	if (u_volt_safe > volt_data->volt_nominal) {
+		pr_warning("%s: %s Vsafe %ld > Vnom %d. %ld[%d] margin on"
+			"vnom %d curr_v=%ld\n", __func__, voltdm->name,
+			u_volt_safe, volt_data->volt_nominal, u_volt_margin,
+			volt_data->volt_margin, volt_data->volt_nominal,
+			u_volt_current);
 	}
 
 	volt_data->volt_calibrated = u_volt_safe;
