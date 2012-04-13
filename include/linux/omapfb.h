@@ -58,6 +58,7 @@
 #define OMAPFB_GET_VRAM_INFO	OMAP_IOR(61, struct omapfb_vram_info)
 #define OMAPFB_SET_TEARSYNC	OMAP_IOW(62, struct omapfb_tearsync_info)
 #define OMAPFB_GET_DISPLAY_INFO	OMAP_IOR(63, struct omapfb_display_info)
+#define OMAPFB_ENABLEVSYNC	OMAP_IOW(64, int)
 
 #define OMAPFB_CAPS_GENERIC_MASK	0x00000fff
 #define OMAPFB_CAPS_LCDC_MASK		0x00fff000
