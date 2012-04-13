@@ -69,8 +69,6 @@ struct sr_class1p5_work_data {
 static struct delayed_work recal_work;
 #endif
 
-static unsigned long class1p5_margin;
-
 /**
  * sr_class1p5_notify() - isr notifier for status events
  * @voltdm:	voltage domain for which we were triggered
@@ -140,7 +138,7 @@ static void sr_class1p5_calib_work(struct work_struct *work)
 {
 	struct sr_class1p5_work_data *work_data =
 	    container_of(work, struct sr_class1p5_work_data, work.work);
-	unsigned long u_volt_safe = 0, u_volt_current = 0, u_volt_margin;
+	unsigned long u_volt_safe = 0, u_volt_current = 0, u_volt_margin = 0;
 	struct omap_volt_data *volt_data;
 	struct voltagedomain *voltdm;
 	int idx = 0;
@@ -262,10 +260,6 @@ stop_sampling:
 		if (work_data->u_volt_samples[idx] > u_volt_safe)
 			u_volt_safe = work_data->u_volt_samples[idx];
 	}
-	/* Use the nominal voltage as the safe voltage to recover bad osc */
-	if (u_volt_safe > volt_data->volt_nominal)
-		u_volt_safe = volt_data->volt_nominal;
-
 
 	/* Fall through to close up common stuff */
 done_calib:
@@ -274,7 +268,7 @@ done_calib:
 	sr_disable(voltdm);
 
 	/* Add margin if needed */
-	if (class1p5_margin) {
+	if (volt_data->volt_margin) {
 		struct omap_voltdm_pmic *pmic = voltdm->pmic;
 		/* Convert to rounded to PMIC step level if available */
 		if (pmic && pmic->vsel_to_uv && pmic->uv_to_vsel) {
@@ -284,23 +278,23 @@ done_calib:
 			 * then convert it with pmic routine to vsel and back
 			 * to voltage, and finally remove the base voltage
 			 */
-			u_volt_margin = u_volt_current + class1p5_margin;
+			u_volt_margin = u_volt_current + volt_data->volt_margin;
 			u_volt_margin = pmic->uv_to_vsel(u_volt_margin);
 			u_volt_margin = pmic->vsel_to_uv(u_volt_margin);
 			u_volt_margin -= u_volt_current;
 		} else {
-			u_volt_margin = class1p5_margin;
+			u_volt_margin = volt_data->volt_margin;
 		}
-		/* Add margin IF we are lower than nominal */
-		if ((u_volt_safe + u_volt_margin) < volt_data->volt_nominal) {
-			u_volt_safe += u_volt_margin;
-		} else {
-			pr_err("%s: %s could not add %ld[%ld] margin"
-				"to vnom %d curr_v=%ld\n",
-				__func__, voltdm->name, u_volt_margin,
-				class1p5_margin, volt_data->volt_nominal,
-				u_volt_current);
-		}
+
+		u_volt_safe += u_volt_margin;
+	}
+
+	if (u_volt_safe > volt_data->volt_nominal) {
+		pr_warning("%s: %s Vsafe %ld > Vnom %d. %ld[%d] margin on"
+			"vnom %d curr_v=%ld\n", __func__, voltdm->name,
+			u_volt_safe, volt_data->volt_nominal, u_volt_margin,
+			volt_data->volt_margin, volt_data->volt_nominal,
+			u_volt_current);
 	}
 
 	volt_data->volt_calibrated = u_volt_safe;
@@ -317,9 +311,10 @@ done_calib:
 		voltdm_scale(voltdm, volt_data);
 	}
 
-	pr_info("%s: %s: Calibration complete: Voltage Nominal=%d Calib=%d\n",
+	pr_info("%s: %s: Calibration complete: Voltage:Nominal=%d,"
+		"Calib=%d,margin=%d\n",
 		 __func__, voltdm->name, volt_data->volt_nominal,
-		 volt_data->volt_calibrated);
+		 volt_data->volt_calibrated, volt_data->volt_margin);
 	/*
 	 * TODO: Setup my wakeup voltage to allow immediate going to OFF and
 	 * on - Pending twl and voltage layer cleanups.
@@ -650,18 +645,6 @@ static struct omap_sr_class_data class1p5_data = {
 };
 
 /**
- * sr_class1p5_margin_set() - add a margin on top of calibrated voltage
- * @margin:	add margin in uVolts
- *
- * Some platforms may need a margin, so provide an api which board files
- * need to call and update internal data structure.
- */
-void __init sr_class1p5_margin_set(unsigned int margin)
-{
-	class1p5_margin = margin;
-}
-
-/**
  * sr_class1p5_driver_init() - register class 1p5 as default
  *
  * board files call this function to use class 1p5, we register with the
@@ -674,13 +657,6 @@ static int __init sr_class1p5_driver_init(void)
 	/* Enable this class only for OMAP3630 and OMAP4 */
 	if (!(cpu_is_omap3630() || cpu_is_omap44xx()))
 		return -EINVAL;
-
-	/* Add 10mV margin as 4460 has Class3 ntarget values */
-	if (!class1p5_margin && cpu_is_omap446x()) {
-		pr_info("%s: OMAP4460: add 10mV margin for class 1.5\n",
-			__func__);
-		class1p5_margin = 10000;
-	}
 
 	r = sr_register_class(&class1p5_data);
 	if (r) {
