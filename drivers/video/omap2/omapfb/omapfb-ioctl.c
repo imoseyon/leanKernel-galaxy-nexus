@@ -905,6 +905,7 @@ int omapfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 					sizeof(p.display_info)))
 			r = -EFAULT;
 		break;
+	}
 
 	case OMAPFB_ENABLEVSYNC:
 		if (get_user(p.crt, (__u32 __user *)arg)) {
@@ -912,17 +913,17 @@ int omapfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 			break;
 		}
 
-		if (p.crt) {
-			fbdev->vsync_active = true;
-			wmb();
-			wake_up(&fbdev->vsync_wq);
-		} else {
-			/* this will cause work function to exit */
-			fbdev->vsync_active = false;
-			wmb();
+		omapfb_lock(fbdev);
+		fbdev->vsync_active = !!p.crt;
+
+		if (display->state == OMAP_DSS_DISPLAY_ACTIVE) {
+			if (p.crt)
+				omapfb_enable_vsync(fbdev);
+			else
+				omapfb_disable_vsync(fbdev);
 		}
+		omapfb_unlock(fbdev);
 		break;
-	}
 
 	default:
 		dev_err(fbdev->dev, "Unknown ioctl 0x%x\n", cmd);

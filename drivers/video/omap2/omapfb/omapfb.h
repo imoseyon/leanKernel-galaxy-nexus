@@ -30,7 +30,6 @@
 #include <linux/rwsem.h>
 
 #include <video/omapdss.h>
-#include <linux/switch.h>
 
 #ifdef DEBUG
 extern unsigned int omapfb_debug;
@@ -100,9 +99,8 @@ struct omapfb2_device {
 	} bpp_overrides[10];
 
 	bool vsync_active;
-	int vsync_state;
-	wait_queue_head_t vsync_wq;
-	struct switch_dev vsync_switch;
+	ktime_t vsync_timestamp;
+	struct work_struct vsync_work;
 };
 
 struct omapfb_colormode {
@@ -133,6 +131,9 @@ int dss_mode_to_fb_mode(enum omap_color_mode dssmode,
 
 int omapfb_setup_overlay(struct fb_info *fbi, struct omap_overlay *ovl,
 		u16 posx, u16 posy, u16 outw, u16 outh);
+
+int omapfb_enable_vsync(struct omapfb2_device *fbdev);
+void omapfb_disable_vsync(struct omapfb2_device *fbdev);
 
 /* find the display connected to this fb, if any */
 static inline struct omap_dss_device *fb2display(struct fb_info *fbi)
