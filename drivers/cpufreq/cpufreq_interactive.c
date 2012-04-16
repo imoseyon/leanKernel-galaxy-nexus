@@ -28,14 +28,7 @@
 #include <linux/kthread.h>
 #include <linux/mutex.h>
 
-#define CREATE_TRACE_POINTS
-#include <trace/events/cpufreq_interactive.h>
-
 #include <asm/cputime.h>
-
-#ifdef CONFIG_EARLYSUSPEND
-#include <linux/earlysuspend.h>
-#endif
 
 static atomic_t active_count = ATOMIC_INIT(0);
 
@@ -46,8 +39,8 @@ struct cpufreq_interactive_cpuinfo {
 	u64 idle_exit_time;
 	u64 timer_run_time;
 	int idling;
-	u64 target_set_time;
-	u64 target_set_time_in_idle;
+	u64 freq_change_time;
+	u64 freq_change_time_in_idle;
 	struct cpufreq_policy *policy;
 	struct cpufreq_frequency_table *freq_table;
 	unsigned int target_freq;
@@ -84,9 +77,6 @@ static unsigned long min_sample_time;
  */
 #define DEFAULT_TIMER_RATE 20 * USEC_PER_MSEC
 static unsigned long timer_rate;
-#ifdef CONFIG_EARLYSUSPEND
-static unsigned long stored_timer_rate;
-#endif
 
 static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		unsigned int event);
@@ -155,9 +145,9 @@ static void cpufreq_interactive_timer(unsigned long data)
 		cpu_load = 100 * (delta_time - delta_idle) / delta_time;
 
 	delta_idle = (unsigned int) cputime64_sub(now_idle,
-						pcpu->target_set_time_in_idle);
+						pcpu->freq_change_time_in_idle);
 	delta_time = (unsigned int) cputime64_sub(pcpu->timer_run_time,
-						  pcpu->target_set_time);
+						  pcpu->freq_change_time);
 
 	if ((delta_time == 0) || (delta_idle > delta_time))
 		load_since_change = 0;
@@ -174,16 +164,12 @@ static void cpufreq_interactive_timer(unsigned long data)
 		cpu_load = load_since_change;
 
 	if (cpu_load >= go_hispeed_load) {
-		if (pcpu->policy->cur == pcpu->policy->min) {
+		if (pcpu->policy->cur == pcpu->policy->min)
 			new_freq = hispeed_freq;
-		} else {
+		else
 			new_freq = pcpu->policy->max * cpu_load / 100;
-
-			if (new_freq < hispeed_freq)
-				new_freq = hispeed_freq;
-		}
 	} else {
-		new_freq = pcpu->policy->max * cpu_load / 100;
+		new_freq = pcpu->policy->cur * cpu_load / 100;
 	}
 
 	if (cpufreq_frequency_table_target(pcpu->policy, pcpu->freq_table,
@@ -196,30 +182,18 @@ static void cpufreq_interactive_timer(unsigned long data)
 
 	new_freq = pcpu->freq_table[index].frequency;
 
+	if (pcpu->target_freq == new_freq)
+		goto rearm_if_notmax;
+
 	/*
 	 * Do not scale down unless we have been at this frequency for the
 	 * minimum sample time.
 	 */
 	if (new_freq < pcpu->target_freq) {
-		if (cputime64_sub(pcpu->timer_run_time, pcpu->target_set_time)
-		    < min_sample_time) {
-			trace_cpufreq_interactive_notyet(data, cpu_load,
-					 pcpu->target_freq, new_freq);
+		if (cputime64_sub(pcpu->timer_run_time, pcpu->freq_change_time)
+		    < min_sample_time)
 			goto rearm;
-		}
 	}
-
-	pcpu->target_set_time_in_idle = now_idle;
-	pcpu->target_set_time = pcpu->timer_run_time;
-
-	if (pcpu->target_freq == new_freq) {
-		trace_cpufreq_interactive_already(data, cpu_load,
-						  pcpu->target_freq, new_freq);
-		goto rearm_if_notmax;
-	}
-
-	trace_cpufreq_interactive_target(data, cpu_load, pcpu->target_freq,
-					 new_freq);
 
 	if (new_freq < pcpu->target_freq) {
 		pcpu->target_freq = new_freq;
@@ -404,8 +378,10 @@ static int cpufreq_interactive_up_task(void *data)
 							max_freq,
 							CPUFREQ_RELATION_H);
 			mutex_unlock(&set_speed_lock);
-			trace_cpufreq_interactive_up(cpu, pcpu->target_freq,
-						     pcpu->policy->cur);
+
+			pcpu->freq_change_time_in_idle =
+				get_cpu_idle_time_us(cpu,
+						     &pcpu->freq_change_time);
 		}
 	}
 
@@ -449,8 +425,9 @@ static void cpufreq_interactive_freq_down(struct work_struct *work)
 						CPUFREQ_RELATION_H);
 
 		mutex_unlock(&set_speed_lock);
-		trace_cpufreq_interactive_down(cpu, pcpu->target_freq,
-					       pcpu->policy->cur);
+		pcpu->freq_change_time_in_idle =
+			get_cpu_idle_time_us(cpu,
+					     &pcpu->freq_change_time);
 	}
 }
 
@@ -578,9 +555,9 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			pcpu->policy = policy;
 			pcpu->target_freq = policy->cur;
 			pcpu->freq_table = freq_table;
-			pcpu->target_set_time_in_idle =
+			pcpu->freq_change_time_in_idle =
 				get_cpu_idle_time_us(j,
-					     &pcpu->target_set_time);
+					     &pcpu->freq_change_time);
 			pcpu->governor_enabled = 1;
 			smp_wmb();
 		}
@@ -659,31 +636,6 @@ static struct notifier_block cpufreq_interactive_idle_nb = {
 	.notifier_call = cpufreq_interactive_idle_notifier,
 };
 
-#ifdef CONFIG_EARLYSUSPEND
-/*
- * During passive use-cases, i.e. when display is OFF,
- * value of timer, which is used for frequency increasing,
- * may be increased. This will significantly reduce the amount
- * of OPP switching during passive use-cases.
- */
-static void cpufreq_interactive_early_suspend(struct early_suspend *h)
-{
-	stored_timer_rate = timer_rate;
-	timer_rate = DEFAULT_TIMER_RATE * 10;
-}
-
-static void cpufreq_interactive_late_resume(struct early_suspend *h)
-{
-	timer_rate = stored_timer_rate;
-}
-
-static struct early_suspend cpufreq_interactive_early_suspend_info = {
-	.suspend = cpufreq_interactive_early_suspend,
-	.resume = cpufreq_interactive_late_resume,
-	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB+1,
-};
-#endif
-
 static int __init cpufreq_interactive_init(void)
 {
 	unsigned int i;
@@ -726,9 +678,6 @@ static int __init cpufreq_interactive_init(void)
 
 	idle_notifier_register(&cpufreq_interactive_idle_nb);
 
-#ifdef CONFIG_EARLYSUSPEND
-	register_early_suspend(&cpufreq_interactive_early_suspend_info);
-#endif
 	return cpufreq_register_governor(&cpufreq_gov_interactive);
 
 err_freeuptask:
@@ -745,9 +694,6 @@ module_init(cpufreq_interactive_init);
 static void __exit cpufreq_interactive_exit(void)
 {
 	cpufreq_unregister_governor(&cpufreq_gov_interactive);
-#ifdef CONFIG_EARLYSUSPEND
-	unregister_early_suspend(&cpufreq_interactive_early_suspend_info);
-#endif
 	kthread_stop(up_task);
 	put_task_struct(up_task);
 	destroy_workqueue(down_wq);
