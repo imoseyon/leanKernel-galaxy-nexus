@@ -28,9 +28,6 @@
 #include <linux/kthread.h>
 #include <linux/mutex.h>
 
-#define CREATE_TRACE_POINTS
-#include <trace/events/cpufreq_interactive.h>
-
 #include <asm/cputime.h>
 
 static atomic_t active_count = ATOMIC_INIT(0);
@@ -190,11 +187,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 	new_freq = pcpu->freq_table[index].frequency;
 
 	if (pcpu->target_freq == new_freq)
-	{
-		trace_cpufreq_interactive_already(data, cpu_load,
-						  pcpu->target_freq, new_freq);
 		goto rearm_if_notmax;
-	}
 
 	/*
 	 * Do not scale down unless we have been at this frequency for the
@@ -202,15 +195,9 @@ static void cpufreq_interactive_timer(unsigned long data)
 	 */
 	if (new_freq < pcpu->target_freq) {
 		if (cputime64_sub(pcpu->timer_run_time, pcpu->freq_change_time)
-		    < min_sample_time) {
-			trace_cpufreq_interactive_notyet(data, cpu_load,
-					 pcpu->target_freq, new_freq);
+		    < min_sample_time)
 			goto rearm;
-		}
 	}
-
-	trace_cpufreq_interactive_target(data, cpu_load, pcpu->target_freq,
-					 new_freq);
 
 	if (new_freq < pcpu->target_freq) {
 		pcpu->target_freq = new_freq;
@@ -399,8 +386,6 @@ static int cpufreq_interactive_up_task(void *data)
 			pcpu->freq_change_time_in_idle =
 				get_cpu_idle_time_us(cpu,
 						     &pcpu->freq_change_time);
-			trace_cpufreq_interactive_up(cpu, pcpu->target_freq,
-						     pcpu->policy->cur);
 		}
 	}
 
@@ -447,8 +432,6 @@ static void cpufreq_interactive_freq_down(struct work_struct *work)
 		pcpu->freq_change_time_in_idle =
 			get_cpu_idle_time_us(cpu,
 					     &pcpu->freq_change_time);
-		trace_cpufreq_interactive_down(cpu, pcpu->target_freq,
-					       pcpu->policy->cur);
 	}
 }
 
