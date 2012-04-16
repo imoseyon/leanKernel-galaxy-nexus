@@ -38,6 +38,17 @@
 
 #define OMAP_MCBSP_RATES	(SNDRV_PCM_RATE_8000_96000)
 
+#define C_OPP_PATCH
+
+#ifdef C_OPP_PATCH
+
+#define SET_MPU_CORE_CONSTRAINT		18
+#define CLEAR_MPU_CORE_CONSTRAINT	-1
+
+static int snd_hw_latency;
+static struct pm_qos_request_list pm_qos_handle;
+#endif
+
 #define OMAP_MCBSP_SOC_SINGLE_S16_EXT(xname, xmin, xmax, \
 	xhandler_get, xhandler_put) \
 {	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = xname, \
@@ -188,11 +199,32 @@ static int omap_mcbsp_dai_trigger(struct snd_pcm_substream *substream, int cmd,
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		mcbsp_data->active++;
 		omap_mcbsp_start(mcbsp_data->bus_id, play, !play);
+#ifdef C_OPP_PATCH
+	    /*
+	     * Hold  min latency constraint. Deeper states
+	     * MPU RET/OFF is overhead and consume more power than
+	     * savings.
+	     * snd_hw_latency check takes care of playback and capture
+	     * usecase.
+	     */
+		if (!snd_hw_latency++) {
+			pm_qos_update_request(&pm_qos_handle,
+				SET_MPU_CORE_CONSTRAINT);
+		}
+#endif
 		break;
 
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+#ifdef C_OPP_PATCH
+	      /* remove latency constraint */
+		snd_hw_latency--;
+		if (!snd_hw_latency) {
+			pm_qos_update_request(&pm_qos_handle,
+				CLEAR_MPU_CORE_CONSTRAINT);
+		}
+#endif
 		omap_mcbsp_stop(mcbsp_data->bus_id, play, !play);
 		mcbsp_data->active--;
 		break;
@@ -787,6 +819,10 @@ static struct platform_driver asoc_mcbsp_driver = {
 
 static int __init snd_omap_mcbsp_init(void)
 {
+#ifdef C_OPP_PATCH
+	pm_qos_add_request(&pm_qos_handle, PM_QOS_CPU_DMA_LATENCY,
+					CLEAR_MPU_CORE_CONSTRAINT);
+#endif
 	return platform_driver_register(&asoc_mcbsp_driver);
 }
 module_init(snd_omap_mcbsp_init);
