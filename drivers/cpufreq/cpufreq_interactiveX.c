@@ -34,7 +34,6 @@
 #include <asm/cputime.h>
 
 static atomic_t active_count = ATOMIC_INIT(0);
-static unsigned long stored_timer_rate;
 
 struct cpufreq_interactivex_cpuinfo {
 	struct timer_list cpu_timer;
@@ -578,14 +577,11 @@ static void interactivex_suspend(int suspend)
 }
 
 static void interactivex_early_suspend(struct early_suspend *handler) {
-     stored_timer_rate = timer_rate;
-     timer_rate = DEFAULT_TIMER_RATE * 10;
      if (!registration) interactivex_suspend(1);
 }
 
 static void interactivex_late_resume(struct early_suspend *handler) {
      interactivex_suspend(0);
-     timer_rate = stored_timer_rate;
 }
 
 static struct early_suspend interactivex_power_suspend = {
