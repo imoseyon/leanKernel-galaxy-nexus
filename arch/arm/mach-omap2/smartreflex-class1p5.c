@@ -310,6 +310,14 @@ done_calib:
 	/* Setup my dynamic voltage for the next calibration for this opp */
 	volt_data->volt_dynamic_nominal = omap_get_dyn_nominal(volt_data);
 
+	// SR1.5 does not seem to calibrate high freqs properly - this is a
+	// workaround until I find a better way
+	if (volt_data->volt_nominal > 1340000) {
+		pr_info("[imoseyon] SR chose %ld, but don't scale when nominal is too high! -bailing\n", u_volt_safe);
+		volt_data->volt_calibrated = volt_data->volt_nominal;
+		volt_data->volt_dynamic_nominal = volt_data->volt_nominal;
+	}
+
 	/*
 	 * if the voltage we decided as safe is not the current voltage,
 	 * switch
