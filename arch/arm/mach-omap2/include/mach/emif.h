@@ -258,6 +258,8 @@ struct emif_regs {
 
 int omap_emif_setup_registers(u32 freq,
 			      u32 volt_state);
+void omap_emif_frequency_pre_notify(void);
+void omap_emif_frequency_post_notify(void);
 int omap_emif_setup_device_details(
 			const struct emif_device_details *emif1_devices,
 			const struct emif_device_details *emif2_devices);
