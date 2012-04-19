@@ -433,6 +433,7 @@ static int sr_class1p5_enable(struct voltagedomain *voltdm,
 		pr_info("[imoseyon] nominal@%d, skipping sr_enable\n", 
 			volt_data->volt_nominal);
 		volt_data->volt_calibrated = volt_data->volt_nominal;
+		volt_data->volt_dynamic_nominal = volt_data->volt_nominal;
 		return 0;
 	}
 
