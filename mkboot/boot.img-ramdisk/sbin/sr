@@ -1,0 +1,12 @@
+#!/sbin/bb/busybox ash
+bb="/sbin/bb/busybox"
+if [[ ! $1 ]]; then
+  echo "Usage: sr [iva|core|mpu]"
+  exit 1
+fi
+
+CUR=`cat /sys/kernel/debug/smartreflex/sr_$1/autocomp`
+CUR=$(( $CUR ^ 1 ))
+$bb echo $CUR > /sys/kernel/debug/smartreflex/sr_$1/autocomp
+
+[[ $CUR -eq 1 ]] && echo "$1 smartreflex now enabled." || echo "$1 smartreflex now disabled."
