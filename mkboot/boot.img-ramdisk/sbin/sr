@@ -1,8 +1,26 @@
 #!/sbin/bb/busybox ash
 bb="/sbin/bb/busybox"
 if [[ ! $1 ]]; then
-  echo "Usage: sr [iva|core|mpu]"
+  echo "Usage: sr [iva|core|mpu|off|on]"
   exit 1
+fi
+
+if [[ $1 == "off" || $1 == "on" ]]; then
+  mount -o rw,remount /system
+  [[ $1 == "off" ]] && setting=0 || setting=1
+  srinit="/etc/init.d/99lk-sr"
+  srsysfs1="/sys/kernel/debug/smartreflex/sr_core/autocomp"
+  srsysfs2="/sys/kernel/debug/smartreflex/sr_iva/autocomp"
+  srsysfs3="/sys/kernel/debug/smartreflex/sr_mpu/autocomp"
+  echo "#!/sbin/bb/busybox ash" > $srinit
+  echo "echo $setting > $srsysfs1" >> $srinit
+  echo "echo $setting > $srsysfs2" >> $srinit
+  echo "echo $setting > $srsysfs3" >> $srinit
+  chmod 755 $srinit
+  $srinit
+  echo "SmartReflex $1 now and at boot."
+  mount -o ro,remount /system
+  exit 0
 fi
 
 CUR=`cat /sys/kernel/debug/smartreflex/sr_$1/autocomp`
