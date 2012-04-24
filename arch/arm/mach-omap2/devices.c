@@ -889,11 +889,14 @@ static void omap_init_gpu(void)
 {
 	struct omap_hwmod *oh;
 	struct omap_device *od;
+	struct clk *fck, *pck;
 	int max_omap_gpu_hwmod_name_len = 16;
 	char oh_name[max_omap_gpu_hwmod_name_len];
 	int l;
 	struct gpu_platform_data *pdata;
 	char *name = "pvrsrvkm";
+	const char *fck_name;
+	const char *pck_name = NULL;
 
 	l = snprintf(oh_name, max_omap_gpu_hwmod_name_len,
 		     "gpu");
@@ -929,6 +932,39 @@ static void omap_init_gpu(void)
 	WARN(IS_ERR(od), "Could not build omap_device for %s %s\n",
 	     name, oh_name);
 
+	fck_name = oh->main_clk;
+	if (cpu_is_omap44xx())
+		pck_name = "dpll_per_m7x2_ck";
+
+	/*
+	 *  Configure new SGX parent only if both functional & parent clk
+	 *  names are defined.
+	 */
+	if (!(fck_name && pck_name))
+		goto pck_name_exit;
+
+	fck = clk_get(&od->pdev.dev, fck_name);
+	if (IS_ERR(fck)) {
+		WARN(1, "%s: Error getting  SGX (%s) fclk\n",
+							__func__, fck_name);
+		goto pck_name_exit;
+	}
+
+	pck = clk_get(&od->pdev.dev, pck_name);
+	if (IS_ERR(pck)) {
+		WARN(1, "%s: Couldn't get SGX parent(%s) clk\n",
+							__func__, pck_name);
+		goto free_fck;
+	}
+
+	if (clk_set_parent(fck, pck) < 0)
+		WARN(1, "%s: Couldn't set SGX parent(%s) clk\n",
+							__func__, pck_name);
+
+	clk_put(pck);
+free_fck:
+	clk_put(fck);
+pck_name_exit:
 	kfree(pdata);
 	platform_device_register(&omap_omaplfb_device);
 }
