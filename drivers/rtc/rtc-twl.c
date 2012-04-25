@@ -643,6 +643,11 @@ static void twl_rtc_shutdown(struct platform_device *pdev)
 	/* mask timer interrupts, but leave alarm interrupts on to enable
 	   power-on when alarm is triggered */
 	mask_rtc_irq_bit(BIT_RTC_INTERRUPTS_REG_IT_TIMER_M);
+#ifdef CONFIG_ANDROID
+	/* mask alarm interrupts as well so that we don't get powered on
+	   when alarm is triggered on android */
+	mask_rtc_irq_bit(BIT_RTC_INTERRUPTS_REG_IT_ALARM_M);
+#endif
 }
 
 #ifdef CONFIG_PM
