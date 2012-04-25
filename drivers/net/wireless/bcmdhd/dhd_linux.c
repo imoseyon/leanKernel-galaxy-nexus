@@ -418,6 +418,10 @@ uint dhd_pktgen_len = 0;
 module_param(dhd_pktgen_len, uint, 0);
 #endif /* SDTEST */
 
+/* Faster transfer during early_suspend */
+uint wifi_pm = 0;
+module_param(wifi_pm, uint, 0644);
+
 /* Version string to report */
 #ifdef DHD_DEBUG
 #ifndef SRCBASE
@@ -534,6 +538,11 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 	char iovbuf[32];
 	int bcn_li_dtim = 3;
 	uint roamvar = 1;
+
+	if (wifi_pm >= 1 ) {
+	  pr_info("[imoseyon] wifi power mode changed to PM_FAST\n");
+          power_mode = PM_FAST;
+	}
 
 	DHD_TRACE(("%s: enter, value = %d in_suspend=%d\n",
 		__FUNCTION__, value, dhd->in_suspend));
