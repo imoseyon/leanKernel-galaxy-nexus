@@ -42,6 +42,7 @@
 #define T_SRC_WAKE_PULSE_WIDTH_2	60
 #define T_SRC_WAKE_TO_DISCOVER		500
 #define T_SRC_VBUS_CBUS_T0_STABLE	500
+#define T_SRC_CBUS_FLOAT		50
 
 /* MHL TX Addr 0x72 Registers */
 #define MHL_TX_IDL_REG			0x02
@@ -1293,6 +1294,104 @@ static void sii9234_msc_event(struct work_struct *work)
 	mutex_unlock(&sii9234->lock);
 }
 
+static void cbus_resp_abort_error(struct sii9234_data *sii9234)
+{
+	u8 abort_reason = 0;
+	pr_debug("sii9234: MSC Response Aborted:");
+	cbus_read_reg(sii9234, MSC_RESP_ABORT_REASON_REG, &abort_reason);
+	cbus_write_reg(sii9234, MSC_RESP_ABORT_REASON_REG, 0xFF);
+
+	if (abort_reason) {
+		if (abort_reason & ABORT_BY_PEER)
+			pr_cont(" Peer Sent an ABORT");
+		if (abort_reason & UNDEF_CMD)
+			pr_cont(" Undefined Opcode");
+		if (abort_reason & TIMEOUT)
+			pr_cont(" Requestor Translation layer Timeout");
+	}
+	pr_cont("\n");
+}
+
+static void cbus_req_abort_error(struct sii9234_data *sii9234)
+{
+	u8 abort_reason = 0;
+	pr_debug("sii9234: MSC Request Aborted:");
+	cbus_read_reg(sii9234, MSC_REQ_ABORT_REASON_REG, &abort_reason);
+	cbus_write_reg(sii9234, MSC_REQ_ABORT_REASON_REG, 0xFF);
+
+	if (abort_reason) {
+		if (abort_reason & ABORT_BY_PEER)
+			pr_cont(" Peer Sent an ABORT");
+		if (abort_reason & UNDEF_CMD)
+			pr_cont(" Undefined Opcode");
+		if (abort_reason & TIMEOUT)
+			pr_cont(" Requestor Translation layer Timeout");
+		if (abort_reason & MAX_FAIL) {
+			u8 msc_retry_thr_val = 0;
+			pr_cont(" Retry Threshold exceeded");
+			cbus_read_reg(sii9234,
+					MSC_RETRY_FAIL_LIM_REG,
+					&msc_retry_thr_val);
+			pr_cont("Retry Threshold value is:%d",
+					msc_retry_thr_val);
+		}
+	}
+	pr_cont("\n");
+}
+
+static void force_usb_id_switch_open(struct sii9234_data *sii9234)
+{
+	pr_debug("sii9234: open usb_id\n");
+	/*Disable CBUS discovery*/
+	mhl_tx_clear_reg(sii9234, MHL_TX_DISC_CTRL1_REG, (1<<0));
+
+	/*Force USB ID switch to open*/
+	mhl_tx_set_reg(sii9234, MHL_TX_DISC_CTRL6_REG, USB_ID_OVR);
+
+	mhl_tx_set_reg(sii9234, MHL_TX_DISC_CTRL3_REG, 0xA6);
+
+	/*Force upstream HPD to 0 when not in MHL mode.*/
+	mhl_tx_clear_reg(sii9234, MHL_TX_INT_CTRL_REG, (1<<5));
+	mhl_tx_set_reg(sii9234, MHL_TX_INT_CTRL_REG, (1<<4));
+}
+
+static void release_usb_id_switch_open(struct sii9234_data *sii9234)
+{
+	usleep_range(T_SRC_CBUS_FLOAT * USEC_PER_MSEC,
+			T_SRC_CBUS_FLOAT * USEC_PER_MSEC);
+	pr_debug("sii9234: release usb_id\n");
+	/* clear USB ID switch to open*/
+	mhl_tx_clear_reg(sii9234, MHL_TX_DISC_CTRL6_REG, USB_ID_OVR);
+
+	/* Enable CBUS discovery*/
+	mhl_tx_set_reg(sii9234, MHL_TX_DISC_CTRL1_REG, (1<<0));
+}
+
+
+static bool cbus_ddc_abort_error(struct sii9234_data *sii9234)
+{
+	u8 val1, val2;
+	/* clear the ddc abort counter */
+	cbus_write_reg(sii9234, 0x29, 0xFF);
+	cbus_read_reg(sii9234, 0x29, &val1);
+	usleep_range(3000, 4000);
+	cbus_read_reg(sii9234, 0x29, &val2);
+	if (val2 > val1 + 50) {
+		pr_debug("Applying DDC Abort Safety(SWA 18958)\n)");
+		mhl_tx_set_reg(sii9234, MHL_TX_SRST, (1<<3));
+		mhl_tx_clear_reg(sii9234, MHL_TX_SRST, (1<<3));
+		force_usb_id_switch_open(sii9234);
+		release_usb_id_switch_open(sii9234);
+		mhl_tx_write_reg(sii9234, MHL_TX_MHLTX_CTL1_REG, 0xD0);
+		sii9234_tmds_control(sii9234, false);
+		/* Disconnect and notify to OTG */
+		return true;
+	}
+	pr_debug("sii9234: DDC abort interrupt\n");
+
+	return false;
+}
+
 static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 {
 	u8 cbus_intr1, cbus_intr2;
@@ -1313,13 +1412,19 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 	pr_debug("sii9234: cbus_intr %02x %02x\n", cbus_intr1, cbus_intr2);
 
 	if (cbus_intr1 & MSC_RESP_ABORT)
-		pr_warn("sii9234: msc resp abort\n");
+		cbus_resp_abort_error(sii9234);
 
 	if (cbus_intr1 & MSC_REQ_ABORT)
-		pr_warn("sii9234: msc req abort\n");
+		cbus_req_abort_error(sii9234);
 
-	if (cbus_intr1 & CBUS_DDC_ABORT)
+	if (cbus_intr1 & CBUS_DDC_ABORT) {
 		pr_warn("sii9234: ddc abort\n");
+		if (cbus_ddc_abort_error(sii9234)) {
+			/* error on ddc line,should it be -EIO? */
+			ret = -EINVAL;
+			goto err_exit;
+		}
+	}
 
 	if (cbus_intr1 & MSC_REQ_DONE) {
 		pr_debug("sii9234: msc request done\n");
