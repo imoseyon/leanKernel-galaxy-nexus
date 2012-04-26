@@ -555,6 +555,12 @@ int pwrdm_set_logic_retst(struct powerdomain *pwrdm, u8 pwrst)
 	if (!pwrdm)
 		return -EINVAL;
 
+	if (PWRDM_POWER_RET < pwrst) {
+		pr_err("%s: unsupported logic ret. state value pwrst=%0x",
+		 __func__, pwrst);
+		return -EINVAL;
+	}
+
 	if (!(pwrdm->pwrsts_logic_ret & (1 << pwrst)))
 		return -EINVAL;
 
