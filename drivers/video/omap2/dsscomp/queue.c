@@ -375,10 +375,6 @@ struct dsscomp_cb_work {
 	int status;
 };
 
-/* Local caches */
-static struct kmem_cache *dsscomp_cb_wk_cachep;
-static struct kmem_cache *dsscomp_app_wk_cachep;
-
 static void dsscomp_mgr_delayed_cb(struct work_struct *work)
 {
 	struct dsscomp_cb_work *wk = container_of(work, typeof(*wk), work);
@@ -386,7 +382,7 @@ static void dsscomp_mgr_delayed_cb(struct work_struct *work)
 	int status = wk->status;
 	u32 ix;
 
-	kmem_cache_free(dsscomp_cb_wk_cachep, wk);
+	kfree(work);
 
 	mutex_lock(&mtx);
 
@@ -433,27 +429,7 @@ static u32 dsscomp_mgr_callback(void *data, int id, int status)
 	    (status == DSS_COMPLETION_DISPLAYED &&
 	     comp->state != DSSCOMP_STATE_DISPLAYED) ||
 	    (status & DSS_COMPLETION_RELEASED)) {
-		struct dsscomp_cb_work *wk;
-
-		/* at first time create cache */
-		if (!dsscomp_cb_wk_cachep) {
-			dsscomp_cb_wk_cachep = kmem_cache_create("cb_wk_cache",
-				sizeof(*wk), 0, SLAB_HWCACHE_ALIGN, NULL);
-			if (!dsscomp_cb_wk_cachep) {
-				printk(KERN_ERR "DSSCOMP: %s: can't create "
-							"cache\n", __func__);
-				return ~status;
-			}
-		}
-
-		/* allocate work object from cache */
-		wk = kmem_cache_zalloc(dsscomp_cb_wk_cachep, GFP_ATOMIC);
-		if (!wk) {
-			printk(KERN_ERR "DSSCOMP: %s: can't allocate object "
-						"from cache\n", __func__);
-			return ~status;
-		}
-
+		struct dsscomp_cb_work *wk = kzalloc(sizeof(*wk), GFP_ATOMIC);
 		wk->comp = comp;
 		wk->status = status;
 		INIT_WORK(&wk->work, dsscomp_mgr_delayed_cb);
@@ -686,32 +662,15 @@ static void dsscomp_do_apply(struct work_struct *work)
 	/* complete compositions that failed to apply */
 	if (dsscomp_apply(wk->comp))
 		dsscomp_mgr_callback(wk->comp, -1, DSS_COMPLETION_ECLIPSED_SET);
-	kmem_cache_free(dsscomp_app_wk_cachep, wk);
+	kfree(wk);
 }
 
 int dsscomp_delayed_apply(dsscomp_t comp)
 {
 	/* don't block in case we are called from interrupt context */
-	struct dsscomp_apply_work *wk;
-
-	/* at first time create cache */
-	if (!dsscomp_app_wk_cachep) {
-		dsscomp_app_wk_cachep = kmem_cache_create("app_wk_cache",
-				sizeof(*wk), 0, SLAB_HWCACHE_ALIGN, NULL);
-		if (!dsscomp_app_wk_cachep) {
-			printk(KERN_ERR "DSSCOMP: %s: can't create cache\n",
-								__func__);
-			return -ENOMEM;
-		}
-	}
-
-	/* allocate work object from cache */
-	wk = kmem_cache_zalloc(dsscomp_app_wk_cachep, GFP_NOWAIT);
-	if (!wk) {
-		printk(KERN_ERR "DSSCOMP: %s: can't allocate object "
-						"from cache\n", __func__);
+	struct dsscomp_apply_work *wk = kzalloc(sizeof(*wk), GFP_NOWAIT);
+	if (!wk)
 		return -ENOMEM;
-	}
 
 	mutex_lock(&mtx);
 
