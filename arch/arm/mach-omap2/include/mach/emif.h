@@ -160,7 +160,7 @@
 #define LP_MODE_DISABLE		0
 #define LP_MODE_CLOCK_STOP	1
 #define LP_MODE_SELF_REFRESH	2
-#define LP_MODE_PWR_DN		3
+#define LP_MODE_PWR_DN		4
 
 /* REG_DPD_EN */
 #define DPD_DISABLE	0
