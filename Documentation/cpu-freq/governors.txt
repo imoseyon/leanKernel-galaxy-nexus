@@ -240,6 +240,12 @@ Default is 20000 uS.
 timer_rate: Sample rate for reevaluating cpu load when the system is
 not idle.  Default is 20000 uS.
 
+input_boost: If non-zero, boost speed of all CPUs to hispeed_freq on
+touchscreen activity.  Default is 0.
+
+boost: If non-zero, immediately boost speed of all CPUs to
+hispeed_freq.  If zero, allow CPU speeds to drop below hispeed_freq.
+
 
 2.7 Hotplug
 -----------
