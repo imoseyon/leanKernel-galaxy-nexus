@@ -50,7 +50,7 @@ static struct interconnect_tput {
 	/* Protect interconnect throughput */
 	struct mutex throughput_mutex;
 	/* Target level for interconnect throughput */
-	unsigned long target_level;
+	u64 target_level;
 
 } *bus_tput;
 
@@ -177,14 +177,14 @@ static int __init omap_bus_tput_init(void)
  * Returns the updated level of interconnect throughput.
  * In case of Invalid dev or user pointer, it returns 0.
  */
-static unsigned long add_req_tput(struct device *dev, unsigned long level)
+static u64 add_req_tput(struct device *dev, unsigned long level)
 {
-	int ret;
+	u64 ret = 0;
 	struct users *user;
 
 	if (!dev) {
 		pr_err("Invalid dev pointer\n");
-		ret = 0;
+		return ret;
 	}
 	mutex_lock(&bus_tput->throughput_mutex);
 	user = user_lookup(dev);
@@ -223,11 +223,11 @@ unlock:
  * Returns 0, if the dev structure is invalid
  * else returns modified interconnect throughput rate.
  */
-static unsigned long remove_req_tput(struct device *dev)
+static u64 remove_req_tput(struct device *dev)
 {
 	struct users *user;
 	int found = 0;
-	int ret;
+	u64 ret = 0;
 
 	mutex_lock(&bus_tput->throughput_mutex);
 	list_for_each_entry(user, &bus_tput->users_list, node) {
@@ -239,7 +239,6 @@ static unsigned long remove_req_tput(struct device *dev)
 	if (!found) {
 		/* No such user exists */
 		pr_err("Invalid Device Structure\n");
-		ret = 0;
 		goto unlock;
 	}
 	bus_tput->target_level -= user->level;
@@ -260,7 +259,8 @@ int omap_pm_set_min_bus_tput_helper(struct device *dev, u8 agent_id, long r)
 	static struct device dummy_l3_dev = {
 		.init_name = "omap_pm_set_min_bus_tput",
 	};
-	unsigned long target_level = 0;
+	u64 target_level = 0;
+	unsigned long freq = ULONG_MAX;
 
 	mutex_lock(&bus_tput_mutex);
 
@@ -271,17 +271,24 @@ int omap_pm_set_min_bus_tput_helper(struct device *dev, u8 agent_id, long r)
 		goto unlock;
 	}
 
+	/* find maximum supported opp frequency */
+	rcu_read_lock();
+	opp_find_freq_floor(l3_dev, &freq);
+	rcu_read_unlock();
+
 	if (r == -1)
 		target_level = remove_req_tput(dev);
 	else
 		target_level = add_req_tput(dev, r);
 
 	/* Convert the throughput(in KiB/s) into Hz. */
-	target_level = (target_level * 1000) / 4;
+	target_level = (target_level>>2) * 1000;
+	/* Align wit max supported frequency (freq holds max) */
+	freq = (target_level > (u64)freq) ? freq : (unsigned long)target_level;
 
-	ret = omap_device_scale(&dummy_l3_dev, l3_dev, target_level);
+	ret = omap_device_scale(&dummy_l3_dev, l3_dev, freq);
 	if (ret)
-		pr_err("Failed: change interconnect bandwidth to %ld\n",
+		pr_err("Failed: change interconnect bandwidth to %lld\n",
 		     target_level);
 unlock:
 	mutex_unlock(&bus_tput_mutex);
