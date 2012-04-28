@@ -162,6 +162,10 @@
 #define   MHL_STATUS_DCAP_READY	(1<<0)
 
 #define CBUS_MHL_STATUS_REG_1		0xB1
+#define MHL_STATUS_CLK_NORMAL		((1<<0) | (1<<1))
+#define MHL_STATUS_CLK_PACKEDPIXEL	(1<<1)
+#define MHL_STATUS_PATH_ENABLED		(1<<3)
+#define MHL_STATUS_MUTED		(1<<4)
 
 #define CBUS_MHL_STATUS_REG_2		0xB2
 #define CBUS_MHL_STATUS_REG_3		0xB3
@@ -523,6 +527,7 @@ struct sii9234_data {
 	struct completion		msc_complete;
 
 	u8				devcap[16];
+	u8				link_mode;
 
 	struct work_struct		msc_work;
 	struct list_head		msc_data_list;
@@ -978,6 +983,7 @@ static int sii9234_detection_callback(struct otg_id_notifier_block *nb)
 	pr_debug("si9234: detection started\n");
 
 	mutex_lock(&sii9234->lock);
+	sii9234->link_mode = MHL_STATUS_CLK_NORMAL;
 	sii9234->rgnd = RGND_UNKNOWN;
 	sii9234->state = STATE_DISCONNECTED;
 	sii9234->rsen = false;
@@ -1568,8 +1574,40 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 
 
 	if (cbus_intr2 & WRT_STAT_RECD) {
+		struct msc_data *data;
+		bool path_en_changed = false;
 		pr_debug("sii9234: write status received\n");
 		sii9234->msc_ready = mhl_status0 & MHL_STATUS_DCAP_READY;
+
+		if (!(sii9234->link_mode & MHL_STATUS_PATH_ENABLED) &&
+			(MHL_STATUS_PATH_ENABLED & mhl_status1)) {
+
+			/* PATH_EN{SOURCE} = 0 and PATH_EN{SINK}= 1 */
+			sii9234->link_mode |= MHL_STATUS_PATH_ENABLED;
+			path_en_changed = true;
+
+		} else if ((sii9234->link_mode & MHL_STATUS_PATH_ENABLED) &&
+				!(MHL_STATUS_PATH_ENABLED & mhl_status1)) {
+
+			/* PATH_EN{SOURCE} = 1 and PATH_EN{SINK}= 0 */
+			sii9234->link_mode &= ~MHL_STATUS_PATH_ENABLED;
+			path_en_changed = true;
+		}
+
+		if (path_en_changed) {
+			data = kmalloc(sizeof(struct msc_data), GFP_KERNEL);
+			if (!data) {
+				dev_err(&sii9234->pdata->mhl_tx_client->dev,
+					"failed to allocate msc data");
+				ret = -ENOMEM;
+				goto err_exit;
+			}
+			data->cmd = WRITE_STAT;
+			data->offset = CBUS_MHL_STATUS_OFFSET_1;
+			data->data = sii9234->link_mode;
+			list_add_tail(&data->list, &sii9234->msc_data_list);
+			schedule_work(&sii9234->msc_work);
+		}
 	}
 
 	if (cbus_intr2 & SET_INT_RECD) {
