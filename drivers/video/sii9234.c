@@ -123,6 +123,7 @@
 #define CBUS_INT_1_MASK			0x09
 
 #define CBUS_MSC_COMMAND_START		0x12
+#define	  START_MSC_RESERVED	(1 << 0)
 #define   START_MSC_MSG		(1 << 1)
 #define   START_READ_DEVCAP	(1 << 2)
 #define   START_WRITE_STAT_INT	(1 << 3)
@@ -145,6 +146,10 @@
 
 /* MHL Interrupt Registers */
 #define CBUS_MHL_INTR_REG_0		0xA0
+#define MHL_INT_DCAP_CHG	(1<<0)
+#define MHL_INT_DSCR_CHG	(1<<1)
+#define MHL_INT_REQ_WRT		(1<<2)
+#define MHL_INT_GRT_WRT		(1<<3)
 
 #define CBUS_MHL_INTR_REG_1		0xA1
 #define   MHL_INT_EDID_CHG	(1<<1)
@@ -157,8 +162,21 @@
 #define   MHL_STATUS_DCAP_READY	(1<<0)
 
 #define CBUS_MHL_STATUS_REG_1		0xB1
+
 #define CBUS_MHL_STATUS_REG_2		0xB2
 #define CBUS_MHL_STATUS_REG_3		0xB3
+
+/* Device interrupt register offset of connected device */
+#define CBUS_MHL_INTR_OFFSET_0		0x20 /* RCHANGE_INT */
+#define CBUS_MHL_INTR_OFFSET_1		0x21 /* DCHANGE_INT */
+#define CBUS_MHL_INTR_OFFSET_2		0x22
+#define CBUS_MHL_INTR_OFFSET_3		0x23
+
+/* Device status register offset of connected device */
+#define CBUS_MHL_STATUS_OFFSET_0	0x30 /* CONNECTED_RDY */
+#define CBUS_MHL_STATUS_OFFSET_1	0x31 /* LINK_MODE */
+#define CBUS_MHL_STATUS_OFFSET_2	0x32
+#define CBUS_MHL_STATUS_OFFSET_3	0x33
 
 /* CBUS INTR1 STATUS Register bits */
 #define MSC_RESP_ABORT			(1<<6)
@@ -309,6 +327,28 @@ enum mhl_state {
 	STATE_ESTABLISHED,
 };
 
+enum cbus_command {
+	IDLE =			0x00,
+	ACK =			0x33,
+	NACK =			0x34,
+	ABORT =			0x35,
+	WRITE_STAT =		0x60 | 0x80,
+	SET_INT =		0x60,
+	READ_DEVCAP =		0x61,
+	GET_STATE =		0x62,
+	GET_VENDOR_ID =		0x63,
+	SET_HPD =		0x64,
+	CLR_HPD =		0x65,
+	SET_CAP_ID =		0x66,
+	GET_CAP_ID =		0x67,
+	MSC_MSG =		0x68,
+	GET_SC1_ERR_CODE =	0x69,
+	GET_DDC_ERR_CODE =	0x6A,
+	GET_MSC_ERR_CODE =	0x6B,
+	WRITE_BURST =		0x6C,
+	GET_SC3_ERR_CODE =	0x6D,
+};
+
 enum msc_subcommand {
 	/* MSC_MSG Sub-Command codes */
 	MSG_RCP =	0x10,
@@ -325,7 +365,9 @@ static inline bool mhl_state_is_error(enum mhl_state state)
 }
 
 struct msc_data {
-	u8 cmd;
+
+	enum cbus_command cmd;	/* cbus command type */
+	u8 offset;		/* for MSC_MSG,it stores msc_subcommand */
 	u8 data;
 
 	struct list_head list;
@@ -1254,8 +1296,29 @@ static void cbus_process_rap_key(struct sii9234_data *sii9234, u8 key)
 	sii9234_msc_req_locked(sii9234, START_MSC_MSG, 0, MSG_RAPK, err);
 }
 
+static int cbus_handle_set_interrupt(struct sii9234_data *sii9234,
+							u8 offset, u8 data)
+{
+	u8 ret = -1;
+	ret = sii9234_msc_req_locked(sii9234, START_WRITE_STAT_INT, offset,
+					 data, 0);
+
+	if (ret < 0)
+		return ret;
+	if (offset == CBUS_MHL_INTR_OFFSET_0 && data == MHL_INT_DCAP_CHG) {
+
+		/* notify the peer by updating the status register too */
+		sii9234_msc_req_locked(sii9234, START_WRITE_STAT_INT,
+					CBUS_MHL_STATUS_OFFSET_0,
+					MHL_STATUS_DCAP_READY, 0);
+	}
+
+	return ret;
+}
+
 static void sii9234_msc_event(struct work_struct *work)
 {
+	u8 ret = -1;
 	struct msc_data *data, *next;
 	struct sii9234_data *sii9234 = container_of(work, struct sii9234_data,
 			msc_work);
@@ -1264,26 +1327,78 @@ static void sii9234_msc_event(struct work_struct *work)
 
 	list_for_each_entry_safe(data, next, &sii9234->msc_data_list, list) {
 		switch (data->cmd) {
-		case MSG_RCP:
-			pr_debug("sii9234: RCP Arrived. KEY CODE:%d\n",
+		case MSC_MSG:
+			switch (data->offset) {
+			case MSG_RCP:
+				pr_debug("sii9234: RCP Arrived. KEY CODE:%d\n",
 					data->data);
-			cbus_process_rcp_key(sii9234, data->data);
+				cbus_process_rcp_key(sii9234, data->data);
+				break;
+			case MSG_RAP:
+				pr_debug("sii9234: RAP Arrived\n");
+				cbus_process_rap_key(sii9234, data->data);
+				break;
+			case MSG_RCPK:
+				pr_debug("sii9234: RCPK Arrived\n");
+				break;
+			case MSG_RCPE:
+				pr_debug("sii9234: RCPE Arrived\n");
+				break;
+			case MSG_RAPK:
+				pr_debug("sii9234: RAPK Arrived\n");
+				break;
+			default:
+				pr_debug("sii9234: MAC error\n");
+				break;
+			}
 			break;
-		case MSG_RAP:
-			pr_debug("sii9234: RAP Arrived\n");
-			cbus_process_rap_key(sii9234, data->data);
+
+		case READ_DEVCAP:
+			ret = sii9234_devcap_read_locked(sii9234, data->offset);
+			if (ret < 0) {
+				pr_err("sii9234: error reading device capability"
+						 "register:%d", data->offset);
+				break;
+			}
+			sii9234->devcap[data->offset] = ret;
 			break;
-		case MSG_RCPK:
-			pr_debug("sii9234: RCPK Arrived\n");
+
+		case SET_INT:
+			ret = cbus_handle_set_interrupt(sii9234, data->offset,
+								data->data);
+			if (ret < 0)
+				pr_err("sii9234: error requesting set_int\n");
 			break;
-		case MSG_RCPE:
-			pr_debug("sii9234: RCPE Arrived\n");
+		case WRITE_STAT:
+			ret = sii9234_msc_req_locked(sii9234,
+					START_WRITE_STAT_INT, data->offset,
+					data->data, 0);
+			if (ret < 0)
+				pr_err("sii9234: error requesting write_stat\n");
 			break;
-		case MSG_RAPK:
-			pr_debug("sii9234: RAPK Arrived\n");
+
+		case WRITE_BURST:
+			/* TODO: */
 			break;
+
+		case GET_STATE:
+		case GET_VENDOR_ID:
+		case SET_HPD:
+		case CLR_HPD:
+		case GET_MSC_ERR_CODE:
+		case GET_SC3_ERR_CODE:
+		case GET_SC1_ERR_CODE:
+		case GET_DDC_ERR_CODE:
+			ret = sii9234_msc_req_locked(sii9234,
+					START_MSC_RESERVED, data->offset,
+					data->data, 0);
+			if (ret < 0)
+				pr_err("sii9234: error requesting offset:%d"
+					 "data:%d", data->offset, data->data);
+			break;
+
 		default:
-			pr_debug("sii9234: MAC error\n");
+			pr_info("sii9234: invalid msc command\n");
 			break;
 		}
 
@@ -1443,8 +1558,8 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 			ret = -ENOMEM;
 			goto err_exit;
 		}
-
-		cbus_read_reg(sii9234, CBUS_MSC_MSG_CMD_IN, &data->cmd);
+		data->cmd = MSC_MSG;
+		cbus_read_reg(sii9234, CBUS_MSC_MSG_CMD_IN, &data->offset);
 		cbus_read_reg(sii9234, CBUS_MSC_MSG_DATA_IN, &data->data);
 		list_add_tail(&data->list, &sii9234->msc_data_list);
 
@@ -1453,11 +1568,68 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 
 
 	if (cbus_intr2 & WRT_STAT_RECD) {
-		pr_debug("sii9234: write stat received\n");
+		pr_debug("sii9234: write status received\n");
 		sii9234->msc_ready = mhl_status0 & MHL_STATUS_DCAP_READY;
 	}
 
 	if (cbus_intr2 & SET_INT_RECD) {
+
+		if (mhl_intr0 & MHL_INT_DCAP_CHG) {
+			struct msc_data *data;
+			/*
+			 * devcap[] had already been populated while detection
+			 * callback;now sink(or dongle) is again notiftying some
+			 * capability change.
+			 * TODO: should we read the complete devcap[] again?
+			 */
+			pr_debug("sii9234: device capability changed\n");
+			data = kmalloc(sizeof(struct msc_data), GFP_KERNEL);
+			if (!data) {
+				dev_err(&sii9234->pdata->mhl_tx_client->dev,
+					"failed to allocate msc data");
+				ret = -ENOMEM;
+				goto err_exit;
+			}
+			data->cmd = READ_DEVCAP;
+			data->offset = MHL_DEVCAP_DEV_CAT;
+			list_add_tail(&data->list, &sii9234->msc_data_list);
+			schedule_work(&sii9234->msc_work);
+		}
+
+		if (mhl_intr0 & MHL_INT_DSCR_CHG) {
+			/*
+			 * TODO: Peer is done updating the scratchpad
+			 * registers;Source should read the register values from
+			 * local register space
+			 */
+			pr_debug("sii9234: scratchpad register change done\n");
+		}
+
+		if (mhl_intr0 & MHL_INT_REQ_WRT) {
+			struct msc_data *data;
+			pr_debug("sii9234: request-to-write received\n");
+			data = kmalloc(sizeof(struct msc_data), GFP_KERNEL);
+			if (!data) {
+				dev_err(&sii9234->pdata->mhl_tx_client->dev,
+					"failed to allocate msc data");
+				ret = -ENOMEM;
+				goto err_exit;
+			}
+			data->cmd = SET_INT;
+			data->offset = CBUS_MHL_INTR_OFFSET_0;
+			/* signal grant-to-write to the peer */
+			data->data = MHL_INT_GRT_WRT;
+			list_add_tail(&data->list, &sii9234->msc_data_list);
+			schedule_work(&sii9234->msc_work);
+		}
+
+		if (mhl_intr0 & MHL_INT_GRT_WRT) {
+			/* TODO: received a grant-to-write from peer;Source
+			 * should initiate a WRITE_BURST
+			 */
+			pr_debug("sii9234: grant-to-write received\n");
+		}
+
 		if (mhl_intr1 & MHL_INT_EDID_CHG)
 			sii9234_toggle_hpd(sii9234);
 	}
