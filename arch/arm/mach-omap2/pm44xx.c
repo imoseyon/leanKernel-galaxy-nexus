@@ -847,7 +847,7 @@ int omap4_pm_cold_reset(char *reason)
 	/* Switch ON all pwrst registers */
 	list_for_each_entry(pwrst, &pwrst_list, node) {
 		if (pwrst->pwrdm->pwrsts_logic_ret)
-			pwrdm_set_logic_retst(pwrst->pwrdm, PWRDM_POWER_ON);
+			pwrdm_set_logic_retst(pwrst->pwrdm, PWRDM_POWER_RET);
 		if (pwrst->pwrdm->pwrsts)
 			omap_set_pwrdm_state(pwrst->pwrdm, PWRDM_POWER_ON);
 	}

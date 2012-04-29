@@ -38,7 +38,7 @@ struct dsscomp_gralloc_t {
 	bool programmed;
 };
 
-/* Local cache */
+/* local cache */
 static struct kmem_cache *gsync_cachep;
 
 /* queued gralloc compositions */
@@ -180,18 +180,6 @@ int dsscomp_gralloc_queue(struct dsscomp_setup_dispc_data *d,
 	mutex_lock(&local_mtx);
 
 	mutex_lock(&mtx);
-
-	/* at first time create cache */
-	if (!gsync_cachep) {
-		gsync_cachep = kmem_cache_create("gsync_cache", sizeof(*gsync),
-						0, SLAB_HWCACHE_ALIGN, NULL);
-		if (!gsync_cachep) {
-			mutex_unlock(&mtx);
-			mutex_unlock(&local_mtx);
-			pr_err("DSSCOMP: %s: can't create cache\n", __func__);
-			return -ENOMEM;
-		}
-	}
 
 	/* allocate sync object with 1 temporary ref */
 	gsync = kmem_cache_zalloc(gsync_cachep, GFP_KERNEL);
@@ -611,6 +599,15 @@ void dsscomp_gralloc_init(struct dsscomp_dev *cdev_)
 		/* reset free_slots if no TILER memory could be reserved */
 		if (!i)
 			ZERO(free_slots);
+	}
+
+	/* create cache at first time */
+	if (!gsync_cachep) {
+		gsync_cachep = kmem_cache_create("gsync_cache",
+						sizeof(struct dsscomp_gralloc_t), 0,
+						SLAB_HWCACHE_ALIGN, NULL);
+		if (!gsync_cachep)
+			pr_err("DSSCOMP: %s: can't create cache\n", __func__);
 	}
 }
 

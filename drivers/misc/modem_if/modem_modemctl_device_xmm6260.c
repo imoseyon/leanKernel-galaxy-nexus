@@ -123,6 +123,7 @@ static irqreturn_t phone_active_irq_handler(int irq, void *_mc)
 	int phone_reset = 0;
 	int phone_active_value = 0;
 	int phone_state = 0;
+	int cp_dump_int = 0;
 	struct modem_ctl *mc = (struct modem_ctl *)_mc;
 
 	disable_irq_nosync(mc->irq_phone_active);
@@ -135,9 +136,10 @@ static irqreturn_t phone_active_irq_handler(int irq, void *_mc)
 
 	phone_reset = gpio_get_value(mc->gpio_cp_reset);
 	phone_active_value = gpio_get_value(mc->gpio_phone_active);
+	cp_dump_int = gpio_get_value(mc->gpio_cp_dump_int);
 
-	pr_info("[MODEM_IF] PA EVENT : reset =%d, pa=%d\n",
-				phone_reset, phone_active_value);
+	pr_info("[MODEM_IF] PA EVENT : reset =%d, pa=%d, cp_dump=%d\n",
+			phone_reset, phone_active_value, cp_dump_int);
 
 	if (phone_reset && phone_active_value) {
 		phone_state = STATE_ONLINE;

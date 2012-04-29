@@ -31,6 +31,10 @@
 #include <linux/gpio_event.h>
 #include <linux/sec_jack.h>
 
+#ifdef CONFIG_SOUND_CONTROL
+#include <linux/sound_control.h>
+#endif
+
 #define MAX_ZONE_LIMIT		10
 #define SEND_KEY_CHECK_TIME_MS	30		/* 30ms */
 #define DET_CHECK_TIME_MS	200		/* 200ms */
@@ -187,6 +191,10 @@ static void sec_jack_set_type(struct sec_jack_info *hi, int jack_type)
 			pdata->set_micbias_state(false);
 		return;
 	}
+
+#ifdef CONFIG_SOUND_CONTROL
+	soundcontrol_reportjack(jack_type);
+#endif
 
 	if (jack_type == SEC_HEADSET_4POLE) {
 		/* for a 4 pole headset, enable detection of send/end key */

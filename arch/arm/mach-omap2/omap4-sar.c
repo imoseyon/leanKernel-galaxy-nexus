@@ -936,6 +936,18 @@ void omap4_sar_overwrite(void)
 	__raw_writel(0x00000040,
 		     sar_ram_base + SAR_BANK1_OFFSET + 0x924 + offset);
 
+	/* XXX: WA: The wrong value of
+	 *   CM_L3INIT_CLKSTCTRL.CLKTRCTRL = 2 (SW_WKUP) has been stored
+	 *   in SAR during omap4_sar_save() execution and causes power
+	 *   over consumption on OFF mode due to C2C operation.
+	 *   It happens because the L3INIT CD need to be enabled
+	 *   during omap4_sar_save() execution for proper USBHOST
+	 *   module context storing. 
+	 *   As WA overwrite
+	 *   CM_L3INIT_CLKSTCTRL.CLKTRCTRL = 0x1 (SW_SLEEP). */
+	__raw_writel(0x00000001,
+		     sar_ram_base + SAR_BANK1_OFFSET + 0x0000012C + offset);
+
 	/* readback to ensure data reaches to SAR RAM */
 	barrier();
 	val = __raw_readl(sar_ram_base + SAR_BANK1_OFFSET + 0x924 + offset);

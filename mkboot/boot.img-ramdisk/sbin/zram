@@ -1,11 +1,13 @@
-#!/system/bin/sh
+#!/sbin/bb/busybox ash
 RAMSIZE=`grep MemTotal /proc/meminfo | awk '{ print \$2 }'`
 ZRAMSIZE=$(($RAMSIZE*100))
 if [ $1 ]; then
   mount -o rw,remount /system /system
-  busybox mkdir -p /system/etc/init.d
+  if [ ! -d /system/etc/init.d ]; then
+	busybox mkdir -p /system/etc/init.d
+  fi
   if [ $1 == "enable" ]; then
-	echo "#!/system/bin/sh" > /etc/init.d/05zram
+	echo "#!/sbin/bb/busybox ash" > /etc/init.d/05zram
 	echo "echo 1 > /sys/block/zram0/reset" >> /etc/init.d/05zram
 	echo "echo $ZRAMSIZE > /sys/block/zram0/disksize" >> /etc/init.d/05zram
 	echo "mkswap /dev/block/zram0" >> /etc/init.d/05zram
