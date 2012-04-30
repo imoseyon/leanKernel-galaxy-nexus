@@ -465,17 +465,24 @@ static s32 __analize_area(enum tiler_fmt fmt, u32 width, u32 height,
 
 	/* slot width, height, and row size */
 	u32 slot_row, min_align;
-	const struct tiler_geom *g;
+	const struct tiler_geom *g = tiler.geom(fmt);
 
-	/* width and height must be positive */
-	if (!width || !height)
+	/* width and height must be non-zero, fmt must be valid */
+	if (!width || !height || !g)
 		return -EINVAL;
 
-	/* validate tiler format */
-	if ((fmt < TILFMT_8BIT) || (fmt > TILFMT_PAGE))
-		return -EINVAL;
+	/* Note: Some values have been validated prior to calling this function
+	   alignment is always <= PAGE_SIZE
+	   offs is always < PAGE_SIZE
+	   This is a requirement due to some u32->u16 conversions and avoids
+	   having to worry about overflow while doing calculations
+	*/
 
 	if (fmt == TILFMT_PAGE) {
+		/* check for invalid allocation size, width > container size */
+		if (width > (PAGE_SIZE * tiler.width * tiler.height))
+			return -ENOMEM;
+
 		/* adjust size to accomodate offset, only do page alignment */
 		*align = PAGE_SIZE;
 		*remainder = *offs & ~PAGE_MASK; /* calculate remainder */
@@ -484,17 +491,15 @@ static s32 __analize_area(enum tiler_fmt fmt, u32 width, u32 height,
 		/* for 1D area keep the height (1), width is in tiler slots */
 		*x_area = DIV_ROUND_UP(width , tiler.page);
 		*y_area = *band = 1;
-
-		if (*x_area * *y_area > tiler.width * tiler.height)
-			return -ENOMEM;
 		return 0;
 	}
 
 	*remainder = 0;
 
-	/* format must be valid */
-	g = tiler.geom(fmt);
-	if (!g)
+	/* validate against max width and height values to
+	   guard against overflow */
+	if (width > (g->slot_w * tiler.width) ||
+		height > (g->slot_h * tiler.height))
 		return -EINVAL;
 
 	/* get the # of bytes per row in 1 slot */
