@@ -43,6 +43,8 @@
 #define T_SRC_WAKE_TO_DISCOVER		500
 #define T_SRC_VBUS_CBUS_T0_STABLE	500
 #define T_SRC_CBUS_FLOAT		50
+#define T_WAIT_TIMEOUT_RSEN_INT		200
+#define T_SRC_RXSENSE_DEGLITCH		110
 
 /* MHL TX Addr 0x72 Registers */
 #define MHL_TX_IDL_REG			0x02
@@ -1164,10 +1166,25 @@ static int sii9234_detection_callback(struct otg_id_notifier_block *nb)
 		goto unhandled;
 
 	mutex_unlock(&sii9234->lock);
-	wait_event_timeout(sii9234->wq, sii9234->rsen, msecs_to_jiffies(400));
+	wait_event_timeout(sii9234->wq, sii9234->rsen,
+				msecs_to_jiffies(T_WAIT_TIMEOUT_RSEN_INT));
 	mutex_lock(&sii9234->lock);
-	if (!sii9234->rsen)
-		goto unhandled;
+	if (!sii9234->rsen) {
+		ret = mhl_tx_read_reg(sii9234, MHL_TX_SYSSTAT_REG, &value);
+		pr_debug("sii9234: Recheck RSEN value\n");
+		if (!(ret && (value & RSEN_STATUS))) {
+			usleep_range(T_SRC_RXSENSE_DEGLITCH * USEC_PER_MSEC,
+					T_SRC_RXSENSE_DEGLITCH * USEC_PER_MSEC);
+			pr_debug("sii9234: RSEN is low -> retry once\n");
+			ret = mhl_tx_read_reg(sii9234, MHL_TX_SYSSTAT_REG,
+								&value);
+			if (!(ret && (value & RSEN_STATUS))) {
+				pr_debug("sii9234: RSEN is still low\n");
+				goto unhandled;
+			}
+		}
+		sii9234->rsen = value & RSEN_STATUS;
+	}
 
 	memset(sii9234->devcap, 0x0, sizeof(sii9234->devcap));
 	for (i = 0; i < 16; i++) {
@@ -1796,15 +1813,25 @@ static irqreturn_t sii9234_irq_thread(int irq, void *data)
 			 * based on cable status and chip power status,whether
 			 * it is SINK Loss(HDMI cable not connected, TV Off)
 			 * or MHL cable disconnection
-			 * TODO: Define the below mhl_disconnection()
 			 */
-			/* mhl_disconnection(); */
-			/* Notify Disconnection to OTG */
-			if (sii9234->claimed == true) {
-				disable_irq_nosync(sii9234->irq);
-				release_otg = true;
+
+			/* sleep for handling glitch on RSEN */
+			usleep_range(T_SRC_RXSENSE_DEGLITCH * USEC_PER_MSEC,
+					T_SRC_RXSENSE_DEGLITCH * USEC_PER_MSEC);
+			ret = mhl_tx_read_reg(sii9234, MHL_TX_SYSSTAT_REG,
+								&value);
+			pr_cont(" sys_stat:%x\n", value);
+			if ((value & RSEN_STATUS) == 0) {
+				/* Notify Disconnection to OTG */
+				if (sii9234->claimed == true) {
+					disable_irq_nosync(sii9234->irq);
+					release_otg = true;
+				}
+
+				sii9234_tmds_control(sii9234, false);
+				sii9234_power_down(sii9234);
 			}
-			sii9234_power_down(sii9234);
+
 		}
 	}
 
