@@ -67,6 +67,8 @@ struct hdmi_codec_data {
 	struct omap_dss_device *dssdev;
 	struct notifier_block notifier;
 	struct hdmi_params params;
+	struct delayed_work delayed_work;
+	struct workqueue_struct *workqueue;
 	int active;
 } hdmi_data;
 
@@ -247,17 +249,24 @@ int hdmi_audio_notifier_callback(struct notifier_block *nb,
 
 	if (state == OMAP_DSS_DISPLAY_ACTIVE) {
 		/* this happens just after hdmi_power_on */
-		if (hdmi_data.active)
-			hdmi_ti_4xxx_audio_enable(&hdmi_data.ip_data, 0);
 		hdmi_audio_set_configuration(&hdmi_data);
 		if (hdmi_data.active) {
 			omap_hwmod_set_slave_idlemode(hdmi_data.oh,
 							HWMOD_IDLEMODE_NO);
-			hdmi_ti_4xxx_audio_enable(&hdmi_data.ip_data, 1);
-
+			hdmi_ti_4xxx_wp_audio_enable(&hdmi_data.ip_data, 1);
+			queue_delayed_work(hdmi_data.workqueue,
+				&hdmi_data.delayed_work,
+				msecs_to_jiffies(1));
 		}
+	} else {
+		cancel_delayed_work(&hdmi_data.delayed_work);
 	}
 	return 0;
+}
+
+static void hdmi_audio_work(struct work_struct *work)
+{
+	hdmi_ti_4xxx_audio_transfer_en(&hdmi_data.ip_data, 1);
 }
 
 int hdmi_audio_match(struct omap_dss_device *dssdev, void *arg)
@@ -297,14 +306,19 @@ static int hdmi_audio_trigger(struct snd_pcm_substream *substream, int cmd,
 		 */
 		omap_hwmod_set_slave_idlemode(priv->oh,
 			HWMOD_IDLEMODE_NO);
-		hdmi_ti_4xxx_audio_enable(&priv->ip_data, 1);
+		hdmi_ti_4xxx_wp_audio_enable(&priv->ip_data, 1);
+		queue_delayed_work(priv->workqueue, &priv->delayed_work,
+				msecs_to_jiffies(1));
+
 		priv->active = 1;
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		cancel_delayed_work(&hdmi_data.delayed_work);
 		priv->active = 0;
-		hdmi_ti_4xxx_audio_enable(&priv->ip_data, 0);
+		hdmi_ti_4xxx_audio_transfer_en(&priv->ip_data, 0);
+		hdmi_ti_4xxx_wp_audio_enable(&priv->ip_data, 0);
 		/*
 		 * switch back to smart-idle & wakeup capable
 		 * after audio activity stops
@@ -378,6 +392,10 @@ static int hdmi_probe(struct snd_soc_codec *codec)
 	hdmi_data.notifier.notifier_call = hdmi_audio_notifier_callback;
 	blocking_notifier_chain_register(&hdmi_data.dssdev->state_notifiers,
 			&hdmi_data.notifier);
+
+	hdmi_data.workqueue = create_singlethread_workqueue("hdmi-codec");
+
+	INIT_DELAYED_WORK(&hdmi_data.delayed_work, hdmi_audio_work);
 
 	return 0;
 
