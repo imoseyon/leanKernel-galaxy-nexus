@@ -68,7 +68,7 @@ static void throttle_delayed_work_fn(struct work_struct *work);
 static int cold_threshold = BGAP_THRESHOLD_T_COLD;
 static int hot_threshold = BGAP_THRESHOLD_T_HOT;
 struct omap_temp_sensor *ctrl_sensor;
-int temp_limit = 0;
+int temp_limit = BGAP_THRESHOLD_T_HOT;
 
 /*
  * omap_temp_sensor structure
