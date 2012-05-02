@@ -74,21 +74,21 @@ static ssize_t colorcontrol_offset_write(struct device * dev, struct device_attr
 // imoseyon - le sighhhh
 static ssize_t red_v1_offset_show(struct device * dev, struct device_attribute * attr, char * buf)
 {
-    return sprintf(buf, "%i\n", v1_offset[0]+60);
+    return sprintf(buf, "%i\n", v1_offset[0]);
 }
 static ssize_t green_v1_offset_show(struct device * dev, struct device_attribute * attr, char * buf)
 {
-    return sprintf(buf, "%i\n", v1_offset[1]+60);
+    return sprintf(buf, "%i\n", v1_offset[1]);
 }
 static ssize_t blue_v1_offset_show(struct device * dev, struct device_attribute * attr, char * buf)
 {
-    return sprintf(buf, "%i\n", v1_offset[2]+60);
+    return sprintf(buf, "%i\n", v1_offset[2]);
 }
 static ssize_t red_v1_offset_store(struct device * dev, struct device_attribute * attr, const char * buf, size_t size)
 {
   int value;
   if (sscanf(buf, "%i", &value) == 1) {
-	v1_offset[0] = value-60;
+	v1_offset[0] = value;
 	colorcontrol_update(false);
   }
   return size;
@@ -97,7 +97,7 @@ static ssize_t green_v1_offset_store(struct device * dev, struct device_attribut
 {
   int value;
   if (sscanf(buf, "%i", &value) == 1) {
-	v1_offset[1] = value-60;
+	v1_offset[1] = value;
 	colorcontrol_update(false);
   }
   return size;
@@ -106,7 +106,7 @@ static ssize_t blue_v1_offset_store(struct device * dev, struct device_attribute
 {
   int value;
   if (sscanf(buf, "%i", &value) == 1) {
-	v1_offset[2] = value-60;
+	v1_offset[2] = value;
 	colorcontrol_update(false);
   }
   return size;
