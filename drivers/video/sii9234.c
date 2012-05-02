@@ -372,10 +372,11 @@ static inline bool mhl_state_is_error(enum mhl_state state)
 
 struct msc_data {
 
-	enum cbus_command cmd;	/* cbus command type */
-	u8 offset;		/* for MSC_MSG,it stores msc_subcommand */
+	enum cbus_command cmd;		/* cbus command type */
+	u8 offset;			/* for MSC_MSG,stores msc_subcommand */
 	u8 data;
-
+	struct completion *cvar;	/* optional completion signaled when
+					   event is handled */
 	struct list_head list;
 };
 
@@ -934,8 +935,6 @@ static int sii9234_msc_req_locked(struct sii9234_data *sii9234, u8 req_type,
 	if (!sii9234->msc_ready)
 		return -EIO;
 
-	mutex_lock(&sii9234->msc_lock);
-
 	init_completion(&sii9234->msc_complete);
 
 	if (write_offset)
@@ -950,8 +949,6 @@ static int sii9234_msc_req_locked(struct sii9234_data *sii9234, u8 req_type,
 	ret = wait_for_completion_timeout(&sii9234->msc_complete,
 					  msecs_to_jiffies(500));
 	mutex_lock(&sii9234->lock);
-
-	mutex_unlock(&sii9234->msc_lock);
 
 	return ret ? 0 : -EIO;
 }
@@ -974,6 +971,32 @@ static int sii9234_devcap_read_locked(struct sii9234_data *sii9234, u8 offset)
 		return ret;
 
 	return val;
+}
+
+static int sii9234_queue_devcap_read_locked(struct sii9234_data *sii9234,
+		u8 offset)
+{
+	struct completion cvar;
+	struct msc_data *data;
+
+	data = kmalloc(sizeof(struct msc_data), GFP_KERNEL);
+	if (!data) {
+		dev_err(&sii9234->pdata->mhl_tx_client->dev,
+			"failed to allocate msc data");
+		return -ENOMEM;
+	}
+	init_completion(&cvar);
+	data->cmd = READ_DEVCAP;
+	data->offset = offset;
+	data->cvar = &cvar;
+	list_add_tail(&data->list, &sii9234->msc_data_list);
+
+	mutex_unlock(&sii9234->lock);
+	schedule_work(&sii9234->msc_work);
+	wait_for_completion(&cvar);
+	mutex_lock(&sii9234->lock);
+
+	return 0;
 }
 
 
@@ -1192,10 +1215,9 @@ static int sii9234_detection_callback(struct otg_id_notifier_block *nb)
 
 	memset(sii9234->devcap, 0x0, sizeof(sii9234->devcap));
 	for (i = 0; i < 16; i++) {
-		ret = sii9234_devcap_read_locked(sii9234, i);
+		ret = sii9234_queue_devcap_read_locked(sii9234, i);
 		if (ret < 0)
-			break;
-		sii9234->devcap[i] = ret;
+			goto unhandled;
 	}
 
 #ifdef DEBUG
@@ -1370,6 +1392,7 @@ static void sii9234_msc_event(struct work_struct *work)
 	struct sii9234_data *sii9234 = container_of(work, struct sii9234_data,
 			msc_work);
 
+	mutex_lock(&sii9234->msc_lock);
 	mutex_lock(&sii9234->lock);
 
 	list_for_each_entry_safe(data, next, &sii9234->msc_data_list, list) {
@@ -1449,11 +1472,15 @@ static void sii9234_msc_event(struct work_struct *work)
 			break;
 		}
 
+		if (data->cvar)
+			complete(data->cvar);
+
 		list_del(&data->list);
 		kfree(data);
 	}
 
 	mutex_unlock(&sii9234->lock);
+	mutex_unlock(&sii9234->msc_lock);
 }
 
 static void cbus_resp_abort_error(struct sii9234_data *sii9234)
@@ -1608,6 +1635,7 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 		data->cmd = MSC_MSG;
 		cbus_read_reg(sii9234, CBUS_MSC_MSG_CMD_IN, &data->offset);
 		cbus_read_reg(sii9234, CBUS_MSC_MSG_DATA_IN, &data->data);
+		data->cvar = NULL;
 		list_add_tail(&data->list, &sii9234->msc_data_list);
 
 		schedule_work(&sii9234->msc_work);
@@ -1646,6 +1674,7 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 			data->cmd = WRITE_STAT;
 			data->offset = CBUS_MHL_STATUS_OFFSET_1;
 			data->data = sii9234->link_mode;
+			data->cvar = NULL;
 			list_add_tail(&data->list, &sii9234->msc_data_list);
 			schedule_work(&sii9234->msc_work);
 		}
@@ -1671,6 +1700,7 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 			}
 			data->cmd = READ_DEVCAP;
 			data->offset = MHL_DEVCAP_DEV_CAT;
+			data->cvar = NULL;
 			list_add_tail(&data->list, &sii9234->msc_data_list);
 			schedule_work(&sii9234->msc_work);
 		}
@@ -1698,6 +1728,7 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 			data->offset = CBUS_MHL_INTR_OFFSET_0;
 			/* signal grant-to-write to the peer */
 			data->data = MHL_INT_GRT_WRT;
+			data->cvar = NULL;
 			list_add_tail(&data->list, &sii9234->msc_data_list);
 			schedule_work(&sii9234->msc_work);
 		}
