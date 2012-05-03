@@ -536,6 +536,9 @@ struct sii9234_data {
 
 	struct input_dev		*input_dev;
 	u16				keycode[SII9234_RCP_NUM_KEYS];
+
+	struct work_struct		redetect_work;
+	struct workqueue_struct		*redetect_wq;
 };
 
 static irqreturn_t sii9234_irq_thread(int irq, void *data);
@@ -973,6 +976,7 @@ static int sii9234_devcap_read_locked(struct sii9234_data *sii9234, u8 offset)
 	return val;
 }
 
+
 static int sii9234_detection_callback(struct otg_id_notifier_block *nb)
 {
 	struct sii9234_data *sii9234 = container_of(nb, struct sii9234_data,
@@ -1226,8 +1230,17 @@ unhandled:
 	pr_cont("\n");
 
 	disable_irq_nosync(sii9234->irq);
-
-	sii9234_power_down(sii9234);
+	/* MHL Specs:"A source should reattempt discovery multiple times
+	 * for as long as the Source requirement of discovery persists".
+	 */
+	if (sii9234->state == STATE_DISCOVERY_FAILED &&
+				sii9234->rgnd == RGND_1K) {
+		sii9234->pdata->power(0);
+		queue_work(sii9234->redetect_wq, &sii9234->redetect_work);
+		handled = OTG_ID_HANDLED;
+	} else {
+		sii9234_power_down(sii9234);
+	}
 
 	mutex_unlock(&sii9234->lock);
 	return handled;
@@ -1241,6 +1254,17 @@ static void sii9234_cancel_callback(struct otg_id_notifier_block *nb)
 	mutex_lock(&sii9234->lock);
 	sii9234_power_down(sii9234);
 	mutex_unlock(&sii9234->lock);
+}
+
+static void sii9234_retry_detection(struct work_struct *work)
+{
+	struct sii9234_data *sii9234 = container_of(work, struct sii9234_data,
+						redetect_work);
+
+	pr_info("sii9234: detection restarted\n");
+	/* if redetection fails, notify otg to take control */
+	if (sii9234_detection_callback(&sii9234->otg_id_nb) == OTG_ID_UNHANDLED)
+		otg_id_notify();
 }
 
 static void rcp_key_report(struct sii9234_data *sii9234, u16 key)
@@ -1949,6 +1973,12 @@ static int __devinit sii9234_mhl_tx_i2c_probe(struct i2c_client *client,
 		goto err_exit2;
 	}
 
+	sii9234->redetect_wq = create_singlethread_workqueue("sii9234");
+	if (!sii9234->redetect_wq) {
+		dev_err(&client->dev, "unable to create workqueue\n");
+		goto err_exit2;
+	}
+	INIT_WORK(&sii9234->redetect_work, sii9234_retry_detection);
 	return 0;
 
 err_exit2:
