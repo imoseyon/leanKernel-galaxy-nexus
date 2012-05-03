@@ -19,6 +19,9 @@ static bool safety_enabled = true;
 
 static int * v1_offset;
 
+// this is to keep up with cm9 changes
+static int pre_offset = 0;
+
 static u32 * color_multiplier;
 
 static u32 original_multiplier[3];
@@ -72,23 +75,33 @@ static ssize_t colorcontrol_offset_write(struct device * dev, struct device_attr
 }
 
 // imoseyon - le sighhhh
+static ssize_t pre_offset_show(struct device * dev, struct device_attribute * attr, char * buf)
+{
+    return sprintf(buf, "%i\n", pre_offset);
+}
+static ssize_t pre_offset_store(struct device * dev, struct device_attribute * attr, const char * buf, size_t size)
+{
+  int value;
+  if (sscanf(buf, "%i", &value) == 1) pre_offset = value;
+  return size;
+}
 static ssize_t red_v1_offset_show(struct device * dev, struct device_attribute * attr, char * buf)
 {
-    return sprintf(buf, "%i\n", v1_offset[0]);
+    return sprintf(buf, "%i\n", v1_offset[0]+pre_offset);
 }
 static ssize_t green_v1_offset_show(struct device * dev, struct device_attribute * attr, char * buf)
 {
-    return sprintf(buf, "%i\n", v1_offset[1]);
+    return sprintf(buf, "%i\n", v1_offset[1]+pre_offset);
 }
 static ssize_t blue_v1_offset_show(struct device * dev, struct device_attribute * attr, char * buf)
 {
-    return sprintf(buf, "%i\n", v1_offset[2]);
+    return sprintf(buf, "%i\n", v1_offset[2]+pre_offset);
 }
 static ssize_t red_v1_offset_store(struct device * dev, struct device_attribute * attr, const char * buf, size_t size)
 {
   int value;
   if (sscanf(buf, "%i", &value) == 1) {
-	v1_offset[0] = value;
+	v1_offset[0] = value-pre_offset;
 	colorcontrol_update(false);
   }
   return size;
@@ -97,7 +110,7 @@ static ssize_t green_v1_offset_store(struct device * dev, struct device_attribut
 {
   int value;
   if (sscanf(buf, "%i", &value) == 1) {
-	v1_offset[1] = value;
+	v1_offset[1] = value-pre_offset;
 	colorcontrol_update(false);
   }
   return size;
@@ -106,7 +119,7 @@ static ssize_t blue_v1_offset_store(struct device * dev, struct device_attribute
 {
   int value;
   if (sscanf(buf, "%i", &value) == 1) {
-	v1_offset[2] = value;
+	v1_offset[2] = value-pre_offset;
 	colorcontrol_update(false);
   }
   return size;
@@ -267,6 +280,7 @@ static DEVICE_ATTR(safety_enabled, S_IRUGO | S_IWUGO, colorcontrol_safety_read, 
 static DEVICE_ATTR(version, S_IRUGO , colorcontrol_version, NULL);
 
 // cm9 stuff
+static DEVICE_ATTR(pre_offset, S_IRUGO | S_IWUGO, pre_offset_show, pre_offset_store);
 static DEVICE_ATTR(red_v1_offset, S_IRUGO | S_IWUGO, red_v1_offset_show, red_v1_offset_store);
 static DEVICE_ATTR(green_v1_offset, S_IRUGO | S_IWUGO, green_v1_offset_show, green_v1_offset_store);
 static DEVICE_ATTR(blue_v1_offset, S_IRUGO | S_IWUGO, blue_v1_offset_show, blue_v1_offset_store);
@@ -283,7 +297,7 @@ static struct attribute *colorcontrol_attributes[] =
 	&dev_attr_multiplier.attr,
 	&dev_attr_safety_enabled.attr,
 	&dev_attr_version.attr,
-	// imoseyon - next three for cm9
+        &dev_attr_pre_offset.attr,
         &dev_attr_red_v1_offset.attr,
         &dev_attr_green_v1_offset.attr,
         &dev_attr_blue_v1_offset.attr,
