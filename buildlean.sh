@@ -3,12 +3,12 @@
 [[ `diff arch/arm/configs/tuna_defconfig .config ` ]] && \
 	{ echo "Unmatched defconfig!"; exit -1; } 
 
-sed -i s/CONFIG_LOCALVERSION=\".*\"/CONFIG_LOCALVERSION=\"-imoseyon-${1}\"/ .config
+sed -i s/CONFIG_LOCALVERSION=\".*\"/CONFIG_LOCALVERSION=\"-leanKernel-${1}\"/ .config
 
 make -j2
 
 cp arch/arm/boot/zImage mkboot/
-sed -i s/CONFIG_LOCALVERSION=\".*\"/CONFIG_LOCALVERSION=\"\"/ .config
+#sed -i s/CONFIG_LOCALVERSION=\".*\"/CONFIG_LOCALVERSION=\"\"/ .config
 cp .config arch/arm/configs/tuna_defconfig
 
 cd mkboot
