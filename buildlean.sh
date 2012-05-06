@@ -48,3 +48,7 @@ else
   edir=""
 fi
 echo "http://imoseyon.host4droid.com${edir}/boot-${1}.img $md5 ${1}" > /tmp/$mf
+
+cd /data/omap
+git log --pretty=format:"%aN: %s" -n 200 > /tmp/exp.log
+/data/utils/gnex_ftpupload.sh
