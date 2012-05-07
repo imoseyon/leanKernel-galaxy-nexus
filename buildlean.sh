@@ -4,13 +4,14 @@
 	{ echo "Unmatched defconfig!"; exit -1; } 
 
 sed -i s/CONFIG_LOCALVERSION=\".*\"/CONFIG_LOCALVERSION=\"-imoseyon-${1}\"/ .config
-sed -i /UNLOCK_180/d .config
+[[ $1 == *180 ]] && sed -i 's/.*UNLOCK_180.*$/CONFIG_UNLOCK_180MHZ=y/' .config \
+  || sed -i 's/.*UNLOCK_180.*$/# CONFIG_UNLOCK_180MHZ is not set/' .config
 
 make -j2
 
 cp arch/arm/boot/zImage mkboot/
 sed -i s/CONFIG_LOCALVERSION=\".*\"/CONFIG_LOCALVERSION=\"\"/ .config
-sed -i /UNLOCK_180/d .config
+sed -i 's/.*UNLOCK_180.*$/# CONFIG_UNLOCK_180MHZ is not set/' .config
 cp .config arch/arm/configs/tuna_defconfig
 
 cd mkboot
@@ -54,5 +55,5 @@ echo "http://imoseyon.host4droid.com${edir}/boot-${1}.img $md5 ${1}" > /tmp/$mf
 if [[ $2 == "upload" ]]; then
 	cd /data/omap
 	git log --pretty=format:"%aN: %s" -n 200 > /tmp/exp.log
-	/data/utils/gnex_ftpupload.sh
+	/data/utils/gnex_ftpupload.sh $1 
 fi
