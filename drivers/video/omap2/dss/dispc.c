@@ -2163,8 +2163,8 @@ int dispc_scaling_decision(u16 width, u16 height,
 		if (!can_scale)
 			goto loop;
 
-		if (out_width < in_width / maxdownscale ||
-			out_height < in_height / maxdownscale)
+		if (out_width * maxdownscale < in_width ||
+			out_height * maxdownscale < in_height)
 			goto loop;
 
 		/* Use 5-tap filter unless must use 3-tap */
