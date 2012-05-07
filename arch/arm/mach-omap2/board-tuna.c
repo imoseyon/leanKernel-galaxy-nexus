@@ -247,7 +247,8 @@ static void __init tuna_bt_init(void)
 	/* BT_WAKE - GPIO 27 */
 	omap_mux_init_signal("dpm_emu16.gpio_27", OMAP_PIN_OUTPUT);
 	/* BT_HOST_WAKE  - GPIO 177 */
-	omap_mux_init_signal("kpd_row5.gpio_177", OMAP_WAKEUP_EN | OMAP_PIN_INPUT);
+	omap_mux_init_signal("kpd_row5.gpio_177", OMAP_WAKEUP_EN |
+						OMAP_PIN_INPUT_PULLDOWN);
 
 	platform_device_register(&bcm4330_bluetooth_device);
 }
