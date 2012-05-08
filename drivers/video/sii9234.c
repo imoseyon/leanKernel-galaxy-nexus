@@ -302,6 +302,7 @@ enum mhl_state {
 	STATE_DISCOVERY_FAILED,
 	STATE_CBUS_LOCKOUT,
 	STATE_ESTABLISHED,
+	STATE_DISCONNECTING,
 };
 
 static inline bool mhl_state_is_error(enum mhl_state state)
@@ -768,9 +769,16 @@ static int sii9234_detection_callback(struct otg_id_notifier_block *nb)
 
 	mutex_lock(&sii9234->lock);
 	sii9234->rgnd = RGND_UNKNOWN;
-	sii9234->state = STATE_DISCONNECTED;
 	sii9234->rsen = false;
 	sii9234->msc_ready = false;
+	if (sii9234->state == STATE_DISCONNECTING) {
+		pr_debug("sii9234: disconnecting, bypassing detection\n");
+		sii9234->state = STATE_DISCONNECTED;
+
+		mutex_unlock(&sii9234->lock);
+		return OTG_ID_UNHANDLED;
+	}
+	sii9234->state = STATE_DISCONNECTED;
 
 	/* Set the board configuration so the  SiI9234 has access to the
 	 * external connector.
@@ -1220,8 +1228,10 @@ err_exit:
 	pr_debug("si9234: wake_up\n");
 	wake_up(&sii9234->wq);
 
-	if (release_otg)
+	if (release_otg) {
+		sii9234->state = STATE_DISCONNECTING;
 		otg_id_notify();
+	}
 
 	return IRQ_HANDLED;
 }
