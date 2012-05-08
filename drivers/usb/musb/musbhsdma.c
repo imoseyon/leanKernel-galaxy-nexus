@@ -354,6 +354,33 @@ static irqreturn_t dma_controller_irq(int irq, void *private_data)
 					txcsr |=  MUSB_TXCSR_TXPKTRDY;
 					musb_writew(mbase, offset, txcsr);
 				}
+
+				if ((!(devctl & MUSB_DEVCTL_HM))
+					&& (musb_channel->transmit)
+					&& (channel->actual_len %
+						musb_channel->max_packet_sz)) {
+
+					u8  epnum  = musb_channel->epnum;
+					int offset = MUSB_EP_OFFSET(epnum,
+							    MUSB_TXCSR);
+					u16 txcsr;
+					musb_ep_select(mbase, epnum);
+					txcsr = musb_readw(mbase, offset);
+
+					txcsr |= MUSB_TXCSR_P_WZC_BITS;
+					txcsr &= ~(MUSB_TXCSR_DMAENAB |
+						MUSB_TXCSR_P_UNDERRUN |
+						MUSB_TXCSR_TXPKTRDY |
+						MUSB_TXCSR_AUTOSET);
+					musb_writew(mbase, offset, txcsr);
+					txcsr &= ~MUSB_TXCSR_DMAMODE;
+					txcsr |= (MUSB_TXCSR_DMAENAB |
+						MUSB_TXCSR_TXPKTRDY);
+					/* Send out the packet */
+					musb_writew(mbase, offset, txcsr);
+					continue;
+				}
+
 				musb_dma_completion(musb, musb_channel->epnum,
 						    musb_channel->transmit);
 			}
