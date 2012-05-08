@@ -447,7 +447,7 @@ static MANAGER_ATTR(cpr_coef, S_IRUGO|S_IWUSR,
 		manager_cpr_coef_show,
 		manager_cpr_coef_store);
 
-static MANAGER_ATTR(gamma, S_IRUGO|S_IWUSR,
+static MANAGER_ATTR(gamma, S_IRUGO|S_IWUGO,
 			manager_gamma_show,
 			manager_gamma_store);
 
