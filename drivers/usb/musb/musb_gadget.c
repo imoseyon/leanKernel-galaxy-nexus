@@ -379,11 +379,16 @@ static void txstate(struct musb *musb, struct musb_request *req)
 			else
 				musb_ep->dma->desired_mode = 1;
 
-			use_dma = use_dma && c->channel_program(
-					musb_ep->dma, musb_ep->packet_sz,
+			csr &= ~(MUSB_TXCSR_AUTOSET | MUSB_TXCSR_DMAENAB |
+					MUSB_TXCSR_P_UNDERRUN);
+			musb_writew(epio, MUSB_TXCSR, csr |
+						MUSB_TXCSR_P_WZC_BITS);
+
+			if ((use_dma) && (c->channel_program(musb_ep->dma,
+					musb_ep->packet_sz,
 					musb_ep->dma->desired_mode,
-					request->dma + request->actual, request_size);
-			if (use_dma) {
+					request->dma + request->actual,
+					request_size))) {
 				if (musb_ep->dma->desired_mode == 0) {
 					/*
 					 * We must not clear the DMAMODE bit
@@ -391,14 +396,9 @@ static void txstate(struct musb *musb, struct musb_request *req)
 					 * latter doesn't always get cleared
 					 * before we get here...
 					 */
-					csr &= ~(MUSB_TXCSR_AUTOSET
-						| MUSB_TXCSR_DMAENAB);
-					musb_writew(epio, MUSB_TXCSR, csr
-						| MUSB_TXCSR_P_WZC_BITS);
 					csr &= ~MUSB_TXCSR_DMAMODE;
 					csr |= (MUSB_TXCSR_DMAENAB |
 							MUSB_TXCSR_MODE);
-					/* against programming guide */
 				} else {
 					csr |= (MUSB_TXCSR_DMAENAB
 							| MUSB_TXCSR_DMAMODE
@@ -406,8 +406,6 @@ static void txstate(struct musb *musb, struct musb_request *req)
 					if (!musb_ep->hb_mult)
 						csr |= MUSB_TXCSR_AUTOSET;
 				}
-				csr &= ~MUSB_TXCSR_P_UNDERRUN;
-
 				musb_writew(epio, MUSB_TXCSR, csr);
 			}
 		}
@@ -555,11 +553,6 @@ void musb_g_tx(struct musb *musb, u8 epnum)
 		if ((request->zero && request->length
 			&& (request->length % musb_ep->packet_sz == 0)
 			&& (request->actual == request->length))
-#if defined(CONFIG_USB_INVENTRA_DMA) || defined(CONFIG_USB_UX500_DMA)
-			|| (is_dma && (!dma->desired_mode ||
-				(request->actual &
-					(musb_ep->packet_sz - 1))))
-#endif
 		) {
 			/*
 			 * On DMA completion, FIFO may not be
