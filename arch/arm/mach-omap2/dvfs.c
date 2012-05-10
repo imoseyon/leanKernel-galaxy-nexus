@@ -756,17 +756,18 @@ static int _dvfs_scale(struct device *req_dev, struct device *target_dev,
 			__func__, voltdm->name);
 		return PTR_ERR(curr_vdata);
 	}
-	curr_volt = omap_vp_get_curr_volt(voltdm);
-	if (!curr_volt)
-		curr_volt = omap_get_operation_voltage(curr_vdata);
 
 	/* Disable smartreflex module across voltage and frequency scaling */
 	omap_sr_disable(voltdm);
 
-	if (curr_volt == new_volt) {
-		volt_scale_dir = DVFS_VOLT_SCALE_NONE;
-	} else if (curr_volt < new_volt) {
+	/* Pick up the current voltage ONLY after ensuring no changes occur */
+	curr_volt = omap_vp_get_curr_volt(voltdm);
+	if (!curr_volt)
+		curr_volt = omap_get_operation_voltage(curr_vdata);
 
+	/* Make a decision to scale dependent domain based on nominal voltage */
+	if (omap_get_nominal_voltage(new_vdata) >
+			omap_get_nominal_voltage(curr_vdata)) {
 		ret = _dep_scale_domains(target_dev, vdd);
 		if (ret) {
 			dev_err(target_dev,
@@ -774,7 +775,22 @@ static int _dvfs_scale(struct device *req_dev, struct device *target_dev,
 				__func__, ret, new_volt);
 			goto fail;
 		}
+	}
 
+	if (voltdm->abb && omap_get_nominal_voltage(new_vdata) >
+			omap_get_nominal_voltage(curr_vdata)) {
+		ret = omap_ldo_abb_pre_scale(voltdm, new_vdata);
+		if (ret) {
+			pr_err("%s: ABB prescale failed for vdd%s: %d\n",
+			__func__, voltdm->name, ret);
+			goto fail;
+		}
+	}
+
+	/* Now decide on switching OPP */
+	if (curr_volt == new_volt) {
+		volt_scale_dir = DVFS_VOLT_SCALE_NONE;
+	} else if (curr_volt < new_volt) {
 		ret = voltdm_scale(voltdm, new_vdata);
 		if (ret) {
 			dev_err(target_dev,
@@ -783,6 +799,16 @@ static int _dvfs_scale(struct device *req_dev, struct device *target_dev,
 			goto fail;
 		}
 		volt_scale_dir = DVFS_VOLT_SCALE_UP;
+	}
+
+	if (voltdm->abb && omap_get_nominal_voltage(new_vdata) >
+			omap_get_nominal_voltage(curr_vdata)) {
+		ret = omap_ldo_abb_post_scale(voltdm, new_vdata);
+		if (ret) {
+			pr_err("%s: ABB prescale failed for vdd%s: %d\n",
+			__func__, voltdm->name, ret);
+			goto fail;
+		}
 	}
 
 	/* Move all devices in list to the required frequencies */
@@ -831,9 +857,38 @@ static int _dvfs_scale(struct device *req_dev, struct device *target_dev,
 	if (ret)
 		goto fail;
 
-	if (DVFS_VOLT_SCALE_DOWN == volt_scale_dir) {
+	if (voltdm->abb && omap_get_nominal_voltage(new_vdata) <
+			omap_get_nominal_voltage(curr_vdata)) {
+		ret = omap_ldo_abb_pre_scale(voltdm, new_vdata);
+		if (ret) {
+			pr_err("%s: ABB prescale failed for vdd%s: %d\n",
+			__func__, voltdm->name, ret);
+			goto fail;
+		}
+	}
+
+	if (DVFS_VOLT_SCALE_DOWN == volt_scale_dir)
 		voltdm_scale(voltdm, new_vdata);
+
+	if (voltdm->abb && omap_get_nominal_voltage(new_vdata) <
+			omap_get_nominal_voltage(curr_vdata)) {
+		ret = omap_ldo_abb_post_scale(voltdm, new_vdata);
+		if (ret)
+			pr_err("%s: ABB postscale failed for vdd%s: %d\n",
+			__func__, voltdm->name, ret);
+	}
+
+	/* Make a decision to scale dependent domain based on nominal voltage */
+	if (omap_get_nominal_voltage(new_vdata) <
+			omap_get_nominal_voltage(curr_vdata)) {
 		_dep_scale_domains(target_dev, vdd);
+	}
+
+	/* Ensure that current voltage data pointer points to new volt */
+	if (curr_volt == new_volt && omap_get_nominal_voltage(new_vdata) !=
+			omap_get_nominal_voltage(curr_vdata)) {
+		voltdm->curr_volt = new_vdata;
+		omap_vp_update_errorgain(voltdm, new_vdata);
 	}
 
 	/* All clear.. go out gracefully */

@@ -105,9 +105,9 @@ extern struct omap_ldo_abb_instance omap4_ldo_abb_mpu_instance;
 extern struct omap_ldo_abb_instance omap4_ldo_abb_iva_instance;
 
 extern int omap_ldo_abb_pre_scale(struct voltagedomain *voltdm,
-			   unsigned long target_volt);
+			   struct omap_volt_data *target_vdata);
 extern int omap_ldo_abb_post_scale(struct voltagedomain *voltdm,
-			   unsigned long target_volt);
+			   struct omap_volt_data *target_vdata);
 extern void __init omap_ldo_abb_init(struct voltagedomain *voltdm);
 
 #endif				/* __ARCH_ARM_MACH_OMAP2_LDO_H */
