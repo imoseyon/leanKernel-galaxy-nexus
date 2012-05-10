@@ -35,7 +35,6 @@
 #include <plat/omap-pm.h>
 #include <plat/gpmc.h>
 #include <plat/dma.h>
-#include <plat/omap_device.h>
 
 #include <mach/omap_fiq_debugger.h>
 
@@ -1294,8 +1293,6 @@ static int __init omap4_pm_init(void)
 	int ret = 0;
 	struct clockdomain *l3_1_clkdm, *l4wkup;
 	struct clockdomain *ducati_clkdm, *l3_2_clkdm, *l4_per, *l4_cfg;
-	char *init_devices[] = {"mpu", "iva"};
-	int i;
 
 	if (!cpu_is_omap44xx())
 		return -ENODEV;
@@ -1469,35 +1466,6 @@ static int __init omap4_pm_init(void)
 	/* let the other CPU know as well */
 	smp_wmb();
 
-	/* Setup the scales for every init device appropriately */
-	for (i = 0; i < ARRAY_SIZE(init_devices); i++) {
-		struct omap_hwmod *oh = omap_hwmod_lookup(init_devices[i]);
-		struct clk *clk;
-		struct device *dev;
-		unsigned int rate;
-
-		if (!oh || !oh->od || !oh->main_clk) {
-			pr_warn("%s: no hwmod or odev or clk for %s, [%d] "
-				"oh=%p od=%p clk=%p cannot add OPPs.\n",
-				__func__, init_devices[i], i, oh,
-				(oh) ? oh->od : NULL,
-				(oh) ? oh->main_clk :  NULL);
-			continue;
-		}
-
-		clk = oh->_clk;
-		dev = &oh->od->pdev.dev;
-		/* Get the current rate */
-		rate = clk_get_rate(clk);
-
-		/* Update DVFS framework with rate information */
-		ret = omap_device_scale(dev, dev, rate);
-		if (ret) {
-			dev_warn(dev, "%s unable to scale to %d - %d\n",
-				__func__, rate, ret);
-			/* Continue to next device */
-		}
-	}
 err2:
 	return ret;
 }
