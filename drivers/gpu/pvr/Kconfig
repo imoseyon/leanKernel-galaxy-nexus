@@ -126,3 +126,17 @@ config SGX_DVFS_IDLE_TIMEOUT
 	int "DVFS idle timeout (us)"
 	depends on PVR_SGX
 	default 1000
+
+config PVR_LINUX_MEM_AREA_POOL
+	bool "Enable uncached allocation pool"
+	depends on PVR_SGX
+	default n
+
+config PVR_LINUX_MEM_AREA_POOL_MAX_PAGES
+	int "Maximum number of pages in pool"
+	depends on PVR_LINUX_MEM_AREA_POOL
+	default 10800
+	help
+		Pool size in pages.
+		A size of 0 disables the pool.
+		A size of -1 allows the pool to grow indefinitely.
