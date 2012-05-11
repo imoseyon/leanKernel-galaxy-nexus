@@ -24,6 +24,7 @@ MIN=`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq`
 $bb echo "Governor: $GOV, MaxFreq: $MAX, MinFreq: $MIN"
 TIS=`cat /sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state | $bb sed s/000//`
 $bb echo "TiS: "${TIS// /\/}
+echo "SmartReflex VMIN - core:"`cat /sys/kernel/debug/smartreflex/sr_core/vmin`", mpu:"`cat /sys/kernel/debug/smartreflex/sr_mpu/vmin`", iva:"`cat /sys/kernel/debug/smartreflex/sr_iva/vmin`
 echo "------"
 echo "cpu stats: normal/nice/idle/iowait/irq"
 cat /proc/stat | /sbin/bb/busybox awk '/^cpu[0-1]/ { print $1": "$2"/"$3"/"$5"/"$6"/"$7 }'
