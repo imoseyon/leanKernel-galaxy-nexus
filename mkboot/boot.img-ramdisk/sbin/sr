@@ -29,6 +29,7 @@ if [[ $1 == "vmin" ]]; then
   fi
   VMIN="/sys/kernel/debug/smartreflex/sr_$2/vmin"
   $bb echo $3 > $VMIN
+  ACTUAL=`cat $VMIN`
   if [[ $4 ]]; then
     srinit="/etc/init.d/99lk-sr$2"
     mount -o rw,remount /system
@@ -36,9 +37,9 @@ if [[ $1 == "vmin" ]]; then
     echo "echo $3 > $VMIN" >> $srinit
     chmod 755 $srinit
     mount -o ro,remount /system
-    echo "SmartReflex for $2 is tuned to $3 and at boot."
+    echo "SmartReflex for $2 is tuned to $ACTUAL and at boot."
   else
-    echo "SmartReflex for $2 is tuned to $3 (will not persist at boot)."
+    echo "SmartReflex for $2 is tuned to $ACTUAL (will not persist at boot)."
   fi
   exit 0
 fi
