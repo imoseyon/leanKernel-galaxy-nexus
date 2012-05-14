@@ -7,6 +7,10 @@
 #include <linux/device.h>
 #include <linux/miscdevice.h>
 
+#define DEF_TEMPLIMIT 64000
+#define TEMP_FLOOR 50000
+#define TEMP_CEILING 90000
+
 extern void tempcontrol_update(int tlimit);
 static int temp_limit;
 
@@ -18,8 +22,11 @@ static ssize_t tempcontrol_read(struct device * dev, struct device_attribute * a
 static ssize_t tempcontrol_write(struct device * dev, struct device_attribute * attr, const char * buf, size_t size)
 {
     sscanf(buf, "%d\n", &temp_limit);
-    if (temp_limit < 50000) temp_limit = 50000;
-    if (temp_limit > 90000) temp_limit = 90000;
+    if (temp_limit == 0) temp_limit = DEF_TEMPLIMIT;
+    else {
+      if (temp_limit < TEMP_FLOOR) temp_limit = TEMP_FLOOR;
+      if (temp_limit > TEMP_CEILING) temp_limit = TEMP_CEILING;
+    }
     pr_info("[imoseyon] TEMPCONTROL threshold changed to %d\n", temp_limit);
     tempcontrol_update(temp_limit);
     return size;
