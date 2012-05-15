@@ -378,6 +378,7 @@ struct msc_data {
 	u8 data;
 	struct completion *cvar;	/* optional completion signaled when
 					   event is handled */
+	int *ret;			/* optional return value */
 	struct list_head list;
 };
 
@@ -979,8 +980,9 @@ static int sii9234_queue_devcap_read_locked(struct sii9234_data *sii9234,
 {
 	struct completion cvar;
 	struct msc_data *data;
+	int ret;
 
-	data = kmalloc(sizeof(struct msc_data), GFP_KERNEL);
+	data = kzalloc(sizeof(struct msc_data), GFP_KERNEL);
 	if (!data) {
 		dev_err(&sii9234->pdata->mhl_tx_client->dev,
 			"failed to allocate msc data");
@@ -990,6 +992,7 @@ static int sii9234_queue_devcap_read_locked(struct sii9234_data *sii9234,
 	data->cmd = READ_DEVCAP;
 	data->offset = offset;
 	data->cvar = &cvar;
+	data->ret = &ret;
 	list_add_tail(&data->list, &sii9234->msc_data_list);
 
 	mutex_unlock(&sii9234->lock);
@@ -997,7 +1000,7 @@ static int sii9234_queue_devcap_read_locked(struct sii9234_data *sii9234,
 	wait_for_completion(&cvar);
 	mutex_lock(&sii9234->lock);
 
-	return 0;
+	return ret;
 }
 
 
@@ -1395,7 +1398,7 @@ static int cbus_handle_set_interrupt(struct sii9234_data *sii9234,
 
 static void sii9234_msc_event(struct work_struct *work)
 {
-	u8 ret = -1;
+	int ret = -1;
 	struct msc_data *data, *next;
 	struct sii9234_data *sii9234 = container_of(work, struct sii9234_data,
 			msc_work);
@@ -1439,6 +1442,7 @@ static void sii9234_msc_event(struct work_struct *work)
 				break;
 			}
 			sii9234->devcap[data->offset] = ret;
+			ret = 0;
 			break;
 
 		case SET_INT:
@@ -1480,8 +1484,10 @@ static void sii9234_msc_event(struct work_struct *work)
 			break;
 		}
 
-		if (data->cvar)
+		if (data->cvar) {
+			*data->ret = ret;
 			complete(data->cvar);
+		}
 
 		list_del(&data->list);
 		kfree(data);
@@ -1633,7 +1639,7 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 
 		pr_debug("sii9234: msc msg received\n");
 
-		data = kmalloc(sizeof(struct msc_data), GFP_KERNEL);
+		data = kzalloc(sizeof(struct msc_data), GFP_KERNEL);
 		if (!data) {
 			dev_err(&sii9234->pdata->mhl_tx_client->dev,
 				"failed to allocate msc data");
@@ -1643,7 +1649,6 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 		data->cmd = MSC_MSG;
 		cbus_read_reg(sii9234, CBUS_MSC_MSG_CMD_IN, &data->offset);
 		cbus_read_reg(sii9234, CBUS_MSC_MSG_DATA_IN, &data->data);
-		data->cvar = NULL;
 		list_add_tail(&data->list, &sii9234->msc_data_list);
 
 		schedule_work(&sii9234->msc_work);
@@ -1672,7 +1677,7 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 		}
 
 		if (path_en_changed) {
-			data = kmalloc(sizeof(struct msc_data), GFP_KERNEL);
+			data = kzalloc(sizeof(struct msc_data), GFP_KERNEL);
 			if (!data) {
 				dev_err(&sii9234->pdata->mhl_tx_client->dev,
 					"failed to allocate msc data");
@@ -1682,7 +1687,6 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 			data->cmd = WRITE_STAT;
 			data->offset = CBUS_MHL_STATUS_OFFSET_1;
 			data->data = sii9234->link_mode;
-			data->cvar = NULL;
 			list_add_tail(&data->list, &sii9234->msc_data_list);
 			schedule_work(&sii9234->msc_work);
 		}
@@ -1699,7 +1703,7 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 			 * TODO: should we read the complete devcap[] again?
 			 */
 			pr_debug("sii9234: device capability changed\n");
-			data = kmalloc(sizeof(struct msc_data), GFP_KERNEL);
+			data = kzalloc(sizeof(struct msc_data), GFP_KERNEL);
 			if (!data) {
 				dev_err(&sii9234->pdata->mhl_tx_client->dev,
 					"failed to allocate msc data");
@@ -1708,7 +1712,6 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 			}
 			data->cmd = READ_DEVCAP;
 			data->offset = MHL_DEVCAP_DEV_CAT;
-			data->cvar = NULL;
 			list_add_tail(&data->list, &sii9234->msc_data_list);
 			schedule_work(&sii9234->msc_work);
 		}
@@ -1725,7 +1728,7 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 		if (mhl_intr0 & MHL_INT_REQ_WRT) {
 			struct msc_data *data;
 			pr_debug("sii9234: request-to-write received\n");
-			data = kmalloc(sizeof(struct msc_data), GFP_KERNEL);
+			data = kzalloc(sizeof(struct msc_data), GFP_KERNEL);
 			if (!data) {
 				dev_err(&sii9234->pdata->mhl_tx_client->dev,
 					"failed to allocate msc data");
@@ -1736,7 +1739,6 @@ static int sii9234_cbus_irq(struct sii9234_data *sii9234)
 			data->offset = CBUS_MHL_INTR_OFFSET_0;
 			/* signal grant-to-write to the peer */
 			data->data = MHL_INT_GRT_WRT;
-			data->cvar = NULL;
 			list_add_tail(&data->list, &sii9234->msc_data_list);
 			schedule_work(&sii9234->msc_work);
 		}
