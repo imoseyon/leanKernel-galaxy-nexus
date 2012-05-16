@@ -735,6 +735,7 @@ static int _dvfs_scale(struct device *req_dev, struct device *target_dev,
 	struct omap_vdd_info *vdd;
 	struct omap_volt_data *new_vdata;
 	struct omap_volt_data *curr_vdata;
+	struct list_head *dev_list;
 
 	voltdm = tdvfs_info->voltdm;
 	if (IS_ERR_OR_NULL(voltdm)) {
@@ -861,13 +862,22 @@ do_scale:
 		}
 	}
 
-	/* Move all devices in list to the required frequencies */
-	list_for_each_entry(temp_dev, &tdvfs_info->dev_list, node) {
+	/*
+	 * Move all devices in list to the required frequencies.
+	 * Devices are put in list in strict order, such as, when
+	 * scaling up to higher OPP, dependent frequencies will be scaled
+	 * after the frequency on which they depend. In case of scaling
+	 * down to lower OPP the order of scaling frequencies is reverse.
+	 */
+	dev_list = (volt_scale_dir == DVFS_VOLT_SCALE_DOWN) ?
+			tdvfs_info->dev_list.prev : tdvfs_info->dev_list.next;
+	while (dev_list != &tdvfs_info->dev_list) {
 		struct device *dev;
 		struct opp *opp;
 		unsigned long freq = 0;
 		int r;
 
+		temp_dev = list_entry(dev_list, struct omap_vdd_dev_list, node);
 		dev = temp_dev->dev;
 		if (!plist_head_empty(&temp_dev->freq_user_list)) {
 			node = plist_last(&temp_dev->freq_user_list);
@@ -887,13 +897,13 @@ do_scale:
 				rcu_read_unlock();
 			}
 			if (!freq)
-				continue;
+				goto next;
 		}
 
 		if (freq == clk_get_rate(temp_dev->clk)) {
 			dev_dbg(dev, "%s: Already at the requested"
 				"rate %ld\n", __func__, freq);
-			continue;
+			goto next;
 		}
 
 		r = clk_set_rate(temp_dev->clk, freq);
@@ -902,6 +912,9 @@ do_scale:
 				__func__, freq, r);
 			ret = r;
 		}
+next:
+		dev_list = (volt_scale_dir == DVFS_VOLT_SCALE_DOWN) ?
+				dev_list->prev : dev_list->next;
 	}
 
 	if (ret)
