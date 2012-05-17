@@ -1981,6 +1981,7 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 		}
 
 		hcd->self.uses_pio_for_control = 1;
+		hcd->self.dma_align = 1;
 	}
 
 	if ((musb->xceiv->last_event == USB_EVENT_NONE) ||
