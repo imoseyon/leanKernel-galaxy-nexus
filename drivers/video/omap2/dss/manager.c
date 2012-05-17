@@ -1085,6 +1085,20 @@ static int configure_overlay(enum omap_plane plane)
 		}
 	}
 
+	/* OMAP44xx limitation: in Stallmode, when the frame pixel size
+	 * is less than output SyncFifo depth(16), DISPC hangs
+	 * without sending any data
+	 */
+	if (cpu_is_omap44xx())
+		if ((w < 4 || h < 5))
+			if (c->color_mode == OMAP_DSS_COLOR_NV12 ||
+				c->color_mode == OMAP_DSS_COLOR_YUV2 ||
+				c->color_mode == OMAP_DSS_COLOR_UYVY) {
+				DSSWARN("too small frame on VID%d dropped\n",
+					plane);
+				return -EINVAL;
+			}
+
 	r = dispc_scaling_decision(w, h, outw, outh,
 			       plane, c->color_mode, c->channel,
 			       c->rotation, c->rotation_type,
