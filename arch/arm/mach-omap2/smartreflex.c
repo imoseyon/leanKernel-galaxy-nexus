@@ -72,6 +72,7 @@ static struct dentry		*sr_dbg_dir;
 static u32 mpumin = OMAP4_VP_MPU_VLIMITTO_VDDMIN;
 static u32 ivamin = OMAP4_VP_IVA_VLIMITTO_VDDMIN;
 static u32 coremin = OMAP4_VP_CORE_VLIMITTO_VDDMIN;
+bool enable_highvolt_sr = 0;
 
 #define LOWFLOOR 700000
 #define LOWCEILING 1000000
@@ -1057,19 +1058,60 @@ void omap_sr_register_pmic(struct omap_sr_pmic_data *pmic_data)
 
 /**
  * Debug Fs enteries to tune smartreflex. 
- * autho: imoseyon@gmail.com
+ * author: imoseyon@gmail.com
  * 
  * code needs to be cleaned up still.
  */
+static int omap_sr_highvolt_show(void *data, u64 *val)
+{
+	struct omap_sr *sr_info = (struct omap_sr *) data;
+
+	if (!sr_info) {
+		pr_warning("%s: omap_sr struct not found\n", __func__);
+		return -EINVAL;
+	}
+
+	*val = enable_highvolt_sr;
+
+	return 0;
+}
 static int omap_sr_vmin_show(void *data, u64 *val)
 {
         struct omap_sr *sr = (struct omap_sr *) data;
+
+	if (!sr) {
+		pr_warning("%s: omap_sr struct not found\n", __func__);
+		return -EINVAL;
+	}
 
         if (!(strcmp(sr->voltdm->name, "mpu"))) *val = mpumin;
         else if (!(strcmp(sr->voltdm->name, "iva"))) *val = ivamin;
         else if (!(strcmp(sr->voltdm->name, "core"))) *val = coremin;
 	return 0;
 }
+static int omap_sr_highvolt_store(void *data, u64 val)
+{
+	struct omap_sr *sr_info = (struct omap_sr *) data;
+
+	if (!sr_info) {
+		pr_warning("%s: omap_sr struct not found\n", __func__);
+		return -EINVAL;
+	}
+	/* Sanity check */
+	if (val && (val != 1)) {
+		pr_warning("%s: Invalid argument %lld\n", __func__, val);
+		return -EINVAL;
+	}
+
+	/* control enable/disable only if there is a delta in value */
+	if (enable_highvolt_sr != val) {
+		enable_highvolt_sr = val;
+		sr_stop_vddautocomp(sr_info);
+		sr_start_vddautocomp(sr_info);
+	}
+	return 0;
+}
+
 static int omap_sr_vmin_store(void *data, u64 val)
 {
         struct omap_sr *sr_info = (struct omap_sr *) data;
@@ -1180,6 +1222,8 @@ DEFINE_SIMPLE_ATTRIBUTE(pm_sr_fops, omap_sr_autocomp_show,
 		omap_sr_autocomp_store, "%llu\n");
 DEFINE_SIMPLE_ATTRIBUTE(pm_sr_fops2, omap_sr_vmin_show,
 		omap_sr_vmin_store, "%llu\n");
+DEFINE_SIMPLE_ATTRIBUTE(pm_sr_fops3, omap_sr_highvolt_show,
+		omap_sr_highvolt_store, "%llu\n");
 
 static int __init omap_sr_probe(struct platform_device *pdev)
 {
@@ -1290,6 +1334,8 @@ static int __init omap_sr_probe(struct platform_device *pdev)
 			sr_info->dbg_dir, (void *)sr_info, &pm_sr_fops);
 	(void) debugfs_create_file("vmin", S_IRUGO | S_IWUSR,
 			sr_info->dbg_dir, (void *)sr_info, &pm_sr_fops2);
+	(void) debugfs_create_file("enable_highvolt", S_IRUGO | S_IWUSR,
+			sr_info->dbg_dir, (void *)sr_info, &pm_sr_fops3);
 	(void) debugfs_create_x32("errweight", S_IRUGO, sr_info->dbg_dir,
 			&sr_info->err_weight);
 	(void) debugfs_create_x32("errmaxlimit", S_IRUGO, sr_info->dbg_dir,

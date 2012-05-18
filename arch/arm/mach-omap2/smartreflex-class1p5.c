@@ -64,6 +64,8 @@ struct sr_class1p5_work_data {
 	bool work_active;
 };
 
+extern bool enable_highvolt_sr;
+
 #if CONFIG_OMAP_SR_CLASS1P5_RECALIBRATION_DELAY
 /* recal_work:	recalibration calibration work */
 static struct delayed_work recal_work;
@@ -422,7 +424,7 @@ static int sr_class1p5_enable(struct voltagedomain *voltdm,
 		return 0;
         // SR1.5 does not seem to calibrate high freqs properly - this is a
         // workaround until I find a better way
- 	if (volt_data->volt_nominal > 1310000) {
+ 	if (!enable_highvolt_sr && volt_data->volt_nominal > 1310000) {
 		pr_info("[imoseyon] nominal@%d, skipping sr_enable\n", 
 			volt_data->volt_nominal);
 		volt_data->volt_calibrated = volt_data->volt_nominal;
