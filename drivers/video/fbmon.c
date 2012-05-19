@@ -984,6 +984,62 @@ void fb_edid_to_monspecs(unsigned char *edid, struct fb_monspecs *specs)
 }
 
 /**
+ * fb_edid_get_cea_sample_rates() - convert from CEA sample rate format
+ * @cea_sample_rates:	sample rate bitfield
+ *
+ * DESCRIPTION:
+ *
+ * This function converts from the sample rates bitfield given in
+ * SAD byte 2 of the Audio Data Block from the CEA EDID Timing
+ * Extension v3 to something that can be understood here.
+ */
+static u8 fb_edid_get_cea_sample_rates(u8 cea_sample_rates)
+{
+	u8 rates = 0;
+
+	if (cea_sample_rates & (1 << 0))
+		rates |= FB_AUDIO_32KHZ;
+	if (cea_sample_rates & (1 << 1))
+		rates |= FB_AUDIO_44KHZ;
+	if (cea_sample_rates & (1 << 2))
+		rates |= FB_AUDIO_48KHZ;
+	if (cea_sample_rates & (1 << 3))
+		rates |= FB_AUDIO_88KHZ;
+	if (cea_sample_rates & (1 << 4))
+		rates |= FB_AUDIO_96KHZ;
+	if (cea_sample_rates & (1 << 5))
+		rates |= FB_AUDIO_176KHZ;
+	if (cea_sample_rates & (1 << 6))
+		rates |= FB_AUDIO_192KHZ;
+
+	return rates;
+}
+
+/**
+ * fb_edid_get_cea_bit_rates() - convert from CEA bit rate format
+ * @cea_bit_rates:	bit rate bitfield
+ *
+ * DESCRIPTION:
+ *
+ * This function converts from the bit rate bitfield given in
+ * SAD byte 3 of the Audio Data Block from the CEA EDID Timing
+ * Extension v3 to something that can be understood here.
+ */
+static u8 fb_edid_get_cea_bit_rates(u8 cea_bit_rates)
+{
+	u8 rates = 0;
+
+	if (cea_bit_rates & (1 << 0))
+		rates |= FB_AUDIO_16BIT;
+	if (cea_bit_rates & (1 << 1))
+		rates |= FB_AUDIO_20BIT;
+	if (cea_bit_rates & (1 << 2))
+		rates |= FB_AUDIO_24BIT;
+
+	return rates;
+}
+
+/**
  * fb_edid_add_monspecs() - add monitor video modes from E-EDID data
  * @edid:	128 byte array with an E-EDID block
  * @specs:	monitor specs to be extended
@@ -992,9 +1048,11 @@ void fb_edid_add_monspecs(unsigned char *edid, struct fb_monspecs *specs)
 {
 	unsigned char *block;
 	struct fb_videomode *m;
+	struct fb_audio *audiodb;
 	int num = 0, i;
-	u8 svd[64], edt[(128 - 4) / DETAILED_TIMING_DESCRIPTION_SIZE];
-	u8 pos = 4, svd_n = 0;
+	u8 sad[128 - 5], svd[64];
+	u8 edt[(128 - 4) / DETAILED_TIMING_DESCRIPTION_SIZE];
+	u8 pos = 4, sad_n = 0, svd_n = 0;
 
 	if (!edid)
 		return;
@@ -1002,18 +1060,34 @@ void fb_edid_add_monspecs(unsigned char *edid, struct fb_monspecs *specs)
 	if (!edid_checksum(edid))
 		return;
 
-	if (edid[0] != 0x2 ||
+	if (edid[0] != 0x2 || edid[1] != 0x3 ||
 	    edid[2] < 4 || edid[2] > 128 - DETAILED_TIMING_DESCRIPTION_SIZE)
 		return;
 
-	DPRINTK("  Short Video Descriptors\n");
+	DPRINTK("  Data Block Collection\n");
 
 	while (pos < edid[2]) {
 		u8 len = edid[pos] & 0x1f, type = (edid[pos] >> 5) & 7;
 		pr_debug("Data block %u of %u bytes\n", type, len);
 
+		if (len == 0)
+			break;
+
 		pos++;
-		if (type == 2) {
+		if (type == 1) {
+			/* Short Audio Descriptors */
+			for (i = pos; i < pos + len; i += 3) {
+				if (((edid[i] >> 3) & 0xf) != 1)
+					continue; /* skip non-lpcm */
+
+				pr_debug("LPCM ch=%d\n", (edid[i] & 7) + 1);
+
+				sad[sad_n++] = (edid[i] & 7) + 1;
+				sad[sad_n++] = edid[i + 1];
+				sad[sad_n++] = edid[i + 2];
+			}
+		} else if (type == 2) {
+			/* Short Video Descriptors */
 			for (i = pos; i < pos + len; i++) {
 				u8 idx = edid[i] & 0x7f;
 				svd[svd_n++] = idx;
@@ -1021,6 +1095,7 @@ void fb_edid_add_monspecs(unsigned char *edid, struct fb_monspecs *specs)
 					 edid[i] & 0x80 ? "" : "on-n", idx);
 			}
 		} else if (type == 3 && len >= 3) {
+			/* Vendor block */
 			u32 ieee_reg = edid[pos] | (edid[pos + 1] << 8) |
 				(edid[pos + 2] << 16);
 			if (ieee_reg == 0x000c03)
@@ -1028,6 +1103,31 @@ void fb_edid_add_monspecs(unsigned char *edid, struct fb_monspecs *specs)
 		}
 
 		pos += len;
+	}
+
+	if (sad_n > 0) {
+		/* Short audio descriptors are in blocks of 3 bytes */
+		sad_n /= 3;
+		pr_debug("Found %d lpcm audio blocks\n", sad_n);
+		audiodb = kzalloc(sad_n * sizeof(struct fb_audio), GFP_KERNEL);
+		if (!audiodb)
+			return;
+
+		for (i = 0; i < sad_n; i++) {
+			audiodb[i].format = FB_AUDIO_LPCM;
+			audiodb[i].channel_count = sad[i * 3];
+			audiodb[i].sample_rates =
+				fb_edid_get_cea_sample_rates(sad[i * 3 + 1]);
+			audiodb[i].bit_rates =
+				fb_edid_get_cea_bit_rates(sad[i * 3 + 2]);
+		}
+
+		kfree(specs->audiodb);
+		specs->audiodb = audiodb;
+		specs->audiodb_len = sad_n;
+	} else {
+		kfree(specs->audiodb);
+		specs->audiodb_len = 0;
 	}
 
 	block = edid + edid[2];
@@ -1039,7 +1139,7 @@ void fb_edid_add_monspecs(unsigned char *edid, struct fb_monspecs *specs)
 		if (PIXEL_CLOCK)
 			edt[num++] = block - edid;
 
-	/* Yikes, EDID data is totally useless */
+	/* No video descriptors, so nothing more to do */
 	if (!(num + svd_n))
 		return;
 

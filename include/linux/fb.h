@@ -484,6 +484,8 @@ struct fb_monspecs {
 	__u8  revision;			/* ...and revision */
 	__u8  max_x;			/* Maximum horizontal size (cm) */
 	__u8  max_y;			/* Maximum vertical size (cm) */
+	struct fb_audio *audiodb;	/* audio database */
+	__u32 audiodb_len;		/* audio database length */
 };
 
 struct fb_cmap_user {
@@ -1159,6 +1161,27 @@ struct fb_videomode {
 	u32 sync;
 	u32 vmode;
 	u32 flag;
+};
+
+#define FB_AUDIO_LPCM	1
+
+#define FB_AUDIO_192KHZ	(1 << 6)
+#define FB_AUDIO_176KHZ	(1 << 5)
+#define FB_AUDIO_96KHZ	(1 << 4)
+#define FB_AUDIO_88KHZ	(1 << 3)
+#define FB_AUDIO_48KHZ	(1 << 2)
+#define FB_AUDIO_44KHZ	(1 << 1)
+#define FB_AUDIO_32KHZ	(1 << 0)
+
+#define FB_AUDIO_24BIT	(1 << 2)
+#define FB_AUDIO_20BIT	(1 << 1)
+#define FB_AUDIO_16BIT	(1 << 0)
+
+struct fb_audio {
+	u8 format;
+	u8 channel_count;
+	u8 sample_rates;
+	u8 bit_rates;
 };
 
 extern const char *fb_mode_option;
