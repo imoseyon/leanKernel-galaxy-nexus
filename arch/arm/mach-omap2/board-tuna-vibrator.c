@@ -223,6 +223,7 @@ static int __init vibrator_init(void)
 		goto err_dm_timer_src;
 	}
 
+	omap_dm_timer_dump_regs(vibdata.gptimer);
 	omap_dm_timer_set_load(vibdata.gptimer, 1, -PWM_DUTY_MAX);
 	omap_dm_timer_set_match(vibdata.gptimer, 1, -PWM_DUTY_MAX+10);
 	omap_dm_timer_set_pwm(vibdata.gptimer, 0, 1,
@@ -230,6 +231,7 @@ static int __init vibrator_init(void)
 	omap_dm_timer_enable(vibdata.gptimer);
 	omap_dm_timer_write_counter(vibdata.gptimer, -2);
 	omap_dm_timer_disable(vibdata.gptimer);
+	omap_dm_timer_dump_regs(vibdata.gptimer);
 
 	wake_lock_init(&vibdata.wklock, WAKE_LOCK_SUSPEND, "vibrator");
 	mutex_init(&vibdata.lock);
