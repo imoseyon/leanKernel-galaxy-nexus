@@ -240,6 +240,17 @@ config OMAP_DM_TIMER
 	help
 	 Select this option if you want to use OMAP Dual-Mode timers.
 
+config OMAP_DM_TIMER_DEBUG
+	bool "Enable DM timer debug info"
+	depends on OMAP_DM_TIMER
+	default n
+	help
+	  Select this option if you want your system to
+	  dump debug information about the OMAP DM timers
+	  when calling specific functions.
+	  When this option is not selected these calls will be
+	  turned into noops.
+
 config OMAP_SERIAL_WAKE
 	bool "Enable wake-up events for serial ports"
 	depends on ARCH_OMAP1 && OMAP_MUX

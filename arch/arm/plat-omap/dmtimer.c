@@ -296,6 +296,32 @@ static void __timer_disable(struct omap_dm_timer *timer)
 	}
 }
 
+#ifdef CONFIG_OMAP_DM_TIMER_DEBUG
+#define omap_dm_timer_dump_reg(timer, reg)				\
+	pr_info(#reg ": %#08x\n", omap_dm_timer_read_reg(timer, reg))
+
+void omap_dm_timer_dump_regs(struct omap_dm_timer *timer)
+{
+	bool enabled = timer->enabled;
+
+	if (!enabled)
+		__timer_enable(timer);
+	omap_dm_timer_dump_reg(timer, OMAP_TIMER_OCP_CFG_REG);
+	omap_dm_timer_dump_reg(timer, OMAP_TIMER_SYS_STAT_REG);
+	omap_dm_timer_dump_reg(timer, OMAP_TIMER_STAT_REG);
+	omap_dm_timer_dump_reg(timer, OMAP_TIMER_INT_EN_REG);
+	omap_dm_timer_dump_reg(timer, OMAP_TIMER_WAKEUP_EN_REG);
+	omap_dm_timer_dump_reg(timer, OMAP_TIMER_CTRL_REG);
+	omap_dm_timer_dump_reg(timer, OMAP_TIMER_COUNTER_REG);
+	omap_dm_timer_dump_reg(timer, OMAP_TIMER_LOAD_REG);
+	omap_dm_timer_dump_reg(timer, OMAP_TIMER_MATCH_REG);
+	omap_dm_timer_dump_reg(timer, OMAP_TIMER_IF_CTRL_REG);
+	if (!enabled)
+		__timer_disable(timer);
+}
+EXPORT_SYMBOL_GPL(omap_dm_timer_dump_regs);
+#endif
+
 static void omap_dm_timer_wait_for_reset(struct omap_dm_timer *timer)
 {
 	int c;
