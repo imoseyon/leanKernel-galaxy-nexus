@@ -424,6 +424,9 @@ static void tuna_fsa_usb_detected(int device)
 		else
 			tuna_ap_usb_attach(tuna_otg);
 		break;
+	case FSA9480_DETECT_AV_POWERED:
+		tuna_ap_usb_attach(tuna_otg);
+		break;
 	case FSA9480_DETECT_CHARGER:
 		tuna_mux_usb_to_fsa(true);
 
@@ -468,6 +471,9 @@ static void tuna_fsa_usb_detected(int device)
 			else
 				tuna_ap_usb_detach(tuna_otg);
 			break;
+		case FSA9480_DETECT_AV_POWERED:
+			tuna_ap_usb_detach(tuna_otg);
+			break;
 		case FSA9480_DETECT_USB_HOST:
 			tuna_usb_host_detach(tuna_otg);
 			break;
@@ -510,7 +516,11 @@ static void tuna_fsa_usb_detected(int device)
 static struct fsa9480_detect_set fsa_detect_sets[] = {
 	{
 		.prio = TUNA_OTG_ID_FSA9480_PRIO,
-		.mask = FSA9480_DETECT_ALL,
+		.mask = FSA9480_DETECT_ALL & ~FSA9480_DETECT_AV_POWERED,
+	},
+	{
+		.prio = TUNA_OTG_ID_SII9234_FAILED_PRIO,
+		.mask = FSA9480_DETECT_AV_POWERED,
 	},
 	{
 		.prio = TUNA_OTG_ID_FSA9480_LAST_PRIO,
