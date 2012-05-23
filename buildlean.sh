@@ -35,6 +35,7 @@ if [ ! $4 ]; then
 fi
 if [[ $1 != *dev* && $1 != *rc* ]]; then
 	md5=`md5sum /tmp/boot.img | awk '{ print \$1 }'`
+	md5zip=`md5sum /tmp/imoseyon_leanKernel_v${1}gnexus.zip | awk '{ print \$1 }'`
 	cp /tmp/boot.img /tmp/boot-${1}.img
 	if [[ $1 == *exp* ]]; then
 	  if [[ $1 == *180* ]]; then
@@ -50,6 +51,7 @@ if [[ $1 != *dev* && $1 != *rc* ]]; then
 	  edir=""
 	fi
 	echo "http://imoseyon.host4droid.com${edir}/boot-${1}.img $md5 ${1}" > /tmp/$mf
+	echo "http://imoseyon.host4droid.com${edir}/imoseyon_leanKernel_v${1}gnexus.zip $md5zip" > /tmp/${mf}zip
 fi
 if [[ $2 == "upload" ]]; then
   cd /data/omap
