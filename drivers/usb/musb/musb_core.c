@@ -1967,15 +1967,13 @@ musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 
 	if (!musb->isr) {
 		status = -ENODEV;
-		goto fail2;
+		goto fail3;
 	}
 
 	if (!musb->xceiv->io_ops) {
 		musb->xceiv->io_priv = musb->mregs;
 		musb->xceiv->io_ops = &musb_ulpi_access;
 	}
-
-	pm_runtime_get_sync(musb->controller);
 
 #ifndef CONFIG_MUSB_PIO_ONLY
 	if (use_dma && dev->dma_mask) {
@@ -2087,8 +2085,6 @@ musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 		goto fail5;
 #endif
 
-	pm_runtime_put(musb->controller);
-
 	dev_info(dev, "USB %s mode controller at %p using %s, IRQ %d\n",
 			({char *s;
 			 switch (musb->board_mode) {
@@ -2116,9 +2112,6 @@ fail4:
 		wake_lock_destroy(&musb->musb_wakelock);
 
 fail3:
-	pm_runtime_put_sync(musb->controller);
-
-fail2:
 	if (musb->irq_wake)
 		device_init_wakeup(dev, 0);
 	musb_platform_exit(musb);
