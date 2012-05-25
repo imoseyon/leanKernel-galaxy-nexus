@@ -1,6 +1,6 @@
 #
 # Automatically generated make config: don't edit
-# Linux/arm 3.0.30 Kernel Configuration
+# Linux/arm 3.0.32 Kernel Configuration
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -1779,6 +1779,8 @@ CONFIG_SOUND=y
 CONFIG_SND=y
 CONFIG_SND_TIMER=y
 CONFIG_SND_PCM=y
+CONFIG_SND_HWDEP=y
+CONFIG_SND_RAWMIDI=y
 CONFIG_SND_JACK=y
 # CONFIG_SND_SEQUENCER is not set
 # CONFIG_SND_MIXER_OSS is not set
@@ -1803,7 +1805,7 @@ CONFIG_SND_DRIVERS=y
 CONFIG_SND_ARM=y
 CONFIG_SND_SPI=y
 CONFIG_SND_USB=y
-# CONFIG_SND_USB_AUDIO is not set
+CONFIG_SND_USB_AUDIO=y
 # CONFIG_SND_USB_UA101 is not set
 # CONFIG_SND_USB_CAIAQ is not set
 # CONFIG_SND_USB_6FIRE is not set
