@@ -4173,6 +4173,7 @@ int omap_dsi_prepare_update(struct omap_dss_device *dssdev,
 {
 	struct platform_device *dsidev = dsi_get_dsidev_from_dssdev(dssdev);
 	u16 dw, dh;
+	int r = 0;
 
 	dssdev->driver->get_resolution(dssdev, &dw, &dh);
 
@@ -4194,12 +4195,13 @@ int omap_dsi_prepare_update(struct omap_dss_device *dssdev,
 	dsi_perf_mark_setup(dsidev);
 
 	if (dssdev->manager->caps & OMAP_DSS_OVL_MGR_CAP_DISPC) {
-		dss_setup_partial_planes(dssdev, x, y, w, h,
+		r = dss_setup_partial_planes(dssdev, x, y, w, h,
 				enlarge_update_area);
-		dispc_set_lcd_size(dssdev->manager->id, *w, *h);
+		if (0 == r)
+			dispc_set_lcd_size(dssdev->manager->id, *w, *h);
 	}
 
-	return 0;
+	return r;
 }
 EXPORT_SYMBOL(omap_dsi_prepare_update);
 
