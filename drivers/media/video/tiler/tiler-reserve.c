@@ -77,16 +77,17 @@ u32 tiler_best2pack(u16 o, u16 a, u16 b, u16 w, u16 *n, u16 *_area)
 
 /* reserve 2d blocks */
 static void reserve_blocks(u32 n, enum tiler_fmt fmt, u32 width, u32 height,
-			   u32 gid,
-			   struct process_info *pi)
+			   u32 align, u32 offs, u32 gid,
+			   struct security_info *si)
 {
 	u32 bpt, res = 0, i;
-	u16 a, band, w, h, n_try;
+	u16 o = offs, a = align, r = 0, band, w, h, n_try;
 	struct gid_info *gi;
 	const struct tiler_geom *g;
 
 	/* Check input parameters for correctness, and support */
 	if (!width || !height || !n ||
+		align > PAGE_SIZE || offs >= align ||
 	    fmt < TILFMT_8BIT || fmt > TILFMT_32BIT)
 		return;
 
@@ -99,11 +100,11 @@ static void reserve_blocks(u32 n, enum tiler_fmt fmt, u32 width, u32 height,
 	 *  sufficient.  Also check for basic area info.
 	 */
 	if (width * g->bpp * 2 <= PAGE_SIZE ||
-	    ops->analize(fmt, width, height, &w, &h, &band, &a))
+	    ops->analize(fmt, width, height, &w, &h, &band, &a, &o, &r))
 		return;
 
 	/* get group id */
-	gi = ops->get_gi(pi, gid);
+	gi = ops->get_gi(si, gid);
 	if (!gi)
 		return;
 
@@ -116,7 +117,7 @@ static void reserve_blocks(u32 n, enum tiler_fmt fmt, u32 width, u32 height,
 		res = -1;
 		while (n_try > 1) {
 			/* adjust res so we fail on 0 return value */
-			res = ops->lay_2d(fmt, n_try, w, h, band, a,
+			res = ops->lay_2d(fmt, n_try, w, h, band, a, o,
 						gi, &gi->reserved) - 1;
 			if (res >= 0)
 				break;
@@ -131,11 +132,11 @@ static void reserve_blocks(u32 n, enum tiler_fmt fmt, u32 width, u32 height,
 }
 
 /* unreserve blocks for a group id */
-static void unreserve_blocks(u32 gid, struct process_info *pi)
+static void unreserve_blocks(u32 gid, struct security_info *si)
 {
 	struct gid_info *gi;
 
-	gi = ops->get_gi(pi, gid);
+	gi = ops->get_gi(si, gid);
 	if (!gi)
 		return;
 
