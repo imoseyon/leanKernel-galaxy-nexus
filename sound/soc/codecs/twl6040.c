@@ -937,6 +937,8 @@ void soundcontrol_updatevolume(unsigned int volumeboost)
 	out->right_step = out->right_vol + volume_boost;
 
 	queue_delayed_work(snd_data->hs_workqueue, work, msecs_to_jiffies(1));
+    } else {
+	volume_boost = volumeboost;
     }
 
     return;
@@ -1105,6 +1107,13 @@ static int twl6040_put_volsw(struct snd_kcontrol *kcontrol,
 		if (!out->active)
 			return 1;
 	}
+
+#ifdef CONFIG_SOUND_CONTROL
+	if (&twl6040_priv->headset.active) {
+	    ucontrol->value.integer.value[0] += volume_boost;
+	    ucontrol->value.integer.value[1] += volume_boost;
+	}
+#endif
 
 	ret = snd_soc_put_volsw(kcontrol, ucontrol);
 	if (ret < 0)
