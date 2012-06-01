@@ -5,6 +5,7 @@ on early-init
 	mkdir /mnt/sdcard 0000 system system
 	# for backwards compatibility
 	symlink /mnt/sdcard /sdcard
+	mkdir /mnt/usbdisk 0755 system system
 
 on post-fs-data
 	# we will remap this as /mnt/sdcard with the sdcard fuse tool
