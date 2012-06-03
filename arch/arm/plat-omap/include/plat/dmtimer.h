@@ -155,6 +155,7 @@ int omap_dm_timer_write_counter(struct omap_dm_timer *timer,
 	unsigned int value);
 
 int omap_dm_timers_active(void);
+void omap_dm_timer_save_context(struct omap_dm_timer *timer);
 
 
 #endif /* __ASM_ARCH_DMTIMER_H */
