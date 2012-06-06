@@ -305,9 +305,14 @@ static void __timer_disable(struct omap_dm_timer *timer)
 void omap_dm_timer_dump_regs(struct omap_dm_timer *timer)
 {
 	bool enabled = timer->enabled;
+	struct resource *mem = platform_get_resource(timer->pdev,
+						     IORESOURCE_MEM, 0);
+	resource_size_t memstart = mem ? mem->start : 0;
 
 	if (!enabled)
 		__timer_enable(timer);
+	pr_info("dmtimer id %d at %p...\n", timer->pdev->id,
+		(void *) memstart);
 	omap_dm_timer_dump_reg(timer, OMAP_TIMER_OCP_CFG_REG);
 	omap_dm_timer_dump_reg(timer, OMAP_TIMER_SYS_STAT_REG);
 	omap_dm_timer_dump_reg(timer, OMAP_TIMER_STAT_REG);
