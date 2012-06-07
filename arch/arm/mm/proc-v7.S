@@ -59,6 +59,7 @@ ENDPROC(cpu_v7_proc_fin)
  *
  *	- loc   - location to jump to for soft reset
  */
+	.arch_extension sec
 	.align	5
 ENTRY(cpu_v7_reset)
 	mov	pc, r0
