@@ -34,6 +34,8 @@
 #include <linux/mutex.h>
 #include <linux/switch.h>
 #include <linux/fastchg.h>
+#include <linux/wakelock.h>
+
 #include <plat/usb.h>
 
 #include "mux.h"
@@ -752,6 +754,8 @@ static ssize_t tuna_otg_uart_switch_store(struct device *dev,
 	return size;
 }
 
+static struct wake_lock sii9234_wake_lock;
+
 #define OMAP_HDMI_HPD_ADDR	0x4A100098
 #define OMAP_HDMI_PULLTYPE_MASK	0x00000010
 static void sii9234_power(int on)
@@ -812,7 +816,10 @@ static void sii9234_connect(bool on, u8 *devcap)
 					dock = 1;
 			}
 		}
+
+		wake_lock(&sii9234_wake_lock);
 	} else {
+		wake_unlock(&sii9234_wake_lock);
 		val = USB_EVENT_NONE;
 	}
 
@@ -928,6 +935,8 @@ int __init omap4_tuna_connector_init(void)
 	omap_mux_init_gpio(GPIO_JACK_INT_N,
 			   OMAP_PIN_INPUT_PULLUP |
 			   OMAP_PIN_OFF_INPUT_PULLUP);
+
+	wake_lock_init(&sii9234_wake_lock, WAKE_LOCK_SUSPEND, "sii9234(mhl)");
 
 	mutex_init(&tuna_otg->lock);
 
