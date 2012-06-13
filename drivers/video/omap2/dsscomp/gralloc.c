@@ -115,6 +115,9 @@ int dsscomp_gralloc_queue_ioctl(struct dsscomp_setup_dispc_data *d)
 	s32 ret;
 	u32 i;
 
+	if (d->num_ovls > MAX_OVERLAYS)
+		return -EINVAL;
+
 	/* convert virtual addresses to physical and get tiler pa infos */
 	for (i = 0; i < d->num_ovls; i++) {
 		struct dss2_ovl_info *oi = d->ovls + i;
