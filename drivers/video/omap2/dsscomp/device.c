@@ -451,7 +451,7 @@ static long comp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			 * struct dsscomp_display_info and cause heap
 			 * corruption.
 			 */
-			u.dis.modedb_len = clamp(u.dis.modedb_len, 0, 256);
+			u.dis.modedb_len = clamp_val(u.dis.modedb_len, 0, 256);
 
 			dis = kzalloc(sizeof(*dis->modedb) * u.dis.modedb_len +
 						sizeof(*dis), GFP_KERNEL);
