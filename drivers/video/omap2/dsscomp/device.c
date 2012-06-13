@@ -444,9 +444,18 @@ static long comp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	{
 		struct dsscomp_display_info *dis = NULL;
 		r = copy_from_user(&u.dis, ptr, sizeof(u.dis));
-		if (!r)
+		if (!r) {
+			/* impose a safe limit on modedb_len to prevent
+			 * wrap around/overflow calculation of the alloced
+			 * size that would make it smaller than
+			 * struct dsscomp_display_info and cause heap
+			 * corruption.
+			 */
+			u.dis.modedb_len = clamp_val(u.dis.modedb_len, 0, 256);
+
 			dis = kzalloc(sizeof(*dis->modedb) * u.dis.modedb_len +
 						sizeof(*dis), GFP_KERNEL);
+		}
 		if (dis) {
 			*dis = u.dis;
 			r = query_display(cdev, dis) ? :

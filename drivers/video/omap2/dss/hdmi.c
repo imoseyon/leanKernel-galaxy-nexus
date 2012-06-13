@@ -333,6 +333,7 @@ static void hdmi_compute_pll(struct omap_dss_device *dssdev, int phy,
 static void hdmi_load_hdcp_keys(struct omap_dss_device *dssdev)
 {
 	int aksv;
+	int retries = 5;
 	DSSDBG("hdmi_load_hdcp_keys\n");
 	/* load the keys and reset the wrapper to populate the AKSV registers*/
 	if (hdmi.hdmi_power_on_cb) {
@@ -341,7 +342,15 @@ static void hdmi_load_hdcp_keys(struct omap_dss_device *dssdev)
 		    hdmi.custom_set &&
 		    hdmi.hdmi_power_on_cb()) {
 			hdmi_ti_4xxx_set_wait_soft_reset(&hdmi.hdmi_data);
-			aksv = hdmi_ti_4xx_check_aksv_data(&hdmi.hdmi_data);
+
+			while (retries) {
+				aksv = hdmi_ti_4xx_check_aksv_data(&hdmi.hdmi_data);
+				if (aksv == HDMI_AKSV_VALID)
+					break;
+				msleep(50);
+				retries--;
+			}
+
 			hdmi.wp_reset_done = (aksv == HDMI_AKSV_VALID) ?
 				true : false;
 			DSSINFO("HDMI_WRAPPER RESET DONE\n");
