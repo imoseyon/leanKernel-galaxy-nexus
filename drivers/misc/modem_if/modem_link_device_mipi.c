@@ -1263,7 +1263,8 @@ static void if_hsi_write_done(struct hsi_device *dev, unsigned int size)
 	if ((channel->channel_id == HSI_CONTROL_CHANNEL) &&
 		(((*channel->tx_data & 0xF0000000) >> 28) ==
 			HSI_LL_MSG_CONN_CLOSED) &&
-			mipi_ld->ld.com_state == COM_ONLINE) {
+			(mipi_ld->ld.com_state == COM_ONLINE ||
+			mipi_ld->ld.com_state == COM_HANDSHAKE)) {
 		mod_timer(&mipi_ld->hsi_acwake_down_timer, jiffies +
 					HSI_ACWAKE_DOWN_TIMEOUT);
 		mipi_ld->hsi_channles[
