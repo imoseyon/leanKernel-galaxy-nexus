@@ -46,6 +46,9 @@
 #define T_WAIT_TIMEOUT_RSEN_INT		200
 #define T_SRC_RXSENSE_DEGLITCH		110
 
+/* MHL feature flags */
+#define MHL_FEATURE_FLAG_RCP_SUPPORT	(1 << 0)
+
 /* MHL TX Addr 0x72 Registers */
 #define MHL_TX_IDL_REG			0x02
 #define MHL_TX_IDH_REG			0x03
@@ -538,6 +541,7 @@ struct sii9234_data {
 	struct list_head		msc_data_list;
 
 	struct input_dev		*input_dev;
+	struct mutex			input_lock;
 	u16				keycode[SII9234_RCP_NUM_KEYS];
 
 	struct work_struct		redetect_work;
@@ -884,6 +888,62 @@ static void sii9234_hdmi_init(struct sii9234_data *sii9234)
 	hdmi_rx_write_reg(sii9234, HDMI_RX_TMDS0_CCTRL1_REG, 0xC1);
 }
 
+static int sii9234_register_input_device(struct sii9234_data *sii9234)
+{
+	struct input_dev *input;
+	int ret;
+	u8 i;
+
+	input = input_allocate_device();
+	if (!input) {
+		pr_err("sii9234: failed to allocate input device\n");
+		return -ENOMEM;
+	}
+
+	/* indicate that we generate key events */
+	set_bit(EV_KEY, input->evbit);
+	memcpy(sii9234->keycode, sii9234_rcp_def_keymap,
+			SII9234_RCP_NUM_KEYS *
+				sizeof(sii9234_rcp_def_keymap[0]));
+	input->keycode = sii9234->keycode;
+	input->keycodemax = SII9234_RCP_NUM_KEYS;
+	input->keycodesize = sizeof(sii9234->keycode[0]);
+	for (i = 0; i < SII9234_RCP_NUM_KEYS; i++) {
+		u16 keycode = sii9234->keycode[i];
+		if (keycode != KEY_UNKNOWN && keycode != KEY_RESERVED)
+			set_bit(keycode, input->keybit);
+	}
+
+	input_set_drvdata(input, sii9234);
+	input->name = "sii9234_rcp";
+	input->id.bustype = BUS_I2C;
+
+	pr_debug("sii9234: registering input device\n");
+	ret = input_register_device(input);
+	if (ret < 0) {
+		pr_err("sii9234: failed to register input device\n");
+		input_free_device(input);
+		return ret;
+	}
+
+	mutex_lock(&sii9234->input_lock);
+	sii9234->input_dev = input;
+	mutex_unlock(&sii9234->input_lock);
+
+	return 0;
+}
+
+static void sii9234_unregister_input_device(struct sii9234_data *sii9234)
+{
+	mutex_lock(&sii9234->input_lock);
+	if (sii9234->input_dev) {
+		pr_debug("sii9234: unregistering input device\n");
+		input_unregister_device(sii9234->input_dev);
+		sii9234->input_dev = NULL;
+	}
+	mutex_unlock(&sii9234->input_lock);
+}
+
 static void sii9234_mhl_tx_ctl_int(struct sii9234_data *sii9234)
 {
 	mhl_tx_write_reg(sii9234, MHL_TX_MHLTX_CTL1_REG, 0xD0);
@@ -897,6 +957,7 @@ static void sii9234_power_down(struct sii9234_data *sii9234)
 	if (sii9234->claimed)
 		sii9234->pdata->connect(false, NULL);
 
+	sii9234_unregister_input_device(sii9234);
 	sii9234->state = STATE_DISCONNECTED;
 	sii9234->claimed = false;
 
@@ -1248,6 +1309,9 @@ static int sii9234_detection_callback(struct otg_id_notifier_block *nb)
 
 	sii9234->claimed = true;
 	sii9234->pdata->connect(true, ret >= 0 ? sii9234->devcap : NULL);
+	if (sii9234->devcap[MHL_DEVCAP_FEATURE_FLAG] &
+			MHL_FEATURE_FLAG_RCP_SUPPORT)
+		sii9234_register_input_device(sii9234);
 	mutex_unlock(&sii9234->lock);
 
 	return OTG_ID_HANDLED;
@@ -1303,9 +1367,13 @@ static void sii9234_retry_detection(struct work_struct *work)
 static void rcp_key_report(struct sii9234_data *sii9234, u16 key)
 {
 	pr_debug("sii9234: report rcp key: %d\n", key);
-	input_report_key(sii9234->input_dev, key, 1);
-	input_report_key(sii9234->input_dev, key, 0);
-	input_sync(sii9234->input_dev);
+	mutex_lock(&sii9234->input_lock);
+	if (sii9234->input_dev) {
+		input_report_key(sii9234->input_dev, key, 1);
+		input_report_key(sii9234->input_dev, key, 0);
+		input_sync(sii9234->input_dev);
+	}
+	mutex_unlock(&sii9234->input_lock);
 }
 
 static void cbus_process_rcp_key(struct sii9234_data *sii9234, u8 key)
@@ -1933,9 +2001,7 @@ static int __devinit sii9234_mhl_tx_i2c_probe(struct i2c_client *client,
 {
 	struct i2c_adapter *adapter = to_i2c_adapter(client->dev.parent);
 	struct sii9234_data *sii9234;
-	struct input_dev *input;
 	int ret;
-	u8 i;
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE_DATA))
 		return -EIO;
@@ -1946,18 +2012,11 @@ static int __devinit sii9234_mhl_tx_i2c_probe(struct i2c_client *client,
 		return -ENOMEM;
 	}
 
-	input = input_allocate_device();
-	if (!input) {
-		dev_err(&client->dev, "failed to allocate input device.\n");
-		ret = -ENOMEM;
-		goto err_exit0;
-	}
-
 	sii9234->pdata = client->dev.platform_data;
 	sii9234->pdata->mhl_tx_client = client;
 	if (!sii9234->pdata) {
 		ret = -EINVAL;
-		goto err_exit1;
+		goto err_exit;
 	}
 
 	i2c_set_clientdata(client, sii9234);
@@ -1967,6 +2026,7 @@ static int __devinit sii9234_mhl_tx_i2c_probe(struct i2c_client *client,
 	init_waitqueue_head(&sii9234->wq);
 	mutex_init(&sii9234->lock);
 	mutex_init(&sii9234->msc_lock);
+	mutex_init(&sii9234->input_lock);
 
 	INIT_WORK(&sii9234->msc_work, sii9234_msc_event);
 	INIT_LIST_HEAD(&sii9234->msc_data_list);
@@ -1975,7 +2035,7 @@ static int __devinit sii9234_mhl_tx_i2c_probe(struct i2c_client *client,
 				   IRQF_TRIGGER_HIGH | IRQF_ONESHOT,
 				   "sii9234", sii9234);
 	if (ret < 0)
-		goto err_exit1;
+		goto err_exit;
 
 	disable_irq(client->irq);
 
@@ -1983,53 +2043,23 @@ static int __devinit sii9234_mhl_tx_i2c_probe(struct i2c_client *client,
 	sii9234->otg_id_nb.cancel = sii9234_cancel_callback;
 	sii9234->otg_id_nb.priority = sii9234->pdata->prio;
 
-	/* indicate that we generate key events */
-	set_bit(EV_KEY, input->evbit);
-	memcpy(sii9234->keycode, sii9234_rcp_def_keymap,
-			SII9234_RCP_NUM_KEYS *
-				sizeof(sii9234_rcp_def_keymap[0]));
-	input->keycode = sii9234->keycode;
-	input->keycodemax = SII9234_RCP_NUM_KEYS;
-	input->keycodesize = sizeof(sii9234->keycode[0]);
-	for (i = 0; i < SII9234_RCP_NUM_KEYS; i++) {
-		u16 keycode = sii9234->keycode[i];
-		if (keycode != KEY_UNKNOWN && keycode != KEY_RESERVED)
-			set_bit(keycode, input->keybit);
-	}
-
-	sii9234->input_dev = input;
-	input_set_drvdata(input, sii9234);
-	input->name = "sii9234_rcp";
-	input->id.bustype = BUS_I2C;
-
-	ret = input_register_device(input);
-	if (ret < 0) {
-		dev_err(&client->dev, "fail to register input device\n");
-		goto err_exit1;
-	}
-
 	plist_node_init(&sii9234->otg_id_nb.p, sii9234->pdata->prio);
 
 	ret = otg_id_register_notifier(&sii9234->otg_id_nb);
 	if (ret < 0) {
 		dev_err(&client->dev, "Unable to register notifier\n");
-		goto err_exit2;
+		goto err_exit;
 	}
 
 	sii9234->redetect_wq = create_singlethread_workqueue("sii9234");
 	if (!sii9234->redetect_wq) {
 		dev_err(&client->dev, "unable to create workqueue\n");
-		goto err_exit2;
+		goto err_exit;
 	}
 	INIT_WORK(&sii9234->redetect_work, sii9234_retry_detection);
 	return 0;
 
-err_exit2:
-	input_unregister_device(input);
-	goto err_exit0;
-err_exit1:
-	input_free_device(input);
-err_exit0:
+err_exit:
 	kfree(sii9234);
 	return ret;
 }
