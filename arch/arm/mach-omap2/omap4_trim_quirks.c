@@ -30,7 +30,7 @@
 
 
 static bool bgap_trim_sw_overide;
-static bool dpll_trim_override;
+static bool dpll_trim_override = true;
 static bool ddr_io_trim_override;
 
 /**
@@ -76,7 +76,7 @@ int omap4_ldo_trim_configure(void)
 
 	/* Required for DPLL_MPU to lock at 2.4 GHz */
 	if (dpll_trim_override)
-		omap_ctrl_writel(0x29, OMAP4_CTRL_MODULE_CORE_DPLL_NWELL_TRIM_0);
+		omap_ctrl_writel(0x2b, OMAP4_CTRL_MODULE_CORE_DPLL_NWELL_TRIM_0);
 
 	return 0;
 }
