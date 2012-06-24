@@ -52,7 +52,7 @@ static ssize_t pwmvalue_show(struct device *dev,
 	int count;
 
 	count = sprintf(buf, "%lu\n", pwmval);
-	pr_info("vibrator: pwmval: %lu\n", pwmval);
+//	pr_info("vibrator: pwmval: %lu\n", pwmval);
 
 	return count;
 }
@@ -65,7 +65,7 @@ ssize_t pwmvalue_store(struct device *dev,
 	if (kstrtoul(buf, 0, &pwmval))
 		pr_err("vibrator: error in storing pwm value\n");
 
-	pr_info("vibrator: pwmval: %lu\n", pwmval);
+//	pr_info("vibrator: pwmval: %lu\n", pwmval);
 
 	return size;
 }
@@ -76,7 +76,7 @@ static int pwm_set(unsigned long force)
 {
 	int pwm_duty;
 
-	pr_info("vibrator: pwm_set force=%lu\n", force);
+//	pr_info("vibrator: pwm_set force=%lu\n", force);
 
 	if (unlikely(vibdata.gptimer == NULL))
 		return -EINVAL;
