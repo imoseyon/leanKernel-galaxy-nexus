@@ -235,13 +235,6 @@ static int __init vibrator_init(void)
 	if (vibdata.gptimer == NULL)
 		return -1;
 
-	ret = omap_dm_timer_set_source(vibdata.gptimer,
-		OMAP_TIMER_SRC_SYS_CLK);
-	if (ret < 0) {
-		pr_err("vibrator_init(): timer_set_source failed\n");
-		goto err_dm_timer_src;
-	}
-
 	omap_dm_timer_dump_regs(vibdata.gptimer);
 	ret = vibrator_timer_init();
 	if (ret < 0)
