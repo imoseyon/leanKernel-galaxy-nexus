@@ -7139,11 +7139,15 @@ s32 wl_update_wiphybands(struct wl_priv *wl)
 	int nmode = 0;
 	int bw_cap = 0;
 	int index = 0;
+	bool rollback_lock = false;
 
 	WL_DBG(("Entry"));
 
-	if (wl == NULL)
+	if (wl == NULL) {
 		wl = wlcfg_drv_priv;
+		mutex_lock(&wl->usr_sync);
+		rollback_lock = true;
+	}
 	dev = wl_to_prmry_ndev(wl);
 
 	memset(bandlist, 0, sizeof(bandlist));
@@ -7151,7 +7155,7 @@ s32 wl_update_wiphybands(struct wl_priv *wl)
 		sizeof(bandlist), false);
 	if (unlikely(err)) {
 		WL_ERR(("error read bandlist (%d)\n", err));
-		return err;
+		goto end_bands;
 	}
 	wiphy = wl_to_wiphy(wl);
 	nband = bandlist[0];
@@ -7173,7 +7177,7 @@ s32 wl_update_wiphybands(struct wl_priv *wl)
 	if (err) {
 		WL_ERR(("wl_construct_reginfo() fails err=%d\n", err));
 		if (err != BCME_UNSUPPORTED)
-			return err;
+			goto end_bands;
 		/* Ignore error if "chanspecs" command is not supported */
 		err = 0;
 	}
@@ -7202,6 +7206,9 @@ s32 wl_update_wiphybands(struct wl_priv *wl)
 	}
 
 	wiphy_apply_custom_regulatory(wiphy, &brcm_regdom);
+end_bands:
+	if (rollback_lock)
+		mutex_unlock(&wl->usr_sync);
 	return err;
 }
 
