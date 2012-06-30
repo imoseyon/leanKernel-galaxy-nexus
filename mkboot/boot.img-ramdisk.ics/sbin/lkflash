@@ -1,0 +1,86 @@
+#!/sbin/bb/busybox ash
+# lkflash - flash latest leanKernel
+# 
+# author - imoseyon@gmail.com
+#
+BB="/sbin/bb/busybox"
+STABLE="http://imoseyon.host4droid.com/latest"
+EXP180="http://imoseyon.host4droid.com/exp/latest180"
+EXP230="http://imoseyon.host4droid.com/exp/latest230"
+
+CUR=`$BB uname -a | $BB awk -F'-' '{ print \$3 }'`
+
+while [ 1 ]; do
+echo
+echo "leanKernel flasher"
+echo "------------------"
+
+echo "1) latest stable (recommended)"
+echo "2) latest experimental 180mhz-1.65ghz (notrim)" 
+echo "3) latest experimental 230mhz-1.65ghz (notrim)" 
+echo "4) check/display versions" 
+echo "9) latest stable franco (warning: no md5 check)"
+
+echo
+echo "FLASH AT YOUR OWN RISK. I'm not responsible for my mistakes or yours. ;)"
+echo
+echo -n "Please enter a number between 1 and 4 (or press enter to exit): "
+
+read option
+case $option in
+  1)
+	$BB wget -q -O /sdcard/lk $STABLE
+	echo; echo -n "Downloading stable "
+	break
+	;;
+  2) 
+	$BB wget -q -O /sdcard/lk $EXP180
+	echo; echo -n "Downloading experimental 180mhz (notrim) "
+	break
+	;;
+  3) 
+	$BB wget -q -O /sdcard/lk $EXP230
+	echo; echo -n "Downloading experimental 230mhz (notrim) "
+	break
+	;;
+  4) 
+  	echo "Please wait..."
+	vstable=`$BB wget -q -O - $STABLE | $BB awk '{ print \$3 }'`
+	v180=`$BB wget -q -O - $EXP180 | $BB awk '{ print \$3 }'`
+	v230=`$BB wget -q -O - $EXP230 | $BB awk '{ print \$3 }'`
+	echo; echo ">>> Current version: $CUR, Latest stable: $vstable, Exp: $v180 $v230"	
+	sleep 2
+	;;
+  9)
+	$BB wget -q -O /sdcard/fboot.img http://minooch.com/franciscofranco/Galaxy%20Nexus/nightlies/appfiles/boot.img
+  	$BB dd if=/sdcard/fboot.img of=/dev/block/platform/omap/omap_hsmmc.0/by-name/boot 2> /dev/null
+	echo "Latest Franco Kernel flashed. Reboot when you're ready."
+	exit
+	;;
+  *)
+	echo "BYE"
+	exit
+	;;
+esac
+done
+
+[ ! -s "/sdcard/lk" ] && exit
+MD5=`$BB awk '{ print \$2 }' /sdcard/lk`
+VER=`$BB awk '{ print \$3 }' /sdcard/lk`
+if [ "$CUR" == "$VER" ]; then
+  echo
+  echo "Aborted. You're already running $CUR."
+  exit
+fi
+echo "v$VER. Please wait..."
+$BB wget -q -O /sdcard/lkboot.img `$BB awk '{ print \$1 }' /sdcard/lk`
+[ ! -s "/sdcard/lkboot.img" ] && exit
+SUM=`$BB md5sum /sdcard/lkboot.img | $BB awk '{ print \$1 }'`
+echo
+if [ "$MD5" == "$SUM" ]; then
+  echo "Download finished. Checksum verified. Flashing kernel to boot partition..."
+  $BB dd if=/sdcard/lkboot.img of=/dev/block/platform/omap/omap_hsmmc.0/by-name/boot 2> /dev/null
+  echo; echo "leanKernel $VER flashed!  Reboot when you're ready to run new kernel."
+else
+  echo "md5sum check failed - please try again."
+fi

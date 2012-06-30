@@ -1,0 +1,36 @@
+#!/sbin/bb/busybox ash
+mount -o rw,remount /system
+mkdir -p /system/etc/init.d
+
+if [[ ! $1 ]]; then
+  echo "Usage: oc sub-command (options)"
+  exit
+fi
+
+### gpu oc begin ###
+if [[ $1 == "gpu" ]]; then
+  gpuinit="/etc/init.d/99lk-gpu"
+  gpusysfs="/sys/devices/system/cpu/cpu0/cpufreq/gpu_oc"
+  echo "#!/sbin/bb/busybox ash" > $gpuinit
+
+  case $2 in 
+	1)
+	  echo "echo \"1\" > $gpusysfs" >> $gpuinit
+	  FREQ="384MHz"
+	  ;; 
+	2)
+	  echo "echo \"2\" > $gpusysfs" >> $gpuinit
+	  FREQ="512MHz"
+	  ;; 
+	*)
+	  echo "echo \"0\" > $gpusysfs" >> $gpuinit
+	  FREQ="307MHz"
+	  ;;
+  esac
+  chmod 755 $gpuinit
+  $gpuinit
+  echo "GPU top speed set to $FREQ now and at boot."
+  mount -o ro,remount /system
+  exit
+fi
+### gpu oc end ###

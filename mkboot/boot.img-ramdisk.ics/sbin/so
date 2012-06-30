@@ -1,0 +1,19 @@
+#!/sbin/bb/busybox ash
+bb="/sbin/bb/busybox"
+maxfreq=1350000
+soff=700000
+curmax=`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq`
+cursoff=`cat /sys/devices/system/cpu/cpu0/cpufreq/screen_off_max_freq`
+
+[[ $curmax -le $soff ]] && exit 1
+
+[[ $curmax -lt $maxfreq ]] && maxfreq=$curmax
+
+if [[ $cursoff -eq $soff ]]; then
+  $bb echo $maxfreq > /sys/devices/system/cpu/cpu0/cpufreq/screen_off_max_freq
+  echo "Screen Off Max Freq: $maxfreq" 
+else
+  $bb echo $soff > /sys/devices/system/cpu/cpu0/cpufreq/screen_off_max_freq
+  echo "Screen Off Max Freq: Stock (700MHz)" 
+fi
+

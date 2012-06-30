@@ -1,0 +1,9 @@
+#!/sbin/bb/busybox ash
+bb="/sbin/bb/busybox"
+if [[ `cat /sys/class/misc/samoled_color/pre_offset` -eq 0 ]]; then
+  $bb echo 60 > /sys/class/misc/samoled_color/pre_offset
+  echo "Default/normal color offset is now 60" 
+else
+  $bb echo 0 > /sys/class/misc/samoled_color/pre_offset
+  echo "Default/normal color offset is now 0" 
+fi

@@ -1,0 +1,83 @@
+#!/sbin/bb/busybox ash
+bb="/sbin/bb/busybox"
+if [[ ! $1 ]]; then
+  echo "Usage: sr [iva|core|mpu|off|on|vmin|high]"
+  exit 1
+fi
+
+if [[ $1 == "off" || $1 == "on" ]]; then
+  mount -o rw,remount /system
+  [[ $1 == "off" ]] && setting=0 || setting=1
+  srinit="/etc/init.d/99lk-sr"
+  srsysfs1="/sys/kernel/debug/smartreflex/sr_core/autocomp"
+  srsysfs2="/sys/kernel/debug/smartreflex/sr_iva/autocomp"
+  srsysfs3="/sys/kernel/debug/smartreflex/sr_mpu/autocomp"
+  echo "#!/sbin/bb/busybox ash" > $srinit
+  echo "echo $setting > $srsysfs1" >> $srinit
+  echo "echo $setting > $srsysfs2" >> $srinit
+  echo "echo $setting > $srsysfs3" >> $srinit
+  chmod 755 $srinit
+  $srinit
+  echo "SmartReflex $1 now and at boot."
+  mount -o ro,remount /system
+  exit 0
+fi
+if [[ $1 == "high" ]]; then
+  if [[ ! $2 ]]; then
+#    echo "Usage: sr high [on|off] [stick]"
+    echo "Usage: sr high [on|off]"
+    exit 1
+  fi
+  VHIGH="/sys/kernel/debug/smartreflex/sr_mpu/enable_highvolt"
+  [[ $2 == "on" ]] && HFLAG=1 || HFLAG=0
+  $bb echo $HFLAG > $VHIGH
+#  if [[ $3 ]]; then
+#    srinit="/etc/init.d/99lk-srhigh"
+#    mount -o rw,remount /system
+#    echo "#!/sbin/bb/busybox ash" > $srinit
+#    echo "echo $HFLAG > $VHIGH" >> $srinit
+#    chmod 755 $srinit
+#    mount -o ro,remount /system
+#    echo "SmartReflex for high voltage is $2 and at boot."
+#  else
+    echo "SmartReflex for high voltage is $2 (will not persist at boot)."
+#  fi
+  exit 0
+fi
+
+if [[ $1 == "vmin" ]]; then
+  if [[ ! $2 ]] || [[ ! $3 ]]; then
+    echo "Usage: sr vmin [iva|core|mpu] [vdd] [stick]"
+    exit 1
+  fi
+  if [[ $2 != "iva" ]] && [[ $2 != "core" ]] && [[ $2 != "mpu" ]]; then
+    echo "Usage: sr vmin [iva|core|mpu] [vdd] [stick]"
+    exit 1
+  fi
+  VMIN="/sys/kernel/debug/smartreflex/sr_$2/vmin"
+  $bb echo $3 > $VMIN
+  ACTUAL=`cat $VMIN`
+  if [[ $4 ]]; then
+    srinit="/etc/init.d/99lk-sr$2"
+    mount -o rw,remount /system
+    echo "#!/sbin/bb/busybox ash" > $srinit
+    echo "echo $3 > $VMIN" >> $srinit
+    chmod 755 $srinit
+    mount -o ro,remount /system
+    echo "SmartReflex for $2 is tuned to $ACTUAL and at boot."
+  else
+    echo "SmartReflex for $2 is tuned to $ACTUAL (will not persist at boot)."
+  fi
+  exit 0
+fi
+
+if [[ $1 != "iva" ]] && [[ $1 != "core" ]] && [[ $1 != "mpu" ]]; then
+  echo "Usage: sr [iva|core|mpu]"
+  exit 1
+fi
+
+CUR=`cat /sys/kernel/debug/smartreflex/sr_$1/autocomp`
+CUR=$(( $CUR ^ 1 ))
+$bb echo $CUR > /sys/kernel/debug/smartreflex/sr_$1/autocomp
+
+[[ $CUR -eq 1 ]] && echo "$1 smartreflex now enabled." || echo "$1 smartreflex now disabled."

@@ -1,0 +1,62 @@
+#!/sbin/bb/busybox ash
+# checkv - check nominal and calibrated voltage for each freq
+# 	 - also slightly stress each freq to accelerate calibration
+#
+# author: imoseyon@gmail.com
+#
+
+strip3()
+{
+  orig=$1
+  echo -n $((orig/1000))
+}
+strip6()
+{
+  orig=$1
+  echo -n $((orig/1000000))
+}
+
+bb="/sbin/bb/busybox"
+echo "leanKernel Voltage Checker"
+echo "--------------------------"
+echo "Nominal Voltage - This is the voltage we choose as the starting point."
+echo "Calibrated Voltage - Best voltage chosen by SmartReflex."
+echo
+echo "Make sure that your screen is turned on..."
+echo
+
+debugfs="/sys/kernel/debug/clock/virt_38400000_ck/sys_clkin_ck"
+echo "== Current IVA voltage =="
+strip6 `cat $debugfs/dpll_iva_ck/dpll_iva_x2_ck/dpll_iva_m5x2_ck/rate`
+echo "MHz: nominal "`cat /sys/kernel/debug/voltage/vdd_iva/curr_nominal_volt`", calibrated "`cat /sys/kernel/debug/voltage/vdd_iva/curr_calibrated_volt`
+echo; echo "== Current GPU/core voltage =="
+strip6 `cat $debugfs/dpll_per_ck/dpll_per_x2_ck/dpll_per_m7x2_ck/rate`
+echo -n "MHz/"
+strip6 `cat $debugfs/dpll_core_ck/dpll_core_x2_ck/dpll_core_m5x2_ck/virt_l3_ck/rate`
+echo "MHz: nominal "`cat /sys/kernel/debug/voltage/vdd_core/curr_nominal_volt`", calibrated: "`cat /sys/kernel/debug/voltage/vdd_core/curr_calibrated_volt`
+echo
+echo "== MPU voltages =="
+sdir="/sys/devices/system/cpu/cpu0/cpufreq"
+minf="${sdir}/scaling_min_freq"
+maxf="${sdir}/scaling_max_freq"
+nvoltage="/sys/kernel/debug/voltage/vdd_mpu/curr_nominal_volt"
+cvoltage="/sys/kernel/debug/voltage/vdd_mpu/curr_calibrated_volt"
+
+allfreqs=`cat ${sdir}/scaling_available_frequencies`
+curmin=`cat $minf`
+curmax=`cat $maxf`
+
+for i in $allfreqs; do
+  [ $i -lt $curmin ] && continue
+  [ $i -gt $curmax ] && break
+  $bb echo "$i" > $maxf
+  $bb echo "$i" > $minf
+  $bb dd if=/dev/zero of=/dev/null bs=1k count=300000 2> /dev/null
+  ncurvolt=`cat $nvoltage`
+  ccurvolt=`cat $cvoltage`
+  tfreq=`strip3 $i`
+  $bb echo "${tfreq}MHz: nominal $ncurvolt, calibrated $ccurvolt"  
+done
+
+echo $curmin > $minf
+echo $curmax > $maxf
