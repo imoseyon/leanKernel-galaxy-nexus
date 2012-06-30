@@ -79,3 +79,10 @@ GTAGS
 *.orig
 *~
 \#*#
+boot.img
+zImage
+*.out
+arch/arm/boot/compressed/ashldi3.S
+arch/arm/boot/compressed/piggy.xzkern
+.gitignore
+zip/
