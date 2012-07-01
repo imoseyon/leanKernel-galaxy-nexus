@@ -1,0 +1,38 @@
+#/sbin/bb/busybox ash
+bb="/sbin/bb/busybox"
+echo "------" 
+$bb uname -a | $bb awk '{ print $3 }'
+echo "------"
+echo "current cpu temp: "`cat /sys/devices/platform/omap/omap_temp_sensor.0/temperature`
+echo "# of times you were throttled recently: "`dmesg | $bb grep -c "too high"`
+echo "------"
+CPU=`dmesg | $bb grep "trim_val" | $bb cut -d \] -f 3`
+[ "$CPU" ] && echo "CPU Trim Type:$CPU" || echo "Trim Type unknown - run this script just after boot" 
+SI=`dmesg | $bb grep "si_type" | $bb cut -d \] -f 3`
+[ "$SI" ] && echo "CPU Silicon Type:$SI" || echo "Silicon Type unknown - run this script just after boot" 
+echo "------"
+echo "Number of awake clocks: "`cat /sys/kernel/debug/clock/summary | $bb awk '/([1-9]$)|( [1-9]0$)/' | $bb wc -l`
+echo "------"
+uptime | $bb sed s/\ time//g
+echo "------"
+$bb echo -n "Online CPU: "
+cat /sys/devices/system/cpu/online
+echo "------"
+GOV=`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor`
+MAX=`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq`
+MIN=`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq`
+$bb echo "Governor: $GOV, MaxFreq: $MAX, MinFreq: $MIN"
+TIS=`cat /sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state | $bb sed s/000//`
+$bb echo "TiS: "${TIS// /\/}
+echo "SmartReflex VMIN - core:"`cat /sys/kernel/debug/smartreflex/sr_core/vmin`", mpu:"`cat /sys/kernel/debug/smartreflex/sr_mpu/vmin`", iva:"`cat /sys/kernel/debug/smartreflex/sr_iva/vmin`
+echo "------"
+echo "cpu stats: normal/nice/idle/iowait/irq"
+cat /proc/stat | /sbin/bb/busybox awk '/^cpu[0-1]/ { print $1": "$2"/"$3"/"$5"/"$6"/"$7 }'
+echo "------"
+echo "minfree: "`cat /sys/module/lowmemorykiller/parameters/minfree`
+echo "adj: " `cat /sys/module/lowmemorykiller/parameters/adj`
+echo "------"
+gpu_oc=`cat /sys/devices/system/cpu/cpu0/cpufreq/gpu_oc`
+[[ $gpu_oc -eq 1 ]] && gpu_max="384mhz" || gpu_max="307mhz"
+[[ $gpu_oc -eq 2 ]] && gpu_max="512mhz"
+echo "Max GPU speed: $gpu_max"
