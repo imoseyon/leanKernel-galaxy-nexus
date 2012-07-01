@@ -1,0 +1,4 @@
+show_progress(0.1, 0);
+package_extract_file("boot.img", "/dev/block/platform/omap/omap_hsmmc.0/by-name/boot");
+show_progress(0.2, 10);
+unmount("/system");

@@ -1,0 +1,3 @@
+post-build=Android/full_toro/toro:4.0.3/IML74K/eng.kejar31.20111219.071114:userdebug/test-keys
+post-timestamp=1324300291
+pre-device=toro
