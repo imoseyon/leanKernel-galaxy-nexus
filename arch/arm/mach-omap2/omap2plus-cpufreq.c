@@ -41,6 +41,7 @@
 #include <mach/hardware.h>
 
 #include "dvfs.h"
+#include "smartreflex.h"
 
 #ifdef CONFIG_SMP
 struct lpj_info {
@@ -421,9 +422,170 @@ struct freq_attr omap_cpufreq_attr_screen_off_freq = {
 	.store = store_screen_off_freq,
 };
 
+/*
+ * OMAP4 MPU voltage control via cpufreq by Michael Huang (coolbho3k)
+ *
+ * Note: Each opp needs to have a discrete entry in both volt data and
+ * dependent volt data (in opp4xxx_data.c), or voltage control breaks. Make a
+ * new voltage entry for each opp. Keep this in mind when adding extra
+ * frequencies.
+ */
+
+/* struct opp is defined elsewhere, but not in any accessible header files */
+struct opp {
+        struct list_head node;
+
+        bool available;
+        unsigned long rate;
+        unsigned long u_volt;
+
+        struct device_opp *dev_opp;
+};
+
+static ssize_t show_uv_mv_table(struct cpufreq_policy *policy, char *buf)
+{
+	int i = 0;
+	unsigned long volt_cur;
+	char *out = buf;
+	struct opp *opp_cur;
+
+	/* Reverse order sysfs entries for consistency */
+	while(freq_table[i].frequency != CPUFREQ_TABLE_END)
+                i++;
+
+	/* For each entry in the cpufreq table, print the voltage */
+	for(i--; i >= 0; i--) {
+		if(freq_table[i].frequency != CPUFREQ_ENTRY_INVALID) {
+			/* Find the opp for this frequency */
+			rcu_read_lock();
+			opp_cur = opp_find_freq_exact(mpu_dev,
+				freq_table[i].frequency*1000, true);
+			rcu_read_unlock();
+			/* sprint the voltage (mV)/frequency (MHz) pairs */
+			volt_cur = opp_cur->u_volt;
+			out += sprintf(out, "%umhz: %lu mV\n",
+				freq_table[i].frequency/1000, volt_cur/1000);
+		}
+	}
+        return out-buf;
+}
+
+static ssize_t store_uv_mv_table(struct cpufreq_policy *policy,
+	const char *buf, size_t count)
+{
+	int i = 0;
+	int j;
+	unsigned long volt_cur, volt_old;
+	int ret;
+	char size_cur[16];
+	struct opp *opp_cur;
+	struct voltagedomain *mpu_voltdm;
+	struct omap_volt_data *vdata;
+	unsigned int policymin, policymax;
+
+	mpu_voltdm = voltdm_lookup("mpu");
+
+	while(freq_table[i].frequency != CPUFREQ_TABLE_END)
+		i++;
+
+	policymin = policy->min;
+	policymax = policy->max;
+ 
+	for(i--; i >= 0; i--) {
+		if(freq_table[i].frequency != CPUFREQ_ENTRY_INVALID) {
+			ret = sscanf(buf, "%lu", &volt_cur);
+			if(ret != 1) {
+				return -EINVAL;
+			}
+			policy->cur = policy->max = policy->min = freq_table[i].frequency;
+        		ret = omap_device_scale(mpu_dev, mpu_dev, freq_table[i].frequency);
+
+			/* Alter voltage. First do it in our opp */
+			rcu_read_lock();
+			opp_cur = opp_find_freq_exact(mpu_dev,
+				freq_table[i].frequency*1000, true);
+			opp_cur->u_volt = volt_cur*1000;
+			rcu_read_unlock();
+
+			/* Then we need to alter voltage domains */
+			/* Save our old voltage */
+			volt_old = mpu_voltdm->vdd->volt_data[i].volt_nominal;
+			/* Change our main and dependent voltage tables */
+			mpu_voltdm->vdd->
+				volt_data[i].volt_nominal = volt_cur*1000;
+			mpu_voltdm->vdd->dep_vdd_info->
+				dep_table[i].main_vdd_volt = volt_cur*1000;
+
+			if (mpu_voltdm->vdd->dep_vdd_info->
+				dep_table[i].dep_vdd_volt > volt_cur*1000) {
+				// imoseyon - ugly hack (fix later! yeah right)
+				if (volt_cur < 1127) {
+					if (volt_cur < 962) 
+					   mpu_voltdm->vdd->dep_vdd_info->
+						dep_table[i].dep_vdd_volt = 650000;
+					else
+					   mpu_voltdm->vdd->dep_vdd_info->
+						dep_table[i].dep_vdd_volt = 962000;
+				} else mpu_voltdm->vdd->dep_vdd_info->
+						dep_table[i].dep_vdd_volt = 1127000;
+			}
+
+			/* Alter current voltage in voltdm, if appropriate */
+			/* imoseyon - don't need it anymore
+			if(volt_old == mpu_voltdm->curr_volt->volt_nominal) {
+				mpu_voltdm->curr_volt->volt_nominal = volt_cur*1000;
+			}
+			*/
+
+			/* Non-standard sysfs interface: advance buf */
+			ret = sscanf(buf, "%s", size_cur);
+			buf += (strlen(size_cur)+1);
+
+			// imoseyon - force smartreflex to recalibrate based on new voltages
+			if (freq_table[i].frequency <= 1200000 && 
+				freq_table[i].frequency >= policymin) {
+				vdata = omap_voltage_get_curr_vdata(mpu_voltdm);
+				if (!vdata) {
+				  pr_err("%s: [imoseyon] unable to find current volt for vdd_%s\n", 
+					__func__, mpu_voltdm->name);
+				} else {
+			         //for (j=0; j<2; j++)
+				  // if nominal volt is too large bail
+				  if (volt_old > mpu_voltdm->curr_volt->volt_nominal) {
+				    omap_sr_disable(mpu_voltdm);
+        			    ret = omap_device_scale(mpu_dev, mpu_dev, freq_table[i].frequency);
+				    omap_voltage_calib_reset(mpu_voltdm);
+				    voltdm_reset(mpu_voltdm);
+				    omap_sr_enable(mpu_voltdm, vdata);
+				    pr_info("[imoseyon] calibration reset for %s at %d.\n",  
+					mpu_voltdm->name, policy->cur);
+				    //msleep(1000);
+				    //pr_info("[imoseyon] calibration should have finished.\n\n");
+				  } else
+				    pr_info("[imoseyon] nominal volt too high - bailing!\n");
+				}
+			}
+		}
+		else {
+			pr_err("%s: frequency entry invalid for %u\n",
+				__func__, freq_table[i].frequency);
+		}
+	}
+	policy->min = policymin;
+	policy->max = policymax;
+	return count;
+}
+
+static struct freq_attr omap_uv_mv_table = {
+	.attr = {.name = "UV_mV_table", .mode=0644,},
+	.show = show_uv_mv_table,
+	.store = store_uv_mv_table,
+};
+
 static struct freq_attr *omap_cpufreq_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
 	&omap_cpufreq_attr_screen_off_freq,
+	&omap_uv_mv_table,
 	NULL,
 };
 
