@@ -489,3 +489,11 @@ service mdnsd /system/bin/mdnsd
     socket mdnsd stream 0660 mdnsr inet
     disabled
     oneshot
+
+service run_parts /sbin/bb/busybox run-parts /system/etc/init.d
+    class main
+    oneshot
+
+service run_parts /sbin/bb/busybox run-parts /sbin/init.d
+    class main
+    oneshot
