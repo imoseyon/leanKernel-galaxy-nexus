@@ -54,6 +54,7 @@ static struct miscdevice tempcontrol_device =
 static int __init tempcontrol_init(void)
 {
     int ret;
+    temp_limit = DEF_TEMPLIMIT;
 
     pr_info("%s misc_register(%s)\n", __FUNCTION__, tempcontrol_device.name);
 
