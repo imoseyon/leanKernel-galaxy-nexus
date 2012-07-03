@@ -493,3 +493,7 @@ service mdnsd /system/bin/mdnsd
 service run_parts /sbin/bb/busybox run-parts /system/etc/init.d
     class main
     oneshot
+
+service lkconfig /sbin/init.d/lkconfig.sh
+    class main
+    oneshot
