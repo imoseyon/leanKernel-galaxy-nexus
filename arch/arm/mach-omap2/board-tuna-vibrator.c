@@ -21,6 +21,10 @@
 #include <asm/mach-types.h>
 #include <plat/dmtimer.h>
 
+#ifdef CONFIG_VIBRATOR_CONTROL
+#include <linux/delay.h>
+#endif
+
 #include <../../../drivers/staging/android/timed_output.h>
 
 #include "mux.h"
@@ -42,6 +46,27 @@ static struct vibrator {
 	bool enabled;
 	unsigned gpio_en;
 } vibdata;
+
+#ifdef CONFIG_VIBRATOR_CONTROL
+extern void vibratorcontrol_register_vibstrength(int vibstrength);
+
+void vibratorcontrol_update(int vibstrength)
+{
+    while (vibdata.enabled || !mutex_trylock(&vibdata.lock))
+	msleep(50);
+
+    omap_dm_timer_set_load(vibdata.gptimer, 1, -vibstrength);
+    vibdata.gptimer->context.tldr = (unsigned int)-vibstrength;
+
+    omap_dm_timer_set_match(vibdata.gptimer, 1, -vibstrength+10);
+    vibdata.gptimer->context.tmar = (unsigned int)(-vibstrength+10);
+
+    mutex_unlock(&vibdata.lock);
+
+    return;
+}
+EXPORT_SYMBOL(vibratorcontrol_update);
+#endif
 
 static void vibrator_off(void)
 {
@@ -149,6 +174,10 @@ static int __init vibrator_init(void)
 	ret = timed_output_dev_register(&to_dev);
 	if (ret < 0)
 		goto err_to_dev_reg;
+
+#ifdef CONFIG_VIBRATOR_CONTROL
+	vibratorcontrol_register_vibstrength(PWM_DUTY_MAX);
+#endif
 
 	return 0;
 
