@@ -35,15 +35,15 @@ if [[ $1 != *dev* && $1 != *rc* ]]; then
 	cp /tmp/boot.img /tmp/boot-${1}.img
 	if [[ $1 == *exp* ]]; then
 	  if [[ $1 == *180* ]]; then
-	    mf="latest180"
+	    mf="latest180jb"
 	  elif [[ $1 == *230* ]]; then
-	    mf="latest230"
+	    mf="latest230jb"
 	  else
 	    mf="latestnotrim"
 	  fi
 	  edir="/exp"
 	else 
-	  mf="latest"
+	  mf="latestjb"
 	  edir=""
 	fi
 	echo "http://imoseyon.host4droid.com${edir}/boot-${1}.img $md5 ${1}" > /tmp/$mf
