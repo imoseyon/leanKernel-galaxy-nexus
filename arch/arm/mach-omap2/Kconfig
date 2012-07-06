@@ -399,4 +399,8 @@ config FORCE_FAST_CHARGE
 	  A simple sysfs interface to force adapters that
 	  are detected as USB to charge as AC.
 
+config UNLOCK_180MHZ
+	bool "Unlock 180Mhz"
+	default n
+
 endif
