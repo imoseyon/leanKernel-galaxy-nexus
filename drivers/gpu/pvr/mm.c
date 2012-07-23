@@ -1,34 +1,44 @@
-/**********************************************************************
- *
- * Copyright (C) Imagination Technologies Ltd. All rights reserved.
- * 
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
- * 
- * This program is distributed in the hope it will be useful but, except 
- * as otherwise stated in writing, without any warranty; without even the 
- * implied warranty of merchantability or fitness for a particular purpose. 
- * See the GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
- * 
- * The full GNU General Public License is included in this distribution in
- * the file called "COPYING".
- *
- * Contact Information:
- * Imagination Technologies Ltd. <gpl-support@imgtec.com>
- * Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK 
- *
- ******************************************************************************/
+/*************************************************************************/ /*!
+@Title          Misc memory management utility functions for Linux
+@Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
+@License        Dual MIT/GPLv2
 
- 
+The contents of this file are subject to the MIT license as set out below.
 
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
 
- 
+Alternatively, the contents of this file may be used under the terms of
+the GNU General Public License Version 2 ("GPL") in which case the provisions
+of GPL are applicable instead of those above.
+
+If you wish to allow use of your version of this file only under the terms of
+GPL, and not to allow others to use your version of this file under the terms
+of the MIT license, indicate your decision by deleting the provisions above
+and replace them with the notice and other provisions required by GPL as set
+out in the file called "GPL-COPYING" included in this distribution. If you do
+not delete the provisions above, a recipient may use your version of this file
+under the terms of either the MIT license or GPL.
+
+This License is also included in this distribution in the file called
+"MIT-COPYING".
+
+EXCEPT AS OTHERWISE STATED IN A NEGOTIATED AGREEMENT: (A) THE SOFTWARE IS
+PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE AND NONINFRINGEMENT; AND (B) IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+  
+*/ /**************************************************************************/
 
 #include <linux/version.h>
 
@@ -56,8 +66,10 @@
 #include <linux/highmem.h>
 #include <linux/sched.h>
 
+#if defined(PVR_LINUX_MEM_AREA_POOL_ALLOW_SHRINK)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,1,0))
 #include <linux/shrinker.h>
+#endif
 #endif
 
 #include "img_defs.h"
@@ -78,6 +90,11 @@
 	#include "lists.h"
 #endif
 
+/*
+ * The page pool entry count is an atomic int so that the shrinker function
+ * can return it even when we can't take the lock that protects the page pool
+ * list.
+ */
 static atomic_t g_sPagePoolEntryCount = ATOMIC_INIT(0);
 
 #if defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
@@ -98,7 +115,7 @@ typedef enum {
 typedef struct _DEBUG_MEM_ALLOC_REC
 {
     DEBUG_MEM_ALLOC_TYPE    eAllocType;
-	IMG_VOID				*pvKey; 
+	IMG_VOID				*pvKey; /* Some unique value (private to the eAllocType) */
     IMG_VOID                *pvCpuVAddr;
     IMG_UINT32              ulCpuPAddr;
     IMG_VOID                *pvPrivateData;
@@ -123,8 +140,9 @@ static DEBUG_MEM_ALLOC_REC *g_MemoryRecords;
 static IMG_UINT32 g_WaterMarkData[DEBUG_MEM_ALLOC_TYPE_COUNT];
 static IMG_UINT32 g_HighWaterMarkData[DEBUG_MEM_ALLOC_TYPE_COUNT];
 
-static IMG_UINT32 g_SysRAMWaterMark;		
-static IMG_UINT32 g_SysRAMHighWaterMark;	
+/* vmalloc + kmalloc + alloc_pages + kmem_cache */
+static IMG_UINT32 g_SysRAMWaterMark;		/* Doesn't include page pool */
+static IMG_UINT32 g_SysRAMHighWaterMark;	/* *DOES* include page pool */
 
 static inline IMG_UINT32
 SysRAMTrueWaterMark(void)
@@ -132,6 +150,7 @@ SysRAMTrueWaterMark(void)
 	return g_SysRAMWaterMark + PAGES_TO_BYTES(atomic_read(&g_sPagePoolEntryCount));
 }
 
+/* ioremap + io */
 static IMG_UINT32 g_IOMemWaterMark;
 static IMG_UINT32 g_IOMemHighWaterMark;
 
@@ -201,7 +220,7 @@ static void ProcSeqStartstopDebugMutex(struct seq_file *sfile,IMG_BOOL start);
 
 typedef	struct
 {
-	
+	/* Linkage for page pool LRU list */
 	struct list_head sPagePoolItem;
 
 	struct page *psPage;
@@ -384,9 +403,11 @@ static IMG_BOOL DebugMemAllocRecordRemove_AnyVaCb(DEBUG_MEM_ALLOC_REC *psCurrent
 static IMG_VOID
 DebugMemAllocRecordRemove(DEBUG_MEM_ALLOC_TYPE eAllocType, IMG_VOID *pvKey, IMG_CHAR *pszFileName, IMG_UINT32 ui32Line)
 {
+/*    DEBUG_MEM_ALLOC_REC **ppsCurrentRecord;*/
+
     LinuxLockMutex(&g_sDebugMutex);
 
-    
+    /* Locate the corresponding allocation entry */
 	if (!List_DEBUG_MEM_ALLOC_REC_IMG_BOOL_Any_va(g_MemoryRecords,
 												DebugMemAllocRecordRemove_AnyVaCb,
 												eAllocType,
@@ -463,7 +484,7 @@ _VMallocWrapper(IMG_UINT32 ui32Bytes,
             return NULL;
     }
 
-	
+	/* Allocate virtually contiguous pages */
     pvRet = __vmalloc(ui32Bytes, GFP_KERNEL | __GFP_HIGHMEM, PGProtFlags);
     
 #if defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
@@ -561,7 +582,7 @@ _VUnmapWrapper(IMG_VOID *pvCpuVAddr, IMG_CHAR *pszFileName, IMG_UINT32 ui32Line)
 #define VUnmapWrapper(pvCpuVAddr) _VUnmapWrapper(pvCpuVAddr, NULL, 0)
 #endif
 
-#endif 
+#endif /* defined(PVR_LINUX_MEM_AREA_USE_VMAP) */
 
 
 IMG_VOID
@@ -583,7 +604,8 @@ KMemCacheNameWrapper(LinuxKMemCache *psCache)
 {
     PVR_UNREFERENCED_PARAMETER(psCache);
 
-    
+    /* In this case kmem_cache_t is an incomplete typedef,
+     * so we can't even de-reference to get the name member. It is also a GPL export symbol */
     return "";
 }
 
@@ -613,7 +635,7 @@ AllocPageFromLinux(void)
 
         }
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,15))
-    	
+    	/* Reserve those pages to allow them to be re-mapped to user space */
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,0))		
     	SetPageReserved(psPage);
 #else
@@ -659,7 +681,7 @@ PagePoolTrylock(void)
 	return mutex_trylock(&g_sPagePoolMutex);
 }
 
-#else	
+#else	/* (PVR_LINUX_MEM_AREA_POOL_MAX_PAGES != 0) */
 static inline void
 PagePoolLock(void)
 {
@@ -675,7 +697,7 @@ PagePoolTrylock(void)
 {
 	return 1;
 }
-#endif	
+#endif	/* (PVR_LINUX_MEM_AREA_POOL_MAX_PAGES != 0) */
 
 
 static inline void
@@ -718,7 +740,11 @@ AllocPage(IMG_UINT32 ui32AreaFlags, IMG_BOOL *pbFromPagePool)
 {
 	struct page *psPage = NULL;
 
-	
+	/*
+	 * Only uncached allocations can come from the page pool.
+	 * The page pool is currently used to reduce the cost of
+	 * invalidating the CPU cache when uncached memory is allocated.
+	 */
 	if (AreaIsUncached(ui32AreaFlags) && atomic_read(&g_sPagePoolEntryCount) != 0)
 	{
 		LinuxPagePoolEntry *psPagePoolEntry;
@@ -727,7 +753,7 @@ AllocPage(IMG_UINT32 ui32AreaFlags, IMG_BOOL *pbFromPagePool)
 		psPagePoolEntry = RemoveFirstEntryFromPool();
 		PagePoolUnlock();
 
-		
+		/* List may have changed since we checked the counter */
 		if (psPagePoolEntry)
 		{
 			psPage = psPagePoolEntry->psPage;
@@ -752,7 +778,7 @@ AllocPage(IMG_UINT32 ui32AreaFlags, IMG_BOOL *pbFromPagePool)
 static IMG_VOID
 FreePage(IMG_BOOL bToPagePool, struct page *psPage)
 {
-	
+	/* Only uncached allocations can be freed to the page pool */
 	if (bToPagePool && atomic_read(&g_sPagePoolEntryCount) < g_iPagePoolMaxEntries)
 	{
 		LinuxPagePoolEntry *psPagePoolEntry = LinuxPagePoolEntryAlloc();
@@ -856,7 +882,7 @@ AllocPages(IMG_UINT32 ui32AreaFlags, struct page ***pppsPageList, IMG_HANDLE *ph
 {
     struct page **ppsPageList;
     IMG_HANDLE hBlockPageList;
-    IMG_INT32 i;		
+    IMG_INT32 i;		/* Must be signed; see "for" loop conditions */
     PVRSRV_ERROR eError;
     IMG_BOOL bFromPagePool = IMG_FALSE;
 
@@ -952,17 +978,18 @@ NewVMallocLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags)
     }
 
     pvCpuVAddr = VMapWrapper(ppsPageList, ui32NumPages, ui32AreaFlags);
-#else	
+#else	/* defined(PVR_LINUX_MEM_AREA_USE_VMAP) */
     pvCpuVAddr = VMallocWrapper(ui32Bytes, ui32AreaFlags);
     if (!pvCpuVAddr)
     {
         goto failed;
     }
+/* PG_reserved was deprecated in linux-2.6.15 */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,15))
-    
+    /* Reserve those pages to allow them to be re-mapped to user space */
     ReservePages(pvCpuVAddr, ui32Bytes);
 #endif
-#endif	 
+#endif	/* defined(PVR_LINUX_MEM_AREA_USE_VMAP) */ 
 
     psLinuxMemArea->eAreaType = LINUX_MEM_AREA_VMALLOC;
     psLinuxMemArea->uData.sVmalloc.pvVmallocAddress = pvCpuVAddr;
@@ -978,10 +1005,24 @@ NewVMallocLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags)
     DebugLinuxMemAreaRecordAdd(psLinuxMemArea, ui32AreaFlags);
 #endif
 
-    
+    /* This works around a problem where Linux will not invalidate
+     * the cache for physical memory it frees that is direct mapped.
+     *
+     * As a result, cache entries remain that may be subsequently flushed
+     * to these physical pages after they have been allocated for another
+     * purpose. For a subsequent cached use of this memory, that is not a
+     * problem, but if we are allocating uncached or write-combined memory,
+     * and bypassing the cache, it can cause subsequent uncached writes to
+     * the memory to be replaced with junk from the cache.
+     *
+     * If the pages are from our page cache, no cache invalidate is needed.
+     *
+     * This just handles the __vmalloc() case (when we have a kernel virtual
+     * address range). The alloc_pages() path is handled in mmap.c.
+     */
     if (AreaIsUncached(ui32AreaFlags) && !bFromPagePool)
     {
-        OSInvalidateCPUCacheRangeKM(psLinuxMemArea, pvCpuVAddr, ui32Bytes);
+        OSInvalidateCPUCacheRangeKM(psLinuxMemArea, 0, pvCpuVAddr, ui32Bytes);
     }
 
     return psLinuxMemArea;
@@ -1032,19 +1073,22 @@ FreeVMallocLinuxMemArea(LinuxMemArea *psLinuxMemArea)
     
     FreePages(CanFreeToPool(psLinuxMemArea), ppsPageList, hBlockPageList, ui32NumPages);
 #else
+/* PG_reserved was deprecated in linux-2.6.15 */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,15))
     UnreservePages(psLinuxMemArea->uData.sVmalloc.pvVmallocAddress,
                     psLinuxMemArea->ui32ByteSize);
 #endif
 
     VFreeWrapper(psLinuxMemArea->uData.sVmalloc.pvVmallocAddress);
-#endif	 
+#endif	/* defined(PVR_LINUX_MEM_AREA_USE_VMAP) */ 
 
     LinuxMemAreaStructFree(psLinuxMemArea);
 }
 
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,15))
+/* Reserve pages of memory in order that they're not automatically
+   deallocated after the last user reference dies. */
 static IMG_VOID
 ReservePages(IMG_VOID *pvAddress, IMG_UINT32 ui32Length)
 {
@@ -1062,6 +1106,7 @@ ReservePages(IMG_VOID *pvAddress, IMG_UINT32 ui32Length)
 }
 
 
+/* Un-reserve pages of memory in order that they can be freed. */
 static IMG_VOID
 UnreservePages(IMG_VOID *pvAddress, IMG_UINT32 ui32Length)
 {
@@ -1077,7 +1122,7 @@ UnreservePages(IMG_VOID *pvAddress, IMG_UINT32 ui32Length)
 #endif
 	}
 }
-#endif 
+#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,15)) */
 
 
 IMG_VOID *
@@ -1192,6 +1237,16 @@ FreeIORemapLinuxMemArea(LinuxMemArea *psLinuxMemArea)
 
 
 #if !defined(PVR_MAKE_ALL_PFNS_SPECIAL)
+/*
+ * Avoid using remap_pfn_range on RAM, if possible.  On x86 systems, with
+ * PAT enabled, remap_pfn_range checks the page attributes requested by 
+ * remap_pfn_range against those of the direct kernel mapping for those
+ * pages (if any).  This is rather annoying if the pages have been obtained
+ * with alloc_pages, where we just ask for raw pages; we don't care about
+ * the direct mapping.  This latter issue arises when device memory is
+ * exported from one process to another.  Services implements this
+ * using memory wrapping, which ends up creating an external KV memory area.
+ */
 static IMG_BOOL
 TreatExternalPagesAsContiguous(IMG_SYS_PHYADDR *psSysPhysAddr, IMG_UINT32 ui32Bytes, IMG_BOOL bPhysContig)
 {
@@ -1199,7 +1254,10 @@ TreatExternalPagesAsContiguous(IMG_SYS_PHYADDR *psSysPhysAddr, IMG_UINT32 ui32By
 	IMG_UINT32 ui32AddrChk;
 	IMG_UINT32 ui32NumPages = RANGE_TO_PAGES(ui32Bytes);
 
-	
+	/*
+	 * If bPhysContig is IMG_TRUE, we must assume psSysPhysAddr points
+	 * to the address of the first page, not an array of page addresses.
+	 */
 	for (ui32 = 0, ui32AddrChk = psSysPhysAddr[0].uiAddr;
 		ui32 < ui32NumPages;
 		ui32++, ui32AddrChk = (bPhysContig) ? (ui32AddrChk + PAGE_SIZE) : psSysPhysAddr[ui32].uiAddr)
@@ -1294,7 +1352,7 @@ NewIOLinuxMemArea(IMG_CPU_PHYADDR BasePAddr,
         return NULL;
     }
 
-    
+    /* Nothing to activly do. We just keep a record of the physical range. */
     psLinuxMemArea->eAreaType = LINUX_MEM_AREA_IO;
     psLinuxMemArea->uData.sIO.CPUPhysAddr.uiAddr = BasePAddr.uiAddr;
     psLinuxMemArea->ui32ByteSize = ui32Bytes;
@@ -1335,7 +1393,7 @@ FreeIOLinuxMemArea(LinuxMemArea *psLinuxMemArea)
                               (IMG_VOID *)psLinuxMemArea->uData.sIO.CPUPhysAddr.uiAddr, __FILE__, __LINE__);
 #endif
 
-    
+    /* Nothing more to do than free the LinuxMemArea struct */
 
     LinuxMemAreaStructFree(psLinuxMemArea);
 }
@@ -1370,7 +1428,7 @@ NewAllocPagesLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags)
     psLinuxMemArea->ui32AreaFlags = ui32AreaFlags;
     INIT_LIST_HEAD(&psLinuxMemArea->sMMapOffsetStructList);
 
-    
+    /* We defer the cache flush to the first user mapping of this memory */
     psLinuxMemArea->bNeedsCacheInvalidate = AreaIsUncached(ui32AreaFlags) && !bFromPagePool;
 
 #if defined(DEBUG_LINUX_MEM_AREAS)
@@ -1441,12 +1499,18 @@ NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags,
         goto err_out;
     }
 
-    
+    /* Depending on the UM config, userspace might give us info for
+     * one or two ION allocations. Divide the total size of data we
+     * were given by this ui32AllocDataLen, and check it's 1 or 2.
+     * Otherwise abort.
+     */
     BUG_ON(ui32PrivDataLength != ui32AllocDataLen &&
            ui32PrivDataLength != ui32AllocDataLen * 2);
     ui32NumHandlesPerFd = ui32PrivDataLength / ui32AllocDataLen;
 
-    
+    /* Shuffle the alloc data into separate Y & UV bits and
+     * make two separate allocations via the tiler.
+     */
     for(i = 0; i < ui32NumHandlesPerFd; i++)
     {
    	    memcpy(&asAllocData[i], &pbPrivData[i * ui32AllocDataLen], ui32AllocDataLen);
@@ -1465,11 +1529,13 @@ NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags,
         }
     }
 
-    
+    /* Assume the user-allocator has already done the tiler math and that the
+     * number of tiler pages allocated matches any other allocation type.
+     */
     BUG_ON(ui32Bytes != (iNumPages[0] + iNumPages[1]) * PAGE_SIZE);
     BUG_ON(sizeof(IMG_CPU_PHYADDR) != sizeof(int));
 
-    
+    /* Glue the page lists together */
     pCPUPhysAddrs = vmalloc(sizeof(IMG_CPU_PHYADDR) * (iNumPages[0] + iNumPages[1]));
     if (!pCPUPhysAddrs)
     {
@@ -1502,7 +1568,7 @@ NewIONLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags,
     psLinuxMemArea->ui32AreaFlags = ui32AreaFlags;
     INIT_LIST_HEAD(&psLinuxMemArea->sMMapOffsetStructList);
 
-    
+    /* We defer the cache flush to the first user mapping of this memory */
     psLinuxMemArea->bNeedsCacheInvalidate = AreaIsUncached(ui32AreaFlags);
 
 #if defined(DEBUG_LINUX_MEM_AREAS)
@@ -1542,14 +1608,14 @@ FreeIONLinuxMemArea(LinuxMemArea *psLinuxMemArea)
         psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle[i] = IMG_NULL;
     }
 
-    
+    /* free copy of page list, originals are freed by ion_free */
     vfree(psLinuxMemArea->uData.sIONTilerAlloc.pCPUPhysAddrs);
     psLinuxMemArea->uData.sIONTilerAlloc.pCPUPhysAddrs = IMG_NULL;
 
     LinuxMemAreaStructFree(psLinuxMemArea);
 }
 
-#endif 
+#endif /* defined(CONFIG_ION_OMAP) */
 
 struct page*
 LinuxMemAreaOffsetToPage(LinuxMemArea *psLinuxMemArea,
@@ -1570,7 +1636,7 @@ LinuxMemAreaOffsetToPage(LinuxMemArea *psLinuxMemArea,
             return vmalloc_to_page(pui8Addr);
  
         case LINUX_MEM_AREA_SUB_ALLOC:
-             
+            /* PRQA S 3670 3 */ /* ignore recursive warning */
             return LinuxMemAreaOffsetToPage(psLinuxMemArea->uData.sSubAlloc.psParentLinuxMemArea,
                                             psLinuxMemArea->uData.sSubAlloc.ui32ByteOffset
                                              + ui32ByteOffset);
@@ -1595,7 +1661,7 @@ KMemCacheCreateWrapper(IMG_CHAR *pszName,
     return kmem_cache_create(pszName, Size, Align, ui32Flags, NULL
 #if (LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,22))
 				, NULL
-#endif	
+#endif	/* (LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,22) */
 			   );
 }
 
@@ -1684,7 +1750,7 @@ FreeSubLinuxMemArea(LinuxMemArea *psLinuxMemArea)
     DebugLinuxMemAreaRecordRemove(psLinuxMemArea);
 #endif
     
-    
+    /* Nothing more to do than free the LinuxMemArea structure */
 
     LinuxMemAreaStructFree(psLinuxMemArea);
 }
@@ -1693,6 +1759,7 @@ FreeSubLinuxMemArea(LinuxMemArea *psLinuxMemArea)
 static LinuxMemArea *
 LinuxMemAreaStructAlloc(IMG_VOID)
 {
+/* debug */
 #if 0
     LinuxMemArea *psLinuxMemArea;
     psLinuxMemArea = kmem_cache_alloc(g_PsLinuxMemAreaCache, GFP_KERNEL);
@@ -1709,8 +1776,8 @@ static IMG_VOID
 LinuxMemAreaStructFree(LinuxMemArea *psLinuxMemArea)
 {
     KMemCacheFreeWrapper(g_PsLinuxMemAreaCache, psLinuxMemArea);
-    
-    
+    /* debug */
+    //printk(KERN_ERR "%s(%p)\n", __FUNCTION__, psLinuxMemArea);
 }
 
 
@@ -1767,11 +1834,11 @@ DebugLinuxMemAreaRecordAdd(LinuxMemArea *psLinuxMemArea, IMG_UINT32 ui32Flags)
     }
     g_LinuxMemAreaCount++;
     
-    
+    /* Create a new memory allocation record */
     psNewRecord = kmalloc(sizeof(DEBUG_LINUX_MEM_AREA_REC), GFP_KERNEL);
     if (psNewRecord)
     {
-        
+        /* Record the allocation */
         psNewRecord->psLinuxMemArea = psLinuxMemArea;
         psNewRecord->ui32Flags = ui32Flags;
         psNewRecord->pid = OSGetCurrentProcessIDKM();
@@ -1785,7 +1852,7 @@ DebugLinuxMemAreaRecordAdd(LinuxMemArea *psLinuxMemArea, IMG_UINT32 ui32Flags)
                  __FUNCTION__));
     }
     
-    
+    /* Sanity check the flags */
     pi8FlagsString = HAPFlagsToString(ui32Flags);
     if (strstr(pi8FlagsString, "UNKNOWN"))
     {
@@ -1794,7 +1861,7 @@ DebugLinuxMemAreaRecordAdd(LinuxMemArea *psLinuxMemArea, IMG_UINT32 ui32Flags)
                  __FUNCTION__,
                  ui32Flags,
                  psLinuxMemArea));
-        
+        //dump_stack();
     }
 
     LinuxUnLockMutex(&g_sDebugMutex);
@@ -1829,6 +1896,7 @@ DebugLinuxMemAreaRecordFind(LinuxMemArea *psLinuxMemArea)
 														MatchLinuxMemArea_AnyVaCb,
 														psLinuxMemArea);
 	
+/*exit_unlock:*/
     LinuxUnLockMutex(&g_sDebugMutex);
 
     return psCurrentRecord;
@@ -1848,13 +1916,13 @@ DebugLinuxMemAreaRecordRemove(LinuxMemArea *psLinuxMemArea)
     }
     g_LinuxMemAreaCount--;
 
-    
+    /* Locate the corresponding allocation entry */
 	psCurrentRecord = List_DEBUG_LINUX_MEM_AREA_REC_Any_va(g_LinuxMemAreaRecords,
 														MatchLinuxMemArea_AnyVaCb,
 														psLinuxMemArea);
 	if (psCurrentRecord)
 	{
-		
+		/* Unlink the allocation record */
 		List_DEBUG_LINUX_MEM_AREA_REC_Remove(psCurrentRecord);
 		kfree(psCurrentRecord);
 	}
@@ -1883,7 +1951,7 @@ LinuxMemAreaToCpuVAddr(LinuxMemArea *psLinuxMemArea)
         case LINUX_MEM_AREA_SUB_ALLOC:
         {
             IMG_CHAR *pAddr =
-                LinuxMemAreaToCpuVAddr(psLinuxMemArea->uData.sSubAlloc.psParentLinuxMemArea);  
+                LinuxMemAreaToCpuVAddr(psLinuxMemArea->uData.sSubAlloc.psParentLinuxMemArea); /* PRQA S 3670 */ /* ignore recursive warning */
             if (!pAddr)
             {
                 return NULL;
@@ -1998,7 +2066,7 @@ LinuxMemAreaPhysIsContig(LinuxMemArea *psLinuxMemArea)
             return IMG_FALSE;
 
         case LINUX_MEM_AREA_SUB_ALLOC:
-             
+            /* PRQA S 3670 1 */ /* ignore recursive warning */
             return LinuxMemAreaPhysIsContig(psLinuxMemArea->uData.sSubAlloc.psParentLinuxMemArea);
 
         default:
@@ -2013,7 +2081,9 @@ LinuxMemAreaPhysIsContig(LinuxMemArea *psLinuxMemArea)
 const IMG_CHAR *
 LinuxMemAreaTypeToString(LINUX_MEM_AREA_TYPE eMemAreaType)
 {
-    
+    /* Note we explicitly check the types instead of e.g.
+     * using the type to index an array of strings so
+     * we remain orthogonal to enum changes */
     switch (eMemAreaType)
     {
         case LINUX_MEM_AREA_IOREMAP:
@@ -2050,7 +2120,7 @@ static void ProcSeqStartstopDebugMutex(struct seq_file *sfile, IMG_BOOL start)
 	    LinuxUnLockMutex(&g_sDebugMutex);
 	}
 }
-#endif 
+#endif /* defined(DEBUG_LINUX_MEM_AREAS) || defined(DEBUG_LINUX_MEMORY_ALLOCATIONS) */
 
 #if defined(DEBUG_LINUX_MEM_AREAS)
 
@@ -2067,7 +2137,7 @@ static IMG_VOID* DecOffMemAreaRec_AnyVaCb(DEBUG_LINUX_MEM_AREA_REC *psNode, va_l
 	}
 }
 
- 
+/* seq_file version of generating output, for reference check proc.c:CreateProcReadEntrySeq */ 
 static void* ProcSeqNextMemArea(struct seq_file *sfile,void* el,loff_t off) 
 {
     DEBUG_LINUX_MEM_AREA_REC *psRecord;
@@ -2122,8 +2192,8 @@ static void ProcSeqShowMemArea(struct seq_file *sfile,void* el)
         seq_printf(sfile,
                           "<mem_areas_header>\n"
                           "\t<count>%u</count>\n"
-                          "\t<watermark key=\"mar0\" description=\"current\" bytes=\"%u\"/>\n" 
-                          "\t<watermark key=\"mar1\" description=\"high\" bytes=\"%u\"/>\n" 
+                          "\t<watermark key=\"mar0\" description=\"current\" bytes=\"%u\"/>\n" /* (excluding SUB areas) */
+                          "\t<watermark key=\"mar1\" description=\"high\" bytes=\"%u\"/>\n" /* (excluding SUB areas) */
                           "</mem_areas_header>\n",
                           g_LinuxMemAreaCount,
                           g_LinuxMemAreaWaterMark,
@@ -2160,7 +2230,7 @@ static void ProcSeqShowMemArea(struct seq_file *sfile,void* el)
 
 }
 
-#endif 
+#endif /* DEBUG_LINUX_MEM_AREAS */
 
 
 #if defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
@@ -2179,7 +2249,7 @@ static IMG_VOID* DecOffMemAllocRec_AnyVaCb(DEBUG_MEM_ALLOC_REC *psNode, va_list 
 }
 
 
- 
+/* seq_file version of generating output, for reference check proc.c:CreateProcReadEntrySeq */ 
 static void* ProcSeqNextMemoryRecords(struct seq_file *sfile,void* el,loff_t off) 
 {
     DEBUG_MEM_ALLOC_REC *psRecord;
@@ -2226,7 +2296,9 @@ static void ProcSeqShowMemoryRecords(struct seq_file *sfile,void* el)
 	if (el == PVR_PROC_SEQ_START_TOKEN) 
 	{
 #if !defined(DEBUG_LINUX_XML_PROC_FILES)
-        
+        /* NOTE: If you update this code, please also update the XML varient below
+         * too! */
+
         seq_printf(sfile, "%-60s: %d bytes\n",
                            "Current Water Mark of bytes allocated via kmalloc",
                            g_WaterMarkData[DEBUG_MEM_ALLOC_TYPE_KMALLOC]);
@@ -2302,9 +2374,12 @@ static void ProcSeqShowMemoryRecords(struct seq_file *sfile,void* el)
                            "PrivateData",
                            "Filename:Line");
 
-#else 
+#else /* DEBUG_LINUX_XML_PROC_FILES */
 		
-		
+		/* Note: If you want to update the description property of a watermark
+		 * ensure that the key property remains unchanged so that watermark data
+		 * logged over time from different driver revisions may remain comparable
+		 */
 		seq_printf(sfile, "<meminfo>\n<meminfo_header>\n");
 		seq_printf(sfile,
                            "<watermark key=\"mr0\" description=\"kmalloc_current\" bytes=\"%d\"/>\n",
@@ -2370,7 +2445,7 @@ static void ProcSeqShowMemoryRecords(struct seq_file *sfile,void* el)
 #endif
 		seq_printf(sfile, "</meminfo_header>\n");
 
-#endif 
+#endif /* DEBUG_LINUX_XML_PROC_FILES */
 		return;
 	}
 
@@ -2428,10 +2503,11 @@ static void ProcSeqShowMemoryRecords(struct seq_file *sfile,void* el)
     }
 }
 
-#endif 
+#endif /*  defined(DEBUG_LINUX_MEMORY_ALLOCATIONS) */
 
 
 #if defined(DEBUG_LINUX_MEM_AREAS) || defined(DEBUG_LINUX_MMAP_AREAS)
+/* This could be moved somewhere more general */
 const IMG_CHAR *
 HAPFlagsToString(IMG_UINT32 ui32Flags)
 {
@@ -2453,7 +2529,9 @@ HAPFlagsToString(IMG_UINT32 ui32Flags)
         "UNKNOWN"
     };
     
-    
+    /* FIXME create an enum for the cache type that we can
+     * cast and select so we get compiler warnings when
+     * when this code isn't complete due to new flags */
     if (ui32Flags & PVRSRV_HAP_UNCACHED) {
         ui32CacheTypeIndex = 0;
     } else if (ui32Flags & PVRSRV_HAP_CACHED) {
@@ -2466,7 +2544,9 @@ HAPFlagsToString(IMG_UINT32 ui32Flags)
                  __FUNCTION__, (ui32Flags & PVRSRV_HAP_CACHETYPE_MASK)));
     }
 
-    
+    /* FIXME create an enum for the map type that we can
+     * cast and select so we get compiler warnings when
+     * when this code isn't complete due to new flags */
     if (ui32Flags & PVRSRV_HAP_KERNEL_ONLY) {
         ui32MapTypeIndex = 0;
     } else if (ui32Flags & PVRSRV_HAP_SINGLE_PROCESS) {
@@ -2510,7 +2590,8 @@ static IMG_VOID LinuxMMCleanup_MemAreas_ForEachCb(DEBUG_LINUX_MEM_AREA_REC *psCu
 				psCurrentRecord->psLinuxMemArea,
 				LinuxMemAreaTypeToString(psCurrentRecord->psLinuxMemArea->eAreaType),
 				psCurrentRecord->psLinuxMemArea->ui32ByteSize));
-	
+	/* Note this will also remove psCurrentRecord from g_LinuxMemAreaRecords
+	 * but that's ok since we have already got a pointer to the next area. */
 	LinuxMemAreaDeepFree(psLinuxMemArea);
 }
 #endif
@@ -2520,6 +2601,8 @@ static IMG_VOID LinuxMMCleanup_MemRecords_ForEachVa(DEBUG_MEM_ALLOC_REC *psCurre
 
 {
 	
+/* It's a bug if anything remains allocated at this point. We
+ * report an error, and simply brute force free anything we find. */
 	PVR_DPF((PVR_DBG_ERROR, "%s: BUG!: Cleaning up memory: "
 							"type=%s "
 							"CpuVAddr=%p "
@@ -2540,7 +2623,7 @@ static IMG_VOID LinuxMMCleanup_MemRecords_ForEachVa(DEBUG_MEM_ALLOC_REC *psCurre
 			IOUnmapWrapper(psCurrentRecord->pvCpuVAddr);
 			break;
 		case DEBUG_MEM_ALLOC_TYPE_IO:
-			
+			/* Nothing needed except to free the record */
 			DebugMemAllocRecordRemove(DEBUG_MEM_ALLOC_TYPE_IO, psCurrentRecord->pvKey, __FILE__, __LINE__);
 			break;
 		case DEBUG_MEM_ALLOC_TYPE_VMALLOC:
@@ -2601,13 +2684,19 @@ LinuxMMCleanup(IMG_VOID)
 	}
 #endif
 
-    
+    /*
+     * The page pool must be freed after any remaining mem areas, but before
+     * the remaining memory resources.
+     */
     FreePagePool();
 
 #if defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
     {
         
-        
+        /*
+	 * It's a bug if anything remains allocated at this point. We
+         * report an error, and simply brute force free anything we find.
+	 */
 		List_DEBUG_MEM_ALLOC_REC_ForEach(g_MemoryRecords, LinuxMMCleanup_MemRecords_ForEachVa);
 
 		if (g_SeqFileMemoryRecords)

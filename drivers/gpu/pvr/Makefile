@@ -24,6 +24,7 @@ ccflags-y += \
 	-DPVR_NO_OMAP_TIMER \
 	-DSYS_SUPPORTS_SGX_IDLE_CALLBACK \
 	-DPVRSRV_REFCOUNT_DEBUG \
+	-DSYS_OMAP4_HAS_DVFS_FRAMEWORK \
 	-Idrivers/gpu/pvr/sgx
 
 ccflags-$(CONFIG_PVR_SGXCORE_540) += \
@@ -36,7 +37,7 @@ ccflags-$(CONFIG_PVR_BUILD_RELEASE) += \
 ccflags-$(CONFIG_PVR_BUILD_DEBUG) += \
 	-DPVR_BUILD_TYPE="\"debug\"" -DDEBUG
 
-ccflags-$(CONFIG_PVR_NEED_PVR_DPF) += -DPVRSRV_NEED_PVR_DPF -DPVRSRV_NEED_PVR_TRACE
+ccflags-$(CONFIG_PVR_NEED_PVR_DPF) += -DPVRSRV_NEED_PVR_DPF
 ccflags-$(CONFIG_PVR_NEED_PVR_ASSERT) += -DPVRSRV_NEED_PVR_ASSERT
 
 ccflags-$(CONFIG_PVR_DEBUG_MEMORY) += \
@@ -58,7 +59,9 @@ ccflags-$(CONFIG_PVR_USSE_EDM_STATUS_DEBUG) += -DPVRSRV_USSE_EDM_STATUS_DEBUG
 ccflags-$(CONFIG_PVR_DUMP_MK_TRACE) += -DPVRSRV_DUMP_MK_TRACE
 
 ccflags-$(CONFIG_PVR_PDUMP) += \
-	-DPDUMP -DSUPPORT_DBGDRV_EVENT_OBJECTS -DSUPPORT_PDUMP_MULTI_PROCESS
+	-DPDUMP -DSUPPORT_PDUMP_MULTI_PROCESS
+
+ccflags-$(CONFIG_PVR_TTRACE) += -DTTRACE
 
 ccflags-$(CONFIG_PVR_LINUX_MEM_AREA_POOL) += \
 	-DPVR_LINUX_MEM_AREA_POOL_MAX_PAGES=CONFIG_PVR_LINUX_MEM_AREA_POOL_MAX_PAGES \
@@ -109,11 +112,12 @@ pvrsrvkm-y := \
 
 pvrsrvkm-$(CONFIG_ION_OMAP) += ion.o
 
+pvrsrvkm-$(CONFIG_PVR_TTRACE) += ttrace.o
+
 omaplfb-y := \
 	omaplfb/omaplfb_displayclass.o \
 	omaplfb/omaplfb_linux.o
 
 obj-$(CONFIG_PVR_SGX) += pvrsrvkm.o
 obj-$(CONFIG_PVR_SGX) += omaplfb.o
-# no Makefile in dbgdrv
-#obj-$(CONFIG_PVR_PDUMP) += dbgdrv/
+obj-$(CONFIG_PVR_PDUMP) += dbgdrv/

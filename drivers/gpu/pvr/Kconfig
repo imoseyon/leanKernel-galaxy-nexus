@@ -94,6 +94,15 @@ config PVR_USSE_EDM_STATUS_DEBUG
 	depends on PVR_SGX
 	default y if PVR_BUILD_DEBUG
 
+config PVR_TTRACE
+	bool "Trace driver activity"
+	depends on PVR_SGX
+	default n
+	help
+	  Say Y here if you want timing-dependent driver events (like sync
+	  object updates) to be traced. The buffer is dumped on HW recovery
+	  and can be used to correlate driver activity with HW operations.
+
 config PVR_DUMP_MK_TRACE
 	bool "Dump microkernel trace on HW recovery"
 	depends on PVR_USSE_EDM_STATUS_DEBUG
