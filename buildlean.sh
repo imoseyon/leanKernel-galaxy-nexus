@@ -7,7 +7,7 @@ sed -i s/CONFIG_LOCALVERSION=\".*\"/CONFIG_LOCALVERSION=\"-leanKernel-${1}\"/ .c
 [[ $1 == *180 ]] && sed -i 's/.*UNLOCK_180.*$/CONFIG_UNLOCK_180MHZ=y/' .config \
   || sed -i 's/.*UNLOCK_180.*$/# CONFIG_UNLOCK_180MHZ is not set/' .config
 
-make ARCH=arm CROSS_COMPILE=/data/linaro/bin/arm-linux-gnueabihf- -j2
+make ARCH=arm CROSS_COMPILE=/data/linaro/android-toolchain-eabi/bin/arm-linux-androideabi- -j2
 
 cp arch/arm/boot/zImage mkboot/
 sed -i s/CONFIG_LOCALVERSION=\".*\"/CONFIG_LOCALVERSION=\"\"/ .config
