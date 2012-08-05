@@ -4,10 +4,12 @@ on early-init
 	export EXTERNAL_STORAGE /storage/sdcard0
 	mkdir /storage 0050 system sdcard_r
 	mkdir /storage/sdcard0 0000 system system
+	mkdir /storage/usbdisk 0755 system system
 	# for backwards compatibility
 	symlink /storage/sdcard0 /sdcard
 	symlink /storage/sdcard0 /mnt/sdcard
-        mkdir /mnt/usbdisk 0755 system system
+#        mkdir /mnt/usbdisk 0755 system system
+	symlink /storage/usbdisk /mnt/usbdisk
 
 on post-fs-data
 	# we will remap this as /storage/sdcard0 with the sdcard fuse tool
