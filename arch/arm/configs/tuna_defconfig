@@ -1,6 +1,6 @@
 #
 # Automatically generated make config: don't edit
-# Linux/arm 3.0.36 Kernel Configuration
+# Linux/arm 3.0.40 Kernel Configuration
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -1125,6 +1125,7 @@ CONFIG_LTE_LINK_USB=y
 CONFIG_LTE_MODEM_CMC221=y
 CONFIG_COLOR_CONTROL=y
 CONFIG_SOUND_CONTROL=y
+CONFIG_VIBRATOR_CONTROL=y
 CONFIG_HAVE_IDE=y
 # CONFIG_IDE is not set
 
