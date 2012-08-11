@@ -250,6 +250,7 @@ static int bcm4330_bluetooth_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	rfkill_set_states(bt_rfkill, true, false);
 	rc = rfkill_register(bt_rfkill);
 
 	if (unlikely(rc)) {
@@ -258,9 +259,6 @@ static int bcm4330_bluetooth_probe(struct platform_device *pdev)
 		gpio_free(BT_REG_GPIO);
 		return -1;
 	}
-
-	rfkill_set_states(bt_rfkill, true, false);
-	bcm4330_bt_rfkill_set_power(NULL, true);
 
 	ret = bcm_bt_lpm_init(pdev);
 	if (ret) {
