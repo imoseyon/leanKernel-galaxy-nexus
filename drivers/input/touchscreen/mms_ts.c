@@ -805,9 +805,9 @@ static int __devinit mms_ts_probe(struct i2c_client *client,
 	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, 0, MAX_WIDTH, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_PRESSURE, 0, MAX_PRESSURE, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_X,
-			     0, info->max_x, 0, 0);
+			     0, info->max_x - 1, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_Y,
-			     0, info->max_y, 0, 0);
+			     0, info->max_y - 1, 0, 0);
 
 	input_set_drvdata(input_dev, info);
 
