@@ -261,19 +261,16 @@ static void tuna_vusb_enable(struct tuna_otg *tuna_otg, bool enable)
 
 static void tuna_set_vbus_drive(bool enable)
 {
-/* tmtmtm: prevent OTG host from switching to VBUS out,
-           so that host can be operated on external charge
-
 	if (enable) {
-		// Set the VBUS current limit to 500mA
+		/* Set the VBUS current limit to 500mA */
 		twl_i2c_write_u8(TWL_MODULE_MAIN_CHARGE, 0x09,
 				CHARGERUSB_CINLIMIT);
 
-		// The TWL6030 has a feature to automatically turn on
-		// boost mode (VBUS Drive) when the ID signal is not
-		// grounded.  This feature needs to be disabled on Tuna
-		// as the ID signal is not hooked up to the TWL6030.
-		//
+		/* The TWL6030 has a feature to automatically turn on
+		 * boost mode (VBUS Drive) when the ID signal is not
+		 * grounded.  This feature needs to be disabled on Tuna
+		 * as the ID signal is not hooked up to the TWL6030.
+		 */
 		twl_i2c_write_u8(TWL_MODULE_MAIN_CHARGE, 0x21,
 				CHARGERUSB_CTRL3);
 		twl_i2c_write_u8(TWL_MODULE_MAIN_CHARGE, 0x40,
@@ -283,7 +280,6 @@ static void tuna_set_vbus_drive(bool enable)
 				CHARGERUSB_CTRL3);
 		twl_i2c_write_u8(TWL_MODULE_MAIN_CHARGE, 0, CHARGERUSB_CTRL1);
 	}
-*/
 }
 
 static void tuna_ap_usb_attach(struct tuna_otg *tuna_otg)
