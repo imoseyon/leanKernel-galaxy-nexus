@@ -52,7 +52,7 @@ if [[ $1 != *dev* && $1 != *rc* ]]; then
 	echo "http://imoseyon.host4droid.com${edir}/boot-${1}.img $md5 ${1}" > /tmp/$mf
 fi
 if [[ $2 == "upload" ]]; then
-  cd /data/omap
+  cd /lk/toro
   [[ $1 != *dev* && $1 != *rc* ]] && git log --pretty=format:"%aN: %s" -n 200 > /tmp/exp.log
   /data/utils/gnex_ftpupload.sh $1 
 fi
