@@ -150,6 +150,9 @@ static IMG_VOID SetDCState(IMG_HANDLE hDevice, IMG_UINT32 ui32State)
 		case DC_STATE_NO_FLUSH_COMMANDS:
 			OMAPLFBAtomicBoolSet(&psDevInfo->sFlushCommands, OMAPLFB_FALSE);
 			break;
+		case DC_STATE_FORCE_SWAP_TO_SYSTEM:
+			OMAPLFBFlip(psDevInfo, &psDevInfo->sSystemBuffer);
+			break;
 		default:
 			break;
 	}
