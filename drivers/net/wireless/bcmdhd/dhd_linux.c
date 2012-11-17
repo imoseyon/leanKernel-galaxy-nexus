@@ -349,14 +349,13 @@ module_param(dhd_master_mode, uint, 0);
 
 #ifdef DHDTHREAD
 /* Watchdog thread priority, -1 to use kernel timer */
-int dhd_watchdog_prio = 97;
+int dhd_watchdog_prio = 0;
 module_param(dhd_watchdog_prio, int, 0);
 
 /* DPC thread priority, -1 to use tasklet */
-int dhd_dpc_prio = 98;
+int dhd_dpc_prio = 1;
 module_param(dhd_dpc_prio, int, 0);
 
-/* DPC thread priority, -1 to use tasklet */
 extern int dhd_dongle_memsize;
 module_param(dhd_dongle_memsize, int, 0);
 #endif /* DHDTHREAD */
@@ -4901,12 +4900,12 @@ void dhd_set_version_info(dhd_pub_t *dhdp, char *fw)
 	int i;
 
 	i = snprintf(info_string, sizeof(info_string),
-		"WLAN:\n  Driver: %s\n  Firmware: %s ", EPI_VERSION_STR, fw);
+		"  Driver: %s\n  Firmware: %s ", EPI_VERSION_STR, fw);
 
 	if (!dhdp)
 		return;
 	i = snprintf(&info_string[i], sizeof(info_string) - i,
-		"\n  Chip: %x Rev %x Pkg %x\n", dhd_bus_chip_id(dhdp),
+		"\n  Chip: %x Rev %x Pkg %x", dhd_bus_chip_id(dhdp),
 		dhd_bus_chiprev_id(dhdp), dhd_bus_chippkg_id(dhdp));
 }
 
