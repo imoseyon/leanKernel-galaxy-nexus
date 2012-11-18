@@ -44,3 +44,6 @@
 /dev/modem_br           0660    radio   radio
 /dev/cdma_ramdump0      0660    radio   radio
 /dev/lte_ramdump0       0660    radio   radio
+
+#for cp log
+/dev/cdma_cplog		0660	radio	radio

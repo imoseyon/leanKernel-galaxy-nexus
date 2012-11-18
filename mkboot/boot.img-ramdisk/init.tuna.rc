@@ -1,25 +1,28 @@
 import init.tuna.usb.rc
 
-on early-init
-	export EXTERNAL_STORAGE /storage/sdcard0
-	mkdir /storage 0050 system sdcard_r
-	mkdir /storage/sdcard0 0000 system system
-	mkdir /storage/usbdisk 0755 system system
-	# for backwards compatibility
-	symlink /storage/sdcard0 /sdcard
-	symlink /storage/sdcard0 /mnt/sdcard
-#        mkdir /mnt/usbdisk 0755 system system
-	symlink /storage/usbdisk /mnt/usbdisk
+on init
+    # See storage config details at http://source.android.com/tech/storage/
+    mkdir /mnt/shell/emulated 0700 shell shell
+    mkdir /storage/emulated 0555 root root
+
+    export EXTERNAL_STORAGE /storage/emulated/legacy
+    export EMULATED_STORAGE_SOURCE /mnt/shell/emulated
+    export EMULATED_STORAGE_TARGET /storage/emulated
+
+    # Support legacy paths
+    symlink /storage/emulated/legacy /sdcard
+    symlink /storage/emulated/legacy /mnt/sdcard
+    symlink /storage/emulated/legacy /storage/sdcard0
+    symlink /mnt/shell/emulated/0 /storage/emulated/legacy
 
 on post-fs-data
-	# we will remap this as /storage/sdcard0 with the sdcard fuse tool
-	mkdir /data/media 0770 media_rw media_rw
-	chown media_rw media_rw /data/media
-	mkdir /data/misc/wifi 0770 wifi wifi
-	mkdir /data/misc/wifi/sockets 0770 wifi wifi
-	mkdir /data/misc/dhcp 0770 dhcp dhcp
-	chown dhcp dhcp /data/misc/dhcp
-	mkdir /data/smc 0770 drmrpc drmrpc
+        mkdir /data/media 0770 media_rw media_rw
+
+        mkdir /data/misc/wifi 0770 wifi wifi
+        mkdir /data/misc/wifi/sockets 0770 wifi wifi
+        mkdir /data/misc/dhcp 0770 dhcp dhcp
+        chown dhcp dhcp /data/misc/dhcp
+        mkdir /data/smc 0770 drmrpc drmrpc
         chown drmrpc drmrpc /data/smc/counter.bin
         chown drmrpc drmrpc /data/smc/storage.bin
         chown drmrpc drmrpc /data/smc/system.bin
@@ -170,11 +173,9 @@ service smc_pa_wvdrm /system/bin/smc_pa_ctrl \
         group drmrpc
         oneshot
 
-# create virtual SD card at /storage/sdcard0, based on the /data/media directory
-# daemon will drop to user/group system/media_rw after initializing
-# underlying files in /data/media will be created with user and group media_rw (1023)
-service sdcard /system/bin/sdcard /data/media 1023 1023
-	class late_start
+# virtual sdcard daemon running as media_rw (1023)
+service sdcard /system/bin/sdcard /data/media /mnt/shell/emulated 1023 1023
+    class late_start
 
 service p2p_supplicant /system/bin/wpa_supplicant \
 	-iwlan0 -Dnl80211 -c/data/misc/wifi/wpa_supplicant.conf -N \
@@ -199,7 +200,7 @@ service wpa_supplicant /system/bin/wpa_supplicant \
 	disabled
 	oneshot
 
-service dhcpcd_wlan0 /system/bin/dhcpcd -aABKL
+service dhcpcd_wlan0 /system/bin/dhcpcd -aABDKL
 	class main
 	disabled
 	oneshot
@@ -214,7 +215,7 @@ service dhcpcd_bnep0 /system/bin/dhcpcd -ABKL
 	disabled
 	oneshot
 
-service dhcpcd_eth0 /system/bin/dhcpcd -ABKL
+service dhcpcd_eth0 /system/bin/dhcpcd -ABDKL
 	class main
 	disabled
 	oneshot

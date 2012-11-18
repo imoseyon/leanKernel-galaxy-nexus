@@ -4,14 +4,18 @@
 # This is a common source of Android security bugs.
 #
 
-import /init.${ro.hardware}.rc
 import /init.usb.rc
+import /init.${ro.hardware}.rc
 import /init.trace.rc
 
 on early-init
     # Set init and its forked children's oom_adj.
     write /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 1200000
     write /proc/1/oom_adj -16
+
+    # Set the security context for the init process.
+    # This should occur before anything else (e.g. ueventd) is started.
+    setcon u:r:init:s0
 
     start ueventd
 
@@ -32,6 +36,7 @@ loglevel 3
     export ANDROID_ROOT /system
     export ANDROID_ASSETS /system/app
     export ANDROID_DATA /data
+    export ANDROID_STORAGE /storage
     export ASEC_MOUNTPOINT /mnt/asec
     export LOOP_MOUNTPOINT /mnt/obb
     export BOOTCLASSPATH /system/framework/core.jar:/system/framework/core-junit.jar:/system/framework/bouncycastle.jar:/system/framework/ext.jar:/system/framework/framework.jar:/system/framework/framework2.jar:/system/framework/android.policy.jar:/system/framework/services.jar:/system/framework/apache-xml.jar
@@ -54,8 +59,14 @@ loglevel 3
     mkdir /cache 0771 system cache
     mkdir /config 0500 root root
 
+    # See storage config details at http://source.android.com/tech/storage/
+    mkdir /mnt/shell 0700 shell shell
+    mkdir /storage 0050 root sdcard_r
+
     # Directory for putting things only root should see.
     mkdir /mnt/secure 0700 root root
+    # Create private mountpoint so we can MS_MOVE from staging
+    mount tmpfs tmpfs /mnt/secure mode=0700,uid=0,gid=0
 
     # Directory for staging bindmounts
     mkdir /mnt/secure/staging 0700 root root
@@ -126,24 +137,36 @@ on fs
 on post-fs
     # once everything is setup, no need to modify /
     mount rootfs rootfs / ro remount
+    # mount shared so changes propagate into child namespaces
+    mount rootfs rootfs / shared rec
+    mount tmpfs tmpfs /mnt/secure private rec
 
     # We chown/chmod /cache again so because mount is run as root + defaults
     chown system cache /cache
     chmod 0771 /cache
+    # We restorecon /cache in case the cache partition has been reset.
+    restorecon /cache
 
     # This may have been created by the recovery system with odd permissions
     chown system cache /cache/recovery
     chmod 0770 /cache/recovery
+    # This may have been created by the recovery system with the wrong context.
+    restorecon /cache/recovery
 
     #change permissions on vmallocinfo so we can grab it from bugreports
     chown root log /proc/vmallocinfo
     chmod 0440 /proc/vmallocinfo
+
+    chown root log /proc/slabinfo
+    chmod 0440 /proc/slabinfo
 
     #change permissions on kmsg & sysrq-trigger so bugreports can grab kthread stacks
     chown root system /proc/kmsg
     chmod 0440 /proc/kmsg
     chown root system /proc/sysrq-trigger
     chmod 0220 /proc/sysrq-trigger
+    chown system log /proc/last_kmsg
+    chmod 0440 /proc/last_kmsg
 
     # create the lost+found directories, so as to enforce our permissions
     mkdir /cache/lost+found 0770 root root
@@ -152,6 +175,8 @@ on post-fs-data
     # We chown/chmod /data again so because mount is run as root + defaults
     chown system system /data
     chmod 0771 /data
+    # We restorecon /data in case the userdata partition has been reset.
+    restorecon /data
 
     # Create dump dir and collect dumps.
     # Do this before we mount cache so eventually we can use cache for
@@ -171,10 +196,12 @@ on post-fs-data
 
     # create basic filesystem structure
     mkdir /data/misc 01771 system misc
-    mkdir /data/misc/bluetoothd 0770 bluetooth bluetooth
+    mkdir /data/misc/adb 02750 system shell
+    mkdir /data/misc/bluedroid 0770 bluetooth net_bt_stack
     mkdir /data/misc/bluetooth 0770 system system
     mkdir /data/misc/keystore 0700 keystore keystore
     mkdir /data/misc/keychain 0771 system system
+    mkdir /data/misc/sms 0770 system radio
     mkdir /data/misc/vpn 0770 system vpn
     mkdir /data/misc/systemkeys 0700 system system
     # give system access to wpa_supplicant.conf for backup and restore
@@ -188,6 +215,7 @@ on post-fs-data
     mkdir /data/data 0771 system system
     mkdir /data/app-private 0771 system system
     mkdir /data/app-asec 0700 root root
+    mkdir /data/app-lib 0771 system system
     mkdir /data/app 0771 system system
     mkdir /data/property 0700 root root
     mkdir /data/ssh 0750 root shell
@@ -251,6 +279,7 @@ on boot
     chown radio system /sys/android_power/acquire_full_wake_lock
     chown radio system /sys/android_power/acquire_partial_wake_lock
     chown radio system /sys/android_power/release_wake_lock
+    chown system system /sys/power/autosleep
     chown system system /sys/power/state
     chown system system /sys/power/wakeup_count
     chown radio system /sys/power/wake_lock
@@ -321,8 +350,12 @@ on boot
     setprop net.tcp.buffersize.lte     524288,1048576,2097152,262144,524288,1048576
     setprop net.tcp.buffersize.umts    4094,87380,110208,4096,16384,110208
     setprop net.tcp.buffersize.hspa    4094,87380,262144,4096,16384,262144
+    setprop net.tcp.buffersize.hsupa   4094,87380,262144,4096,16384,262144
+    setprop net.tcp.buffersize.hsdpa   4094,87380,262144,4096,16384,262144
+    setprop net.tcp.buffersize.hspap   4094,87380,1220608,4096,16384,1220608
     setprop net.tcp.buffersize.edge    4093,26280,35040,4096,16384,35040
     setprop net.tcp.buffersize.gprs    4092,8760,11680,4096,8760,11680
+    setprop net.tcp.buffersize.evdo    4094,87380,262144,4096,16384,262144
 
 # allow system to modify ksm control files
     chown root system /sys/kernel/mm/ksm/pages_to_scan
@@ -374,6 +407,11 @@ on property:vold.decrypt=trigger_shutdown_framework
 service ueventd /sbin/ueventd
     class core
     critical
+    seclabel u:r:ueventd:s0
+
+on property:selinux.reload_policy=1
+    restart ueventd
+    restart installd
 
 service console /system/bin/sh
     class core
@@ -388,7 +426,9 @@ on property:ro.debuggable=1
 # adbd is controlled via property triggers in init.<platform>.usb.rc
 service adbd /sbin/adbd
     class core
+    socket adbd stream 660 system system
     disabled
+    seclabel u:r:adbd:s0
 
 # adbd on at boot in emulator
 on property:ro.kernel.qemu=1
@@ -428,7 +468,7 @@ service ril-daemon /system/bin/rild
 service surfaceflinger /system/bin/surfaceflinger
     class main
     user system
-    group graphics
+    group graphics drmrpc
     onrestart restart zygote
 
 service zygote /system/bin/app_process -Xzygote /system/bin --zygote --start-system-server
