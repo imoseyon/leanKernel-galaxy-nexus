@@ -33,16 +33,15 @@ fi
 if [[ $1 != *dev* && $1 != *rc* ]]; then
 	md5=`md5sum /tmp/boot.img | awk '{ print \$1 }'`
 	cp /tmp/boot.img /tmp/boot-${1}.img
+	url="http://imoseyon.host4droid.com/gnex/lkflash"
 	if [[ $1 == *exp* ]]; then
 	  if [[ $1 == *180* ]]; then
 	    mf="latest180"
 	  elif [[ $1 == *230* ]]; then
 	    mf="latest230"
 	  fi
-	  url="http://imoseyon.host4droid.com/gnex/exp"
 	else 
 	  mf="latest"
-	  url="http://encounterandroid.com/imoseyon/toro"
 	fi
 	echo "$url/boot-${1}.img $md5 ${1}" > /tmp/$mf
 fi
