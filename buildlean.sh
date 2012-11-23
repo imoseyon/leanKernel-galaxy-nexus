@@ -18,7 +18,7 @@ chmod 744 boot.img-ramdisk/sbin/checkt
 echo "making boot image"
 ./img.sh
 
-zipfile="imoseyon_leanKernel_v${1}gnexus.zip"
+zipfile="lk_gnex_jb42_v${1}.zip"
 if [ ! $4 ]; then
 	rm -f /tmp/*.img
 	echo "making zip file"
@@ -35,21 +35,21 @@ if [[ $1 != *dev* && $1 != *rc* ]]; then
 	cp /tmp/boot.img /tmp/boot-${1}.img
 	if [[ $1 == *exp* ]]; then
 	  if [[ $1 == *180* ]]; then
-	    mf="latest180jb"
+	    mf="latest180"
 	  elif [[ $1 == *230* ]]; then
-	    mf="latest230jb"
-	  else
-	    mf="latestnotrim"
+	    mf="latest230"
 	  fi
-	  edir="/exp"
+	  url="http://imoseyon.host4droid.com/gnex/exp"
 	else 
-	  mf="latestjb"
-	  edir=""
+	  mf="latest"
+	  url="http://encounterandroid.com/imoseyon/toro"
 	fi
-	echo "http://imoseyon.host4droid.com${edir}/boot-${1}.img $md5 ${1}" > /tmp/$mf
+	echo "$url/boot-${1}.img $md5 ${1}" > /tmp/$mf
 fi
 if [[ $2 == "upload" ]]; then
   cd /lk/toro
-  [[ $1 != *dev* && $1 != *rc* ]] && git log --pretty=format:"%aN: %s" -n 200 > /tmp/exp.log
-  /data/utils/gnex_ftpupload.sh $1 
+  if [[ $1 != *dev* && $1 != *rc* ]]; then
+	git log --pretty=format:"%aN: %s" -n 200 > /tmp/exp.log
+  fi
+  /data/utils/gnex_ftpupload42.sh $zipfile $1 $mf
 fi
