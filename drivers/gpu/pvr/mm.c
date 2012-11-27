@@ -56,8 +56,10 @@
 #include <linux/highmem.h>
 #include <linux/sched.h>
 
+#if defined(PVR_LINUX_MEM_AREA_POOL_ALLOW_SHRINK)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,1,0))
 #include <linux/shrinker.h>
+#endif
 #endif
 
 #include "img_defs.h"
