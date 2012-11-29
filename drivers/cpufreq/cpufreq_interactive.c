@@ -190,9 +190,9 @@ static void cpufreq_interactive_timer(unsigned long data)
 			    new_freq > hispeed_freq &&
 			    cputime64_sub(now, pcpu->hispeed_validate_time)
 			    < above_hispeed_delay_val) {
-				trace_cpufreq_interactive_notyet(data, cpu_load,
-								 pcpu->target_freq,
-								 new_freq);
+				trace_cpufreq_interactive_notyet(
+					data, cpu_load, pcpu->target_freq,
+					pcpu->policy->cur, new_freq);
 				goto rearm;
 			}
 		}
@@ -220,8 +220,9 @@ static void cpufreq_interactive_timer(unsigned long data)
 	if (new_freq < pcpu->floor_freq) {
 		if (cputime64_sub(now, pcpu->floor_validate_time)
 		    < min_sample_time) {
-			trace_cpufreq_interactive_notyet(data, cpu_load,
-					 pcpu->target_freq, new_freq);
+			trace_cpufreq_interactive_notyet(
+				data, cpu_load, pcpu->target_freq,
+				pcpu->policy->cur, new_freq);
 			goto rearm;
 		}
 	}
@@ -230,13 +231,14 @@ static void cpufreq_interactive_timer(unsigned long data)
 	pcpu->floor_validate_time = now;
 
 	if (pcpu->target_freq == new_freq) {
-		trace_cpufreq_interactive_already(data, cpu_load,
-						  pcpu->target_freq, new_freq);
+		trace_cpufreq_interactive_already(
+			data, cpu_load, pcpu->target_freq,
+			pcpu->policy->cur, new_freq);
 		goto rearm_if_notmax;
 	}
 
 	trace_cpufreq_interactive_target(data, cpu_load, pcpu->target_freq,
-					 new_freq);
+					 pcpu->policy->cur, new_freq);
 	pcpu->target_set_time_in_idle = now_idle;
 	pcpu->target_set_time = now;
 
