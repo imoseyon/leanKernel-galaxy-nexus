@@ -4,9 +4,9 @@
 # author - imoseyon@gmail.com
 #
 BB="/sbin/bb/busybox"
-STABLE="http://imoseyon.host4droid.com/latestjb"
-EXP180="http://imoseyon.host4droid.com/exp/latest180jb"
-EXP230="http://imoseyon.host4droid.com/exp/latest230jb"
+STABLE="http://imoseyon.host4droid.com/gnex/lkflash/latest"
+EXP180="http://imoseyon.host4droid.com/gnex/lkflash/latest180"
+EXP230="http://imoseyon.host4droid.com/gnex/lkflash/latest230"
 
 CUR=`$BB uname -a | $BB awk -F'-' '{ print \$3 }'`
 
