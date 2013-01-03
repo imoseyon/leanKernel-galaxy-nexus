@@ -63,6 +63,7 @@ static DEFINE_PER_CPU(struct cpufreq_interactive_cpuinfo, cpuinfo);
 static struct task_struct *speedchange_task;
 static cpumask_t speedchange_cpumask;
 // used for suspend code
+static unsigned int registration = 0;
 static unsigned int enabled = 0;
 
 static spinlock_t speedchange_cpumask_lock;
@@ -564,7 +565,7 @@ static void interactive_suspend(int suspend)
 }
 
 static void interactive_early_suspend(struct early_suspend *handler) {
-     interactive_suspend(1);
+      if (!registration) interactive_suspend(1);
 }
 
 static void interactive_late_resume(struct early_suspend *handler) {
@@ -993,7 +994,9 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			&cpufreq_notifier_block, CPUFREQ_TRANSITION_NOTIFIER);
 
 		enabled = 1;
+		registration = 1;
                 register_early_suspend(&interactive_power_suspend);
+		registration = 0;
                 pr_info("[imoseyon] interactivex start\n");
 		break;
 
