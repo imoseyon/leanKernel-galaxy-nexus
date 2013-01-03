@@ -13,6 +13,8 @@
  * GNU General Public License for more details.
  *
  * Author: Mike Chan (mike@android.com)
+ * Modified for early suspend support and hotplugging by imoseyon (imoseyon@gmail.com)
+ *   interactiveX V2
  *
  */
 
@@ -27,6 +29,7 @@
 #include <linux/time.h>
 #include <linux/timer.h>
 #include <linux/workqueue.h>
+#include <linux/earlysuspend.h>
 #include <linux/kthread.h>
 #include <linux/slab.h>
 #include <asm/cputime.h>
@@ -59,6 +62,9 @@ static DEFINE_PER_CPU(struct cpufreq_interactive_cpuinfo, cpuinfo);
 /* realtime thread handles frequency scaling */
 static struct task_struct *speedchange_task;
 static cpumask_t speedchange_cpumask;
+// used for suspend code
+static unsigned int enabled = 0;
+
 static spinlock_t speedchange_cpumask_lock;
 
 /* Hi speed to bump to from lo speed when load burst (default max) */
@@ -114,8 +120,8 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 #ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
 static
 #endif
-struct cpufreq_governor cpufreq_gov_interactive = {
-	.name = "interactive",
+struct cpufreq_governor cpufreq_gov_interactivex = {
+	.name = "interactivex",
 	.governor = cpufreq_governor_interactive,
 	.max_transition_latency = 10000000,
 	.owner = THIS_MODULE,
@@ -545,6 +551,32 @@ static void cpufreq_interactive_boost(void)
 		wake_up_process(speedchange_task);
 }
 
+static void interactive_suspend(int suspend)
+{
+        if (!enabled) return;
+	if (!suspend) { 
+                if (num_online_cpus() < 2) cpu_up(1);
+                pr_info("[imoseyon] interactivex awake cpu1 up\n");
+	} else {
+                if (num_online_cpus() > 1) cpu_down(1);
+                pr_info("[imoseyon] interactivex suspended cpu1 down\n");
+	}
+}
+
+static void interactive_early_suspend(struct early_suspend *handler) {
+     interactive_suspend(1);
+}
+
+static void interactive_late_resume(struct early_suspend *handler) {
+     interactive_suspend(0);
+}
+
+static struct early_suspend interactive_power_suspend = {
+        .suspend = interactive_early_suspend,
+        .resume = interactive_late_resume,
+        .level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 1,
+};
+
 static int cpufreq_interactive_notifier(
 	struct notifier_block *nb, unsigned long val, void *data)
 {
@@ -959,6 +991,10 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		idle_notifier_register(&cpufreq_interactive_idle_nb);
 		cpufreq_register_notifier(
 			&cpufreq_notifier_block, CPUFREQ_TRANSITION_NOTIFIER);
+
+		enabled = 1;
+                register_early_suspend(&interactive_power_suspend);
+                pr_info("[imoseyon] interactivex start\n");
 		break;
 
 	case CPUFREQ_GOV_STOP:
@@ -979,6 +1015,10 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		idle_notifier_unregister(&cpufreq_interactive_idle_nb);
 		sysfs_remove_group(cpufreq_global_kobject,
 				&interactive_attr_group);
+
+		enabled = 0;
+                unregister_early_suspend(&interactive_power_suspend);
+                pr_info("[imoseyon] interactivex inactive\n");
 
 		break;
 
@@ -1030,7 +1070,7 @@ static int __init cpufreq_interactive_init(void)
 	/* NB: wake up so the thread does not look hung to the freezer */
 	wake_up_process(speedchange_task);
 
-	return cpufreq_register_governor(&cpufreq_gov_interactive);
+	return cpufreq_register_governor(&cpufreq_gov_interactivex);
 }
 
 #ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
@@ -1041,7 +1081,7 @@ module_init(cpufreq_interactive_init);
 
 static void __exit cpufreq_interactive_exit(void)
 {
-	cpufreq_unregister_governor(&cpufreq_gov_interactive);
+	cpufreq_unregister_governor(&cpufreq_gov_interactivex);
 	kthread_stop(speedchange_task);
 	put_task_struct(speedchange_task);
 }
@@ -1049,6 +1089,6 @@ static void __exit cpufreq_interactive_exit(void)
 module_exit(cpufreq_interactive_exit);
 
 MODULE_AUTHOR("Mike Chan <mike@android.com>");
-MODULE_DESCRIPTION("'cpufreq_interactive' - A cpufreq governor for "
+MODULE_DESCRIPTION("'cpufreq_interactivex' - A cpufreq governor for "
 	"Latency sensitive workloads");
 MODULE_LICENSE("GPL");
