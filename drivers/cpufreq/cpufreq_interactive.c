@@ -256,8 +256,8 @@ static u64 update_load(int cpu)
 	u64 active_time;
 
 	now_idle = get_cpu_idle_time_us(cpu, &now);
-	delta_idle = (unsigned int) cputime64_sub(now_idle - pcpu->time_in_idle);
-	delta_time = (unsigned int) cputime64_sub(now - pcpu->time_in_idle_timestamp);
+	delta_idle = (unsigned int) cputime64_sub(now_idle, pcpu->time_in_idle);
+	delta_time = (unsigned int) cputime64_sub(now, pcpu->time_in_idle_timestamp);
 	active_time = delta_time - delta_idle;
 	pcpu->cputime_speedadj += active_time * pcpu->policy->cur;
 
@@ -287,7 +287,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 
 	spin_lock_irqsave(&pcpu->load_lock, flags);
 	now = update_load(data);
-	delta_time = (unsigned int) cputime64_sub(now - pcpu->cputime_speedadj_timestamp);
+	delta_time = (unsigned int) cputime64_sub(now, pcpu->cputime_speedadj_timestamp);
 	cputime_speedadj = pcpu->cputime_speedadj;
 	spin_unlock_irqrestore(&pcpu->load_lock, flags);
 
