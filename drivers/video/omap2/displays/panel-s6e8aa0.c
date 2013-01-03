@@ -351,6 +351,10 @@ static u32 s6e8aa0_table_lookup(u32 b, int c,
 	} else {
 		vl = table[i - 1].v[c];
 		tmp = (u64)vh * (b - bl) + (u64)vl * (bh - b);
+		if ((bh-bl) == 0) {
+		  pr_info("[imoseyon] %s: whoa wtf\n", __func__);
+		  return b;
+		}
 		do_div(tmp, bh - bl);
 		ret = tmp;
 	}
