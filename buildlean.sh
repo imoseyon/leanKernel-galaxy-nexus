@@ -1,4 +1,13 @@
 #!/bin/bash
+gist="4464048"
+
+explog () {
+  git log --pretty=format:"%aN: %s" -n 50 > /tmp/explog
+  cd /lk/$gist
+  cp /tmp/explog gistfile1.txt
+  git commit -am "leanKernel v${1}"
+  git push -f origin master
+}
 
 [[ `diff arch/arm/configs/tuna_defconfig .config ` ]] && \
 	{ echo "Unmatched defconfig!"; exit -1; } 
@@ -50,8 +59,9 @@ if [[ $1 != *dev* && $1 != *rc* ]]; then
 fi
 if [[ $2 == "upload" ]]; then
   cd /lk/toro
-  if [[ $1 != *dev* && $1 != *rc* ]]; then
-	git log --pretty=format:"%aN: %s" -n 200 > /tmp/exp.log
+  if [[ $1 == *exp* ]]; then
+#	git log --pretty=format:"%aN: %s" -n 200 > /tmp/exp.log
+	explog $1
   fi
   /data/utils/gnex_ftpupload42.sh $zipfile $1 $mf
 fi
