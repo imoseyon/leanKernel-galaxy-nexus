@@ -331,7 +331,6 @@ static __used bool wl_is_ibssstarter(struct wl_priv *wl);
  */
 static s32 __wl_cfg80211_up(struct wl_priv *wl);
 static s32 __wl_cfg80211_down(struct wl_priv *wl);
-static s32 wl_add_remove_eventmsg(struct net_device *ndev, u16 event, bool add);
 static bool wl_is_linkdown(struct wl_priv *wl, const wl_event_msg_t *e);
 static bool wl_is_linkup(struct wl_priv *wl, const wl_event_msg_t *e, struct net_device *ndev);
 static bool wl_is_nonetwork(struct wl_priv *wl, const wl_event_msg_t *e);
@@ -2787,7 +2786,9 @@ wl_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 
 	bssidx = wl_cfgp2p_find_idx(wl, dev);
 
-	if (mac_addr) {
+	if (mac_addr &&
+	   ((params->cipher != WLAN_CIPHER_SUITE_WEP40) &&
+	    (params->cipher != WLAN_CIPHER_SUITE_WEP104))) {
 		wl_add_keyext(wiphy, dev, key_idx, mac_addr, params);
 		goto exit;
 	}
@@ -7089,7 +7090,7 @@ static s32 wl_config_ifmode(struct wl_priv *wl, struct net_device *ndev, s32 ift
 	return 0;
 }
 
-static s32 wl_add_remove_eventmsg(struct net_device *ndev, u16 event, bool add)
+s32 wl_add_remove_eventmsg(struct net_device *ndev, u16 event, bool add)
 {
 	s8 iovbuf[WL_EVENTING_MASK_LEN + 12];
 
