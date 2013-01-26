@@ -808,7 +808,7 @@ static void sii9234_connect(bool on, u8 *devcap)
 				(devcap[MHL_DEVCAP_DEVICE_ID_H] << 8) |
 				devcap[MHL_DEVCAP_DEVICE_ID_L];
 
-			if (adopter_id == 0x3333 || adopter_id == 321) {
+			if (adopter_id == 0x3333) {
 				if (devcap[MHL_DEVCAP_RESERVED] == 2)
 					val = USB_EVENT_CHARGER;
 
