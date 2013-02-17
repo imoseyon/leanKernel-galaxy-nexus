@@ -53,6 +53,8 @@
 #include "srvkm.h"
 #include "ttrace.h"
 
+static int dddk = PVRVERSION_BUILD;
+
 #if defined(PVRSRV_USSE_EDM_STATUS_DEBUG)
 
 static const IMG_CHAR *SGXUKernelStatusString(IMG_UINT32 code)
@@ -2075,6 +2077,7 @@ PVRSRV_ERROR SGXDevInitCompatCheck(PVRSRV_DEVICE_NODE *psDeviceNode)
 		PVR_LOG(("(FAIL) SGXInit: Incompatible driver DDK revision (%d)/device DDK revision (%d).",
 				PVRVERSION_BUILD, psSGXFeatures->ui32DDKBuild));
 		eError = PVRSRV_ERROR_DDK_VERSION_MISMATCH;
+		dddk = psSGXFeatures->ui32DDKBuild;
 		goto chk_exit;
 	}
 	else
@@ -2191,6 +2194,13 @@ chk_exit:
 #if defined(IGNORE_SGX_INIT_COMPATIBILITY_CHECK)
 	return PVRSRV_OK;
 #else
+#if !defined (NO_HARDWARE)
+	if( (psSGXFeatures->ui32DDKVersion == ((PVRVERSION_MAJ << 16) | (PVRVERSION_MIN << 8) |
+                  PVRVERSION_BRANCH) )) {
+		psSGXFeatures->ui32DDKBuild = dddk;
+		eError = PVRSRV_OK;
+	}
+#endif
 	return eError;
 #endif
 }
@@ -2642,8 +2652,7 @@ PVRSRV_ERROR SGXGetMiscInfoKM(PVRSRV_SGXDEV_INFO	*psDevInfo,
 				(PVRVERSION_MAJ << 16) |
 				(PVRVERSION_MIN << 8) |
 				PVRVERSION_BRANCH;
-			psSGXFeatures->ui32DDKBuild = PVRVERSION_BUILD;
-
+			psSGXFeatures->ui32DDKBuild = dddk;
 			
 			psSGXFeatures->ui32BuildOptions = (SGX_BUILD_OPTIONS);
 
