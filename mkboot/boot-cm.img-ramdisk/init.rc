@@ -20,6 +20,9 @@ on early-init
 
 # create mountpoints
     mkdir /mnt 0775 root system
+    mkdir /storage 0050 root sdcard_r
+    # Create mountpoint so Dalvik can mark as slave in zygotes.
+    mount tmpfs tmpfs /storage mode=0050,uid=0,gid=1028
 
 on init
 
@@ -59,6 +62,7 @@ loglevel 3
 
     # See storage config details at http://source.android.com/tech/storage/
     mkdir /mnt/shell 0700 shell shell
+    # Ensure permissions are set appropriately after device early-init.
     mkdir /storage 0050 root sdcard_r
 
     # Directory for putting things only root should see.
@@ -80,6 +84,10 @@ loglevel 3
     # Filesystem image public mount points.
     mkdir /mnt/obb 0700 root system
     mount tmpfs tmpfs /mnt/obb mode=0755,gid=1000
+
+    # Fuse public mount points.
+    mkdir /mnt/fuse 0700 root system
+    mount tmpfs tmpfs /mnt/fuse mode=0775,gid=1000
 
     write /proc/sys/kernel/panic_on_oops 1
     write /proc/sys/kernel/hung_task_timeout_secs 0
@@ -299,6 +307,8 @@ on boot
     chown system system /sys/devices/system/cpu/cpufreq/interactive/boostpulse
     chown system system /sys/devices/system/cpu/cpufreq/interactive/input_boost
     chmod 0660 /sys/devices/system/cpu/cpufreq/interactive/input_boost
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/boostpulse_duration
+    chmod 0660 /sys/devices/system/cpu/cpufreq/interactive/boostpulse_duration
 
     # Assume SMP uses shared cpufreq policy for all CPUs
     chown system system /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor

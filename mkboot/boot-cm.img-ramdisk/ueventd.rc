@@ -96,10 +96,12 @@
 /sys/devices/system/cpu/cpufreq ondemand/down_differential   0664    system  system
 /sys/devices/system/cpu/cpufreq ondemand/powersave_bias  0664    system  system
 /sys/devices/system/cpu/cpufreq ondemand/sampling_down_factor    0664    system  system
+/sys/devices/system/cpu/cpufreq ondemand/up_threshold   0664    system  system
 
 /sys/devices/system/cpu/cpufreq interactive/boostpulse  0664    system  system
 /sys/devices/system/cpu/cpufreq interactive/timer_rate  0664    system  system
 /sys/devices/system/cpu/cpufreq interactive/min_sample_rate 0664    system  system
+/sys/devices/system/cpu/cpufreq interactive/min_sample_time 0664    system  system
 /sys/devices/system/cpu/cpufreq interactive/hispeed_freq    0664    system  system
 /sys/devices/system/cpu/cpufreq interactive/go_hispeed_load 0664    system  system
 /sys/devices/system/cpu/cpufreq interactive/above_hispeed_delay 0664    system  system
