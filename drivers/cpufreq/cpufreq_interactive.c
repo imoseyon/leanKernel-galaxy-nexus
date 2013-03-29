@@ -315,7 +315,7 @@ static u64 update_load(int cpu)
 	unsigned int delta_time;
 	u64 active_time;
 
-	now_idle = get_cpu_idle_time_us(cpu, &now);
+	now_idle = get_cpu_idle_time(cpu, &now);
 	delta_idle = (unsigned int) cputime64_sub(now_idle, pcpu->time_in_idle);
 	delta_time = (unsigned int) cputime64_sub(now, pcpu->time_in_idle_timestamp);
 	active_time = delta_time - delta_idle;
