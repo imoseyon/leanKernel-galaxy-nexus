@@ -104,3 +104,4 @@
 /sys/devices/system/cpu/cpufreq interactive/go_hispeed_load 0664    system  system
 /sys/devices/system/cpu/cpufreq interactive/above_hispeed_delay 0664    system  system
 /sys/devices/system/cpu/cpufreq interactive/boost	0664	system	system
+/sys/devices/system/cpu/cpufreq interactive/io_is_busy      0664    system  system
