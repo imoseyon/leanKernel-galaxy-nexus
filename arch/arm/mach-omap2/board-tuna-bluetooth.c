@@ -27,6 +27,8 @@
 #include <linux/rfkill.h>
 #include <linux/platform_device.h>
 #include <linux/wakelock.h>
+#include <linux/debugfs.h>
+#include <linux/seq_file.h>
 #include <asm/mach-types.h>
 #include <plat/serial.h>
 #include <plat/board-tuna-bluetooth.h>
@@ -43,6 +45,7 @@ static struct regulator *clk32kaudio_reg;
 static bool bt_enabled;
 static bool host_wake_uart_enabled;
 static bool wake_uart_enabled;
+static struct dentry *btdebugdent;
 
 struct bcm_bt_lpm {
 	int wake;
@@ -215,6 +218,29 @@ static int bcm_bt_lpm_init(struct platform_device *pdev)
 	return 0;
 }
 
+static int btdebug_dump(struct seq_file *sf, void *private)
+{
+	seq_printf(sf, "en=%d bt_wake=%d lpm.w=%d w_uart_en=%d\n",
+		   bt_enabled, gpio_get_value(BT_WAKE_GPIO),
+		   bt_lpm.wake, wake_uart_enabled);
+	seq_printf(sf, "bt_host_wake=%d lpm.hw=%d hw_uart_en=%d\n",
+		   gpio_get_value(BT_HOST_WAKE_GPIO), bt_lpm.host_wake,
+		   host_wake_uart_enabled);
+	return 0;
+}
+
+static int btdebug_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, btdebug_dump, NULL);
+}
+
+static const struct file_operations btdebug_fops = {
+	.open = btdebug_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
 static int bcm4330_bluetooth_probe(struct platform_device *pdev)
 {
 	int rc = 0;
@@ -269,6 +295,11 @@ static int bcm4330_bluetooth_probe(struct platform_device *pdev)
 		gpio_free(BT_REG_GPIO);
 	}
 
+	btdebugdent = debugfs_create_file("bt", S_IRUGO, NULL, NULL,
+					  &btdebug_fops);
+	if (IS_ERR_OR_NULL(btdebugdent))
+		pr_err("%s: failed to create debugfs file\n", __func__);
+
 	return ret;
 }
 
@@ -276,6 +307,9 @@ static int bcm4330_bluetooth_remove(struct platform_device *pdev)
 {
 	rfkill_unregister(bt_rfkill);
 	rfkill_destroy(bt_rfkill);
+
+	if (!IS_ERR_OR_NULL(btdebugdent))
+		debugfs_remove(btdebugdent);
 
 	gpio_free(BT_REG_GPIO);
 	gpio_free(BT_RESET_GPIO);
