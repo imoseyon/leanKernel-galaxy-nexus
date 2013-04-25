@@ -284,7 +284,9 @@ static int omap_dss_remove(struct platform_device *pdev)
 static void omap_dss_shutdown(struct platform_device *pdev)
 {
 	DSSDBG("shutdown\n");
+#if 0 /* temporary, avoid hang at shutdown */
 	dss_disable_all_devices();
+#endif
 }
 
 static int omap_dss_suspend(struct platform_device *pdev, pm_message_t state)
