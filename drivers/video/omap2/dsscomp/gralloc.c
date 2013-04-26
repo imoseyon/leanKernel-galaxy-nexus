@@ -451,7 +451,11 @@ static void dsscomp_early_suspend_cb(void *data, int status)
 	wake_up(&early_suspend_wq);
 }
 
+#if 1 /* HACK */
+void dsscomp_early_suspend(struct early_suspend *h)
+#else
 static void dsscomp_early_suspend(struct early_suspend *h)
+#endif
 {
 	struct dsscomp_setup_dispc_data d = {
 		.num_mgrs = 0,
