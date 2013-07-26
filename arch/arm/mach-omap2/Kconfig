@@ -403,4 +403,11 @@ config UNLOCK_180MHZ
 	bool "Unlock 180Mhz"
 	default n
 
+config FORCE_DOCK_MODE
+	bool "Force POGO charge into docked mode"
+	default y
+	help
+	  A sysfs interface to force phone into a selectable
+	  docked mode when POGO dock detection fails.
+
 endif

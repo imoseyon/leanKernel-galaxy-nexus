@@ -28,7 +28,7 @@
 #include <linux/completion.h>
 #include <linux/usb/otg.h>
 #include <linux/usb/otg_id.h>
-
+#include <linux/forcedock.h>
 #include <asm/div64.h>
 
 #include "mux.h"
@@ -180,6 +180,16 @@ static int pogo_detect_callback(struct otg_id_notifier_block *nb)
 			}
 
 			if (retry++ > POGO_DOCK_ID_MAX_RETRY) {
+			#ifdef CONFIG_FORCE_DOCK_MODE
+				if(force_dock_mode){
+					if(!dock_mode){
+						pogo->dock_type |= POGO_DOCK_DESK;}
+					if(!charge_mode){
+						pogo->dock_type |= POGO_DOCK_CHARGER;}
+				pogo->dock_type |= POGO_DOCK_DOCKED;
+				break;
+				}
+			#endif
 				wake_unlock(&pogo->wake_lock);
 				pr_err("Unable to identify pogo dock\n");
 				return OTG_ID_UNHANDLED;
