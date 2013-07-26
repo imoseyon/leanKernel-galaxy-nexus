@@ -41,6 +41,7 @@
 #include <linux/platform_data/ram_console.h>
 #include <plat/mcspi.h>
 #include <linux/i2c-gpio.h>
+#include <linux/earlysuspend.h>
 
 #include <mach/hardware.h>
 #include <mach/omap4-common.h>
@@ -1148,6 +1149,18 @@ static int tuna_notifier_call(struct notifier_block *this,
 	 * offset from the end of the 1st SAR bank.
 	 */
 	writel(flag, sar_base + SAR_BANK2_OFFSET - 0xC);
+
+#if defined(CONFIG_DSSCOMP) && defined(CONFIG_EARLYSUSPEND)
+	/*
+	 * HACK: Blank screen to avoid screen artifacts due to removal of
+	 * DSS/panel drivers shutdown in reboot path.
+	 */
+	{
+		extern void dsscomp_early_suspend(struct early_suspend *h);
+
+		dsscomp_early_suspend(NULL);
+	}
+#endif
 
 	return NOTIFY_DONE;
 }
