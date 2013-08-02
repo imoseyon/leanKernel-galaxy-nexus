@@ -15,6 +15,9 @@
 # the msm hw3d client device node is world writable/readable.
 /dev/msm_hw3dc            0666   root       root
 
+# the DIAG device node is not world writable/readable.
+/dev/diag                 0660   system     qcom_diag
+
 # gpu driver for adreno200 is globally accessible
 /dev/kgsl                 0666   root       root
 
@@ -22,7 +25,6 @@
 /dev/dri/*                0666   root       graphics
 
 # these should not be world writable
-/dev/diag                 0660   radio      radio
 /dev/diag_arm9            0660   radio      radio
 /dev/android_adb          0660   adb        adb
 /dev/android_adb_enable   0660   adb        adb
@@ -43,7 +45,7 @@
 /dev/adsp/*               0660   system     audio
 /dev/snd/*                0660   system     audio
 /dev/mt9t013              0660   system     system
-/dev/msm_camera/*         0660   system     system
+/dev/msm_camera/*         0660   system     camera
 /dev/akm8976_daemon       0640   compass    system
 /dev/akm8976_aot          0640   compass    system
 /dev/akm8973_daemon       0640   compass    system
@@ -95,13 +97,17 @@
 /sys/devices/system/cpu/cpufreq ondemand/powersave_bias  0664    system  system
 /sys/devices/system/cpu/cpufreq ondemand/sampling_down_factor    0664    system  system
 /sys/devices/system/cpu/cpufreq ondemand/up_threshold   0664    system  system
+/sys/devices/system/cpu/cpufreq ondemand/up_threshold_multi_core   0664    system  system
+/sys/devices/system/cpu/cpufreq ondemand/down_differential_multi_core   0664    system  system
+/sys/devices/system/cpu/cpufreq ondemand/optimal_freq   0664    system  system
+/sys/devices/system/cpu/cpufreq ondemand/sync_freq   0664    system  system
+/sys/devices/system/cpu/cpufreq ondemand/up_threshold_any_cpu_load   0664    system  system
 
-/sys/devices/system/cpu/cpufreq interactive/boostpulse  0200    system  system
+/sys/devices/system/cpu/cpufreq interactive/boostpulse  0664    system  system
 /sys/devices/system/cpu/cpufreq interactive/timer_rate  0664    system  system
 /sys/devices/system/cpu/cpufreq interactive/min_sample_rate 0664    system  system
 /sys/devices/system/cpu/cpufreq interactive/min_sample_time 0664    system  system
 /sys/devices/system/cpu/cpufreq interactive/hispeed_freq    0664    system  system
 /sys/devices/system/cpu/cpufreq interactive/go_hispeed_load 0664    system  system
 /sys/devices/system/cpu/cpufreq interactive/above_hispeed_delay 0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/boost	0664	system	system
 /sys/devices/system/cpu/cpufreq interactive/io_is_busy      0664    system  system

@@ -15,3 +15,5 @@
 /dev/block/platform/omap/omap_hsmmc.0/by-name/xloader   /xloader            emmc      defaults                                              defaults
 /dev/block/platform/omap/omap_hsmmc.0/by-name/radio     /radio              emmc      defaults                                              defaults
 
+# USB storage device
+/devices/platform/omap/musb-omap2430/musb-hdrc          /storage/usbdisk    vfat      defaults                                              voldmanaged=usbdisk:auto 

@@ -89,6 +89,9 @@ on fs
     chmod 0777 /dev/tiler
     chmod 0777 /dev/dmm
 
+# change permissions for gamma settings
+    chmod 0666 /sys/devices/platform/omapdss/manager0/gamma
+
 # change permissions for ION driver
     chmod 0777 /dev/ion
 
@@ -98,6 +101,9 @@ on fs
 
 # add symlink for HDCP key
         symlink /factory/hdcp.keys /system/vendor/firmware/hdcp.keys
+
+# allow to modify Wifi power behaviour in terms of battery/speed at sleep time
+    chown root system sys/module/bcmdhd/parameters/uiFastWifi
 
 # nfc
     setprop ro.nfc.port "COM4"
@@ -253,12 +259,13 @@ service iprenew_eth0 /system/bin/dhcpcd -n
 	oneshot
 
 # bugreport is triggered by holding down volume down, volume up and power
-service bugreport /system/bin/dumpstate -d -p -B \
-        -o /data/data/com.android.shell/files/bugreports/bugreport
-	class main
-	disabled
-	oneshot
-	keycodes 114 115 116
+# it's easy to trigger when wanting to take screenshots. let's disable it
+#service bugreport /system/bin/dumpstate -d -p -B \
+#        -o /data/data/com.android.shell/files/bugreports/bugreport
+#	class main
+#	disabled
+#	oneshot
+#	keycodes 114 115 116
 
 service battery_charger /charger
 	class charger
