@@ -18,7 +18,7 @@ chmod 744 boot.img-ramdisk/sbin/checkt
 echo "making boot image"
 ./img.sh
 
-zipfile="lk_gnex_jb42_v${1}.zip"
+zipfile="lk_gnex_jb43_v${1}.zip"
 if [ ! $4 ]; then
 	rm -f /tmp/*.img
 	echo "making zip file"
@@ -36,12 +36,12 @@ if [[ $1 != *dev* && $1 != *rc* ]]; then
 	url="http://imoseyon.host4droid.com/gnex/lkflash"
 	if [[ $1 == *exp* ]]; then
 	  if [[ $1 == *180* ]]; then
-	    mf="latest180"
+	    mf="43latest180"
 	  elif [[ $1 == *230* ]]; then
-	    mf="latest230"
+	    mf="43latest230"
 	  fi
 	else 
-	  mf="latest"
+	  mf="43latest"
 	fi
 	echo "$url/boot-${1}.img $md5 ${1}" > /tmp/$mf
 fi
