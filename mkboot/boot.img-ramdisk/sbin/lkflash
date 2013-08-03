@@ -4,9 +4,9 @@
 # author - imoseyon@gmail.com
 #
 BB="/sbin/bb/busybox"
-STABLE="http://imoseyon.host4droid.com/gnex/lkflash/latest"
-EXP180="http://imoseyon.host4droid.com/gnex/lkflash/latest180"
-EXP230="http://imoseyon.host4droid.com/gnex/lkflash/latest230"
+STABLE="http://imoseyon.host4droid.com/gnex/lkflash/43latest"
+EXP180="http://imoseyon.host4droid.com/gnex/lkflash/43latest180"
+EXP230="http://imoseyon.host4droid.com/gnex/lkflash/43latest230"
 
 CUR=$( $BB uname -r | $BB awk -F- '{ a=""; if( $4==180 || $4 == 230 ) { a=-$4 } ; print $3a }' )
 
@@ -19,7 +19,6 @@ echo "1) latest stable (recommended)"
 echo "2) latest experimental 180mhz-1.65ghz" 
 echo "3) latest experimental 230mhz-1.65ghz" 
 echo "4) check/display versions" 
-echo "9) latest stable franco (disabled for now)"
 
 echo
 echo "FLASH AT YOUR OWN RISK. I'm not responsible for my mistakes or yours. ;)"
@@ -50,13 +49,6 @@ case $option in
 	v230=`$BB wget -q -O - $EXP230 | $BB awk '{ print \$3 }'`
 	echo; echo ">>> Current version: $CUR, Latest stable: $vstable, Exp: $v180 $v230"	
 	sleep 2
-	;;
-  9)
-	exit
-	$BB wget -q -O /sdcard/fboot.img http://minooch.com/franciscofranco/Galaxy%20Nexus/nightlies/appfiles/boot.img
-  	$BB dd if=/sdcard/fboot.img of=/dev/block/platform/omap/omap_hsmmc.0/by-name/boot 2> /dev/null
-	echo "Latest Franco Kernel flashed. Reboot when you're ready."
-	exit
 	;;
   *)
 	echo "BYE"
