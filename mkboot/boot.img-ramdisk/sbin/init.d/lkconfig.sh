@@ -3,6 +3,12 @@
 # lkconfig.sh - simple configuration manager for leankernel
 #
 
+# 4.3 hack - start daemonsu if binary exists
+[ -f "/system/xbin/daemonsu" ] && /system/xbin/daemonsu --auto-daemon &
+
+# init.d support on non-CM ROMs
+[ ! -f "/system/bin/sysinit" ] && /sbin/bb/busybox run-parts /system/etc/init.d
+
 bb="/sbin/bb/busybox"
 left="minfreq maxfreq governor sriva srmpu srcore vminiva vminmpu vmincore srhigh tempcontrol gpuoc"
 files="/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq \
