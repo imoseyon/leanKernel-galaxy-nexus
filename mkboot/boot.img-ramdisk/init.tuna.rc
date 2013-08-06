@@ -53,6 +53,9 @@ on boot
 	mount debugfs /sys/kernel/debug /sys/kernel/debug
 	chmod 0666 /dev/pvrsrvkm
 
+# Lower maximum frequency when screen is off
+        write /sys/devices/system/cpu/cpu0/cpufreq/screen_off_max_freq 700000
+
 # autosuspend root hubs immediatly after attached devices
 	write /sys/bus/usb/devices/usb1/power/autosuspend_delay_ms 0
 	write /sys/bus/usb/devices/usb2/power/autosuspend_delay_ms 0
