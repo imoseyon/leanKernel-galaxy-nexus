@@ -273,6 +273,8 @@ obj-$(CONFIG_MACH_TUNA)			+= board-tuna-usbhost.o
 
 obj-$(CONFIG_FORCE_FAST_CHARGE)		+= fastchg.o
 
+obj-$(CONFIG_FORCE_DOCK_MODE)		+= forcedock.o
+
 obj-$(CONFIG_MACH_OMAP3517EVM)		+= board-am3517evm.o \
 					   omap_phy_internal.o \
 
