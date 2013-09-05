@@ -86,3 +86,4 @@ arch/arm/boot/compressed/ashldi3.S
 arch/arm/boot/compressed/piggy.xzkern
 .gitignore
 zip/
+buildlean.sh
