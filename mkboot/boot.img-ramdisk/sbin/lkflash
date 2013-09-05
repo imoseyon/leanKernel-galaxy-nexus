@@ -4,9 +4,9 @@
 # author - imoseyon@gmail.com
 #
 BB="/sbin/bb/busybox"
-STABLE="http://imoseyon.host4droid.com/gnex/lkflash/43latest"
-EXP180="http://imoseyon.host4droid.com/gnex/lkflash/43latest180"
-EXP230="http://imoseyon.host4droid.com/gnex/lkflash/43latest230"
+STABLE="http://androtransfer.com/get.php?p=imoseyon/tuna/lkflash/43latest&directserve=1"
+EXP180="http://androtransfer.com/get.php?p=imoseyon/tuna/lkflash/43latest180&directserve=1"
+EXP230="http://androtransfer.com/get.php?p=imoseyon/tuna/lkflash/43latest230&directserve=1"
 
 CUR=$( $BB uname -r | $BB awk -F- '{ a=""; if( $4==180 || $4 == 230 ) { a=-$4 } ; print $3a }' )
 
