@@ -19,7 +19,6 @@
 # Empty directories
 /lost\+found		u:object_r:rootfs:s0
 /proc			u:object_r:rootfs:s0
-/sys			u:object_r:rootfs:s0
 
 # SELinux policy files
 /file_contexts		u:object_r:rootfs:s0
@@ -151,6 +150,9 @@
 /system/xbin/su		u:object_r:su_exec:s0
 /system/vendor/bin/gpsd u:object_r:gpsd_exec:s0
 /system/bin/ping    u:object_r:ping_exec:s0
+/system/bin/dnsmasq     u:object_r:dnsmasq_exec:s0
+/system/bin/hostapd     u:object_r:hostapd_exec:s0
+/system/bin/clatd	u:object_r:clatd_exec:s0
 #############################
 # Vendor files
 #
